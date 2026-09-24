@@ -75,7 +75,9 @@ export function ConfirmPopupProvider({ children }: { children: ReactNode }) {
   // notification tap, a button) stay open wherever they are.
   const pathname = usePathname();
   const pathRef = useRef(pathname);
-  pathRef.current = pathname;
+  useEffect(() => {
+    pathRef.current = pathname;
+  }, [pathname]);
   const autoOpen = useRef(false);
   useEffect(() => {
     if (autoOpen.current && pathname !== '/') {
