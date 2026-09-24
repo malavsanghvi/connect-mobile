@@ -245,10 +245,13 @@ export function isValidEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim());
 }
 
-/** "482917" → "482 917" for display while typing. */
+/** Group a one-time code for display while typing: "482917" → "482 917",
+ * "48291736" → "4829 1736". Codes are 6–10 digits (a Supabase project setting). */
 export function formatOtp(code: string): string {
-  const d = code.replace(/\D/g, '').slice(0, 6);
-  return d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
+  const d = code.replace(/\D/g, '').slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
+  return d.match(/.{1,4}/g)!.join(' ');
 }
 
 export function fullName(p: { first_name: string; last_name: string; preferred_name?: string | null }): string {

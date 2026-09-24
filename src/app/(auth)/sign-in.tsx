@@ -12,7 +12,11 @@ import { useT } from '@/providers/settings';
 
 const RESEND_SECONDS = 60;
 
-/** Onboarding step 1: email or mobile → 6-digit code (Supabase OTP). */
+/** Onboarding step 1: email or mobile → one-time code (Supabase OTP). */
+
+// The code length is a Supabase project setting (6–10 digits); accept any of them.
+const CODE_MIN = 6;
+const CODE_MAX = 10;
 export default function SignInScreen() {
   const router = useRouter();
   const t = useT();
@@ -68,7 +72,7 @@ export default function SignInScreen() {
 
   const verify = async () => {
     const token = code.replace(/\D/g, '');
-    if (token.length !== 6) return setFieldError(t('signin.codeInvalid'));
+    if (token.length < CODE_MIN || token.length > CODE_MAX) return setFieldError(t('signin.codeInvalid'));
     setError(null);
     setFieldError(null);
     setBusy(true);
@@ -93,7 +97,7 @@ export default function SignInScreen() {
         stage === 'enter' ? (
           <Button label={t('signin.sendCode')} onPress={sendCode} busy={busy} />
         ) : (
-          <Button label={t('signin.verify')} onPress={verify} busy={busy} disabled={code.replace(/\D/g, '').length !== 6} />
+          <Button label={t('signin.verify')} onPress={verify} busy={busy} disabled={code.replace(/\D/g, '').length < CODE_MIN} />
         )
       }>
       {error ? <Banner tone="error" message={error} /> : null}
@@ -117,12 +121,12 @@ export default function SignInScreen() {
           <TextField
             label={t('signin.codeLabel')}
             value={formatOtp(code)}
-            onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
+            onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, CODE_MAX))}
             error={fieldError}
             keyboardType="number-pad"
             autoComplete="one-time-code"
             textContentType="oneTimeCode"
-            maxLength={7}
+            maxLength={CODE_MAX + 2}
             style={{ fontSize: 22, letterSpacing: 6 }}
             returnKeyType="done"
             onSubmitEditing={verify}
