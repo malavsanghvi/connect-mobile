@@ -113,7 +113,15 @@ export type Commitment = { mode: 'none' | 'per_person' | 'lump_sum'; totalCents:
  * rollback: if attendees fail after the RSVP row was created, the RSVP is
  * marked cancelled so no half-made RSVP holds seats.
  */
-export async function submitRsvp(args: { event: EventRow; member: Member; existing: Rsvp | null; going: GoingPerson[]; commitment: Commitment }): Promise<{ rsvpId: string; pledgeNumber: string | null }> {
+export async function submitRsvp(args: {
+  event: EventRow;
+  member: Member;
+  existing: Rsvp | null;
+  going: GoingPerson[];
+  commitment: Commitment;
+  /** Progress for the "Saving" screen: called after the tickets and after the pledge are saved. */
+  onStep?: (step: 'registered' | 'pledged') => void;
+}): Promise<{ rsvpId: string; pledgeId: string | null; pledgeNumber: string | null }> {
   const { event, member, existing, going, commitment } = args;
   const household = member.household;
   if (!household) throw new AppError('Your account is not linked to a family yet, so we cannot RSVP. Please finish onboarding or contact the office.', 'no household');
@@ -173,8 +181,10 @@ export async function submitRsvp(args: { event: EventRow; member: Member; existi
     }
     throw err;
   }
+  args.onStep?.('registered');
 
   let pledgeNumber: string | null = null;
+  let pledgeId: string | null = null;
   const hasPledge = !!existing?.commitment_pledge_id;
   if (commitment.mode !== 'none' && commitment.totalCents > 0 && !hasPledge) {
     const pledge = await createPledge({
@@ -188,9 +198,11 @@ export async function submitRsvp(args: { event: EventRow; member: Member; existi
       dedication: event.name,
     });
     pledgeNumber = pledge.pledge_number;
+    pledgeId = pledge.id;
     check(await supabase.from('rsvps').update({ commitment_pledge_id: pledge.id, commitment_mode: commitment.mode }).eq('id', rsvpId), 'link your donation commitment to the RSVP');
+    args.onStep?.('pledged');
   }
-  return { rsvpId, pledgeNumber };
+  return { rsvpId, pledgeId, pledgeNumber };
 }
 
 /** "Yes, we're coming": confirm the kept attendees; release the others' tickets. */
@@ -200,6 +212,23 @@ export async function confirmAttendance(rsvpId: string, keepIds: string[], dropI
   if (dropIds.length) check(await supabase.from('attendees').update({ status: 'cancelled', ticket_revoked: true }).in('id', dropIds).is('checked_in_at', null), 'release seats');
   check(await supabase.from('attendees').update({ status: 'confirmed', ticket_revoked: false }).in('id', keepIds).is('checked_in_at', null), 'confirm your attendance');
   check(await supabase.from('rsvps').update({ status: 'confirmed', confirmed_at: now }).eq('id', rsvpId), 'confirm your attendance');
+}
+
+/**
+ * Confirm screen: family members ticked who are not on the RSVP yet get a
+ * ticket (the prototype lists the whole household there). Returns the new
+ * attendee ids so they are confirmed with everyone else.
+ */
+export async function addHouseholdAttendees(event: EventRow, rsvpId: string, people: Omit<GoingPerson, 'assistance' | 'assistanceNote'>[]): Promise<string[]> {
+  if (people.length === 0) return [];
+  const rows = must(
+    await supabase
+      .from('attendees')
+      .insert(people.map((p) => ({ center_id: event.center_id, event_id: event.id, rsvp_id: rsvpId, person_id: p.personId, display_name: p.name.trim(), status: 'rsvpd' as const, is_child_under_12: p.childUnder12, is_senior: p.senior })))
+      .select('id'),
+    'add tickets for the family members you ticked',
+  );
+  return rows.map((r) => r.id);
 }
 
 /** "We can't make it": cancel the RSVP and release every ticket. */

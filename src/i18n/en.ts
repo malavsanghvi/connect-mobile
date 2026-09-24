@@ -423,6 +423,8 @@ export const en = {
   'events.confirmedToast': '✓ Confirmed · {n} attending',
 
   // Saving (sync) screen after an RSVP
+  'sync.title': 'Saving',
+  'sync.backToRsvp': 'Back to the RSVP',
   'sync.rsvpTitle': 'Saving your RSVP',
   'sync.rsvpPledgeTitle': 'Saving your RSVP and pledge',
   'sync.keepOpen': 'Please keep the app open',
