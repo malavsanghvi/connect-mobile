@@ -1,3 +1,4 @@
+import { notificationPath } from './notification-route';
 /**
  * Pure display rules for the Home and Events tabs (M-HOME). No React, no
  * Supabase: everything here is unit tested in __tests__/event-rules.test.ts.
@@ -275,7 +276,9 @@ export function routeForNotification(data: unknown, actionId: string | null): No
   if (type === 'event' && eventId) return { kind: 'event', eventId };
   const url = str(d.url);
   if (url && url.startsWith('/') && !url.startsWith('//')) return { kind: 'url', path: url };
-  return null;
+  // Untyped payloads: a bare special_day_id or a safe data.path (see notification-route.ts).
+  const path = notificationPath(d);
+  return path ? { kind: 'url', path } : null;
 }
 
 /** Snooze for "Remind me later" on the in-app confirm pop-up. */

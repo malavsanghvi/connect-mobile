@@ -1,9 +1,4 @@
-import * as Notifications from 'expo-notifications';
-import { useRouter, type Href } from 'expo-router';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
-
-import { notificationPath } from '@/features/notification-route';
 
 import { report } from '@/lib/errors';
 import { registerPushDevice, unregisterPushDevice, type PushStatus } from '@/lib/push';
@@ -41,16 +36,8 @@ export function PushProvider({ children }: { children: ReactNode }) {
     };
   }, [userId, centerId]);
 
-  // Tapping a notification opens what it is about (special day → Birthday labh, or data.path).
-  const router = useRouter();
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const path = notificationPath(response.notification.request.content.data);
-      if (path) router.push(path as Href);
-    });
-    return () => sub.remove();
-  }, [router]);
+  // Taps are routed in one place: features/confirm-popup (and components/notification-router for
+  // family-circle actions), so a notification never opens two screens.
 
   const setEnabled = async (on: boolean) => {
     if (!userId || !centerId) return;

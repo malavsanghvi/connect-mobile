@@ -13,3 +13,13 @@ describe('notification tap routing', () => {
     expect(notificationPath(null)).toBeNull();
   });
 });
+
+describe('routeForNotification falls back to path rules', () => {
+  it('opens labh for an untyped special_day_id and a safe data.path', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { routeForNotification } = require('../event-rules');
+    expect(routeForNotification({ special_day_id: '11111111-1111-1111-1111-111111111111' }, null)).toEqual({ kind: 'url', path: '/labh/11111111-1111-1111-1111-111111111111' });
+    expect(routeForNotification({ path: '/give' }, null)).toEqual({ kind: 'url', path: '/give' });
+    expect(routeForNotification({ path: '//evil.example' }, null)).toBeNull();
+  });
+});
