@@ -530,6 +530,8 @@ export function SpecialDayCard() {
   const router = useRouter();
   const { center, member } = useApp();
   const { toast } = useFeedback();
+  // A labh is a pledge: with Pledges & donations switched off, offer "Plan the day" instead.
+  const givingOn = useModule('giving');
   const [dismissed, setDismissed] = useState<string[]>([]);
   const state = useLoad(
     async (): Promise<SpecialHit | null> => {
@@ -602,7 +604,7 @@ export function SpecialDayCard() {
         {hit.body}
       </Txt>
       <Row gap={space.sm}>
-        {hit.labh ? (
+        {hit.labh && givingOn ? (
           <PillButton label={t('home.chooseLabh')} tone="brown" fill onPress={() => router.push(`/labh/${encodeURIComponent(hit.dayId)}` as Href)} />
         ) : (
           <PillButton label={t('home.planDay')} tone="brown" fill onPress={() => router.push('/special-days')} />
