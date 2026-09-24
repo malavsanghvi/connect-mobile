@@ -1,32 +1,39 @@
+import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
-import { Banner, Button, Card, Chip, ChipGroup, IconButton, Row, Segmented, TextField, Toggle, Txt, VStack } from '@/components/ui';
-import { SPECIAL_DAY_KINDS, kindLabel, listDisplayName } from '@/features/special-days';
-import { deleteSpecialDay, listSpecialDays, nextTithiDates, saveSpecialDay, type SpecialDayKind } from '@/lib/api/family';
+import { Banner, Button, Card, Chip, ChipGroup, IconButton, TextField, Txt, VStack } from '@/components/ui';
+import { OCCASIONS, kindLabel, listDisplayName, occasionOf, reminderSpan, splitTithi, whenText, yearsOn, type Occasion } from '@/features/special-days';
+import { deleteSpecialDay, listSpecialDays, nextTithiDates, saveSpecialDay } from '@/lib/api/family';
 import { report } from '@/lib/errors';
-import { daysBetween, formatDay, formatDob, monthShortUpper, parseDobInput, parseISODate, todayAt } from '@/lib/format';
-import { nextOccurrence } from '@/lib/rules';
+import { formatDay, formatDob, monthShortUpper, parseDobInput, parseISODate, todayAt } from '@/lib/format';
+import { isWithinReminder, nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, radii, space } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
-const KIND_TINT: Record<string, { bg: string; fg: string }> = {
+const TINT: Record<Occasion | 'diksha', { bg: string; fg: string }> = {
   birthday: { bg: colors.brownTint, fg: colors.brown },
-  anniversary: { bg: colors.dangerTint, fg: colors.maroon },
-  punyatithi: { bg: colors.chip, fg: colors.muted },
-  diksha: { bg: colors.navyTint, fg: colors.navy },
+  anniversary: { bg: colors.dangerTint, fg: colors.anniversary },
+  birth_tithi: { bg: colors.navyTint, fg: colors.navy },
+  punyatithi: { bg: colors.frame, fg: colors.muted },
   other: { bg: colors.greenTint, fg: colors.green },
+  diksha: { bg: colors.navyTint, fg: colors.navy },
 };
 
-/** Special days (prototype §2.22): private to the household; adults add and remove. */
+/**
+ * Special days (Main.dc.html isDays): date tile, title, "Turns 10 · Tue, Oct 6",
+ * reminder line in weeks, "Plan labh" inside the reminder window (opens the
+ * Birthday labh screen), dashed "+ Add a special day" that toggles to "Close".
+ */
 export default function SpecialDaysScreen() {
   const t = useT();
+  const router = useRouter();
   const { member, center } = useApp();
   const { invalidate } = useDataVersion();
   const { toast, confirm } = useFeedback();
@@ -34,7 +41,7 @@ export default function SpecialDaysScreen() {
   const [error, setError] = useState<string | null>(null);
   const state = useLoad(
     async () => {
-      if (!member?.household || !center) throw new Error('no household');
+      if (!member?.household || !center) return [];
       const today = todayAt(center.time_zone);
       const days = await listSpecialDays(member.household.id);
       const tithi = await nextTithiDates(center.id, today, days.filter((d) => !d.calendar_date && d.tithi && d.tithi_month).map((d) => ({ id: d.id, tithi: d.tithi as string, month: d.tithi_month as string })));
@@ -62,7 +69,7 @@ export default function SpecialDaysScreen() {
 
   return (
     <Screen title={t('days.title')} onRefresh={async () => invalidate()}>
-      <Txt variant="small" color="ink2">
+      <Txt variant="small" color="ink2" style={{ lineHeight: 21 }}>
         {t('days.intro')}
       </Txt>
       {error ? <Banner tone="error" message={error} /> : null}
@@ -71,39 +78,83 @@ export default function SpecialDaysScreen() {
           <VStack gap={space.md}>
             {rows.length === 0 ? <EmptyState icon="gift-outline" title={t('days.none')} /> : null}
             {rows.map(({ day, next, today }) => {
-              const tint = KIND_TINT[day.kind] ?? KIND_TINT.other;
-              const inDays = next ? daysBetween(today, next) : null;
+              const occ = occasionOf(day);
+              const tint = TINT[occ];
               const name = listDisplayName(t, day, member.members);
+              const who = day.person_id ? member.members.find((m) => m.person.id === day.person_id) : null;
+              const years = day.calendar_date ? yearsOn(day.calendar_date, next) : null;
+              const yearsText = years != null ? (occ === 'birthday' ? t('days.turns', { n: years }) : occ === 'anniversary' ? t('days.years', { n: years }) : null) : null;
+              const sub = [
+                yearsText,
+                day.tithi ? `${day.tithi_month ?? ''} ${day.tithi}`.trim() : null,
+                next ? formatDay(next) : t('days.tithiUnknown'),
+              ]
+                .filter(Boolean)
+                .join(' · ');
+              const soon = isWithinReminder(next, today, day.reminder_days_before);
+              const span = reminderSpan(t, day.reminder_days_before);
+              const remind = soon ? t('days.reminderSent', { span }) : t('days.reminderBefore', { span, when: whenText(t, today, next) });
+              const canPlan = soon && day.labh_prompt_enabled && occ !== 'punyatithi' && member.isAdult;
               return (
-                <Card key={day.id}>
-                  <Row gap={space.md}>
-                    <View style={{ width: 52, borderRadius: radii.lg, backgroundColor: tint.bg, alignItems: 'center', paddingVertical: space.sm }}>
-                      <Txt variant="badge" style={{ color: tint.fg }}>
-                        {next ? monthShortUpper(next) : '—'}
+                <View key={day.id} style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.row, paddingVertical: space.md, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                  <View style={{ width: 48, height: 52, borderRadius: radii.lg, backgroundColor: tint.bg, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">
+                    <Txt variant="badge" style={{ color: tint.fg }}>
+                      {next ? monthShortUpper(next) : '—'}
+                    </Txt>
+                    <Txt variant="subhead" style={{ color: tint.fg, fontFamily: fonts.bodyBold }}>
+                      {next ? String(parseISODate(next)?.d ?? '') : '?'}
+                    </Txt>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Txt variant="bodyStrong">{name}</Txt>
+                    <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+                      {who && occ === 'punyatithi' && !day.label ? `${who.person.first_name} · ${sub}` : sub}
+                    </Txt>
+                    <Txt variant="fine" color="faint">
+                      {remind}
+                    </Txt>
+                  </View>
+                  {canPlan ? (
+                    <Pressable
+                      onPress={() => router.push(`/labh/${day.id}` as Href)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('days.planLabhLabel', { name })}
+                      style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: space.md, borderRadius: 18, backgroundColor: colors.brown, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
+                      <Txt variant="caption" color="white" style={{ fontFamily: fonts.bodySemi }}>
+                        {t('days.planLabh')}
                       </Txt>
-                      <Txt variant="section" style={{ color: tint.fg }}>
-                        {next ? String(parseISODate(next)?.d ?? '') : '?'}
-                      </Txt>
-                    </View>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Txt variant="bodyStrong">{name}</Txt>
-                      <Txt variant="meta" color="muted">
-                        {[kindLabel(t, day.kind), day.tithi ? `${day.tithi_month ?? ''} ${day.tithi}`.trim() : null, next ? formatDay(next) : t('days.tithiUnknown')].filter(Boolean).join(' · ')}
-                      </Txt>
-                      <Txt variant="caption" color="muted">
-                        {inDays != null && inDays <= day.reminder_days_before ? t('days.reminderSent', { n: day.reminder_days_before }) : t('days.reminderBefore', { n: day.reminder_days_before })}
-                      </Txt>
-                    </View>
-                    {member.isAdult ? <IconButton icon="trash-outline" label={t('days.removeLabel', { name })} color={colors.danger} onPress={() => remove(day.id, name)} /> : null}
-                  </Row>
-                </Card>
+                    </Pressable>
+                  ) : null}
+                  {member.isAdult && !canPlan ? <IconButton icon="trash-outline" label={t('days.removeLabel', { name })} color={colors.faint} iconSize={20} onPress={() => remove(day.id, name)} /> : null}
+                </View>
               );
             })}
           </VStack>
         )}
       </Loaded>
-      {member.isAdult ? adding ? <AddForm onDone={() => setAdding(false)} /> : <Button label={t('days.add')} tone="brown" icon="add" onPress={() => setAdding(true)} /> : null}
+      {member.isAdult ? (
+        <>
+          <Pressable
+            onPress={() => setAdding(!adding)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: adding }}
+            style={({ pressed }) => ({ minHeight: 52, borderRadius: radii.row, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.dashed, backgroundColor: colors.ground, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+            <Txt variant="bodyStrong" color="navy">
+              {adding ? t('days.close') : t('days.add')}
+            </Txt>
+          </Pressable>
+          {adding ? <AddForm onDone={() => setAdding(false)} /> : null}
+        </>
+      ) : null}
     </Screen>
+  );
+}
+
+function FieldLabel({ children }: { children: string }) {
+  return (
+    <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+      {children}
+    </Txt>
   );
 }
 
@@ -114,43 +165,55 @@ function AddForm({ onDone }: { onDone: () => void }) {
   const { toast } = useFeedback();
   const [who, setWho] = useState<string | null>(member?.members[0]?.person.id ?? null);
   const [label, setLabel] = useState('');
-  const [kind, setKind] = useState<SpecialDayKind>('birthday');
+  const [occasion, setOccasion] = useState<Occasion>('birthday');
   const [by, setBy] = useState<'date' | 'tithi'>('date');
   const [date, setDate] = useState(() => formatDob(member?.members[0]?.person.date_of_birth));
   const [tithi, setTithi] = useState('');
-  const [month, setMonth] = useState('');
   const [remind, setRemind] = useState(14);
-  const [showHome, setShowHome] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!member?.household || !center) return null;
+  const householdId = member.household.id;
+  const pickWho = (id: string | null) => {
+    setWho(id);
+    const p = id ? member.members.find((m) => m.person.id === id) : null;
+    if (occasion === 'birthday' && p?.person.date_of_birth) setDate(formatDob(p.person.date_of_birth));
+  };
+  const pickOccasion = (o: Occasion) => {
+    setOccasion(o);
+    if (o === 'birth_tithi' || o === 'punyatithi') setBy('tithi');
+  };
 
   const save = async () => {
     setError(null);
     let calendarDate: string | null = null;
+    let tithiParts: { month: string; tithi: string } | null = null;
     if (by === 'date') {
       calendarDate = parseDobInput(date);
       if (!calendarDate) return setError(t('days.dateInvalid'));
-    } else if (!tithi.trim() || !month.trim()) {
-      return setError(t('days.tithiRequired'));
+    } else {
+      tithiParts = splitTithi(tithi);
+      if (!tithiParts) return setError(t('days.tithiRequired'));
     }
     if (!who && !label.trim()) return setError(t('days.labelRequired'));
     setBusy(true);
     try {
+      const kind = occasion === 'birth_tithi' ? 'birthday' : occasion;
       await saveSpecialDay({
         center_id: center.id,
-        household_id: member.household?.id as string,
+        household_id: householdId,
         person_id: who,
         kind,
         label: label.trim() || null,
         calendar_date: calendarDate,
-        tithi: by === 'tithi' ? tithi.trim() : null,
-        tithi_month: by === 'tithi' ? month.trim() : null,
+        tithi: tithiParts?.tithi ?? null,
+        tithi_month: tithiParts?.month ?? null,
         reminder_days_before: remind,
-        show_on_home: kind === 'punyatithi' ? false : showHome,
+        // Punyatithis are never shown on Home (connect-crm 0007 default).
+        show_on_home: kind !== 'punyatithi',
       });
       invalidate();
-      toast(t('days.saved', { n: remind }));
+      toast(t('days.saved', { span: reminderSpan(t, remind) }));
       onDone();
     } catch (err) {
       setError(report(err, 'save this special day').userMessage);
@@ -160,59 +223,39 @@ function AddForm({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <Card>
-      <Txt variant="section">{t('days.addTitle')}</Txt>
-      <Txt variant="smallStrong" color="ink2">
-        {t('days.whose')}
-      </Txt>
+    <Card style={{ gap: 10 }}>
+      <FieldLabel>{t('days.whose')}</FieldLabel>
       <ChipGroup>
         {member.members.map((m) => (
-          <Chip key={m.person.id} label={m.person.preferred_name || m.person.first_name} selected={who === m.person.id} onPress={() => setWho(m.person.id)} tone="brown" />
+          <Chip key={m.person.id} label={m.person.preferred_name || m.person.first_name} selected={who === m.person.id} onPress={() => pickWho(m.person.id)} />
         ))}
-        <Chip label={t('days.someoneElse')} selected={who === null} onPress={() => setWho(null)} tone="brown" />
+        <Chip label={t('days.someoneElse')} selected={who === null} onPress={() => pickWho(null)} />
       </ChipGroup>
-      {who === null ? <TextField label={t('days.label')} value={label} onChangeText={setLabel} placeholder={t('days.labelPlaceholder')} /> : null}
-      <Txt variant="smallStrong" color="ink2">
-        {t('days.occasion')}
-      </Txt>
+      {who === null ? <TextField size="sm" label={t('days.label')} value={label} onChangeText={setLabel} placeholder={t('days.labelPlaceholder')} /> : null}
+      <FieldLabel>{t('days.occasion')}</FieldLabel>
       <ChipGroup>
-        {SPECIAL_DAY_KINDS.map((k) => (
-          <Chip key={k} label={kindLabel(t, k)} selected={kind === k} onPress={() => setKind(k)} tone="brown" />
+        {OCCASIONS.map((k) => (
+          <Chip key={k} label={kindLabel(t, k)} selected={occasion === k} onPress={() => pickOccasion(k)} />
         ))}
       </ChipGroup>
-      <Segmented
-        label={t('days.rememberBy')}
-        value={by}
-        onChange={setBy}
-        options={[
-          { value: 'date', label: t('days.byDate') },
-          { value: 'tithi', label: t('days.byTithi') },
-        ]}
-      />
+      <FieldLabel>{t('days.rememberBy')}</FieldLabel>
+      <ChipGroup columns={2}>
+        <Chip grid label={t('days.byDate')} selected={by === 'date'} onPress={() => setBy('date')} />
+        <Chip grid label={t('days.byTithi')} selected={by === 'tithi'} onPress={() => setBy('tithi')} />
+      </ChipGroup>
       {by === 'date' ? (
-        <TextField label={t('days.date')} value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" keyboardType="numbers-and-punctuation" hint={t('days.dateHint')} />
+        <TextField size="sm" label={t('days.date')} value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" keyboardType="numbers-and-punctuation" />
       ) : (
-        <Row gap={space.md} align="flex-start">
-          <View style={{ flex: 1 }}>
-            <TextField label={t('days.tithiMonth')} value={month} onChangeText={setMonth} placeholder="Kartak" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <TextField label={t('days.tithi')} value={tithi} onChangeText={setTithi} placeholder="Sud 5" />
-          </View>
-        </Row>
+        <TextField size="sm" label={t('days.tithiField')} value={tithi} onChangeText={setTithi} placeholder="Kartak sud 12" />
       )}
-      <Txt variant="smallStrong" color="ink2">
-        {t('days.remind')}
-      </Txt>
-      <ChipGroup>
+      <FieldLabel>{t('days.remind')}</FieldLabel>
+      <ChipGroup columns={3}>
         {[7, 14, 30].map((n) => (
-          <Chip key={n} label={n === 7 ? t('days.week1') : n === 14 ? t('days.week2') : t('days.month1')} selected={remind === n} onPress={() => setRemind(n)} tone="brown" />
+          <Chip key={n} grid label={reminderSpan(t, n)} selected={remind === n} onPress={() => setRemind(n)} />
         ))}
       </ChipGroup>
-      {kind !== 'punyatithi' ? <Toggle label={t('days.showHome')} value={showHome} onChange={setShowHome} /> : <Txt variant="meta" color="muted">{t('days.punyatithiNote')}</Txt>}
       {error ? <Banner tone="error" message={error} /> : null}
-      <Button label={t('days.save')} tone="brown" onPress={save} busy={busy} />
-      <Button label={t('common.cancel')} tone="ghost" size="md" onPress={onDone} />
+      <Button label={t('days.save')} size="md" onPress={save} busy={busy} />
     </Card>
   );
 }

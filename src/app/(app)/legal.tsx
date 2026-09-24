@@ -3,14 +3,16 @@ import { useLocalSearchParams } from 'expo-router';
 import { Markdownish } from '@/components/markdown';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
-import { Txt } from '@/components/ui';
+import { Card, Txt } from '@/components/ui';
+import { splitSections } from '@/features/guide';
 import { getLegalDocument } from '@/lib/api/settings';
 import { formatLongDate } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
+import { fonts } from '@/theme';
 
-/** Privacy policy / terms of use as published by the center (legal_documents). */
+/** Privacy policy / terms of use as published by the center (legal_documents), one card per section (Main.dc.html isLegal). */
 export default function LegalScreen() {
   const t = useT();
   const params = useLocalSearchParams<{ kind?: string }>();
@@ -24,13 +26,19 @@ export default function LegalScreen() {
         {(doc) =>
           doc ? (
             <>
-              <Txt variant="title" color="navy" accessibilityRole="header">
-                {doc.title}
-              </Txt>
-              <Txt variant="meta" color="muted">
+              <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
                 {t('legal.version', { version: doc.version, date: formatLongDate((doc.published_at ?? '').slice(0, 10)) })}
               </Txt>
-              <Markdownish source={doc.body_md} />
+              {splitSections(doc.body_md).map((sec, i) => (
+                <Card key={i} style={{ borderRadius: 16, gap: 6 }}>
+                  {sec.heading ? (
+                    <Txt variant="bodyStrong" style={{ fontFamily: fonts.bodyBold }} accessibilityRole="header">
+                      {sec.heading}
+                    </Txt>
+                  ) : null}
+                  {sec.body ? <Markdownish source={sec.body} /> : null}
+                </Card>
+              ))}
             </>
           ) : (
             <EmptyState icon="document-text-outline" title={t('legal.notPublished', { title })} />

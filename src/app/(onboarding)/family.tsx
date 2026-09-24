@@ -1,6 +1,5 @@
 import { useRouter } from 'expo-router';
 
-import { Button } from '@/components/ui';
 import { FamilyReview } from '@/features/onboarding/family-review';
 import { OnboardingFrame } from '@/features/onboarding/frame';
 import { useApp } from '@/providers/app';
@@ -18,9 +17,8 @@ export default function FamilyStepScreen() {
       title={t('familyStep.title')}
       subtitle={t('familyStep.subtitle')}
       onBack={() => router.back()}
-      onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}
-      footer={<Button label={t('familyStep.looksRight')} onPress={() => router.push('/contact')} />}>
-      <FamilyReview />
+      onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>
+      <FamilyReview onContinue={() => router.push('/contact')} />
     </OnboardingFrame>
   );
 }

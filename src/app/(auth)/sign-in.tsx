@@ -1,8 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Pressable } from 'react-native';
 
-import { Banner, Button, Checkbox, LinkText, TextField, Txt } from '@/components/ui';
+import { Banner, Button, Checkbox, Row, TextField, Txt } from '@/components/ui';
 import { OnboardingFrame } from '@/features/onboarding/frame';
 import { biometricSupport, writeBiometricOptIn, type BiometricSupport } from '@/lib/biometrics';
 import { logError, report } from '@/lib/errors';
@@ -87,36 +87,33 @@ export default function SignInScreen() {
     // The session listener in AppProvider moves the member on to "Is this your family?".
   };
 
+  const codeSent = stage === 'code';
+  const mmss = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
+
+  // Onboarding.dc.html s1: one "Sign in" screen — address, code, resend, Verify, then the Face ID checkbox.
   return (
-    <OnboardingFrame
-      step={1}
-      title={stage === 'enter' ? t(mode === 'email' ? 'signin.titleEmail' : 'signin.titlePhone') : t('signin.titleCode')}
-      subtitle={stage === 'enter' ? t('signin.subtitle') : t('signin.sentTo', { target: sentTo })}
-      onBack={() => (stage === 'code' ? setStage('enter') : router.back())}
-      footer={
-        stage === 'enter' ? (
-          <Button label={t('signin.sendCode')} onPress={sendCode} busy={busy} />
-        ) : (
-          <Button label={t('signin.verify')} onPress={verify} busy={busy} disabled={code.replace(/\D/g, '').length < CODE_MIN} />
-        )
-      }>
+    <OnboardingFrame step={1} title={t('signin.title')} onBack={() => router.back()}>
       {error ? <Banner tone="error" message={error} /> : null}
-      {stage === 'enter' ? (
-        <TextField
-          size="lg"
-          label={t(mode === 'email' ? 'signin.emailLabel' : 'signin.phoneLabel')}
-          value={identifier}
-          onChangeText={setIdentifier}
-          error={fieldError}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete={mode === 'email' ? 'email' : 'tel'}
-          keyboardType={mode === 'email' ? 'email-address' : 'phone-pad'}
-          textContentType={mode === 'email' ? 'emailAddress' : 'telephoneNumber'}
-          placeholder={mode === 'email' ? 'name@example.com' : '(713) 555-0142'}
-          returnKeyType="send"
-          onSubmitEditing={sendCode}
-        />
+      <TextField
+        size="lg"
+        label={t(mode === 'email' ? 'signin.emailLabel' : 'signin.phoneLabel')}
+        value={identifier}
+        onChangeText={(v) => {
+          setIdentifier(v);
+          if (codeSent) setStage('enter');
+        }}
+        error={codeSent ? null : fieldError}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete={mode === 'email' ? 'email' : 'tel'}
+        keyboardType={mode === 'email' ? 'email-address' : 'phone-pad'}
+        textContentType={mode === 'email' ? 'emailAddress' : 'telephoneNumber'}
+        placeholder={mode === 'email' ? 'name@example.com' : '(713) 555-0142'}
+        returnKeyType="send"
+        onSubmitEditing={sendCode}
+      />
+      {!codeSent ? (
+        <Button label={t('signin.sendCode')} onPress={sendCode} busy={busy} />
       ) : (
         <>
           <TextField
@@ -129,17 +126,27 @@ export default function SignInScreen() {
             autoComplete="one-time-code"
             textContentType="oneTimeCode"
             maxLength={CODE_MAX + 2}
-            style={{ fontSize: 22, letterSpacing: 6 }}
+            style={{ fontSize: 22, letterSpacing: 4.4 }}
             returnKeyType="done"
             onSubmitEditing={verify}
           />
           {secondsLeft > 0 ? (
             <Txt variant="meta" color="muted">
-              {t('signin.resendIn', { seconds: secondsLeft })}
+              {t('signin.resendIn', { time: mmss })}
             </Txt>
           ) : (
-            <LinkText label={t('signin.resend')} onPress={sendCode} />
+            <Row gap={4}>
+              <Txt variant="meta" color="muted">
+                {t('signin.didntGet')}
+              </Txt>
+              <Pressable onPress={sendCode} accessibilityRole="button" hitSlop={12}>
+                <Txt variant="meta" color="navy" style={{ textDecorationLine: 'underline' }}>
+                  {t('signin.resend')}
+                </Txt>
+              </Pressable>
+            </Row>
           )}
+          <Button label={t('signin.verify')} onPress={verify} busy={busy} disabled={code.replace(/\D/g, '').length < CODE_MIN} />
           {bio ? (
             bio.available ? (
               <Checkbox label={t('signin.useBiometric', { method: bio.label })} checked={useBio} onChange={setUseBio} />
@@ -149,7 +156,6 @@ export default function SignInScreen() {
               </Txt>
             )
           ) : null}
-          <LinkText label={t(mode === 'email' ? 'signin.differentEmail' : 'signin.differentPhone')} onPress={() => setStage('enter')} />
         </>
       )}
     </OnboardingFrame>
