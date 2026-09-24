@@ -15,6 +15,7 @@ import { BiometricGate } from '@/components/biometric-gate';
 import { FullScreenError, FullScreenLoading } from '@/components/full-screen';
 import { iconFont } from '@/components/icon';
 import { SetupScreen } from '@/components/setup-screen';
+import { PayHost } from '@/features/pay';
 import { logError } from '@/lib/errors';
 import { AppProvider, useApp } from '@/providers/app';
 import { DataVersionProvider } from '@/providers/data-version';
@@ -50,6 +51,7 @@ export default function RootLayout() {
             <FeedbackProvider>
               <StatusBar style="dark" />
               <RootNavigator />
+              <PayHost />
             </FeedbackProvider>
           </AppProvider>
         </DataVersionProvider>
