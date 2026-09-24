@@ -63,6 +63,13 @@
         {
           "color": "#1B2C5C"
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher.",
+          "enableBackgroundPlayback": false
+        }
       ]
     ],
     "experiments": {
