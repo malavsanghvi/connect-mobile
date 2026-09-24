@@ -1,19 +1,47 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
-import { Button, Card, Chip, ChipGroup, Row, Stepper, Txt, VStack } from '@/components/ui';
-import { giftPackCents, loadStore } from '@/lib/api/store';
+import { Banner, Button, Card, Chip, ChipGroup, Row, Txt, VStack } from '@/components/ui';
+import { PhotoGlyph } from '@/features/give/icons';
+import { GiftToggle, QtyButton } from '@/features/give/store-parts';
+import { pickupPill } from '@/features/give/rules';
+import { BUCKETS, signedUrls } from '@/lib/api/files';
+import { giftPackCents, listPickupWindows, loadStore, type StoreItem } from '@/lib/api/store';
+import { logError } from '@/lib/errors';
 import { formatCents } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useCart } from '@/providers/cart';
 import { useT } from '@/providers/settings';
-import { colors, radii, space } from '@/theme';
+import { colors, fonts, radii, shadows, space } from '@/theme';
 
-/** Satvik Store (prototype §2.25): browse, quantities, gift packing. */
+function ItemPhoto({ url }: { url: string | undefined }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <View style={{ width: 72, height: 72, borderRadius: radii.card, backgroundColor: colors.storeLight, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+      {url && !failed ? (
+        <Image
+          source={{ uri: url }}
+          style={{ width: 72, height: 72 }}
+          contentFit="cover"
+          accessibilityIgnoresInvertColors
+          onError={(e) => {
+            logError('loading a store photo (showing the plain tile instead)', e.error);
+            setFailed(true);
+          }}
+        />
+      ) : (
+        <PhotoGlyph color={colors.white} />
+      )}
+    </View>
+  );
+}
+
+/** Satvik Store (prototype Main.dc.html L1012–1047): browse, quantities, gift packing. */
 export default function StoreScreen() {
   const t = useT();
   const router = useRouter();
@@ -21,8 +49,15 @@ export default function StoreScreen() {
   const cart = useCart();
   const [category, setCategory] = useState<string | null>(null);
   const state = useLoad(() => (center ? loadStore(center.id) : Promise.reject(new Error('no center'))), [center?.id], 'load the store');
+  const windows = useLoad(() => (center ? listPickupWindows(center.id) : Promise.resolve([])), [center?.id], 'load pickup times');
+  const photoPaths = (state.data?.items ?? []).map((i) => i.photo_path).filter((p): p is string => !!p);
+  const photos = useLoad(() => signedUrls(photoPaths, BUCKETS.storePhotos, 'load the store photos'), [photoPaths], 'load the store photos');
   const giftCents = giftPackCents(center);
   const total = cart.lines.reduce((s, l) => s + l.qty * l.unitCents + (giftCents ? l.giftQty * giftCents : 0), 0);
+  const pill = windows.data ? pickupPill(windows.data, new Date(), center?.time_zone ?? null) : null;
+
+  const setQty = (item: StoreItem, qty: number) => cart.setQty(item, qty);
+  const giftLabel = (on: boolean) => (on ? t('store.giftPacked') : t('store.giftPack', { amount: formatCents(giftCents ?? 0) }));
 
   return (
     <Screen
@@ -30,24 +65,37 @@ export default function StoreScreen() {
       niva={false}
       footer={
         cart.count > 0 ? (
-          <Pressable onPress={() => router.push('/cart')} accessibilityRole="button" accessibilityLabel={t('store.viewOrder', { n: cart.count, amount: formatCents(total) })} style={{ backgroundColor: colors.store, borderRadius: 28, minHeight: 56, paddingHorizontal: space.gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Pressable
+            onPress={() => router.push('/cart')}
+            accessibilityRole="button"
+            accessibilityLabel={t('store.viewOrder', { n: cart.count, amount: formatCents(total) })}
+            style={({ pressed }) => [{ backgroundColor: colors.store, borderRadius: radii.cart, minHeight: 56, paddingHorizontal: space.gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: pressed ? 0.9 : 1 }, shadows.cart]}>
             <Txt variant="section" color="white">
-              {t('store.viewOrderShort', { n: cart.count })}
+              {cart.count === 1 ? t('store.viewOrderOne') : t('store.viewOrderShort', { n: cart.count })}
             </Txt>
-            <Txt variant="section" color="white">
+            <Txt variant="section" color="white" style={{ fontFamily: fonts.bodyBold }}>
               {formatCents(total)}
             </Txt>
           </Pressable>
         ) : undefined
       }>
-      <Card tone="store">
-        <Txt variant="title" color="white" accessibilityRole="header">
+      <View style={{ borderRadius: radii.xxl, backgroundColor: colors.store, padding: 18, gap: 4 }}>
+        <Txt color="white" accessibilityRole="header" style={{ fontFamily: fonts.display, fontSize: 24, lineHeight: 30 }}>
           {t('store.heroTitle', { center: center?.short_name ?? '' })}
         </Txt>
-        <Txt variant="small" color="onStore">
+        <Txt variant="meta" color="onStore">
           {t('store.heroBody')}
         </Txt>
-      </Card>
+        {pill ? (
+          <View style={{ backgroundColor: colors.storeLight, borderRadius: radii.md, paddingVertical: 6, paddingHorizontal: 10, alignSelf: 'flex-start', marginTop: 4 }}>
+            <Txt variant="caption" color="white" style={{ fontFamily: fonts.bodySemi }}>
+              {t('store.cutoffPill', { cutoff: pill.cutoff, days: pill.days.join(t('store.or')) })}
+            </Txt>
+          </View>
+        ) : null}
+      </View>
+      {windows.error ? <Banner tone="error" message={windows.error.userMessage} action={{ label: t('common.retry'), onPress: () => void windows.reload() }} /> : null}
+      {photos.error ? <Banner tone="warning" message={photos.error.userMessage} action={{ label: t('common.retry'), onPress: () => void photos.reload() }} /> : null}
       <Loaded state={state}>
         {({ categories, items }) => {
           const shown = category ? items.filter((i) => i.category_id === category) : items;
@@ -64,43 +112,36 @@ export default function StoreScreen() {
               {shown.length === 0 ? <EmptyState icon="storefront-outline" title={t('store.empty')} /> : null}
               {shown.map((item) => {
                 const line = cart.lines.find((l) => l.itemId === item.id);
+                const gifted = (line?.giftQty ?? 0) > 0;
                 return (
-                  <Card key={item.id}>
+                  <Card key={item.id} style={{ padding: space.md, gap: 10, borderColor: line ? colors.store : colors.border }}>
                     <Row gap={space.md} align="flex-start">
-                      <View style={{ width: 64, height: 64, borderRadius: radii.lg, backgroundColor: colors.storeTint }} />
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Txt variant="cardTitle">{item.name}</Txt>
-                        {item.description ? (
-                          <Txt variant="meta" color="muted">
-                            {item.description}
+                      <ItemPhoto url={item.photo_path ? photos.data?.get(item.photo_path) : undefined} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Txt variant="body" style={{ fontFamily: fonts.bodySemi }}>
+                          {item.name}
+                        </Txt>
+                        {item.description || item.pack_size ? (
+                          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body, lineHeight: 17 }}>
+                            {[item.description, item.pack_size].filter(Boolean).join(' · ')}
                           </Txt>
                         ) : null}
-                        <Txt variant="smallStrong" color="store">
-                          {[formatCents(item.price_cents), item.pack_size].filter(Boolean).join(' · ')}
+                        <Txt variant="body" color="store" style={{ fontFamily: fonts.bodyBold, marginTop: 4 }}>
+                          {formatCents(item.price_cents, { alwaysCents: true })}
                         </Txt>
                       </View>
                     </Row>
                     {line ? (
-                      <VStack gap={space.sm}>
-                        <Stepper
-                          size={44}
-                          valueLabel={String(line.qty)}
-                          onMinus={() => cart.setQty(item, line.qty - 1)}
-                          onPlus={() => cart.setQty(item, line.qty + 1)}
-                          minusLabel={t('store.less', { name: item.name })}
-                          plusLabel={t('store.more', { name: item.name })}
-                        />
-                        {giftCents !== null ? (
-                          <Chip
-                            label={line.giftQty > 0 ? t('store.giftPacked', { n: line.giftQty }) : t('store.giftPack', { amount: formatCents(giftCents) })}
-                            selected={line.giftQty > 0}
-                            onPress={() => cart.setGiftQty(item.id, line.giftQty > 0 ? 0 : line.qty)}
-                            tone="store"
-                          />
-                        ) : null}
-                      </VStack>
+                      <Row gap={10}>
+                        <QtyButton glyph="−" label={t('store.less', { name: item.name })} onPress={() => setQty(item, line.qty - 1)} />
+                        <Txt variant="cardTitle" style={{ minWidth: 24, textAlign: 'center', fontFamily: fonts.bodyBold }} accessibilityLiveRegion="polite">
+                          {String(line.qty)}
+                        </Txt>
+                        <QtyButton glyph="+" label={t('store.more', { name: item.name })} onPress={() => setQty(item, line.qty + 1)} />
+                        {giftCents !== null && item.gift_pack ? <GiftToggle grow on={gifted} label={giftLabel(gifted)} onPress={() => cart.setGiftQty(item.id, gifted ? 0 : line.qty)} /> : null}
+                      </Row>
                     ) : (
-                      <Button label={t('store.add')} tone="store" size="md" onPress={() => cart.setQty(item, 1)} />
+                      <Button label={t('store.add')} tone="outlineStore" size="sm" style={{ minHeight: 44, borderRadius: radii.pill }} onPress={() => setQty(item, 1)} />
                     )}
                   </Card>
                 );
