@@ -610,8 +610,13 @@ export function LearnPane() {
       </Loaded>
       ) : null}
 
-      {pathshalaOn && member?.isAdult && (pathshala.data?.length ?? 0) > 0 ? (
-        <Button label={t('enrollReq.cta')} tone="secondary" size="sm" icon="school-outline" fill={false} onPress={() => router.push('/pathshala-enroll')} />
+      {pathshalaOn && member?.isAdult ? (
+        <Row style={{ flexWrap: 'wrap' }}>
+          {(pathshala.data?.length ?? 0) > 0 ? (
+            <Button label={t('enrollReq.cta')} tone="secondary" size="sm" icon="school-outline" fill={false} onPress={() => router.push('/pathshala-enroll')} />
+          ) : null}
+          <Button label={t('teach.cta')} tone="secondary" size="sm" icon="people-outline" fill={false} onPress={() => router.push('/pathshala-teach')} />
+        </Row>
       ) : null}
 
       {lessonsOn ? <Txt variant="section">{t('learn.listen')}</Txt> : null}

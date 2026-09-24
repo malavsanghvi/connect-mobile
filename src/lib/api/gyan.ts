@@ -260,3 +260,46 @@ export function assertCanLearn(personId: string | null): string {
   if (!personId) throw new AppError('Sign in to track your Gyan Path progress.', 'guest');
   return personId;
 }
+
+export type TeacherPosition = Pick<Tables<'teacher_positions'>, 'id' | 'title' | 'description' | 'min_qualifications' | 'term_id' | 'level_id'>;
+export type TeacherApplication = Pick<Tables<'teacher_applications'>, 'id' | 'position_id' | 'outcome' | 'submitted_at'>;
+
+/** Open positions (RLS teacher_positions_member_read) and my own applications (teacher_apps_own). */
+export async function loadTeaching(centerId: string, personId: string): Promise<{ positions: TeacherPosition[]; mine: TeacherApplication[] }> {
+  const [positions, mine] = await Promise.all([
+    supabase.from('teacher_positions').select('id, title, description, min_qualifications, term_id, level_id').eq('center_id', centerId).eq('status', 'open').order('created_at', { ascending: false }).then((r) => must(r, 'load teacher positions')),
+    supabase.from('teacher_applications').select('id, position_id, outcome, submitted_at').eq('center_id', centerId).eq('person_id', personId).order('submitted_at', { ascending: false }).then((r) => must(r, 'load your applications')),
+  ]);
+  return { positions, mine };
+}
+
+/** Apply to teach (RLS teacher_apps_insert: my own person, outcome pending). */
+export async function applyToTeach(args: {
+  centerId: string;
+  positionId: string;
+  personId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  education: string | null;
+  qualifications: string | null;
+  activities: string | null;
+  motivation: string | null;
+}): Promise<void> {
+  check(
+    await supabase.from('teacher_applications').insert({
+      center_id: args.centerId,
+      position_id: args.positionId,
+      person_id: args.personId,
+      name: args.name,
+      email: args.email,
+      phone_e164: args.phone,
+      education: args.education,
+      qualifications: args.qualifications,
+      relevant_activities: args.activities,
+      motivation: args.motivation,
+      outcome: 'pending',
+    }),
+    'send your application',
+  );
+}
