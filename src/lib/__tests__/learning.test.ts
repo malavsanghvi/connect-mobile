@@ -3,6 +3,9 @@ import { describe, expect, it } from '@jest/globals';
 import { en, type StringKey } from '../../i18n/en';
 import {
   accuracyPercent,
+  attendanceSummary,
+  classSchedule,
+  registrationOpen,
   behindDays,
   categoryLabel,
   circleStatus,
@@ -200,5 +203,36 @@ describe('niva', () => {
     expect(formatSources(['JSH website', { title: 'About JSH' }, 'JSH website'])).toBe('JSH website · About JSH');
     expect(formatSources([])).toBeNull();
     expect(formatSources(null)).toBeNull();
+  });
+});
+
+describe('Pathshala enrollment and attendance', () => {
+  const now = new Date('2026-09-24T12:00:00Z');
+  const term = { status: 'registration', registration_opens_at: null, registration_closes_at: null, ends_on: '2027-05-30' };
+  it('takes requests while registration is open', () => {
+    expect(registrationOpen(term, now)).toBe(true);
+    expect(registrationOpen({ ...term, registration_closes_at: '2026-09-01T00:00:00Z' }, now)).toBe(false);
+    expect(registrationOpen({ ...term, status: 'draft' }, now)).toBe(false);
+    expect(registrationOpen({ ...term, status: 'closed' }, now)).toBe(false);
+  });
+  it('an active term takes requests only inside its window', () => {
+    expect(registrationOpen({ ...term, status: 'active' }, now)).toBe(false);
+    expect(registrationOpen({ ...term, status: 'active', registration_opens_at: '2026-09-01T00:00:00Z', registration_closes_at: '2026-10-01T00:00:00Z' }, now)).toBe(true);
+    expect(registrationOpen({ ...term, status: 'active', registration_opens_at: '2026-10-01T00:00:00Z' }, now)).toBe(false);
+  });
+  it('formats the class schedule like the prototype', () => {
+    expect(classSchedule('sunday', '10:00:00')).toBe('Sundays 10:00 AM');
+    expect(classSchedule('saturday', '14:30')).toBe('Saturdays 2:30 PM');
+    expect(classSchedule('sunday', null)).toBe('Sundays');
+    expect(classSchedule(null, null)).toBeNull();
+  });
+  it('summarises attendance with the latest class day first', () => {
+    const s = attendanceSummary([
+      { status: 'present', held_on: '2026-09-13' },
+      { status: 'absent', held_on: '2026-09-06' },
+      { status: 'late', held_on: '2026-09-20' },
+    ]);
+    expect(s).toEqual({ last: { status: 'late', held_on: '2026-09-20' }, attended: 2, total: 3 });
+    expect(attendanceSummary([])).toEqual({ last: null, attended: 0, total: 0 });
   });
 });
