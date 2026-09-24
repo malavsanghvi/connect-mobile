@@ -1,31 +1,44 @@
 import type { Tables, TablesUpdate } from '../database.types';
 import { check, must } from '../errors';
+import { withAuditReason } from '../request-context';
 import { supabase } from '../supabase';
 
 export type DataRequestKind = 'export' | 'deletion' | 'deactivation' | 'reactivation';
 
 /** Privacy requests are handled by the center's privacy officer (due in 30 days). */
+/** Why the account changed (audit log `reason`): the member's own request in Settings. */
+const REQUEST_REASON: Record<DataRequestKind, string> = {
+  export: 'Member asked for a copy of their data in Settings',
+  deletion: 'Member asked to delete their account in Settings',
+  deactivation: 'Member deactivated their account in Settings',
+  reactivation: 'Member reactivated their account',
+};
+
 export async function createDataRequest(centerId: string, personId: string, userId: string, kind: DataRequestKind): Promise<void> {
-  check(await supabase.from('data_requests').insert({ center_id: centerId, person_id: personId, requested_by: userId, kind, status: 'open' }), kind === 'export' ? 'request your data' : 'send your request');
+  check(
+    await withAuditReason(supabase.from('data_requests').insert({ center_id: centerId, person_id: personId, requested_by: userId, kind, status: 'open' }), REQUEST_REASON[kind]),
+    kind === 'export' ? 'request your data' : 'send your request',
+  );
 }
 
-export async function updateAccount(userId: string, patch: TablesUpdate<'accounts'>): Promise<void> {
-  check(await supabase.from('accounts').update(patch).eq('user_id', userId), 'update your account');
+/** `reason` is recorded in the audit log when the member gave one (deactivate, delete, reactivate). */
+export async function updateAccount(userId: string, patch: TablesUpdate<'accounts'>, reason?: string): Promise<void> {
+  check(await withAuditReason(supabase.from('accounts').update(patch).eq('user_id', userId), reason), 'update your account');
 }
 
 export async function deactivateAccount(centerId: string, personId: string, userId: string): Promise<void> {
   await createDataRequest(centerId, personId, userId, 'deactivation');
-  await updateAccount(userId, { status: 'deactivated' });
+  await updateAccount(userId, { status: 'deactivated' }, REQUEST_REASON.deactivation);
 }
 
 export async function reactivateAccount(centerId: string, personId: string, userId: string): Promise<void> {
-  await updateAccount(userId, { status: 'active' });
+  await updateAccount(userId, { status: 'active' }, REQUEST_REASON.reactivation);
   await createDataRequest(centerId, personId, userId, 'reactivation');
 }
 
 export async function requestDeletion(centerId: string, personId: string, userId: string): Promise<void> {
   await createDataRequest(centerId, personId, userId, 'deletion');
-  await updateAccount(userId, { status: 'deletion_pending', deletion_requested_at: new Date().toISOString() });
+  await updateAccount(userId, { status: 'deletion_pending', deletion_requested_at: new Date().toISOString() }, REQUEST_REASON.deletion);
 }
 
 export async function listMyDataRequests(personId: string): Promise<Tables<'data_requests'>[]> {

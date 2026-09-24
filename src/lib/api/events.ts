@@ -1,5 +1,6 @@
 import type { Tables, TablesInsert } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
+import { withAuditReason } from '../request-context';
 import { readPref } from '../storage';
 import { supabase } from '../supabase';
 
@@ -209,7 +210,12 @@ export async function submitRsvp(args: {
 export async function confirmAttendance(rsvpId: string, keepIds: string[], dropIds: string[]): Promise<void> {
   const now = new Date().toISOString();
   if (keepIds.length === 0) throw new AppError('Select at least one person who is coming, or cancel the RSVP.', 'empty confirm');
-  if (dropIds.length) check(await supabase.from('attendees').update({ status: 'cancelled', ticket_revoked: true }).in('id', dropIds).is('checked_in_at', null), 'release seats');
+  if (dropIds.length) {
+    check(
+      await withAuditReason(supabase.from('attendees').update({ status: 'cancelled', ticket_revoked: true }).in('id', dropIds).is('checked_in_at', null), AUDIT_REASON.notComing),
+      'release seats',
+    );
+  }
   check(await supabase.from('attendees').update({ status: 'confirmed', ticket_revoked: false }).in('id', keepIds).is('checked_in_at', null), 'confirm your attendance');
   check(await supabase.from('rsvps').update({ status: 'confirmed', confirmed_at: now }).eq('id', rsvpId), 'confirm your attendance');
 }
@@ -231,10 +237,16 @@ export async function addHouseholdAttendees(event: EventRow, rsvpId: string, peo
   return rows.map((r) => r.id);
 }
 
+/** Why the member changed their RSVP (audit log `reason`, from the button they chose). */
+const AUDIT_REASON = {
+  cantMakeIt: "Member cancelled the RSVP in the app: \"We can't make it\"",
+  notComing: 'Member confirmed attendance in the app and released the tickets of family members who are not coming',
+};
+
 /** "We can't make it": cancel the RSVP and release every ticket. */
 export async function cancelRsvp(rsvpId: string): Promise<void> {
-  check(await supabase.from('attendees').update({ status: 'cancelled', ticket_revoked: true }).eq('rsvp_id', rsvpId).is('checked_in_at', null), 'release your seats');
-  check(await supabase.from('rsvps').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', rsvpId), 'cancel your RSVP');
+  check(await withAuditReason(supabase.from('attendees').update({ status: 'cancelled', ticket_revoked: true }).eq('rsvp_id', rsvpId).is('checked_in_at', null), AUDIT_REASON.cantMakeIt), 'release your seats');
+  check(await withAuditReason(supabase.from('rsvps').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', rsvpId), AUDIT_REASON.cantMakeIt), 'cancel your RSVP');
 }
 
 export async function getPledgeById(id: string): Promise<Tables<'pledges'> | null> {

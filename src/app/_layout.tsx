@@ -5,7 +5,7 @@ import { DMSans_700Bold } from '@expo-google-fonts/dm-sans/700Bold';
 import { Fraunces_500Medium } from '@expo-google-fonts/fraunces/500Medium';
 import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -17,6 +17,7 @@ import { iconFont } from '@/components/icon';
 import { SetupScreen } from '@/components/setup-screen';
 import { PayHost } from '@/features/pay';
 import { logError } from '@/lib/errors';
+import { setClientScreen } from '@/lib/request-context';
 import { AppProvider, useApp } from '@/providers/app';
 import { DataVersionProvider } from '@/providers/data-version';
 import { FeedbackProvider } from '@/providers/feedback';
@@ -50,6 +51,7 @@ export default function RootLayout() {
           <AppProvider>
             <FeedbackProvider>
               <StatusBar style="dark" />
+              <ScreenTracker />
               <RootNavigator />
               <PayHost />
             </FeedbackProvider>
@@ -58,6 +60,15 @@ export default function RootLayout() {
       </SettingsProvider>
     </SafeAreaProvider>
   );
+}
+
+/** Keeps the `x-client-screen` header (audit trail) in step with the current route. */
+function ScreenTracker() {
+  const pathname = usePathname();
+  useEffect(() => {
+    setClientScreen(pathname);
+  }, [pathname]);
+  return null;
 }
 
 function RootNavigator() {
