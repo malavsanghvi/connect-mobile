@@ -102,9 +102,29 @@ export const colors = {
   scrimLight: 'rgba(20,18,14,0.45)',
   /** Niva popover. */
   scrimFaint: 'rgba(20,18,14,0.35)',
+
+  // Photos (Events › Photos, album, full-screen viewer — Main.dc.html L992, L1413)
+  viewerBg: '#0B0A08',
+  viewerButton: '#26231C',
+  viewerText: '#F4EFE6',
+  viewerMeta: '#B8B0A2',
+  videoBadge: '#16140F',
 } as const;
 
 export type ColorName = keyof typeof colors;
+
+/**
+ * Album palettes (Main.dc.html L1759): each album gets one, deterministically,
+ * so its hero band and placeholder tiles stay the same colour while photos load.
+ */
+export const albumPalettes = [
+  { band: '#8A4608', tiles: ['#B8742C', '#D9A15B', '#7A2E1F', '#C98A3E'] },
+  { band: '#1B2C5C', tiles: ['#34487E', '#5C6FA3', '#1B2C5C', '#7D8DB8'] },
+  { band: '#2F5D50', tiles: ['#3E7566', '#6E9E8F', '#2F5D50', '#A5C4B8'] },
+  { band: '#5E3106', tiles: ['#7A4A1C', '#A8763F', '#5E3106', '#C9A06B'] },
+  { band: '#7A2E1F', tiles: ['#A64532', '#D27A4F', '#7A2E1F', '#E3A15E'] },
+  { band: '#4B3A66', tiles: ['#6A5890', '#9585B5', '#4B3A66', '#B9ABD3'] },
+] as const;
 
 /** Font family names as registered with expo-font in the root layout. */
 export const fonts = {

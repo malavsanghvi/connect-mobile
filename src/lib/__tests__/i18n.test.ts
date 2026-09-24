@@ -7,10 +7,10 @@ import { hi } from '../../i18n/hi';
 
 describe('i18n', () => {
   it('interpolates placeholders', () => {
-    expect(translate('en', 'events.rsvpN', { n: 3 })).toBe('RSVP for 3');
+    expect(translate('en', 'events.rsvpN', { people: '3 people' })).toBe('RSVP 3 people');
   });
   it('falls back to English for untranslated keys', () => {
-    expect(translate('gu', 'events.rsvpN', { n: 2 })).toBe('RSVP for 2');
+    expect(translate('gu', 'events.rsvpN', { people: '2 people' })).toBe('RSVP 2 people');
     expect(translate('gu', 'tab.home')).toBe('હોમ');
   });
   it('has every key in Gujarati and Hindi', () => {
