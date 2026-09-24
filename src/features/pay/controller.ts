@@ -4,10 +4,12 @@
  * Pay button in the app goes through startPayment(); every multi-step save
  * (pledges, recurring gifts, labh, store orders) through runSaving().
  *
- * Card payment is NOT connected. Until a card charger is registered, the Pay
- * sheet's confirm step shows the honest "online payment is being set up · pay
- * at the office or by Zelle" notice instead of charging — never a fake
- * success. The Thank-you screen is only reached after a real charge.
+ * Online payment (o-payments): features/pay/online.ts registers a card charger
+ * only while the community takes member payments online (its own Stripe or
+ * PayPal account; a sandbox always in test mode). Without one, the Pay sheet
+ * shows the honest "online payment is being set up" notice and the
+ * community's offline instructions instead — never a fake success. The
+ * Thank-you screen is only reached after the provider confirmed the payment.
  *
  * The UI lives in <PayHost/> (mounted once in the root layout); this module is
  * a small controller so any screen or helper can start a flow.

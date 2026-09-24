@@ -11,7 +11,12 @@ import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
+import type { PaymentOptions } from '@/lib/api/payments';
+
 import { cardCharger, registerPayHost, type PaymentOutcome, type PaymentRequest, type SavingJob, type SavingOutcome } from './controller';
+import { HowToGive } from './how-to-give';
+import { usePaymentOptions } from './online';
+import { processorLabel } from './online-wait';
 import { runSteps, stepStatuses, type StepStatus } from './steps';
 
 /** Prototype animates each step for 750ms; real steps are shown for at least this long so they can be read. */
@@ -28,6 +33,8 @@ export function PayHost() {
   const [saving, setSaving] = useState<SavingState | null>(null);
   const [paid, setPaid] = useState<{ amountCents: number } | null>(null);
   const savingRef = useRef<SavingState | null>(null);
+  // What this community takes (online processor, offline instructions); registers the card charger.
+  const { options } = usePaymentOptions();
 
   useEffect(() => {
     savingRef.current = saving;
@@ -107,7 +114,7 @@ export function PayHost() {
 
   return (
     <>
-      <PaySheet state={sheet} onCancel={() => closeSheet({ status: sheet && !cardCharger() ? 'not_available' : 'cancelled' })} onAlternative={alternative} onConfirm={confirm} />
+      <PaySheet state={sheet} options={options} onCancel={() => closeSheet({ status: sheet && !cardCharger() ? 'not_available' : 'cancelled' })} onAlternative={alternative} onConfirm={confirm} />
       <SavingView state={saving} onRetry={() => void run(saving?.done ?? 0)} onClose={() => finishSaving(false)} onContinue={() => finishSaving(true)} />
       <ThankYou state={paid} onClose={() => setPaid(null)} />
     </>
@@ -128,13 +135,16 @@ function SheetRow({ label, value }: { label: string; value: string }) {
 }
 
 /** Prototype Pay sheet (L1559): Pay · Cancel; To / For / Card / Total; confirm. */
-function PaySheet({ state, onCancel, onAlternative, onConfirm }: { state: SheetState | null; onCancel: () => void; onAlternative: () => void; onConfirm: () => void }) {
+function PaySheet({ state, options, onCancel, onAlternative, onConfirm }: { state: SheetState | null; options: PaymentOptions | null; onCancel: () => void; onAlternative: () => void; onConfirm: () => void }) {
   const t = useT();
   const insets = useSafeAreaInsets();
   const { center } = useApp();
   const charge = cardCharger();
   const req = state?.req;
   const saved = !!(req?.pledgeId || req?.pledgeIds?.length);
+  const online = charge ? options?.online ?? null : null;
+  const provider = processorLabel(online?.processor);
+  const offReason = options?.onlineUnavailable;
   return (
     <Modal visible={!!state} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={{ flex: 1, backgroundColor: colors.scrimSheet, justifyContent: 'flex-end' }}>
@@ -157,7 +167,7 @@ function PaySheet({ state, onCancel, onAlternative, onConfirm }: { state: SheetS
           </Row>
           <SheetRow label={t('pay.to')} value={center?.name ?? ''} />
           <SheetRow label={t('pay.for')} value={req?.forLabel ?? ''} />
-          <SheetRow label={t('pay.card')} value={charge ? t('pay.cardOnFile') : t('pay.noCard')} />
+          <SheetRow label={online ? t('pay.provider') : t('pay.card')} value={online ? provider : t('pay.noCard')} />
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt variant="headline" style={{ fontFamily: fonts.bodyBold, fontSize: 20 }}>
               {t('pay.total')}
@@ -167,8 +177,16 @@ function PaySheet({ state, onCancel, onAlternative, onConfirm }: { state: SheetS
             </Txt>
           </Row>
           {state?.error ? <Banner tone="error" message={state.error} /> : null}
+          {online?.mode === 'test' ? <Banner tone="info" message={t('pay.testMode')} /> : null}
           {charge ? (
-            <Button label={t('pay.confirm')} tone="black" onPress={onConfirm} busy={state?.busy} />
+            <>
+              {state?.busy ? (
+                <Txt variant="small" color="muted" accessibilityLiveRegion="polite">
+                  {t('pay.finishOnProvider', { provider })}
+                </Txt>
+              ) : null}
+              <Button label={t('pay.confirm')} tone="black" onPress={onConfirm} busy={state?.busy} />
+            </>
           ) : (
             <>
               <View style={{ backgroundColor: colors.brownTint, borderColor: colors.brownBorder, borderWidth: 1, borderRadius: radii.card, padding: space.md, gap: space.xs }} accessibilityLiveRegion="polite">
@@ -176,11 +194,19 @@ function PaySheet({ state, onCancel, onAlternative, onConfirm }: { state: SheetS
                   {t('pay.title')}
                 </Txt>
                 <Txt variant="small" color="brownDark">
-                  {saved ? t('pay.notSetUp') : t('pay.notSetUpNoPledge')}
+                  {offReason === 'offline_only' || offReason === 'test_mode'
+                    ? t(`pay.onlineOff.${offReason}`, { center: center?.short_name || center?.name || '' })
+                    : saved
+                      ? t('pay.notSetUp')
+                      : t('pay.notSetUpNoPledge')}
                 </Txt>
-                <Txt variant="meta" color="brownText">
-                  {t('pay.howToPay')}
-                </Txt>
+                {options && options.offline.length > 0 ? (
+                  <HowToGive methods={options.offline} tone="brown" />
+                ) : (
+                  <Txt variant="meta" color="brownText">
+                    {t('pay.howToPay')}
+                  </Txt>
+                )}
               </View>
               {req?.alternative ? <Button label={req.alternative.label} onPress={onAlternative} /> : null}
               <Button label={t('common.gotIt')} tone={req?.alternative ? 'secondary' : 'primary'} size={req?.alternative ? 'md' : 'cta'} onPress={onCancel} />
