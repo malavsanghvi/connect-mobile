@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { directionsUrl, firstStepsDone, markFor, parseTimingsTable, questionRef, readCenterContact, registrationStatus, replyWithin, rosterBodyLabel, telUrl } from '../guide';
+import { directionsUrl, firstStepsDone, markFor, parseTimingsTable, questionRef, readCenterContact, registrationStatus, replyWithin, rosterBodyLabel, splitSections, telUrl } from '../guide';
 
 describe('guide helpers', () => {
   it('reads contact details from branding without inventing any', () => {
@@ -49,5 +49,15 @@ describe('guide helpers', () => {
     expect(registrationStatus(null, null, now)).toEqual({ kind: 'open' });
     expect(registrationStatus('2027-01-05T00:00:00Z', null, now)).toEqual({ kind: 'opens', on: '2027-01-05' });
     expect(registrationStatus(null, '2026-09-01T00:00:00Z', now)).toEqual({ kind: 'closed' });
+  });
+});
+
+describe('legal sections', () => {
+  it('splits Markdown into one card per heading', () => {
+    expect(splitSections('Intro line\n\n## What we collect\nName and email.\n## How we use it\nTo run the app.')).toEqual([
+      { heading: null, body: 'Intro line' },
+      { heading: 'What we collect', body: 'Name and email.' },
+      { heading: 'How we use it', body: 'To run the app.' },
+    ]);
   });
 });

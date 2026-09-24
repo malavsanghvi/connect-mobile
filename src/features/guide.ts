@@ -146,3 +146,21 @@ export function replyWithin(hours: number | null | undefined): 'day' | 'days' | 
 export function questionRef(threadId: string): string {
   return `Q-${threadId.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
 }
+
+/**
+ * Split a legal document's Markdown into the prototype's one-card-per-section
+ * layout: each "#"/"##" heading starts a card; text before the first heading
+ * is an untitled card.
+ */
+export function splitSections(md: string): { heading: string | null; body: string }[] {
+  const out: { heading: string | null; body: string[] }[] = [];
+  for (const line of md.replace(/\r\n/g, '\n').split('\n')) {
+    const h = /^#{1,3}\s+(.*)$/.exec(line.trim());
+    if (h) out.push({ heading: h[1].trim(), body: [] });
+    else {
+      if (out.length === 0) out.push({ heading: null, body: [] });
+      out[out.length - 1].body.push(line);
+    }
+  }
+  return out.map((s) => ({ heading: s.heading, body: s.body.join('\n').trim() })).filter((s) => s.heading || s.body);
+}
