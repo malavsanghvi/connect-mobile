@@ -5,6 +5,7 @@ import { AppState, Platform } from 'react-native';
 
 import type { Database } from './database.types';
 import { env, isConfigured } from './env';
+import { createTracingFetch } from './request-context';
 import { sessionStorageAdapter } from './storage';
 
 export type AppClient = SupabaseClient<Database, 'app'>;
@@ -22,6 +23,9 @@ function notConfigured(): AppClient {
 export const supabase: AppClient = isConfigured
   ? createClient<Database, 'app'>(env.supabaseUrl, env.supabaseAnonKey, {
       db: { schema: 'app' },
+      // Traceability (WAVE2 contract): every PostgREST request carries
+      // x-client-app, a fresh x-request-id and x-client-screen for the audit log.
+      global: { fetch: createTracingFetch(env.supabaseUrl) },
       auth: {
         storage: sessionStorageAdapter,
         autoRefreshToken: true,

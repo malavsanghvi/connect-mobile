@@ -23,6 +23,7 @@ import {
 } from '@/lib/api/volunteer';
 import { report } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
+import { setClientApp } from '@/lib/request-context';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useSettings, useT } from '@/providers/settings';
@@ -215,6 +216,13 @@ function Board({ events, onExit }: { events: VolunteerEvent[]; onExit: () => voi
   const counts = useLoad(() => eventCounts(event.id), [event.id], 'load the check-in count');
   const scanLock = useRef(false);
   const device = Device.modelName ?? null;
+
+  // Audit trail: check-ins made while the board is in kiosk mode are tagged
+  // x-client-app: kiosk; leaving kiosk mode (or the board) goes back to member.
+  useEffect(() => {
+    setClientApp(kiosk ? 'kiosk' : 'member');
+    return () => setClientApp('member');
+  }, [kiosk]);
 
   useEffect(() => {
     if (!toast) return;

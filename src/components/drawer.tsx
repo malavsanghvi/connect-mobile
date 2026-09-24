@@ -8,9 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { myVolunteerEvents } from '@/lib/api/volunteer';
 import { report } from '@/lib/errors';
 import { fullName } from '@/lib/format';
+import { isDrawerEntryVisible, type DrawerEntry } from '@/lib/modules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
+import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, components, fonts, shadows, space, touch } from '@/theme';
 
@@ -90,7 +92,10 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const { center, member, guest, setGuest } = useApp();
   const brand = useBranding();
-  const volunteer = useLoad(() => (center && member ? myVolunteerEvents(center.id) : Promise.resolve([])), [center?.id, member?.userId], 'check your volunteer roles');
+  const { map } = useModules();
+  const on = (entry: DrawerEntry) => isDrawerEntryVisible(map, entry);
+  const volunteerOn = on('volunteer');
+  const volunteer = useLoad(() => (center && member && volunteerOn ? myVolunteerEvents(center.id) : Promise.resolve([])), [center?.id, member?.userId, volunteerOn], 'check your volunteer roles');
   const community = center?.short_name || center?.name || '';
   const version = Constants.expoConfig?.version ?? '1.0.0';
   const d = components.drawer;
@@ -143,21 +148,21 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
             </View>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: space.sm }}>
               <View style={{ gap: 2 }}>
-                <Item glyph="calendar-dots" tint="brown" iconColor={colors.brown} title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} />
-                {member ? <Item glyph="book" tint="navy" title={t('drawer.pathshala')} sub={t('drawer.pathshalaSub')} onPress={() => go({ pathname: '/jain-way', params: { tab: 'learn' } })} /> : null}
-                {member?.isAdult ? <Item glyph="heart" tint="brown" title={t('drawer.donations')} sub={t('drawer.donationsSub')} onPress={() => go('/pledges')} /> : null}
-                <Item glyph="bag" tint="green" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} />
-                <Item glyph="calendar-check" tint="navy" title={t('drawer.rsvp')} sub={t('drawer.rsvpSub')} onPress={() => go('/events')} />
+                {on('calendar') ? <Item glyph="calendar-dots" tint="brown" iconColor={colors.brown} title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} /> : null}
+                {member && on('pathshala') ? <Item glyph="book" tint="navy" title={t('drawer.pathshala')} sub={t('drawer.pathshalaSub')} onPress={() => go({ pathname: '/jain-way', params: { tab: 'learn' } })} /> : null}
+                {member?.isAdult && on('donations') ? <Item glyph="heart" tint="brown" title={t('drawer.donations')} sub={t('drawer.donationsSub')} onPress={() => go('/pledges')} /> : null}
+                {on('store') ? <Item glyph="bag" tint="green" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} /> : null}
+                {on('rsvp') ? <Item glyph="calendar-check" tint="navy" title={t('drawer.rsvp')} sub={t('drawer.rsvpSub')} onPress={() => go('/events')} /> : null}
               </View>
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 10, marginVertical: 10 }} />
               <View style={{ gap: 2 }}>
-                {brand.dashboardUrl ? <MinorItem glyph="chart" role="link" title={t('drawer.dashboard')} onPress={() => void openDashboard()} /> : null}
+                {brand.dashboardUrl && on('dashboard') ? <MinorItem glyph="chart" role="link" title={t('drawer.dashboard')} onPress={() => void openDashboard()} /> : null}
                 <MinorItem glyph="info" title={t('drawer.guide', { center: community })} onPress={() => go('/guide')} />
-                {volunteer.data && volunteer.data.length > 0 ? (
+                {volunteerOn && volunteer.data && volunteer.data.length > 0 ? (
                   <MinorItem glyph="scan" title={t('drawer.volunteer')} sub={t('drawer.volunteerSub', { n: volunteer.data.length })} onPress={() => go('/volunteer')} />
                 ) : null}
               </View>
-              {volunteer.error ? (
+              {volunteerOn && volunteer.error ? (
                 <View style={{ paddingHorizontal: 10, paddingTop: space.sm }}>
                   <Txt variant="caption" color="danger" style={{ fontFamily: fonts.body }}>
                     {volunteer.error.userMessage}

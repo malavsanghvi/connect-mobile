@@ -14,6 +14,7 @@ import { formatPhone, fullName } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
+import { useModule } from '@/providers/modules';
 import { usePush } from '@/providers/push';
 import { useSettings } from '@/providers/settings';
 import type { TextSize } from '@/theme';
@@ -32,6 +33,9 @@ export default function SettingsScreen() {
   const { member, center, refreshMember, signOut } = useApp();
   const { toast, confirm, payNotice } = useFeedback();
   const push = usePush();
+  const givingOn = useModule('giving');
+  // "Contact" and "Report a problem" send a message to a team inbox (comms module).
+  const askOn = useModule('comms');
   const [bio, setBio] = useState<BiometricSupport | null>(null);
   const [bioOn, setBioOn] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -249,8 +253,12 @@ export default function SettingsScreen() {
           <SectionTitle>{t('settings.payments')}</SectionTitle>
           <Card>
             <ListRow title={t('settings.savedMethods')} subtitle={t('settings.savedMethodsSub')} onPress={() => payNotice({ saved: false })} />
-            <Divider />
-            <ListRow title={t('settings.receipts')} subtitle={t('settings.receiptsSub', { email: member.person.email ?? member.email ?? '' })} onPress={() => router.push('/pledges')} />
+            {givingOn ? (
+              <>
+                <Divider />
+                <ListRow title={t('settings.receipts')} subtitle={t('settings.receiptsSub', { email: member.person.email ?? member.email ?? '' })} onPress={() => router.push('/pledges')} />
+              </>
+            ) : null}
           </Card>
         </>
       ) : null}
@@ -259,10 +267,14 @@ export default function SettingsScreen() {
       <Card>
         <ListRow title={t('settings.help')} subtitle={t('settings.helpSub')} onPress={() => router.push('/guide')} />
         <Divider />
-        <ListRow title={t('settings.contact', { center: community })} subtitle={t('settings.contactSub')} onPress={() => router.push('/guide/ask')} />
-        <Divider />
-        <ListRow title={t('settings.report')} subtitle={t('settings.reportSub')} onPress={() => router.push({ pathname: '/guide/ask', params: { topic: 'office' } })} />
-        <Divider />
+        {askOn ? (
+          <>
+            <ListRow title={t('settings.contact', { center: community })} subtitle={t('settings.contactSub')} onPress={() => router.push('/guide/ask')} />
+            <Divider />
+            <ListRow title={t('settings.report')} subtitle={t('settings.reportSub')} onPress={() => router.push({ pathname: '/guide/ask', params: { topic: 'office' } })} />
+            <Divider />
+          </>
+        ) : null}
         <ListRow title={t('settings.about')} subtitle={t('settings.aboutSub', { version: Constants.expoConfig?.version ?? '1.0.0', build: String(Constants.nativeBuildVersion ?? Constants.expoConfig?.version ?? '1') })} />
       </Card>
 

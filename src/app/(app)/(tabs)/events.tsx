@@ -11,35 +11,32 @@ import { bandFor, eventStatusLine } from '@/features/events';
 import { AlbumGrid, useAlbums } from '@/features/photos';
 import { loadEventsList } from '@/lib/api/events';
 import { formatDate } from '@/lib/format';
+import { eventsPanes, pickPane, type EventsPane } from '@/lib/modules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
+import { useModule, useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
-type Pane = 'upcoming' | 'calendar' | 'photos';
-
-/** Events: Upcoming · Calendar · Photos (prototype L158–256). */
+/**
+ * Events: Upcoming · Calendar · Photos (prototype L158–256). Each segment is
+ * its own module (events, calendar, content); switched-off ones are left out.
+ */
 export default function EventsScreen() {
   const t = useT();
   const router = useRouter();
   const params = useLocalSearchParams<{ view?: string }>();
-  const view: Pane = params.view === 'calendar' ? 'calendar' : params.view === 'photos' ? 'photos' : 'upcoming';
   const { invalidate } = useDataVersion();
+  const { map } = useModules();
+  const visible = eventsPanes(map);
+  const view: EventsPane | null = pickPane(params.view, visible, 'upcoming');
+  const labels: Record<EventsPane, string> = { upcoming: t('events.upcoming'), calendar: t('events.calendar'), photos: t('events.photos') };
 
   return (
     <Screen title={t('tab.events')} root onRefresh={async () => invalidate()}>
-      <Segmented
-        label={t('tab.events')}
-        value={view}
-        onChange={(v) => router.setParams({ view: v })}
-        options={[
-          { value: 'upcoming', label: t('events.upcoming') },
-          { value: 'calendar', label: t('events.calendar') },
-          { value: 'photos', label: t('events.photos') },
-        ]}
-      />
-      {view === 'calendar' ? <CalendarView /> : view === 'photos' ? <AlbumGrid /> : <UpcomingPane onPhotos={() => router.setParams({ view: 'photos' })} />}
+      {visible.length > 1 && view ? <Segmented label={t('tab.events')} value={view} onChange={(v) => router.setParams({ view: v })} options={visible.map((v) => ({ value: v, label: labels[v] }))} /> : null}
+      {view === 'calendar' ? <CalendarView /> : view === 'photos' ? <AlbumGrid /> : view === 'upcoming' ? <UpcomingPane onPhotos={() => router.setParams({ view: 'photos' })} /> : null}
     </Screen>
   );
 }
@@ -55,7 +52,9 @@ function UpcomingPane({ onPhotos }: { onPhotos: () => void }) {
     'load events',
   );
   const albums = useAlbums();
-  const albumList = albums.data?.albums ?? [];
+  const photosOn = useModule('content');
+  const surveysOn = useModule('surveys');
+  const albumList = photosOn ? (albums.data?.albums ?? []) : [];
 
   return (
     <Loaded state={state}>
@@ -122,13 +121,13 @@ function UpcomingPane({ onPhotos }: { onPhotos: () => void }) {
               <Chevron />
             </Pressable>
           ) : null}
-          {member && albums.error && !albums.data ? (
+          {member && photosOn && albums.error && !albums.data ? (
             <Txt variant="meta" color="danger">
               {albums.error.userMessage}
             </Txt>
           ) : null}
 
-          {feedback ? (
+          {feedback && surveysOn ? (
             <Pressable
               onPress={() => router.push({ pathname: '/survey/[id]', params: { id: feedback.survey.id } })}
               disabled={feedback.sent}

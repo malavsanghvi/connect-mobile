@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useApp } from '@/providers/app';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, components, layout, space } from '@/theme';
 
@@ -92,8 +93,9 @@ export function Screen({ title, root, showWordmark, children, footer, sticky, on
       }
     : undefined;
 
+  const nivaOn = useModule('niva');
   const ownTabBar = !root && tabBar;
-  const showNiva = niva ?? (root || tabBar);
+  const showNiva = nivaOn && (niva ?? (root || tabBar));
 
   const inner = (
     <View

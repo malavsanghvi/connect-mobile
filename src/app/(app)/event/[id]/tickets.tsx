@@ -17,6 +17,7 @@ import { lunchCard, type LunchGroup } from '@/lib/rules';
 import { readPref, writePref } from '@/lib/storage';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useModule } from '@/providers/modules';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
@@ -30,6 +31,7 @@ export default function TicketsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { member, center } = useApp();
+  const surveysOn = useModule('surveys');
   const { payNotice } = useFeedback();
   const tz = center?.time_zone ?? null;
   const [shareError, setShareError] = useState<string | null>(null);
@@ -161,7 +163,7 @@ export default function TicketsScreen() {
                   <LinkText label={t('tickets.changeRsvp')} onPress={() => router.push({ pathname: '/event/[id]', params: { id: event.id } })} />
                 </View>
               ) : null}
-              {survey ? (
+              {survey && surveysOn ? (
                 <Card tone="purple" onPress={() => router.push({ pathname: '/survey/[id]', params: { id: survey.id } })} accessibilityLabel={t('home.shareFeedback')}>
                   <Txt variant="eyebrow" color="purple">
                     {t('home.feedbackRequested')}
