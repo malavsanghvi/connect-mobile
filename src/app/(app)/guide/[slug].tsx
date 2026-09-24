@@ -16,7 +16,7 @@ export default function GuideSectionScreen() {
   const { center } = useApp();
   const state = useLoad(() => (center ? getGuideSection(center.id, slug) : Promise.resolve(null)), [center?.id, slug], 'load this guide page');
   return (
-    <Screen title={t('guide.title')}>
+    <Screen title={t('guide.title')} tabBar={false}>
       <Loaded state={state}>
         {(s) => {
           if (!s) return <EmptyState title={t('guide.pageMissing')} />;

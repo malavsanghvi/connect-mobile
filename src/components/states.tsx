@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -7,6 +8,7 @@ import { useT } from '@/providers/settings';
 import { colors, space } from '@/theme';
 
 import { Icon, type IconName } from './icon';
+import { StrokeIcon } from './stroke-icon';
 import { Banner, Button, Card, Txt, VStack } from './ui';
 
 export function LoadingState({ label }: { label?: string }) {
@@ -46,21 +48,23 @@ export function EmptyState({ icon = 'leaf-outline', title, body, action }: { ico
   );
 }
 
-/** Children see this instead of money, RSVP, bolis and pledges (adults only). */
+/** Children see this instead of money, RSVP, bolis and pledges (adults only). Prototype Main ~L983. */
 export function LockedState({ onBack }: { onBack?: () => void }) {
   const t = useT();
+  const router = useRouter();
+  const back = onBack ?? (() => router.dismissTo('/'));
   return (
-    <VStack gap={space.lg} style={{ alignItems: 'center', paddingVertical: space.xxl }}>
-      <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="lock-closed" size={32} color={colors.navy} />
+    <VStack gap={space.lg} style={{ alignItems: 'center', paddingTop: 60, paddingBottom: space.xl }}>
+      <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center' }}>
+        <StrokeIcon name="lock" size={34} color={colors.brown} />
       </View>
-      <Txt variant="title" color="navy" center accessibilityRole="header">
+      <Txt variant="display" center accessibilityRole="header">
         {t('locked.title')}
       </Txt>
       <Txt variant="body" color="ink2" center>
         {t('locked.body')}
       </Txt>
-      {onBack ? <Button label={t('locked.backHome')} onPress={onBack} /> : null}
+      <Button label={t('locked.backHome')} tone="secondary" size="md" fill={false} style={{ alignSelf: 'center', paddingHorizontal: 28 }} onPress={back} />
     </VStack>
   );
 }

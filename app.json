@@ -10,7 +10,7 @@
     "backgroundColor": "#FBF7F0",
     "primaryColor": "#1B2C5C",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "org.connectplatform.member",
       "supportsTablet": true
     },
@@ -37,7 +37,7 @@
         {
           "backgroundColor": "#FBF7F0",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76,
+          "imageWidth": 120,
           "dark": {
             "backgroundColor": "#1B2C5C",
             "image": "./assets/images/splash-icon.png"

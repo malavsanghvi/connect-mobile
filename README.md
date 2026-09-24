@@ -43,6 +43,7 @@ it never falls back to sample data.
 | `EXPO_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | yes | Anon / publishable key (RLS protects data). Never a service-role key. |
 | `EXPO_PUBLIC_CENTER_SLUG` | no | Center to open, resolved from `app.centers.slug`. Default `jsh`. |
+| `EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL` | no | Public community dashboard linked from the menu. `centers.branding.dashboard_url` wins; hidden when neither is set. |
 
 For EAS builds set them as EAS environment variables.
 

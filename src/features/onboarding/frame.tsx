@@ -29,23 +29,22 @@ export function OnboardingFrame({
   const t = useT();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}>
-      <View style={{ paddingHorizontal: space.md, paddingTop: space.sm, gap: space.sm }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          {onBack ? <IconButton icon="chevron-back" label={t('common.back')} onPress={onBack} /> : <View style={{ width: 44 }} />}
-          <Txt variant="smallStrong" color="muted">
+      {/* Onboarding.dc.html top bar: padding 16/20/8, back · "Step n of 5" · skip, 6px progress. */}
+      <View style={{ paddingHorizontal: space.gutter, paddingTop: space.lg, paddingBottom: space.sm, gap: 10 }}>
+        <Row gap={space.md}>
+          {onBack ? <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={onBack} /> : <View style={{ width: 44, height: 44 }} />}
+          <Txt variant="meta" color="muted" style={{ flex: 1 }}>
             {t('onboarding.stepOf', { step, total: ONBOARDING_STEPS })}
           </Txt>
-          {onSkip ? <LinkText label={t('onboarding.skip')} onPress={onSkip} color="muted" /> : <View style={{ width: 44 }} />}
+          {onSkip ? <LinkText label={t('onboarding.skip')} onPress={onSkip} /> : null}
         </Row>
-        <View style={{ paddingHorizontal: space.sm }}>
-          <ProgressBar value={step / ONBOARDING_STEPS} color={colors.navy} label={t('onboarding.stepOf', { step, total: ONBOARDING_STEPS })} />
-        </View>
+        <ProgressBar value={step / ONBOARDING_STEPS} color={colors.navy} track={colors.track} label={t('onboarding.stepOf', { step, total: ONBOARDING_STEPS })} />
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.gutter, paddingBottom: space.xxl }}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: space.gutter, paddingTop: space.md, paddingBottom: space.xxl }}>
           <View style={{ width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center', gap: space.lg }}>
             <View style={{ gap: space.sm }}>
-              <Txt variant="display" color="navy" accessibilityRole="header">
+              <Txt variant="display" accessibilityRole="header">
                 {title}
               </Txt>
               {subtitle ? (

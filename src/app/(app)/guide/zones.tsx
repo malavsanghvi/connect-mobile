@@ -57,7 +57,7 @@ export default function ZonesScreen() {
   };
 
   return (
-    <Screen title={t('guide.zoneTitle')}>
+    <Screen title={t('guide.zoneTitle')} tabBar={false}>
       <Txt variant="small" color="ink2">
         {t('guide.zoneIntro')}
       </Txt>

@@ -34,7 +34,7 @@ export default function PathshalaScanScreen() {
   const student = member?.members.find((m) => m.person.id === (params.person ?? member.person.id));
   if (!member || !student) {
     return (
-      <Screen title={t('attend.title')}>
+      <Screen title={t('attend.title')} tabBar={false}>
         <EmptyState title={t('profile.notFound')} />
       </Screen>
     );
@@ -66,7 +66,7 @@ export default function PathshalaScanScreen() {
   };
 
   return (
-    <Screen title={t('attend.title')}>
+    <Screen title={t('attend.title')} tabBar={false}>
       <Txt variant="body" color="ink2">
         {forSelf ? t('attend.introSelf') : t('attend.introChild', { name })}
       </Txt>
