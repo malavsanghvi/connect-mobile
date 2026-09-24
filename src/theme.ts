@@ -22,6 +22,8 @@ export const colors = {
   dashed: '#B9AE99',
   dashed2: '#D5CBB8',
   toggleOff: '#CFC8BA',
+  /** Onboarding progress track. */
+  track: '#EDE3D2',
   starEmpty: '#E3DCCF',
 
   // Ink

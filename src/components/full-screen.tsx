@@ -8,10 +8,10 @@ import { colors, layout, space } from '@/theme';
 
 import { Banner, Button, Txt, VStack } from './ui';
 
-export function FullScreen({ children }: { children: ReactNode }) {
+export function FullScreen({ children, align = 'center' }: { children: ReactNode; align?: 'center' | 'top' }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: space.gutter }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: align === 'top' ? 'flex-start' : 'center', padding: space.gutter }}>
         <View style={{ width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center', gap: space.lg }}>{children}</View>
       </ScrollView>
     </SafeAreaView>

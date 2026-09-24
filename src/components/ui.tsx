@@ -24,6 +24,7 @@ import { StrokeIcon, type StrokeIconName } from './stroke-icon';
 // ---------------------------------------------------------------------------
 
 export type TxtVariant =
+  | 'onboardingHero'
   | 'hero'
   | 'display'
   | 'title'
@@ -42,6 +43,7 @@ export type TxtVariant =
   | 'badge';
 
 const variants: Record<TxtVariant, TextStyle> = {
+  onboardingHero: { fontFamily: fonts.displayBold, fontSize: typeScale.onboardingHero, lineHeight: 39 },
   hero: { fontFamily: fonts.displayBold, fontSize: typeScale.hero, lineHeight: 36 },
   display: { fontFamily: fonts.displayBold, fontSize: typeScale.display, lineHeight: 32 },
   title: { fontFamily: fonts.displayBold, fontSize: typeScale.title, lineHeight: 28 },

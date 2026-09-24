@@ -103,6 +103,7 @@ export default function SignInScreen() {
       {error ? <Banner tone="error" message={error} /> : null}
       {stage === 'enter' ? (
         <TextField
+          size="lg"
           label={t(mode === 'email' ? 'signin.emailLabel' : 'signin.phoneLabel')}
           value={identifier}
           onChangeText={setIdentifier}
@@ -119,6 +120,7 @@ export default function SignInScreen() {
       ) : (
         <>
           <TextField
+            size="lg"
             label={t('signin.codeLabel')}
             value={formatOtp(code)}
             onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, CODE_MAX))}
