@@ -13,7 +13,7 @@ import { colors, fonts, radii, space, touch } from '@/theme';
 
 import type { PaymentOptions } from '@/lib/api/payments';
 
-import { cardCharger, registerPayHost, type PaymentOutcome, type PaymentRequest, type SavingJob, type SavingOutcome } from './controller';
+import { cardCharger, registerPayHost, useCardCharger, type PaymentOutcome, type PaymentRequest, type SavingJob, type SavingOutcome } from './controller';
 import { HowToGive } from './how-to-give';
 import { usePaymentOptions } from './online';
 import { processorLabel } from './online-wait';
@@ -35,6 +35,7 @@ export function PayHost() {
   const savingRef = useRef<SavingState | null>(null);
   // What this community takes (online processor, offline instructions); registers the card charger.
   const { options } = usePaymentOptions();
+  const available = useCardCharger();
 
   useEffect(() => {
     savingRef.current = saving;
@@ -114,7 +115,7 @@ export function PayHost() {
 
   return (
     <>
-      <PaySheet state={sheet} options={options} onCancel={() => closeSheet({ status: sheet && !cardCharger() ? 'not_available' : 'cancelled' })} onAlternative={alternative} onConfirm={confirm} />
+      <PaySheet state={sheet} options={options} charge={available} onCancel={() => closeSheet({ status: sheet && !available ? 'not_available' : 'cancelled' })} onAlternative={alternative} onConfirm={confirm} />
       <SavingView state={saving} onRetry={() => void run(saving?.done ?? 0)} onClose={() => finishSaving(false)} onContinue={() => finishSaving(true)} />
       <ThankYou state={paid} onClose={() => setPaid(null)} />
     </>
@@ -135,11 +136,10 @@ function SheetRow({ label, value }: { label: string; value: string }) {
 }
 
 /** Prototype Pay sheet (L1559): Pay · Cancel; To / For / Card / Total; confirm. */
-function PaySheet({ state, options, onCancel, onAlternative, onConfirm }: { state: SheetState | null; options: PaymentOptions | null; onCancel: () => void; onAlternative: () => void; onConfirm: () => void }) {
+function PaySheet({ state, options, charge, onCancel, onAlternative, onConfirm }: { state: SheetState | null; options: PaymentOptions | null; charge: unknown; onCancel: () => void; onAlternative: () => void; onConfirm: () => void }) {
   const t = useT();
   const insets = useSafeAreaInsets();
   const { center } = useApp();
-  const charge = cardCharger();
   const req = state?.req;
   const saved = !!(req?.pledgeId || req?.pledgeIds?.length);
   const online = charge ? options?.online ?? null : null;

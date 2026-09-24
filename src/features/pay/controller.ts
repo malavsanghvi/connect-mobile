@@ -15,6 +15,8 @@
  * a small controller so any screen or helper can start a flow.
  */
 
+import { useSyncExternalStore } from 'react';
+
 import type { SavingStep } from './steps';
 
 export type { SavingStep } from './steps';
@@ -82,15 +84,34 @@ export function registerPayHost(h: Host): () => void {
 }
 
 /** For the future payment integration. Returns the unregister function. */
+const chargerListeners = new Set<() => void>();
+const notifyCharger = () => chargerListeners.forEach((l) => l());
+
 export function registerCardCharger(c: CardCharger): () => void {
   charger = c;
+  notifyCharger();
   return () => {
-    if (charger === c) charger = null;
+    if (charger === c) {
+      charger = null;
+      notifyCharger();
+    }
   };
 }
 
 export function cardCharger(): CardCharger | null {
   return charger;
+}
+
+/** The registered charger as React state, so screens re-render when online payment becomes available. */
+export function useCardCharger(): CardCharger | null {
+  return useSyncExternalStore(
+    (l) => {
+      chargerListeners.add(l);
+      return () => chargerListeners.delete(l);
+    },
+    () => charger,
+    () => charger,
+  );
 }
 
 /** Open the Pay sheet. Resolves when the member closes it. */
