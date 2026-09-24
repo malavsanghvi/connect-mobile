@@ -7,6 +7,7 @@ import { Band, Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Card, Chip, ChipGroup, LinkText, Pill, Row, SectionTitle, Txt, VStack } from '@/components/ui';
 import { bandFor } from '@/features/events';
+import { startPayment } from '@/features/pay';
 import { findEventSurvey, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, listLunchSlots, moveLunchSlot, rsvpState, type LunchSlot } from '@/lib/api/events';
 import { report } from '@/lib/errors';
 import { formatCents, formatDate, formatTime, formatTimeRange } from '@/lib/format';
@@ -95,7 +96,7 @@ export default function TicketsScreen() {
                       <Txt variant="meta" color="brownText">
                         {[pledge.pledge_number, pledge.status === 'paid' ? t('tickets.receiptEmailed') : t('tickets.openPledge')].filter(Boolean).join(' · ')}
                       </Txt>
-                      {pledge.status !== 'paid' ? <Button label={t('give.payNow')} tone="brown" size="md" onPress={() => payNotice({ amountLabel: formatCents(pledge.amount_cents - pledge.paid_cents) })} /> : null}
+                      {pledge.status !== 'paid' ? <Button label={t('give.payNow')} tone="brown" size="md" onPress={() => startPayment({ amountCents: pledge.amount_cents - pledge.paid_cents, forLabel: pledge.pledge_number ? t('pay.forPledge', { pledge: pledge.pledge_number }) : t('pay.forEvent', { event: event.name }), pledgeId: pledge.id, pledgeNumber: pledge.pledge_number, context: 'rsvp_later' }, { payNotice, formatAmount: (c) => formatCents(c) }).catch((err: unknown) => report(err, 'open the payment sheet'))} /> : null}
                     </Card>
                   ) : null}
 
