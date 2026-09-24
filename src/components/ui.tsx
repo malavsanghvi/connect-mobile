@@ -153,11 +153,13 @@ export type ButtonProps = {
   busy?: boolean;
   icon?: IconName;
   accessibilityHint?: string;
+  /** Spoken name when the visible label is not unique on the screen (defaults to the label). */
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   fill?: boolean;
 };
 
-export function Button({ label, onPress, tone = 'primary', size = 'cta', disabled, busy, icon, accessibilityHint, style, fill = true }: ButtonProps) {
+export function Button({ label, onPress, tone = 'primary', size = 'cta', disabled, busy, icon, accessibilityHint, accessibilityLabel, style, fill = true }: ButtonProps) {
   const { scale } = useSettings();
   const t = buttonTones[tone];
   const sz = buttonSizes[size];
@@ -170,7 +172,7 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
       onPress={onPress}
       disabled={inactive}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: !!inactive, busy: !!busy }}
       style={({ pressed }) => [
