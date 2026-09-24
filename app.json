@@ -71,6 +71,14 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Community Connect to save event photos to your library.",
+          "savePhotosPermission": "Allow Community Connect to save event photos to your library.",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "experiments": {
