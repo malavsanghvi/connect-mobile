@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import { useRouter, type Href } from 'expo-router';
+import { usePathname, useRouter, type Href } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, View } from 'react-native';
 
@@ -69,6 +69,21 @@ export function ConfirmPopupProvider({ children }: { children: ReactNode }) {
   const tzRef = useRef<string | null>(null);
   const pending = useRef<NotificationRoute[]>([]);
   const handled = useRef(new Set<string>());
+  // An automatic pop-up (opened by Home 24 hours before an event) belongs to Home:
+  // leaving Home closes it without snoozing, so it never sits over another screen,
+  // including that event's own confirm screen. Pop-ups the member asked for (a
+  // notification tap, a button) stay open wherever they are.
+  const pathname = usePathname();
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
+  const autoOpen = useRef(false);
+  useEffect(() => {
+    if (autoOpen.current && pathname !== '/') {
+      autoOpen.current = false;
+      setPopup(null);
+      setError(null);
+    }
+  }, [pathname]);
 
   const showConfirm = useCallback(
     async (eventId: string, opts?: { auto?: boolean }) => {
@@ -84,7 +99,10 @@ export function ConfirmPopupProvider({ children }: { children: ReactNode }) {
           if (!opts?.auto) toast(t('notif.noRsvp'), 'info');
           return;
         }
+        // Loading takes a moment: if the member has left Home meanwhile, an automatic pop-up stays closed.
+        if (opts?.auto && pathRef.current !== '/') return;
         setError(null);
+        autoOpen.current = Boolean(opts?.auto);
         setPopup(data);
       } catch (err) {
         const e = report(err, 'open your RSVP reminder');
