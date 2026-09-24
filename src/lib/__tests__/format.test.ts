@@ -91,6 +91,9 @@ describe('contact details', () => {
   it('shows the one-time code in two groups', () => {
     expect(formatOtp('482917')).toBe('482 917');
     expect(formatOtp('48')).toBe('48');
+    expect(formatOtp('48291736')).toBe('4829 1736');
+    expect(formatOtp('4829173651')).toBe('4829 1736 51');
+    expect(formatOtp('482917365199')).toBe('4829 1736 51');
   });
   it('joins names naturally', () => {
     expect(joinNames(['Priya'])).toBe('Priya');
