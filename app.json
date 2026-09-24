@@ -63,6 +63,14 @@
         {
           "color": "#1B2C5C"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Community Connect to choose photos you want to add to an event album.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {
