@@ -4,6 +4,8 @@ import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { StringKey } from '@/i18n/en';
+import { isTabVisible } from '@/lib/modules';
+import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, components, fonts } from '@/theme';
 
@@ -28,10 +30,14 @@ function isTab(name: string | undefined): name is TabName {
 /**
  * The prototype tab bar (Main.dc.html L1321): 76px, white, 1px #E8E0D2 top
  * border, five columns, 22px outline icons (stroke 1.8, same icon in both
- * states), labels 12/600, navy active / faint idle.
+ * states), labels 12/600, navy active / faint idle. Tabs whose modules the
+ * community switched off are left out (Give and Jain Way disappear when none
+ * of their sections is on).
  */
 export function TabBarView({ active, onSelect }: { active: TabName | null; onSelect: (tab: TabName) => void }) {
   const insets = useSafeAreaInsets();
+  const { map } = useModules();
+  const tabs = TABS.filter((tab) => isTabVisible(map, tab));
   const { t, scale } = useSettings();
   const labelScale = Math.min(scale, 1.15);
   const spec = components.tabBar;
@@ -48,7 +54,7 @@ export function TabBarView({ active, onSelect }: { active: TabName | null; onSel
         paddingLeft: insets.left,
         paddingRight: insets.right,
       }}>
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const meta = TAB_META[tab];
         const focused = tab === active;
         const tint = focused ? colors.navy : colors.faint;

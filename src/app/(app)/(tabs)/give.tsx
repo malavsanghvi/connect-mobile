@@ -13,22 +13,36 @@ import { listOpenPledges, listOpportunitiesWithAvailability, loadGiveSummary, ty
 import { report } from '@/lib/errors';
 import { formatCents, formatCentsCompact } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
+import { isGiveSectionVisible, type ModuleMap } from '@/lib/modules';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
+import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
-/** Give (prototype §2.8). Adults only — children see "Ask a parent". */
+/**
+ * Give (prototype §2.8). Adults only — children see "Ask a parent". The bolis
+ * card needs the bolis module; everything else is the giving module. The tab
+ * itself is hidden when neither is on.
+ */
 export default function GiveScreen() {
   const t = useT();
   const router = useRouter();
   const { member, center, setGuest } = useApp();
   const { invalidate } = useDataVersion();
   const year = Number((member?.today ?? '2026').slice(0, 4));
+  const { map } = useModules();
+  const givingOn = isGiveSectionVisible(map, 'summary');
+  const bolisOn = isGiveSectionVisible(map, 'bolis');
   const state = useLoad(
     async () => {
       if (!member?.household || !center) return null;
-      const [summary, opps, bolis, openPledges] = await Promise.all([loadGiveSummary(member.household.id, year), listOpportunitiesWithAvailability(center.id), listBolis(center.id), listOpenPledges(member.household.id)]);
+      const [summary, opps, bolis, openPledges] = await Promise.all([
+        givingOn ? loadGiveSummary(member.household.id, year) : null,
+        givingOn ? listOpportunitiesWithAvailability(center.id) : [],
+        bolisOn ? listBolis(center.id) : [],
+        givingOn ? listOpenPledges(member.household.id) : [],
+      ]);
       const now = new Date();
       return {
         summary,
@@ -38,7 +52,7 @@ export default function GiveScreen() {
         inPerson: bolis.filter((b) => b.kind === 'in_person' && (b.status === 'open' || b.status === 'paused')).length,
       };
     },
-    [member?.household?.id, center?.id, year],
+    [member?.household?.id, center?.id, year, givingOn, bolisOn],
     'load giving',
   );
 
@@ -63,15 +77,20 @@ export default function GiveScreen() {
   return (
     <Screen title={t('tab.give')} root onRefresh={async () => invalidate()}>
       <Loaded state={state}>
-        {(data) => (data ? <GiveBody {...data} /> : <EmptyState icon="people-outline" title={t('give.noHousehold')} />)}
+        {(data) => (data ? <GiveBody {...data} map={map} /> : <EmptyState icon="people-outline" title={t('give.noHousehold')} />)}
       </Loaded>
     </Screen>
   );
 }
 
-function GiveBody({ summary, opps, openDigital, inPerson, openPledges }: { summary: GiveSummary; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: { id: string; pledge_number: string | null }[] }) {
+type GiveBodyProps = { summary: GiveSummary | null; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: { id: string; pledge_number: string | null }[]; map: ModuleMap };
+
+function GiveBody({ summary, opps, openDigital, inPerson, openPledges, map }: GiveBodyProps) {
   const t = useT();
   const router = useRouter();
+  const bolisCard = isGiveSectionVisible(map, 'bolis') ? <BolisCard openDigital={openDigital} inPerson={inPerson} /> : null;
+  // Giving switched off (bolis only): just the bolis card.
+  if (!summary || !isGiveSectionVisible(map, 'summary')) return <VStack gap={14}>{bolisCard}</VStack>;
   const payOpen = () => {
     const ids = openPledges.map((p) => p.id);
     startPayment({
@@ -95,21 +114,7 @@ function GiveBody({ summary, opps, openDigital, inPerson, openPledges }: { summa
         </Txt>
       </Card>
 
-      <Card tone="amber" onPress={() => router.push('/bolis')} accessibilityLabel={`${t('give.bolis')}. ${t('give.bolisSub', { open: openDigital, inPerson })}`}>
-        <Row gap={space.md}>
-          <View style={{ flex: 1 }}>
-            <Txt variant="section" color="brownDark">
-              {t('give.bolis')}
-            </Txt>
-            <Txt variant="meta" color="brownDark">
-              {t('give.bolisSub', { open: openDigital, inPerson })}
-            </Txt>
-          </View>
-          <Txt color="brownDark" style={{ fontSize: 22, lineHeight: 26 }}>
-            {'\u203A'}
-          </Txt>
-        </Row>
-      </Card>
+      {bolisCard}
 
       <Heading>{t('give.opportunities')}</Heading>
       {opps.length === 0 ? <EmptyState icon="gift-outline" title={t('give.noOpportunities')} /> : null}
@@ -166,5 +171,28 @@ function GiveBody({ summary, opps, openDigital, inPerson, openPledges }: { summa
 
       {summary.openCents > 0 ? <Button label={t('give.payOpen', { amount: formatCents(summary.openCents) })} onPress={payOpen} /> : null}
     </VStack>
+  );
+}
+
+/** Amber "Bolis" card: open digital bolis and in-person bolis at the Jain Center. */
+function BolisCard({ openDigital, inPerson }: { openDigital: number; inPerson: number }) {
+  const t = useT();
+  const router = useRouter();
+  return (
+    <Card tone="amber" onPress={() => router.push('/bolis')} accessibilityLabel={`${t('give.bolis')}. ${t('give.bolisSub', { open: openDigital, inPerson })}`}>
+      <Row gap={space.md}>
+        <View style={{ flex: 1 }}>
+          <Txt variant="section" color="brownDark">
+            {t('give.bolis')}
+          </Txt>
+          <Txt variant="meta" color="brownDark">
+            {t('give.bolisSub', { open: openDigital, inPerson })}
+          </Txt>
+        </View>
+        <Txt color="brownDark" style={{ fontSize: 22, lineHeight: 26 }}>
+          {'\u203A'}
+        </Txt>
+      </Row>
+    </Card>
   );
 }

@@ -18,6 +18,7 @@ import { isWithinReminder, nextOccurrence, streakDisplay, streakLabel, tithiLabe
 import { readPref, writePref } from '@/lib/storage';
 import { useLoad, type LoadState } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useModule } from '@/providers/modules';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
@@ -139,6 +140,8 @@ export function TodayCard() {
   const { center, member } = useApp();
   const [collapsed, setCollapsed] = useState(false);
   const state = useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], "load today's timings");
+  // The darshan button opens the Library (content module).
+  const libraryOn = useModule('content');
   const community = center?.short_name || center?.name || '';
   const family = member?.household?.display_name ?? null;
 
@@ -226,7 +229,7 @@ export function TodayCard() {
           {t('home.noTimings')}
         </Txt>
       )}
-      {darshan || aarti ? (
+      {(darshan || aarti) && libraryOn ? (
         <Pressable
           onPress={() => router.push({ pathname: '/jain-way', params: { tab: 'library' } })}
           accessibilityRole="button"

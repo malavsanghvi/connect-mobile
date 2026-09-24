@@ -21,6 +21,7 @@ import { setClientScreen } from '@/lib/request-context';
 import { AppProvider, useApp } from '@/providers/app';
 import { DataVersionProvider } from '@/providers/data-version';
 import { FeedbackProvider } from '@/providers/feedback';
+import { ModulesProvider } from '@/providers/modules';
 import { SettingsProvider, useT } from '@/providers/settings';
 import { colors } from '@/theme';
 
@@ -49,12 +50,14 @@ export default function RootLayout() {
       <SettingsProvider>
         <DataVersionProvider>
           <AppProvider>
-            <FeedbackProvider>
-              <StatusBar style="dark" />
-              <ScreenTracker />
-              <RootNavigator />
-              <PayHost />
-            </FeedbackProvider>
+            <ModulesProvider>
+              <FeedbackProvider>
+                <StatusBar style="dark" />
+                <ScreenTracker />
+                <RootNavigator />
+                <PayHost />
+              </FeedbackProvider>
+            </ModulesProvider>
           </AppProvider>
         </DataVersionProvider>
       </SettingsProvider>

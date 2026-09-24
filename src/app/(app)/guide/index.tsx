@@ -3,12 +3,14 @@ import { Pressable, View } from 'react-native';
 
 import { Loaded } from '@/components/states';
 import { Card, Chevron, ListRow, ProgressBar, Row, Txt, VStack } from '@/components/ui';
-import { FIRST_STEP_KEYS, firstStepsDone, type FirstSteps } from '@/features/guide';
+import { FIRST_STEP_KEYS, type FirstSteps } from '@/features/guide';
 import { GuideScreen, Mark, guideFlagKey, useCommunity, useGuideFlag, type Tint } from '@/features/guide-ui';
 import { pickTranslation, type StringKey } from '@/i18n';
 import { listGuideSections, loadFirstStepFacts } from '@/lib/api/guide';
+import { isGuideSectionVisible } from '@/lib/modules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
@@ -43,15 +45,22 @@ const STEP_SECTION: Record<keyof FirstSteps, Section> = { whatsapp: 'whatsapp', 
 /**
  * "New to {center}" hub (Welcome.dc.html): navy hero with the first-steps
  * progress, the 5-step checklist, the 9 Explore tiles, then any extra pages
- * the center wrote (guide_sections). Open to guests.
+ * the center wrote (guide_sections). Open to guests. Steps and tiles of
+ * switched-off modules (WhatsApp/ask: comms, volunteer: volunteers,
+ * membership, extra pages: content) are left out.
  */
 export default function GuideHubScreen() {
   const { t, language } = useSettings();
   const router = useRouter();
   const { center, member } = useApp();
   const community = useCommunity();
+  const { map } = useModules();
+  const sectionOn = (section: Section) => isGuideSectionVisible(map, section);
+  const stepKeys = FIRST_STEP_KEYS.filter((k) => sectionOn(STEP_SECTION[k]));
+  const tiles = TILES.filter((tile) => sectionOn(tile.section));
+  const pagesOn = isGuideSectionVisible(map, 'pages');
   const facts = useLoad(() => (member ? loadFirstStepFacts(member.person.id) : Promise.resolve({ whatsapp: false, volunteer: false, ask: false })), [member?.person.id], 'check your first steps');
-  const sections = useLoad(() => (center ? listGuideSections(center.id) : Promise.resolve([])), [center?.id], 'load the guide');
+  const sections = useLoad(() => (center && pagesOn ? listGuideSections(center.id) : Promise.resolve([])), [center?.id, pagesOn], 'load the guide');
   const [zoneFlag] = useGuideFlag(guideFlagKey(member?.person.id, 'zone'));
   const [memFlag] = useGuideFlag(guideFlagKey(member?.person.id, 'membership'));
 
@@ -62,7 +71,7 @@ export default function GuideHubScreen() {
     volunteer: !!facts.data?.volunteer,
     ask: !!facts.data?.ask,
   };
-  const done = firstStepsDone(steps);
+  const done = stepKeys.filter((k) => steps[k]).length;
   // Pages with their own native section are not repeated in "More from {center}".
   const extraPages = (sections.data ?? []).filter((s) => !s.is_checklist && !['timings', 'links', 'membership'].includes(s.slug));
 
@@ -83,10 +92,10 @@ export default function GuideHubScreen() {
             {t('guide.firstSteps')}
           </Txt>
           <Txt variant="meta" color="white" style={{ fontFamily: fonts.bodySemi }}>
-            {t('guide.stepsDone', { n: done })}
+            {t('guide.stepsDone', { n: done, total: stepKeys.length })}
           </Txt>
         </Row>
-        <ProgressBar value={done / FIRST_STEP_KEYS.length} color={colors.onNavyGreen} track={colors.navyPanel} label={t('guide.stepsDone', { n: done })} />
+        <ProgressBar value={stepKeys.length ? done / stepKeys.length : 1} color={colors.onNavyGreen} track={colors.navyPanel} label={t('guide.stepsDone', { n: done, total: stepKeys.length })} />
       </View>
 
       {facts.error ? (
@@ -98,7 +107,7 @@ export default function GuideHubScreen() {
       ) : null}
 
       <Card style={{ paddingVertical: 4, paddingHorizontal: 14, gap: 0 }}>
-        {FIRST_STEP_KEYS.map((k, i) => {
+        {stepKeys.map((k, i) => {
           const ok = steps[k];
           const label = t(`guide.step.${k}` as StringKey, { center: community });
           return (
@@ -107,7 +116,7 @@ export default function GuideHubScreen() {
               onPress={() => router.push(HREF[STEP_SECTION[k]])}
               accessibilityRole="button"
               accessibilityLabel={ok ? `${label}, ${t('guide.stepDone')}` : label}
-              style={({ pressed }) => ({ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: 6, borderBottomWidth: i < FIRST_STEP_KEYS.length - 1 ? 1 : 0, borderBottomColor: colors.divider, opacity: pressed ? 0.7 : 1 })}>
+              style={({ pressed }) => ({ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: 6, borderBottomWidth: i < stepKeys.length - 1 ? 1 : 0, borderBottomColor: colors.divider, opacity: pressed ? 0.7 : 1 })}>
               <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.green, backgroundColor: ok ? colors.green : colors.card, alignItems: 'center', justifyContent: 'center' }}>
                 {ok ? (
                   <Txt variant="caption" color="white" style={{ fontFamily: fonts.bodyBold }}>
@@ -128,7 +137,7 @@ export default function GuideHubScreen() {
         {t('guide.explore', { center: community })}
       </Txt>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-        {TILES.map((tile) => {
+        {tiles.map((tile) => {
           const label = t(`guide.tile.${tile.key}` as StringKey);
           const sub = t(`guide.tile.${tile.key}Sub` as StringKey);
           return (

@@ -100,6 +100,16 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
 - Organization IDs (`external_ids` kinds `org_member`, `org_household`) are shown
   exactly as issued (leading zeros kept), labelled from
   `centers.rules.identifiers.org_member_label` / `org_household_label`.
+- **Modules** (`src/lib/modules.ts`): the community can switch modules off
+  (`app.my_modules`). Tabs, Home cards, drawer entries, Give / Events / Jain Way
+  segments and guide sections of a switched-off module are hidden, and a deep link to
+  one shows "{module} isn't offered by {center} right now". If `app.my_modules` is
+  missing or fails, everything is shown and the reason is logged once.
+- **Traceability** (`src/lib/request-context.ts`): every PostgREST request sends
+  `x-client-app` (`member`, or `kiosk` while the volunteer board is in kiosk mode), a
+  fresh `x-request-id` and `x-client-screen` (the current route). Writes the member
+  asked for with a reason (cancel an RSVP, deactivate / delete / reactivate the
+  account) also send `x-audit-reason` via `withAuditReason()`.
 
 ## Per-center builds
 
@@ -144,3 +154,4 @@ changed. The app works around each one as noted.
 | 27 | No sender for family-circle pushes (saathi_feed milestones / behind) | App routes `data.type = 'family_circle'` taps to the Saathi tab and handles the "Send anumodana" button (`src/lib/notification-routes.ts`) |
 | 28 | Recitation "clear recitation · steady pace" scoring needs speech analysis | Recording is saved for the teacher; no automatic pace/pronunciation verdict is claimed |
 | 25 | A person in several households | App uses the household they are primary in |
+| 24 | `app.my_modules(p_center)` is not in the generated types yet (wave 2, schema stream) | Hand-typed call in `src/lib/api/modules.ts`; missing RPC → everything on, logged once |
