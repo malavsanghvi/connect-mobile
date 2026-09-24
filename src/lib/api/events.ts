@@ -1,5 +1,6 @@
 import type { Tables, TablesInsert } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
+import { readPref } from '../storage';
 import { supabase } from '../supabase';
 
 import { createPledge } from './giving';
@@ -225,8 +226,11 @@ export async function moveLunchSlot(attendeeIds: string[], slotId: string): Prom
 
 export type EventListItem = { event: EventRow; rsvp: Rsvp | null; count: number };
 
-/** Events tab: upcoming events with the household's RSVP status, plus open event-feedback surveys. */
-export async function loadEventsList(centerId: string, householdId: string | null, personId: string | null): Promise<{ items: EventListItem[]; feedback: { survey: Tables<'surveys'>; eventName: string }[] }> {
+/** Events tab feedback row: the open survey to answer, or the one just answered ("Feedback sent · thank you"). */
+export type FeedbackRow = { survey: Tables<'surveys'>; eventName: string; attended: boolean; sent: boolean };
+
+/** Events tab: upcoming events with the household's RSVP status, plus the event-feedback row. */
+export async function loadEventsList(centerId: string, householdId: string | null, personId: string | null): Promise<{ items: EventListItem[]; feedback: FeedbackRow | null }> {
   const events = await listUpcomingEvents(centerId);
   const rsvps = householdId ? await listHouseholdRsvps(householdId, events.map((e) => e.id)) : new Map<string, Rsvp>();
   const active = [...rsvps.values()].filter((r) => r.status !== 'cancelled');
@@ -237,18 +241,25 @@ export async function loadEventsList(centerId: string, householdId: string | nul
     return { event, rsvp, count };
   });
 
-  let feedback: { survey: Tables<'surveys'>; eventName: string }[] = [];
+  let feedback: FeedbackRow | null = null;
   if (personId) {
-    const [surveys, answered, recent] = await Promise.all([
-      supabase.from('surveys').select('*').eq('center_id', centerId).eq('status', 'open').then((r) => must(r, 'load event feedback')),
+    const [surveys, answered, recent, anonAnswered] = await Promise.all([
+      supabase.from('surveys').select('*').eq('center_id', centerId).in('status', ['open', 'closed']).not('event_id', 'is', null).order('created_at', { ascending: false }).limit(20).then((r) => must(r, 'load event feedback')),
       supabase.from('survey_responses').select('survey_id').eq('person_id', personId).then((r) => must(r, 'load event feedback')),
       listRecentEvents(centerId, 30),
+      readPref<string[]>('answeredSurveys', []),
     ]);
-    const done = new Set(answered.map((a) => a.survey_id));
-    const names = new Map([...events, ...recent].map((e) => [e.id, e.name]));
-    feedback = surveys
-      .map((s) => (s.event_id && names.has(s.event_id) && !done.has(s.id) ? { survey: s, eventName: names.get(s.event_id) as string } : null))
-      .filter((x): x is { survey: Tables<'surveys'>; eventName: string } => x !== null);
+    const done = new Set([...answered.map((a) => a.survey_id), ...anonAnswered]);
+    const byId = new Map([...events, ...recent].map((e) => [e.id, e]));
+    const relevant = surveys.filter((s) => s.event_id && byId.has(s.event_id));
+    const now = Date.now();
+    const openOnes = relevant.filter((s) => s.status === 'open' && !done.has(s.id) && (!s.closes_at || new Date(s.closes_at).getTime() > now) && (!s.opens_at || new Date(s.opens_at).getTime() <= now));
+    const pick = openOnes[0] ?? relevant.find((s) => done.has(s.id)) ?? null;
+    if (pick?.event_id) {
+      const ev = byId.get(pick.event_id) as EventRow;
+      const rsvp = householdId ? ((await listHouseholdRsvps(householdId, [ev.id])).get(ev.id) ?? null) : null;
+      feedback = { survey: pick, eventName: ev.name, attended: rsvpState(rsvp) === 'attended', sent: done.has(pick.id) };
+    }
   }
   return { items, feedback };
 }
