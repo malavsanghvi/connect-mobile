@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "connect",
+    "scheme": ["connect", "communityconnect"],
     "userInterfaceStyle": "light",
     "backgroundColor": "#FBF7F0",
     "primaryColor": "#1B2C5C",

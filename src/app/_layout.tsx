@@ -9,12 +9,15 @@ import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { View } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BiometricGate } from '@/components/biometric-gate';
 import { FullScreenError, FullScreenLoading } from '@/components/full-screen';
 import { iconFont } from '@/components/icon';
 import { SetupScreen } from '@/components/setup-screen';
+import { Txt } from '@/components/ui';
+import { FindCommunityScreen } from '@/features/community/find-community';
 import { PayHost } from '@/features/pay';
 import { logError } from '@/lib/errors';
 import { setClientScreen } from '@/lib/request-context';
@@ -79,8 +82,18 @@ function RootNavigator() {
   const t = useT();
 
   if (!app.configured) return <SetupScreen />;
+  // A new install (or Settings › Switch community): choose the community first.
+  if (app.needsCommunity || app.choosingCommunity) return <FindCommunityScreen />;
   if (app.booting) return <FullScreenLoading />;
-  if (app.bootError) return <FullScreenError error={app.bootError} onRetry={app.retryBoot} />;
+  if (app.bootError) {
+    return (
+      <FullScreenError
+        error={app.bootError}
+        onRetry={app.retryBoot}
+        secondary={{ label: t('community.notYours'), onPress: app.switchCommunity }}
+      />
+    );
+  }
   if (app.session && app.memberLoading) return <FullScreenLoading label={t('boot.loadingFamily')} />;
   if (app.session && app.memberError) {
     return (
@@ -104,6 +117,8 @@ function RootNavigator() {
 
   return (
     <BiometricGate active={signedIn}>
+      {/* Switching community goes through the loading screen, so every screen mounts again with its data and colours. */}
+      <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
         <Stack.Protected guard={!signedIn && !app.guest}>
           <Stack.Screen name="(auth)" />
@@ -114,7 +129,37 @@ function RootNavigator() {
         <Stack.Protected guard={(signedIn && linked && !app.onboarding) || (!signedIn && app.guest)}>
           <Stack.Screen name="(app)" />
         </Stack.Protected>
+        <Stack.Screen name="join/[code]" />
       </Stack>
+      {app.sandbox ? <SandboxWatermark /> : null}
+      </View>
     </BiometricGate>
+  );
+}
+
+/** "Sandbox · test data" over every screen of a sandbox community (never blocks a tap). */
+function SandboxWatermark() {
+  const t = useT();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      pointerEvents="none"
+      testID="sandbox-watermark"
+      style={{
+        position: 'absolute',
+        top: insets.top + 2,
+        alignSelf: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 2,
+        borderRadius: 999,
+        backgroundColor: colors.brownTint,
+        borderWidth: 1,
+        borderColor: colors.brownBorder,
+        opacity: 0.95,
+      }}>
+      <Txt variant="badge" color="brownDark">
+        {t('community.watermark')}
+      </Txt>
+    </View>
   );
 }

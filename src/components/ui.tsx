@@ -116,7 +116,8 @@ export type ButtonTone =
   | 'outlineStore'
   | 'outlineBlack';
 
-const buttonTones: Record<ButtonTone, { bg: string; fg: ColorName; border?: string }> = {
+// Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
+const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?: string }> => ({
   primary: { bg: colors.navy, fg: 'white' },
   secondary: { bg: colors.card, fg: 'navy', border: colors.navy },
   ghost: { bg: 'transparent', fg: 'navy' },
@@ -134,7 +135,7 @@ const buttonTones: Record<ButtonTone, { bg: string; fg: ColorName; border?: stri
   outlineDanger: { bg: colors.card, fg: 'danger', border: colors.danger },
   outlineStore: { bg: colors.card, fg: 'store', border: colors.store },
   outlineBlack: { bg: colors.card, fg: 'black', border: colors.black },
-};
+});
 
 /** cta 52/r26/16 · md 48/r26/15 · card 46/r22/14 (buttons inside cards) · sm 44/r20/13. */
 const buttonSizes = {
@@ -161,7 +162,7 @@ export type ButtonProps = {
 
 export function Button({ label, onPress, tone = 'primary', size = 'cta', disabled, busy, icon, accessibilityHint, accessibilityLabel, style, fill = true }: ButtonProps) {
   const { scale } = useSettings();
-  const t = buttonTones[tone];
+  const t = buttonTones()[tone];
   const sz = buttonSizes[size];
   const inactive = disabled || busy;
   const filled = !t.border && tone !== 'ghost' && tone !== 'light';
@@ -296,7 +297,8 @@ export type CardTone =
   | 'outlineBrown'
   | 'outlineGreen';
 
-const cardTones: Record<CardTone, { bg: string; border: string; dashed?: boolean; width?: number }> = {
+// Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
+const cardTones = (): Record<CardTone, { bg: string; border: string; dashed?: boolean; width?: number }> => ({
   default: { bg: colors.card, border: colors.border },
   navy: { bg: colors.navy, border: colors.navy },
   brown: { bg: colors.brown, border: colors.brown },
@@ -314,7 +316,7 @@ const cardTones: Record<CardTone, { bg: string; border: string; dashed?: boolean
   outlineSaffron: { bg: colors.card, border: colors.saffron, width: 2 },
   outlineBrown: { bg: colors.card, border: colors.brown, width: 2 },
   outlineGreen: { bg: colors.card, border: colors.green, width: 2 },
-};
+});
 
 export function Card({
   children,
@@ -334,7 +336,7 @@ export function Card({
   style?: StyleProp<ViewStyle>;
   padded?: boolean;
 }) {
-  const t = cardTones[tone];
+  const t = cardTones()[tone];
   const base: ViewStyle = {
     backgroundColor: t.bg,
     borderColor: t.border,
@@ -720,7 +722,8 @@ export function ProgressBar({ value, color = colors.green, track = colors.panel,
 
 export type PillTone = 'green' | 'amber' | 'navy' | 'grey' | 'red' | 'purple' | 'live';
 
-const pillTones: Record<PillTone, { bg: string; fg: ColorName }> = {
+// Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
+const pillTones = (): Record<PillTone, { bg: string; fg: ColorName }> => ({
   green: { bg: colors.greenTint, fg: 'greenDark' },
   amber: { bg: colors.brownTint, fg: 'brown' },
   navy: { bg: colors.navyTint, fg: 'navy' },
@@ -729,10 +732,10 @@ const pillTones: Record<PillTone, { bg: string; fg: ColorName }> = {
   purple: { bg: colors.purpleTint, fg: 'purpleDark' },
   /** The only solid pill in the prototype: LIVE. */
   live: { bg: colors.live, fg: 'white' },
-};
+});
 
 export function Pill({ label, tone = 'grey' }: { label: string; tone?: PillTone }) {
-  const t = pillTones[tone];
+  const t = pillTones()[tone];
   return (
     <View style={{ backgroundColor: t.bg, borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' }}>
       <Txt variant="caption" color={t.fg} style={{ fontFamily: tone === 'live' ? fonts.bodyBold : fonts.bodySemi }}>
@@ -774,15 +777,16 @@ export function Stat({ label, value, sub, color = 'ink' }: { label: string; valu
 
 export type BannerTone = 'info' | 'success' | 'warning' | 'error';
 
-const bannerTones: Record<BannerTone, { bg: string; border: string; fg: ColorName; icon: IconName }> = {
+// Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
+const bannerTones = (): Record<BannerTone, { bg: string; border: string; fg: ColorName; icon: IconName }> => ({
   info: { bg: colors.navyTint, border: colors.navyBorder, fg: 'navy', icon: 'information-circle' },
   success: { bg: colors.greenTint, border: colors.greenBorder, fg: 'greenDark', icon: 'checkmark-circle' },
   warning: { bg: colors.brownTint, border: colors.brownBorder, fg: 'brownDark', icon: 'alert-circle' },
   error: { bg: colors.dangerTint, border: colors.danger, fg: 'danger', icon: 'alert-circle' },
-};
+});
 
 export function Banner({ tone = 'info', title, message, action }: { tone?: BannerTone; title?: string; message: string; action?: { label: string; onPress: () => void } }) {
-  const t = bannerTones[tone];
+  const t = bannerTones()[tone];
   return (
     <View
       accessibilityRole={tone === 'error' ? 'alert' : undefined}

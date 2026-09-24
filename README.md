@@ -118,6 +118,18 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
 that publishes its own store build changes these (and the icons/splash, which are
 still the scaffold placeholders) plus `EXPO_PUBLIC_CENTER_SLUG`.
 
+## More than one community (one shared app)
+
+A new install opens on **Find your community** (`src/features/community/`): search live
+communities by name, city or state (`app.find_community`), or enter a join code / scan a
+poster QR code (`communityconnect://join/<code>` or `https://<member web app>/join/<code>`,
+`app.community_by_join_code`). Sandboxes are reachable only by code. The choice is kept on
+the device and changed in Settings › Switch community (or "Not your community?" on the
+welcome screen). `EXPO_PUBLIC_CENTER_SLUG` stays the default: an install that is already
+signed in, or opened on a link into one of the app's screens, opens it with no new step.
+The app themes itself from the community's brand kit (`centers.branding` colours and logo
+files) and shows "Sandbox · test data" over every screen of a sandbox.
+
 ## Schema gaps
 
 Found while building against connect-crm migrations 0001–0017; the schema was not

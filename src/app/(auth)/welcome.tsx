@@ -12,7 +12,7 @@ import { fonts, space } from '@/theme';
 export default function WelcomeScreen() {
   const router = useRouter();
   const t = useT();
-  const { center, setGuest } = useApp();
+  const { center, setGuest, switchCommunity } = useApp();
   const brand = useBranding();
   return (
     <FullScreen align="top">
@@ -33,8 +33,9 @@ export default function WelcomeScreen() {
         <View style={{ gap: 10, paddingTop: space.xl }}>
           <Button label={t('welcome.email')} onPress={() => router.push({ pathname: '/sign-in', params: { mode: 'email' } })} />
           <Button label={t('welcome.mobile')} tone="secondary" onPress={() => router.push({ pathname: '/sign-in', params: { mode: 'phone' } })} />
-          <View style={{ alignItems: 'center' }}>
+          <View style={{ alignItems: 'center', gap: space.md }}>
             <LinkText label={t('welcome.guest')} onPress={() => setGuest(true)} />
+            <LinkText label={t('community.notYours')} color="muted" onPress={switchCommunity} />
           </View>
         </View>
       </View>

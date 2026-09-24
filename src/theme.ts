@@ -2,8 +2,8 @@
  * Design tokens lifted from the member-app prototypes (Main.dc.html and friends;
  * connect-crm/docs/parity/v-visual-system.md §1 and §3.2) and
  * connect-crm/docs/ARCHITECTURE.md. Never hard-code a colour in a screen —
- * add it here. Tenant branding overrides (centers.branding) can be layered on
- * top later without touching screens.
+ * add it here. The chosen community's brand colours are layered on top at
+ * run time (applyPalette below) without touching screens.
  */
 
 export const colors = {
@@ -141,6 +141,21 @@ export const colors = {
 } as const;
 
 export type ColorName = keyof typeof colors;
+
+// The default palette, kept so switching from a branded community back to one
+// without brand colours restores it.
+const defaultColors: Record<string, string> = { ...colors };
+
+/**
+ * Theme the app from the chosen community's brand kit (centers.branding
+ * colours; src/lib/community.ts brandPalette). Screens read `colors` while
+ * rendering, so the next render — the root remounts per community — uses
+ * the new values. Only keys present in `palette` change.
+ */
+export function applyPalette(palette: Record<string, string>): void {
+  const target = colors as unknown as Record<string, string>;
+  for (const key of Object.keys(defaultColors)) target[key] = palette[key] ?? defaultColors[key];
+}
 
 /**
  * Album palettes (Main.dc.html L1759): each album gets one, deterministically,

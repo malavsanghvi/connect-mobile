@@ -1,10 +1,16 @@
 import type { Session } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { loadCenter, loadMember, orgIdentifierRules, type Center, type Member } from '@/lib/api/member';
+import { brandPalette, communityToOpen, isCommunityChoice, openedPath, type CommunityChoice } from '@/lib/community';
 import { env, isConfigured } from '@/lib/env';
 import { AppError, logError, report } from '@/lib/errors';
+import { readPref, writePref } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
+import { applyPalette } from '@/theme';
+
+const COMMUNITY_PREF = 'community';
 
 type Loaded<T> = { key: string; value?: T; error?: AppError };
 
@@ -16,6 +22,17 @@ export type AppContextValue = {
   bootError: AppError | null;
   retryBoot: () => void;
   center: Center | null;
+  /** The chosen community is a sandbox: show the "Sandbox · test data" watermark. */
+  sandbox: boolean;
+  /** No community chosen yet on this device (a new install): show "Find your community". */
+  needsCommunity: boolean;
+  /** The member opened "Switch community" from settings (cancellable). */
+  choosingCommunity: boolean;
+  /** Open a community and remember it on this device. */
+  chooseCommunity: (choice: CommunityChoice) => Promise<void>;
+  /** Show "Find your community" again (Settings › Switch community). */
+  switchCommunity: () => void;
+  cancelSwitchCommunity: () => void;
   session: Session | null;
   /** Browsing without an account (events, guide, timings). */
   guest: boolean;
@@ -46,20 +63,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [guest, setGuest] = useState(false);
   const [memberResult, setMemberResult] = useState<Loaded<Member | null> | null>(null);
   const [onboarding, setOnboarding] = useState(false);
+  // The community chosen on this device (undefined while it is being read).
+  const [saved, setSaved] = useState<CommunityChoice | null | undefined>(undefined);
+  const [choosingCommunity, setChoosingCommunity] = useState(false);
 
-  const centerKey = `${env.centerSlug}#${bootNonce}`;
+  // The link the app was opened with: a link into one of its screens belongs to the build's community.
+  const [openedAt, setOpenedAt] = useState<string | undefined>(undefined);
 
-  // Resolve the center (public read — works for guests too).
   useEffect(() => {
     if (!isConfigured) return;
     let active = true;
-    loadCenter(env.centerSlug)
-      .then((value) => active && setCenterResult({ key: centerKey, value }))
-      .catch((err: unknown) => active && setCenterResult({ key: centerKey, error: report(err, 'open your center') }));
+    readPref<unknown>(COMMUNITY_PREF, null).then((v) => {
+      if (active) setSaved(isCommunityChoice(v) ? v : null);
+    });
+    Linking.getInitialURL()
+      .then((url) => active && setOpenedAt(openedPath(url)))
+      .catch((err: unknown) => {
+        logError('reading the link that opened the app (treating it as a plain launch)', err);
+        if (active) setOpenedAt('/');
+      });
     return () => {
       active = false;
     };
-  }, [centerKey]);
+  }, []);
+
+  // Saved choice → the build's default for an install that is already signed
+  // in (existing JSH members see no new step) → none ("Find your community").
+  const slug =
+    saved === undefined || !sessionReady || openedAt === undefined
+      ? undefined
+      : communityToOpen({ saved, signedIn: !!session, defaultSlug: env.centerSlug, openedAt });
+  const centerKey = `${slug ?? ''}#${bootNonce}`;
+
+  // Resolve the center (public read — works for guests too) and theme the app from its brand kit.
+  useEffect(() => {
+    if (!isConfigured || !slug) return;
+    let active = true;
+    loadCenter(slug)
+      .then((value) => {
+        if (!active) return;
+        applyPalette(brandPalette(value.branding));
+        setCenterResult({ key: centerKey, value });
+      })
+      .catch((err: unknown) => active && setCenterResult({ key: centerKey, error: report(err, 'open your community') }));
+    return () => {
+      active = false;
+    };
+  }, [centerKey, slug]);
 
   // Track the auth session.
   useEffect(() => {
@@ -88,6 +138,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const center = centerResult?.key === centerKey ? (centerResult.value ?? null) : null;
+
+  // An install that opened the default community without choosing one keeps
+  // it from now on, so signing out later does not ask again.
+  useEffect(() => {
+    if (!center || saved !== null) return;
+    const choice = { slug: center.slug, name: center.name };
+    writePref(COMMUNITY_PREF, choice)
+      .then(() => setSaved(choice))
+      .catch((err: unknown) => logError('remembering the community on this device (it will be asked again next time)', err));
+  }, [center, saved]);
+
+  const chooseCommunity = async (choice: CommunityChoice) => {
+    try {
+      await writePref(COMMUNITY_PREF, choice);
+    } catch (err) {
+      // Still open it for this session; the member is asked again next launch.
+      logError('remembering the chosen community on this device', err);
+    }
+    setMemberResult(null);
+    setOnboarding(false);
+    setGuest(false);
+    setSaved(choice);
+    setChoosingCommunity(false);
+  };
   const userId = session?.user.id ?? null;
   const memberKey = `${center?.id ?? ''}#${userId ?? ''}`;
 
@@ -145,10 +219,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppContextValue = {
     configured: isConfigured,
-    booting: isConfigured && (!sessionReady || !centerResult || centerResult.key !== centerKey),
-    bootError: centerResult?.key === centerKey ? (centerResult.error ?? null) : null,
+    booting: isConfigured && (slug === undefined || (slug !== null && (!centerResult || centerResult.key !== centerKey))),
+    bootError: slug && centerResult?.key === centerKey ? (centerResult.error ?? null) : null,
     retryBoot: () => setBootNonce((n) => n + 1),
-    center,
+    center: slug ? center : null,
+    sandbox: !!slug && center?.environment === 'sandbox',
+    needsCommunity: isConfigured && slug === null,
+    choosingCommunity,
+    chooseCommunity,
+    switchCommunity: () => setChoosingCommunity(true),
+    cancelSwitchCommunity: () => setChoosingCommunity(false),
     session,
     guest: !session && guest,
     setGuest,
