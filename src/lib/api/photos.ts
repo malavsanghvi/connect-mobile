@@ -134,11 +134,21 @@ export async function uploadPhoto(args: { centerId: string; albumId: string; use
   const ext = extFor(args.fileName, args.mimeType);
   const path = `${args.centerId}/${args.albumId}/${args.userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, body, { contentType: args.mimeType ?? `image/${ext === 'jpg' ? 'jpeg' : ext}`, upsert: false });
-  if (error) throw new AppError("Your photo couldn't be uploaded. Please check your connection and try again.", `storage upload: ${error.message}`);
+  if (error) {
+    // The photo storage bucket and its policies are the office's to set up (connect-crm owner decision).
+    if (isMissingBucket(error)) throw new AppError("Member photo uploads aren't set up for your community yet, so your photo wasn't sent. Nothing was saved.", `storage upload to ${PHOTO_BUCKET}: ${error.message}`);
+    throw new AppError("Your photo couldn't be uploaded. Please check your connection and try again.", `storage upload: ${error.message}`);
+  }
   const res = await supabase.from('photos').insert({ center_id: args.centerId, album_id: args.albumId, storage_path: path, uploaded_by: args.userId, contains_children: args.containsChildren, status: 'pending' });
   if (res.error) {
     const { error: rmError } = await supabase.storage.from(PHOTO_BUCKET).remove([path]);
     if (rmError) logError(`removing an orphaned upload ${path} after the photo row failed (office cleanup may be needed)`, rmError);
   }
   check(res, 'add your photo to the album');
+}
+
+/** Storage answers "Bucket not found" (404) when the bucket does not exist yet. */
+export function isMissingBucket(error: { message?: string; statusCode?: string | number } | null | undefined): boolean {
+  if (!error) return false;
+  return /bucket not found/i.test(error.message ?? '') || String(error.statusCode ?? '') === '404';
 }
