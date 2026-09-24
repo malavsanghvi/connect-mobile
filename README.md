@@ -161,7 +161,7 @@ changed. The app works around each one as noted.
 | 22 | `zones` has no lead name / family count | Zone lead messaged through the zone inbox |
 | 23 | `eligibility_snapshots.reasons`, `gyan_steps.quiz` and `content_items.metadata` jsonb shapes are unspecified | Parsed defensively (strings or `{label, ok}`; `{questions:[{question, options, answer}]}`; `metadata.when` / `metadata.what`) |
 | 24 | Expertise tag vocabulary isn't center configuration | Prototype's nine tags in the profile screen |
-| 25 | No storage bucket for Gyan Path recitations (`gyan_progress.recording_path` exists) | Uploads to bucket `gyan-recordings` at `{center}/{person}/{step}-{ts}.m4a`; until the bucket + policies exist the upload fails with a plain message and the step is saved at 2 stars |
+| 25 | ~~No storage bucket for Gyan Path recitations~~ — done in connect-crm 0172 | Uploads to bucket `recordings` at `{center}/{person}/{step}-{ts}.m4a`; the child, their parents and teachers can read; kept 90 days |
 | 26 | Niva has no answering backend (approved-content retrieval + model edge function) | Chat saves each question to `niva_conversations` as `unanswered` (portal "Unanswered questions") and says answers are coming; staff answers with `sources` render when present |
 | 27 | No sender for family-circle pushes (saathi_feed milestones / behind) | App routes `data.type = 'family_circle'` taps to the Saathi tab and handles the "Send anumodana" button (`src/lib/notification-routes.ts`) |
 | 28 | Recitation "clear recitation · steady pace" scoring needs speech analysis | Recording is saved for the teacher; no automatic pace/pronunciation verdict is claimed |
