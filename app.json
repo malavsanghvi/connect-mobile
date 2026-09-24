@@ -79,6 +79,13 @@
           "savePhotosPermission": "Allow Community Connect to save event photos to your library.",
           "isAccessMediaLocationEnabled": false
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher.",
+          "enableBackgroundPlayback": false
+        }
       ]
     ],
     "experiments": {

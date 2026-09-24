@@ -2,6 +2,8 @@ import type { Tables } from '../database.types';
 import { AppError, check, must } from '../errors';
 import { supabase } from '../supabase';
 
+import type { DailyMinutes } from '../learning';
+
 import type { Center } from './member';
 
 export type GyanStep = Tables<'gyan_steps'>;
@@ -64,13 +66,64 @@ export function goalProgress(goal: GyanGoal, progress: GyanProgress[], personId:
  * Mark a step complete for yourself (RLS: gyan_progress_own requires person = me).
  * Stars never go down on a replay.
  */
-export async function completeStep(centerId: string, personId: string, stepId: string, stars: number, existing: GyanProgress[]): Promise<void> {
+export async function completeStep(centerId: string, personId: string, stepId: string, stars: number, existing: GyanProgress[], recordingPath?: string | null): Promise<void> {
   const prev = existing.find((p) => p.person_id === personId && p.step_id === stepId);
   const best = Math.max(prev?.stars ?? 0, Math.max(0, Math.min(3, stars)));
   check(
-    await supabase.from('gyan_progress').upsert({ center_id: centerId, person_id: personId, step_id: stepId, stars: best, completed_at: prev?.completed_at ?? new Date().toISOString() }, { onConflict: 'person_id,step_id' }),
+    await supabase.from('gyan_progress').upsert(
+      {
+        center_id: centerId,
+        person_id: personId,
+        step_id: stepId,
+        stars: best,
+        completed_at: prev?.completed_at ?? new Date().toISOString(),
+        // Keep a recording made in this run (uploadRecitation already stored it).
+        ...(recordingPath ? { recording_path: recordingPath } : {}),
+      },
+      { onConflict: 'person_id,step_id' },
+    ),
     'save your progress',
   );
+}
+
+/** Gyan Path daily goal (people.gyan_daily_minutes: 5, 10 or 15). */
+export async function setDailyMinutes(personId: string, minutes: DailyMinutes): Promise<void> {
+  check(await supabase.from('people').update({ gyan_daily_minutes: minutes }).eq('id', personId), 'save your daily goal');
+}
+
+/**
+ * Storage bucket for recitation recordings. connect-crm has not created it yet
+ * (README › Schema gaps); until it exists the upload fails with a plain
+ * message and the member can still continue.
+ */
+export const RECITATION_BUCKET = 'gyan-recordings';
+/** gyan_progress.recording_path retention (migrations/0007: 90 days). */
+export const RECORDING_RETENTION_DAYS = 90;
+
+/** Upload a recitation and point the step's progress row at it. Returns the storage path. */
+export async function uploadRecitation(opts: { centerId: string; personId: string; stepId: string; uri: string; existing: GyanProgress[] }): Promise<string> {
+  const ext = /\.(m4a|mp4|aac|caf|wav|webm|ogg|3gp)(\?|$)/i.exec(opts.uri)?.[1]?.toLowerCase() ?? 'm4a';
+  const contentType = ext === 'webm' ? 'audio/webm' : ext === 'wav' ? 'audio/wav' : ext === 'ogg' ? 'audio/ogg' : ext === '3gp' ? 'audio/3gpp' : ext === 'caf' ? 'audio/x-caf' : 'audio/mp4';
+  let body: ArrayBuffer;
+  try {
+    body = await (await fetch(opts.uri)).arrayBuffer();
+  } catch (err) {
+    throw new AppError("We couldn't read your recording from this phone.", `reading recording ${opts.uri}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (body.byteLength === 0) throw new AppError('The recording was empty. Please record again.', 'empty recording');
+  const path = `${opts.centerId}/${opts.personId}/${opts.stepId}-${Date.now()}.${ext}`;
+  const up = await supabase.storage.from(RECITATION_BUCKET).upload(path, body, { contentType, upsert: false });
+  if (up.error) throw new AppError("We couldn't upload your recitation. Recording storage isn't available yet.", `storage upload to ${RECITATION_BUCKET}: ${up.error.message}`);
+  const prev = opts.existing.find((p) => p.person_id === opts.personId && p.step_id === opts.stepId);
+  const expires = new Date(Date.now() + RECORDING_RETENTION_DAYS * 86400000).toISOString();
+  check(
+    await supabase.from('gyan_progress').upsert(
+      { center_id: opts.centerId, person_id: opts.personId, step_id: opts.stepId, stars: prev?.stars ?? 0, completed_at: prev?.completed_at ?? null, recording_path: path, recording_expires_at: expires },
+      { onConflict: 'person_id,step_id' },
+    ),
+    'save your recitation',
+  );
+  return path;
 }
 
 export async function requestSignoff(centerId: string, personId: string, levelId: string): Promise<void> {

@@ -67,6 +67,19 @@ export async function scheduleLocalReminder(title: string, body: string, at: Dat
   });
 }
 
+/** Repeating local reminder at a wall-clock time every day (My Jain Way practice bells). */
+export async function scheduleDailyLocalReminder(title: string, body: string, hour: number, minute: number): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  const perm = await Notifications.getPermissionsAsync();
+  let status = perm.status;
+  if (status !== 'granted') status = (await Notifications.requestPermissionsAsync()).status;
+  if (status !== 'granted') return null;
+  return Notifications.scheduleNotificationAsync({
+    content: { title, body },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
+  });
+}
+
 export async function cancelLocalReminder(id: string): Promise<void> {
   if (Platform.OS === 'web') return;
   await Notifications.cancelScheduledNotificationAsync(id);

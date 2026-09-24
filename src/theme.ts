@@ -123,6 +123,21 @@ export const colors = {
 
   // Special days: anniversary ink (Main.dc.html KT)
   anniversary: '#9C1B5E',
+
+  // My Jain Way / Gyan Path (Main.dc.html L669, L704; GyanPath.dc.html)
+  celebrateBg: '#FFF8EC',
+  celebrateBorder: '#F2D29B',
+  videoTile: '#16140F',
+  /** Gyan Path: locked node, boss node, unfilled lesson bar. */
+  nodeLocked: '#E3DCCF',
+  nodeRingDone: '#CFE6DC',
+  nodeRingCurrent: '#FFE3BF',
+  checkGrey: '#B9AE99',
+  checkGreyShadow: '#9A8F7A',
+  skipShadow: '#6B7390',
+  starOff: '#3A4B80',
+  treasureInk: '#3A2A06',
+  wrongInk: '#8C1D18',
 } as const;
 
 export type ColorName = keyof typeof colors;
@@ -232,6 +247,8 @@ export const shadows = {
   cart: { shadowColor: '#2F5D50', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
   menu: { shadowColor: '#14120E', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 15, elevation: 10 },
   drawer: { shadowColor: '#14120E', shadowOffset: { width: 8, height: 0 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 16 },
+  /** Gyan Path sticky strip (0 4px 14px rgba(20,18,14,0.08)). */
+  strip: { shadowColor: '#14120E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 7, elevation: 3 },
 } as const;
 
 /** Component specs lifted from Main.dc.html (sizes in px). */

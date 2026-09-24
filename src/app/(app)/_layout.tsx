@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 
 import { DrawerProvider } from '@/components/drawer';
 import { ConfirmPopupProvider } from '@/features/confirm-popup';
+import { NotificationRouter } from '@/components/notification-router';
 import { CartProvider } from '@/providers/cart';
 import { PushProvider } from '@/providers/push';
 import { colors } from '@/theme';
@@ -19,6 +20,7 @@ export default function AppLayout() {
     <PushProvider>
       <CartProvider>
         <DrawerProvider>
+          <NotificationRouter />
           <ConfirmPopupProvider>
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
               <Stack.Screen name="(tabs)" />
