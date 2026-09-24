@@ -30,7 +30,8 @@ export function useDrawer(): DrawerContextValue {
 
 type Tint = 'brown' | 'navy' | 'green' | 'grey';
 
-const tints: Record<Tint, string> = { brown: colors.brownTint, navy: colors.navyTint, green: colors.greenTint, grey: colors.chip };
+// Read at render time, so the community's brand colours apply.
+const tints = (): Record<Tint, string> => ({ brown: colors.brownTint, navy: colors.navyTint, green: colors.greenTint, grey: colors.chip });
 
 /** Main drawer row (prototype Main L1355): 64px, 44px tinted tile, 16/600 title, 12 muted sub, › chevron. */
 function Item({ glyph, tint, iconColor = colors.navy, title, sub, onPress }: { glyph: StrokeIconName; tint: Tint; iconColor?: string; title: string; sub?: string; onPress: () => void }) {
@@ -41,7 +42,7 @@ function Item({ glyph, tint, iconColor = colors.navy, title, sub, onPress }: { g
       accessibilityRole="button"
       accessibilityLabel={sub ? `${title}. ${sub}` : title}
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: d.rowH, paddingVertical: space.sm, paddingHorizontal: 10, borderRadius: d.rowR, backgroundColor: pressed ? colors.panel : 'transparent' })}>
-      <View style={{ width: d.tile, height: d.tile, borderRadius: d.tileR, backgroundColor: tints[tint], alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: d.tile, height: d.tile, borderRadius: d.tileR, backgroundColor: tints()[tint], alignItems: 'center', justifyContent: 'center' }}>
         <StrokeIcon name={glyph} size={d.iconSize} color={iconColor} />
       </View>
       <View style={{ flex: 1 }}>
@@ -66,7 +67,7 @@ function MinorItem({ glyph, title, sub, onPress, role = 'button' }: { glyph: Str
       accessibilityRole={role}
       accessibilityLabel={sub ? `${title}. ${sub}` : title}
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52, paddingVertical: space.sm, paddingHorizontal: 10, borderRadius: d.rowR, backgroundColor: pressed ? colors.panel : 'transparent' })}>
-      <View style={{ width: d.tile, height: d.tile, borderRadius: d.tileR, backgroundColor: tints.grey, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: d.tile, height: d.tile, borderRadius: d.tileR, backgroundColor: tints().grey, alignItems: 'center', justifyContent: 'center' }}>
         <StrokeIcon name={glyph} size={d.iconSize} color={colors.muted} />
       </View>
       <View style={{ flex: 1 }}>

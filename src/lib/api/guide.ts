@@ -137,7 +137,8 @@ export async function listRoster(centerId: string): Promise<RosterRow[]> {
   const rows = must(await supabase.from('role_roster').select('*').eq('center_id', centerId).order('body').order('sort_order'), 'load the committee list');
   const ids = [...new Set(rows.map((r) => r.person_id).filter((x): x is string => !!x))];
   const names = ids.length ? must(await supabase.from('directory').select('person_id, name').in('person_id', ids), 'load the committee names') : [];
-  return rows.map((r) => ({ ...r, name: names.find((n) => n.person_id === r.person_id)?.name ?? null }));
+  // Leaders from Setup › Leaders not yet linked to a person carry their own display_name (0183).
+  return rows.map((r) => ({ ...r, name: names.find((n) => n.person_id === r.person_id)?.name ?? r.display_name ?? null }));
 }
 
 export type RegistrationFacts = {

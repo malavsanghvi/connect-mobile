@@ -98,7 +98,8 @@ export async function setDailyMinutes(personId: string, minutes: DailyMinutes): 
  * (README › Schema gaps); until it exists the upload fails with a plain
  * message and the member can still continue.
  */
-export const RECITATION_BUCKET = 'gyan-recordings';
+/** Storage area for recitations (0172: the child, their parents and teachers may read; kept 90 days). */
+export const RECITATION_BUCKET = 'recordings';
 /** gyan_progress.recording_path retention (migrations/0007: 90 days). */
 export const RECORDING_RETENTION_DAYS = 90;
 

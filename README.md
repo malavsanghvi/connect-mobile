@@ -118,6 +118,18 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
 that publishes its own store build changes these (and the icons/splash, which are
 still the scaffold placeholders) plus `EXPO_PUBLIC_CENTER_SLUG`.
 
+## More than one community (one shared app)
+
+A new install opens on **Find your community** (`src/features/community/`): search live
+communities by name, city or state (`app.find_community`), or enter a join code / scan a
+poster QR code (`communityconnect://join/<code>` or `https://<member web app>/join/<code>`,
+`app.community_by_join_code`). Sandboxes are reachable only by code. The choice is kept on
+the device and changed in Settings › Switch community (or "Not your community?" on the
+welcome screen). `EXPO_PUBLIC_CENTER_SLUG` stays the default: an install that is already
+signed in, or opened on a link into one of the app's screens, opens it with no new step.
+The app themes itself from the community's brand kit (`centers.branding` colours and logo
+files) and shows "Sandbox · test data" over every screen of a sandbox.
+
 ## Schema gaps
 
 Found while building against connect-crm migrations 0001–0017; the schema was not
@@ -149,7 +161,7 @@ changed. The app works around each one as noted.
 | 22 | `zones` has no lead name / family count | Zone lead messaged through the zone inbox |
 | 23 | `eligibility_snapshots.reasons`, `gyan_steps.quiz` and `content_items.metadata` jsonb shapes are unspecified | Parsed defensively (strings or `{label, ok}`; `{questions:[{question, options, answer}]}`; `metadata.when` / `metadata.what`) |
 | 24 | Expertise tag vocabulary isn't center configuration | Prototype's nine tags in the profile screen |
-| 25 | No storage bucket for Gyan Path recitations (`gyan_progress.recording_path` exists) | Uploads to bucket `gyan-recordings` at `{center}/{person}/{step}-{ts}.m4a`; until the bucket + policies exist the upload fails with a plain message and the step is saved at 2 stars |
+| 25 | ~~No storage bucket for Gyan Path recitations~~ — done in connect-crm 0172 | Uploads to bucket `recordings` at `{center}/{person}/{step}-{ts}.m4a`; the child, their parents and teachers can read; kept 90 days |
 | 26 | Niva has no answering backend (approved-content retrieval + model edge function) | Chat saves each question to `niva_conversations` as `unanswered` (portal "Unanswered questions") and says answers are coming; staff answers with `sources` render when present |
 | 27 | No sender for family-circle pushes (saathi_feed milestones / behind) | App routes `data.type = 'family_circle'` taps to the Saathi tab and handles the "Send anumodana" button (`src/lib/notification-routes.ts`) |
 | 28 | Recitation "clear recitation · steady pace" scoring needs speech analysis | Recording is saved for the teacher; no automatic pace/pronunciation verdict is claimed |

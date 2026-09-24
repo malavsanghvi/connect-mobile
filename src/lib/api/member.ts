@@ -6,7 +6,7 @@ import { todayAt } from '../format';
 import { isAdult, orgIdDisplay } from '../rules';
 import { supabase } from '../supabase';
 
-export type Center = Pick<Tables<'centers'>, 'id' | 'slug' | 'name' | 'short_name' | 'time_zone' | 'tradition' | 'branding' | 'feature_flags' | 'rules'>;
+export type Center = Pick<Tables<'centers'>, 'id' | 'slug' | 'name' | 'short_name' | 'time_zone' | 'tradition' | 'branding' | 'feature_flags' | 'rules' | 'environment'>;
 export type Person = Tables<'people'>;
 export type Household = Tables<'households'>;
 export type HouseholdRole = Enums<'person_role_in_household'>;
@@ -41,13 +41,13 @@ const ROLE_ORDER: Record<HouseholdRole, number> = { primary: 0, spouse: 1, paren
 export async function loadCenter(slug: string): Promise<Center> {
   const res = await supabase
     .from('centers')
-    .select('id, slug, name, short_name, time_zone, tradition, branding, feature_flags, rules')
+    .select('id, slug, name, short_name, time_zone, tradition, branding, feature_flags, rules, environment')
     .eq('slug', slug)
     .maybeSingle();
   const center = maybe(res, 'open your center');
   if (!center) {
     throw new AppError(
-      `We couldn't find the center "${slug}". Check EXPO_PUBLIC_CENTER_SLUG, or ask the office whether the center is active.`,
+      `We couldn't find the community "${slug}". It may no longer be active — choose your community again, or ask its office.`,
       `no active center with slug ${slug}`,
     );
   }

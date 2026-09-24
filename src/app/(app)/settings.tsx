@@ -30,7 +30,7 @@ const TEXT_SIZES: { value: TextSize; key: 'settings.textStandard' | 'settings.te
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, language, setLanguage, textSize, setTextSize } = useSettings();
-  const { member, center, refreshMember, signOut } = useApp();
+  const { member, center, refreshMember, signOut, switchCommunity } = useApp();
   const { toast, confirm, payNotice } = useFeedback();
   const push = usePush();
   const givingOn = useModule('giving');
@@ -144,6 +144,8 @@ export default function SettingsScreen() {
       <SectionTitle>{t('settings.account')}</SectionTitle>
       <Card>
         <ListRow title={t('settings.profileFamily')} subtitle={t('settings.profileFamilySub')} onPress={() => router.push('/family')} />
+        <Divider />
+        <ListRow title={t('settings.switchCommunity')} subtitle={t('settings.switchCommunitySub', { center: center.name })} onPress={switchCommunity} />
         <Divider />
         <ListRow title={t('settings.security')} subtitle={t('settings.securitySub')} onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.person.id } })} />
         <Divider />

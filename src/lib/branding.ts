@@ -7,8 +7,12 @@
  *   wordmark      ["JAIN SOCIETY", "OF HOUSTON"] — the two header lines;
  *                 derived from the center name when absent
  *   dashboard_url public community dashboard (drawer link)
+ *   logo_path / mark_path  brand-kit uploads in the public `branding` bucket
+ *                 (connect-crm Setup); used when no *_url is set
  * The community is the tenant; the product is "Community Connect".
  */
+
+import { brandAssetUrl } from './community';
 
 type Obj = Record<string, unknown>;
 
@@ -52,10 +56,14 @@ export function wordmarkLines(name: string): [string] | [string, string] {
   return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
 }
 
-export function readBranding(center: { name?: string | null; branding?: unknown } | null | undefined, envDashboardUrl?: string): Branding {
+export function readBranding(
+  center: { name?: string | null; branding?: unknown } | null | undefined,
+  envDashboardUrl?: string,
+  supabaseUrl = '',
+): Branding {
   const b = asObj(center?.branding) ?? {};
-  const logoUrl = httpUrl(b.logo_url) ?? httpUrl(b.logo);
-  const markUrl = httpUrl(b.mark_url) ?? logoUrl;
+  const logoUrl = httpUrl(b.logo_url) ?? httpUrl(b.logo) ?? brandAssetUrl(b.logo_path, supabaseUrl);
+  const markUrl = httpUrl(b.mark_url) ?? brandAssetUrl(b.mark_path, supabaseUrl) ?? logoUrl;
   const wm = Array.isArray(b.wordmark) ? b.wordmark.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map((x) => x.trim()) : [];
   const wordmark: [string] | [string, string] = wm.length >= 2 ? [wm[0], wm[1]] : wm.length === 1 ? [wm[0]] : wordmarkLines(center?.name ?? '');
   return { markUrl, logoUrl, dashboardUrl: httpUrl(b.dashboard_url) ?? httpUrl(envDashboardUrl), wordmark };

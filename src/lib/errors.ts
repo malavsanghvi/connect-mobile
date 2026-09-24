@@ -95,6 +95,10 @@ export function toAppError(err: unknown, action: string): AppError {
   if (code === '23514' || code === '22P02' || code === '22007' || code === '22008') {
     return new AppError(`We couldn't ${action} — one of the values isn't valid. Please check and try again.`, detail, code);
   }
+  // A sandbox or plan limit (app.assert_entitlement, SQLSTATE CCENT): already a plain sentence.
+  if (code === 'CCENT' && message) {
+    return new AppError(withPeriod(capitalize(message)), detail, code);
+  }
   // Business-rule messages raised by our security-definer RPCs are written for people.
   if (code === 'P0001' && message) {
     return new AppError(withPeriod(capitalize(centsInRpcMessage(message))), detail, code);

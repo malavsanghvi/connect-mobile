@@ -12,7 +12,7 @@ import { Txt } from './ui';
 
 export function useBranding(): Branding {
   const { center } = useApp();
-  return readBranding(center, env.communityDashboardUrl);
+  return readBranding(center, env.communityDashboardUrl, env.supabaseUrl);
 }
 
 /**
