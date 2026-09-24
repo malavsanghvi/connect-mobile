@@ -2,6 +2,7 @@ import type { Enums, Tables, TablesInsert } from '../database.types';
 import { AppError, check, maybe, must } from '../errors';
 import { formatDob, formatPhone, isValidEmail, parseDobInput, toE164 } from '../format';
 import { planEmailChanges, type EmailDraft } from '../emails';
+import { withAuditReason } from '../request-context';
 import { supabase } from '../supabase';
 
 import type { Person } from './member';
@@ -75,7 +76,8 @@ export function profileToUpdate(d: ProfileDraft, withContact: boolean): { update
 
 export async function updatePerson(personId: string, patch: Partial<Person>): Promise<void> {
   // RLS (people_self_or_guardian_update): yourself, or — as an adult — anyone in your household.
-  check(await supabase.from('people').update(patch).eq('id', personId), 'save this profile');
+  // No member-given reason here; say where the change came from so the portal's History reads plainly.
+  check(await withAuditReason(supabase.from('people').update(patch).eq('id', personId), 'Profile updated in the member app'), 'save this profile');
 }
 
 // ---------------------------------------------------------------------------
