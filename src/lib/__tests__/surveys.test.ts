@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
+import { parseQuestions } from '../api/surveys';
+
 jest.mock('../supabase', () => ({ supabase: {} }));
 jest.mock('../storage', () => ({ readPref: async () => [], writePref: async () => undefined }));
-
-import { parseQuestions } from '../api/surveys';
 
 describe('survey questions', () => {
   it('reads likert / scale questions as a five-point Poor–Superb scale', () => {
