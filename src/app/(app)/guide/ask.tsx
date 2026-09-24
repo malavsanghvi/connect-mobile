@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { Loaded } from '@/components/states';
-import { Banner, Button, Card, Checkbox, Chip, ChipGroup, LinkText, ListRow, SectionTitle, TextField, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Checkbox, Chip, ChipGroup, LinkText, SectionTitle, TextField, Txt, VStack } from '@/components/ui';
 import { questionRef } from '@/features/guide';
 import { GuideIntro, GuideScreen, SignInFirst, useCommunity } from '@/features/guide-ui';
 import { listMyThreads, listTeamInboxes, sendToInbox } from '@/lib/api/guide';
@@ -13,7 +13,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
-import { fonts, space } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
 /**
  * Ask a question (Welcome.dc.html secAsk) → a thread in the chosen team
@@ -113,15 +113,29 @@ export default function AskScreen() {
                   {t('guide.noQuestions')}
                 </Txt>
               ) : (
-                <Card>
+                <VStack gap={space.sm}>
                   {list.map((th) => (
-                    <ListRow
-                      key={th.id}
-                      title={th.subject ?? th.lastMessage ?? ''}
-                      subtitle={[questionRef(th.id), th.inboxName, t(`thread.${th.status}` as 'thread.open'), formatLongDate(th.created_at.slice(0, 10))].filter(Boolean).join(' · ')}
-                    />
+                    <Card key={th.id} style={{ gap: 6 }}>
+                      <Txt variant="smallStrong">{th.subject ?? th.lastMessage ?? ''}</Txt>
+                      <Txt variant="meta" color="muted">
+                        {[questionRef(th.id), th.inboxName, t(`thread.${th.status}` as 'thread.open'), formatLongDate(th.created_at.slice(0, 10))].filter(Boolean).join(' · ')}
+                      </Txt>
+                      {th.messages.map((m, i) => (
+                        <View key={`${th.id}-${i}`} style={{ backgroundColor: m.from_role ? colors.greenTint : colors.panel, borderRadius: radii.row, padding: space.sm, gap: 2 }}>
+                          <Txt variant="meta" color={m.from_role ? 'greenDark' : 'muted'} style={{ fontFamily: fonts.bodySemi }}>
+                            {m.from_role ? t('guide.replyFrom', { team: th.inboxName ?? '' }) : t('guide.youWrote')}
+                          </Txt>
+                          <Txt variant="small">{m.body}</Txt>
+                        </View>
+                      ))}
+                      {th.messages.every((m) => !m.from_role) ? (
+                        <Txt variant="meta" color="muted">
+                          {t('guide.noReplyYet')}
+                        </Txt>
+                      ) : null}
+                    </Card>
                   ))}
-                </Card>
+                </VStack>
               )
             }
           </Loaded>

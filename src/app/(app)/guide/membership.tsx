@@ -4,7 +4,8 @@ import { View } from 'react-native';
 
 import { Markdownish } from '@/components/markdown';
 import { Loaded } from '@/components/states';
-import { Banner, Button, Card, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, LinkText, Row, Txt, VStack } from '@/components/ui';
+import { applyableTypes } from '@/features/membership';
 import { GuideScreen, guideFlagKey } from '@/features/guide-ui';
 import type { Translate } from '@/i18n';
 import { pickTranslation } from '@/i18n';
@@ -47,6 +48,7 @@ export default function MembershipScreen() {
   const router = useRouter();
   const { center, member } = useApp();
   const flagKey = guideFlagKey(member?.person.id, 'membership');
+  const held = member?.membership?.status === 'active' ? member.membership.tier : null;
   const state = useLoad(
     async () => {
       if (!center) return { types: [], page: null };
@@ -94,7 +96,19 @@ export default function MembershipScreen() {
                 <Markdownish source={pickTranslation({ title: page.title, body_md: page.body_md }, page.translations, language).body_md} />
               </View>
             ) : null}
-            <Button label={t('guide.becomeMember')} onPress={() => router.push({ pathname: '/guide/ask', params: { topic: 'membership' } })} />
+            {held ? (
+              <Txt variant="small" color="ink2">
+                {t('guide.memYourTier', { tier: t(`tierOne.${held}` as 'tierOne.life') })}
+              </Txt>
+            ) : null}
+            {member && applyableTypes(types, held).length > 0 ? (
+              <Button label={held ? t('guide.memApply') : t('guide.becomeMember')} onPress={() => router.push('/guide/apply')} />
+            ) : !member ? (
+              <Button label={t('guide.becomeMember')} onPress={() => router.push('/guide/apply')} />
+            ) : null}
+            <View style={{ alignItems: 'center' }}>
+              <LinkText label={t('guide.memAskInstead')} onPress={() => router.push({ pathname: '/guide/ask', params: { topic: 'membership' } })} />
+            </View>
           </VStack>
         )}
       </Loaded>

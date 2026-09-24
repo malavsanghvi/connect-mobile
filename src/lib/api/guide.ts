@@ -55,16 +55,21 @@ export async function listTeamInboxes(centerId: string): Promise<Tables<'inboxes
   return must(await supabase.from('inboxes').select('*').eq('center_id', centerId).is('zone_id', null).order('name'), 'load the list of teams');
 }
 
-export type MyThread = Tables<'threads'> & { lastMessage: string | null; inboxName: string | null };
+export type ThreadMessage = { body: string; created_at: string; from_role: boolean };
+export type MyThread = Tables<'threads'> & { lastMessage: string | null; inboxName: string | null; messages: ThreadMessage[] };
 
+/** The member's questions with the whole conversation (their message and the team's replies, oldest first). */
 export async function listMyThreads(personId: string): Promise<MyThread[]> {
   const threads = must(await supabase.from('threads').select('*').eq('from_person_id', personId).order('updated_at', { ascending: false }).limit(20), 'load your questions');
   if (threads.length === 0) return [];
   const [msgs, inboxes] = await Promise.all([
-    supabase.from('thread_messages').select('thread_id, body, created_at').in('thread_id', threads.map((t) => t.id)).order('created_at', { ascending: false }).then((r) => must(r, 'load your questions')),
+    supabase.from('thread_messages').select('thread_id, body, created_at, from_role').in('thread_id', threads.map((t) => t.id)).order('created_at', { ascending: true }).then((r) => must(r, 'load your questions')),
     supabase.from('inboxes').select('id, name').in('id', [...new Set(threads.map((t) => t.inbox_id))]).then((r) => must(r, 'load your questions')),
   ]);
-  return threads.map((t) => ({ ...t, lastMessage: msgs.find((m) => m.thread_id === t.id)?.body ?? null, inboxName: inboxes.find((i) => i.id === t.inbox_id)?.name ?? null }));
+  return threads.map((t) => {
+    const mine = msgs.filter((m) => m.thread_id === t.id).map((m) => ({ body: m.body, created_at: m.created_at, from_role: m.from_role }));
+    return { ...t, messages: mine, lastMessage: mine.length ? mine[mine.length - 1].body : null, inboxName: inboxes.find((i) => i.id === t.inbox_id)?.name ?? null };
+  });
 }
 
 export { sendToInbox };

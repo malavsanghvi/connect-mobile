@@ -278,6 +278,8 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   'guide/ask': 'comms',
   'guide/volunteer': 'volunteers',
   'guide/membership': 'membership',
+  'guide/apply': 'membership',
+  'reference-requests': 'membership',
 };
 
 /**
