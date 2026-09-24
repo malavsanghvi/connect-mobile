@@ -45,7 +45,7 @@ export default function AskScreen() {
   };
 
   return (
-    <Screen title={t('guide.askTitle')}>
+    <Screen title={t('guide.askTitle')} tabBar={false}>
       <Txt variant="small" color="ink2">
         {t('guide.askIntro')}
       </Txt>

@@ -29,7 +29,7 @@ export default function VolunteerScreen() {
   const [station, setStation] = useState<Station>('entry');
 
   return (
-    <Screen title={t('volunteer.title')}>
+    <Screen title={t('volunteer.title')} tabBar={false}>
       <Loaded state={events}>
         {(list) => {
           if (list.length === 0) return <EmptyState icon="scan-outline" title={t('volunteer.noEvents')} body={t('volunteer.noEventsBody')} />;

@@ -36,7 +36,7 @@ export default function CartScreen() {
 
   if (cart.lines.length === 0) {
     return (
-      <Screen title={t('store.orderTitle')}>
+      <Screen title={t('store.orderTitle')} niva={false}>
         <EmptyState icon="basket-outline" title={t('store.cartEmpty')} action={{ label: t('store.browse'), onPress: () => router.replace('/store') }} />
       </Screen>
     );
@@ -71,7 +71,7 @@ export default function CartScreen() {
   };
 
   return (
-    <Screen title={t('store.orderTitle')}>
+    <Screen title={t('store.orderTitle')} niva={false}>
       <Card>
         {cart.lines.map((l) => (
           <VStack key={l.itemId} gap={space.xs} style={{ paddingVertical: space.sm }}>

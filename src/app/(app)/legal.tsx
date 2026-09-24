@@ -19,7 +19,7 @@ export default function LegalScreen() {
   const state = useLoad(() => (center ? getLegalDocument(center.id, kind) : Promise.resolve(null)), [center?.id, kind], 'load this document');
   const title = kind === 'terms' ? t('settings.terms') : t('settings.privacyPolicy');
   return (
-    <Screen title={title}>
+    <Screen title={title} niva={false}>
       <Loaded state={state}>
         {(doc) =>
           doc ? (

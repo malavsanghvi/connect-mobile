@@ -23,7 +23,7 @@ export default function GuideScreen() {
     { icon: 'chatbubble-ellipses-outline', title: t('guide.askTitle'), sub: t('guide.askSub'), href: '/guide/ask', needsMember: true },
   ];
   return (
-    <Screen title={t('guide.title')}>
+    <Screen title={t('guide.title')} tabBar={false}>
       <Card tone="navy">
         <Txt variant="title" color="white" accessibilityRole="header">
           {t('guide.heroTitle')}

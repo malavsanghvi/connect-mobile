@@ -27,6 +27,7 @@ export default function StoreScreen() {
   return (
     <Screen
       title={t('store.title')}
+      niva={false}
       footer={
         cart.count > 0 ? (
           <Pressable onPress={() => router.push('/cart')} accessibilityRole="button" accessibilityLabel={t('store.viewOrder', { n: cart.count, amount: formatCents(total) })} style={{ backgroundColor: colors.store, borderRadius: 28, minHeight: 56, paddingHorizontal: space.gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

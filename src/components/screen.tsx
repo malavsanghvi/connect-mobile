@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -6,57 +5,38 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
-import { colors, layout, space } from '@/theme';
+import { colors, components, layout, space } from '@/theme';
 
+import { CenterMark, Wordmark } from './brand';
 import { useDrawer } from './drawer';
+import { NivaFab } from './niva-fab';
+import { SubScreenTabBar } from './tab-bar';
 import { IconButton, Row, Txt } from './ui';
 
-function brandingLogo(branding: unknown): string | null {
-  if (!branding || typeof branding !== 'object' || Array.isArray(branding)) return null;
-  const b = branding as Record<string, unknown>;
-  const url = b.logo_url ?? b.logo;
-  return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null;
-}
+export { CenterMark };
 
-export function CenterMark({ size = 36 }: { size?: number }) {
-  const { center } = useApp();
-  const logo = brandingLogo(center?.branding);
-  if (logo) return <Image source={{ uri: logo }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" accessibilityIgnoresInvertColors />;
-  const initials = (center?.short_name || center?.name || 'C').slice(0, 3).toUpperCase();
-  return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center' }}>
-      <Txt variant="badge" color="white">
-        {initials}
-      </Txt>
-    </View>
-  );
-}
-
-function Wordmark() {
-  const { center } = useApp();
-  return (
-    <Row gap={space.sm} style={{ flexShrink: 1 }}>
-      <CenterMark />
-      <Txt variant="caption" color="navy" numberOfLines={2} style={{ letterSpacing: 1, textTransform: 'uppercase', flexShrink: 1 }} accessibilityRole="header">
-        {center?.name ?? ''}
-      </Txt>
-    </Row>
-  );
-}
-
+/**
+ * Prototype header (Main.dc.html L21–40): padding 16/20/12, gap 12.
+ * Left: 44px white round menu (tab roots) or back button with a 1px #E3D9C8
+ * border. Middle: the community mark + two-line wordmark, centred (Home), or
+ * the screen title left-aligned right after the button (Fraunces 22 navy).
+ * Right: the member card as a filled navy circle with a white QR glyph.
+ */
 export function AppHeader({ title, root, showWordmark, right }: { title?: string; root?: boolean; showWordmark?: boolean; right?: ReactNode }) {
   const router = useRouter();
   const t = useT();
   const drawer = useDrawer();
   const { member } = useApp();
+  const spec = components.header;
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };
+  const cardButton = member ? <IconButton glyph="qr" variant="filled" label={t('nav.memberCard')} onPress={() => router.push('/member-card')} /> : <View style={{ width: spec.iconButton }} />;
   return (
-    <Row style={{ paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm, justifyContent: 'space-between', backgroundColor: colors.ground }}>
-      {root ? <IconButton icon="menu" label={t('nav.openMenu')} onPress={drawer.open} /> : <IconButton icon="chevron-back" label={t('common.back')} onPress={goBack} />}
-      <View style={{ flex: 1, alignItems: showWordmark ? 'flex-start' : 'center', paddingHorizontal: space.xs }}>
+    <Row gap={spec.gap} style={{ paddingTop: spec.padTop, paddingHorizontal: spec.padX, paddingBottom: spec.padBottom, minHeight: spec.iconButton, backgroundColor: colors.ground }}>
+      {root ? <IconButton glyph="menu" variant="outline" label={t('nav.openMenu')} onPress={drawer.open} /> : <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={goBack} />}
+      <View style={{ flex: 1, alignItems: showWordmark ? 'center' : 'flex-start' }}>
         {showWordmark ? (
           <Wordmark />
         ) : (
@@ -65,13 +45,7 @@ export function AppHeader({ title, root, showWordmark, right }: { title?: string
           </Txt>
         )}
       </View>
-      {right !== undefined ? (
-        right
-      ) : member ? (
-        <IconButton icon="qr-code-outline" label={t('nav.memberCard')} onPress={() => router.push('/member-card')} />
-      ) : (
-        <View style={{ width: 44 }} />
-      )}
+      {right !== undefined ? right : cardButton}
     </Row>
   );
 }
@@ -88,10 +62,22 @@ export type ScreenProps = {
   scroll?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   hideHeader?: boolean;
+  /**
+   * Show the bottom tab bar on a pushed screen (default true). Tab roots get
+   * the navigator's bar instead. Off for screens that are separate full-screen
+   * flows in the prototype (guide, Gyan Path, volunteer board, scanner).
+   */
+  tabBar?: boolean;
+  /**
+   * Show the Niva floating button (default: wherever the tab bar shows).
+   * The prototype hides it on Settings, Legal, Niva, Store, Cart and the
+   * member card (Main.dc.html L2208).
+   */
+  niva?: boolean;
 };
 
-/** Every screen: safe area, header (menu/back · title · member card), scroll, pull-to-refresh. */
-export function Screen({ title, root, showWordmark, children, footer, onRefresh, headerRight, scroll = true, contentStyle, hideHeader }: ScreenProps) {
+/** Every screen: safe area, header (menu/back · title · member card), scroll, pull-to-refresh, tab bar, Niva. */
+export function Screen({ title, root, showWordmark, children, footer, onRefresh, headerRight, scroll = true, contentStyle, hideHeader, tabBar = true, niva }: ScreenProps) {
   const [refreshing, setRefreshing] = useState(false);
   const refresh = onRefresh
     ? async () => {
@@ -104,30 +90,43 @@ export function Screen({ title, root, showWordmark, children, footer, onRefresh,
       }
     : undefined;
 
+  const ownTabBar = !root && tabBar;
+  const showNiva = niva ?? (root || tabBar);
+
   const inner = (
-    <View style={[{ width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center', paddingHorizontal: space.gutter, paddingTop: space.xxs, paddingBottom: space.xl, gap: space.lg }, contentStyle]}>{children}</View>
+    <View
+      style={[
+        { width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center', paddingHorizontal: space.gutter, paddingTop: space.xxs, paddingBottom: showNiva ? space.xl + components.fab.h : space.xl, gap: space.lg },
+        contentStyle,
+      ]}>
+      {children}
+    </View>
   );
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.ground }}>
+    <SafeAreaView edges={root || ownTabBar ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.ground }}>
       {hideHeader ? null : <AppHeader title={title} root={root} showWordmark={showWordmark} right={headerRight} />}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {scroll ? (
-          <ScrollView
-            style={{ flex: 1 }}
-            keyboardShouldPersistTaps="handled"
-            refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.navy} /> : undefined}>
-            {inner}
-          </ScrollView>
-        ) : (
-          <View style={{ flex: 1 }}>{inner}</View>
-        )}
+        <View style={{ flex: 1 }}>
+          {scroll ? (
+            <ScrollView
+              style={{ flex: 1 }}
+              keyboardShouldPersistTaps="handled"
+              refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.navy} /> : undefined}>
+              {inner}
+            </ScrollView>
+          ) : (
+            <View style={{ flex: 1 }}>{inner}</View>
+          )}
+          {showNiva ? <NivaFab /> : null}
+        </View>
         {footer ? (
           <View style={{ paddingHorizontal: space.gutter, paddingTop: space.md, paddingBottom: space.md, backgroundColor: colors.ground, borderTopWidth: 1, borderTopColor: colors.divider, gap: space.sm }}>
             <View style={{ width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center', gap: space.sm }}>{footer}</View>
           </View>
         ) : null}
       </KeyboardAvoidingView>
+      {ownTabBar ? <SubScreenTabBar /> : null}
     </SafeAreaView>
   );
 }

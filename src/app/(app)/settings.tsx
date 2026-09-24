@@ -110,7 +110,7 @@ export default function SettingsScreen() {
           : push.status.reason;
 
   return (
-    <Screen title={t('settings.title')}>
+    <Screen title={t('settings.title')} niva={false}>
       <Card>
         <Row gap={space.md}>
           <Avatar name={member.person.first_name} size={52} />

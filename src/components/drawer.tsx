@@ -1,17 +1,22 @@
+import Constants from 'expo-constants';
 import { useRouter, type Href } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { myVolunteerEvents } from '@/lib/api/volunteer';
+import { report } from '@/lib/errors';
 import { fullName } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, space, touch } from '@/theme';
+import { colors, components, fonts, shadows, space, touch } from '@/theme';
 
-import { Icon, type IconName } from './icon';
-import { IconButton, Row, Txt } from './ui';
+import { CenterMark, useBranding } from './brand';
+import { StrokeIcon, type StrokeIconName } from './stroke-icon';
+import { Chevron, IconButton, Row, Txt } from './ui';
 
 type DrawerContextValue = { open: () => void; close: () => void };
 
@@ -21,20 +26,53 @@ export function useDrawer(): DrawerContextValue {
   return useContext(DrawerContext);
 }
 
-function Item({ icon, title, sub, onPress }: { icon: IconName; title: string; sub?: string; onPress: () => void }) {
+type Tint = 'brown' | 'navy' | 'green' | 'grey';
+
+const tints: Record<Tint, string> = { brown: colors.brownTint, navy: colors.navyTint, green: colors.greenTint, grey: colors.chip };
+
+/** Main drawer row (prototype Main L1355): 64px, 44px tinted tile, 16/600 title, 12 muted sub, › chevron. */
+function Item({ glyph, tint, iconColor = colors.navy, title, sub, onPress }: { glyph: StrokeIconName; tint: Tint; iconColor?: string; title: string; sub?: string; onPress: () => void }) {
+  const d = components.drawer;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={sub ? `${title}. ${sub}` : title}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64, paddingVertical: space.sm, opacity: pressed ? 0.6 : 1 })}>
-      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={icon} size={20} color={colors.navy} />
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: d.rowH, paddingVertical: space.sm, paddingHorizontal: 10, borderRadius: d.rowR, backgroundColor: pressed ? colors.panel : 'transparent' })}>
+      <View style={{ width: d.tile, height: d.tile, borderRadius: d.tileR, backgroundColor: tints[tint], alignItems: 'center', justifyContent: 'center' }}>
+        <StrokeIcon name={glyph} size={d.iconSize} color={iconColor} />
       </View>
       <View style={{ flex: 1 }}>
-        <Txt variant="bodyStrong">{title}</Txt>
+        <Txt variant="section">{title}</Txt>
         {sub ? (
-          <Txt variant="meta" color="muted">
+          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+            {sub}
+          </Txt>
+        ) : null}
+      </View>
+      <Chevron />
+    </Pressable>
+  );
+}
+
+/** Secondary drawer row (Community dashboard, guide): grey tile, 15/500 label, no chevron. */
+function MinorItem({ glyph, title, sub, onPress, role = 'button' }: { glyph: StrokeIconName; title: string; sub?: string; onPress: () => void; role?: 'button' | 'link' }) {
+  const d = components.drawer;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole={role}
+      accessibilityLabel={sub ? `${title}. ${sub}` : title}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52, paddingVertical: space.sm, paddingHorizontal: 10, borderRadius: d.rowR, backgroundColor: pressed ? colors.panel : 'transparent' })}>
+      <View style={{ width: d.tile, height: d.tile, borderRadius: d.tileR, backgroundColor: tints.grey, alignItems: 'center', justifyContent: 'center' }}>
+        <StrokeIcon name={glyph} size={d.iconSize} color={colors.muted} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Txt variant="body" style={{ fontFamily: fonts.bodyMedium }}>
+          {title}
+        </Txt>
+        {sub ? (
+          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
             {sub}
           </Txt>
         ) : null}
@@ -43,18 +81,33 @@ function Item({ icon, title, sub, onPress }: { icon: IconName; title: string; su
   );
 }
 
-/** Left drawer (prototype §2.31). Lives in the (app) layout so every screen's menu button can open it. */
+/** Left drawer (prototype Main L1344–1395). Lives in the (app) layout so every screen's menu button can open it. */
 export function DrawerProvider({ children }: { children: ReactNode }) {
   const [visible, setVisible] = useState(false);
   const router = useRouter();
   const t = useT();
+  const feedback = useFeedback();
   const insets = useSafeAreaInsets();
   const { center, member, guest, setGuest } = useApp();
+  const brand = useBranding();
   const volunteer = useLoad(() => (center && member ? myVolunteerEvents(center.id) : Promise.resolve([])), [center?.id, member?.userId], 'check your volunteer roles');
+  const community = center?.short_name || center?.name || '';
+  const version = Constants.expoConfig?.version ?? '1.0.0';
+  const d = components.drawer;
 
   const go = (href: Href) => {
     setVisible(false);
     router.push(href);
+  };
+
+  const openDashboard = async () => {
+    if (!brand.dashboardUrl) return;
+    setVisible(false);
+    try {
+      await WebBrowser.openBrowserAsync(brand.dashboardUrl);
+    } catch (err) {
+      feedback.toast(report(err, t('drawer.dashboardError')).userMessage, 'error');
+    }
   };
 
   const identity = member
@@ -68,34 +121,57 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
       {children}
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
-          <View accessibilityViewIsModal style={{ width: 304, maxWidth: '86%', backgroundColor: colors.ground, paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.md }}>
-            <ScrollView contentContainerStyle={{ paddingHorizontal: space.gutter, gap: space.xs }}>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Txt variant="headline" color="navy" accessibilityRole="header" style={{ flex: 1 }}>
+          <View
+            accessibilityViewIsModal
+            style={[
+              { width: d.width, maxWidth: '86%', backgroundColor: colors.ground, borderTopRightRadius: d.edgeR, borderBottomRightRadius: d.edgeR, paddingTop: insets.top, paddingBottom: insets.bottom, zIndex: 1 },
+              shadows.drawer,
+            ]}>
+            <View style={{ paddingTop: 22, paddingHorizontal: 18, paddingBottom: space.lg, gap: space.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Row align="flex-start" style={{ justifyContent: 'space-between' }}>
+                <CenterMark size={d.markHeight} maxWidth={180} />
+                <IconButton glyph="close" variant="outline" size={40} iconSize={16} color={colors.muted} label={t('common.close')} onPress={() => setVisible(false)} />
+              </Row>
+              <View>
+                <Txt variant="headline" accessibilityRole="header" style={{ fontFamily: fonts.displayBold }}>
                   {center?.name ?? ''}
                 </Txt>
-                <IconButton icon="close" label={t('common.close')} onPress={() => setVisible(false)} />
-              </Row>
-              <Txt variant="meta" color="muted">
-                {identity}
-              </Txt>
-              <View style={{ height: space.md }} />
-              <Item icon="calendar-outline" title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} />
-              {member ? <Item icon="school-outline" title={t('drawer.pathshala')} sub={t('drawer.pathshalaSub')} onPress={() => go({ pathname: '/jain-way', params: { tab: 'learn' } })} /> : null}
-              {member?.isAdult ? <Item icon="receipt-outline" title={t('drawer.donations')} sub={t('drawer.donationsSub')} onPress={() => go('/pledges')} /> : null}
-              <Item icon="storefront-outline" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} />
-              <Item icon="ticket-outline" title={t('drawer.rsvp')} sub={t('drawer.rsvpSub')} onPress={() => go('/events')} />
-              <Item icon="compass-outline" title={t('drawer.guide')} sub={t('drawer.guideSub')} onPress={() => go('/guide')} />
-              {member ? <Item icon="chatbubble-ellipses-outline" title={t('drawer.niva')} sub={t('drawer.nivaSub')} onPress={() => go('/niva')} /> : null}
-              {volunteer.data && volunteer.data.length > 0 ? (
-                <Item icon="scan-outline" title={t('drawer.volunteer')} sub={t('drawer.volunteerSub', { n: volunteer.data.length })} onPress={() => go('/volunteer')} />
+                <Txt variant="meta" color="muted">
+                  {identity}
+                </Txt>
+              </View>
+            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: space.sm }}>
+              <View style={{ gap: 2 }}>
+                <Item glyph="calendar-dots" tint="brown" iconColor={colors.brown} title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} />
+                {member ? <Item glyph="book" tint="navy" title={t('drawer.pathshala')} sub={t('drawer.pathshalaSub')} onPress={() => go({ pathname: '/jain-way', params: { tab: 'learn' } })} /> : null}
+                {member?.isAdult ? <Item glyph="heart" tint="brown" title={t('drawer.donations')} sub={t('drawer.donationsSub')} onPress={() => go('/pledges')} /> : null}
+                <Item glyph="bag" tint="green" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} />
+                <Item glyph="calendar-check" tint="navy" title={t('drawer.rsvp')} sub={t('drawer.rsvpSub')} onPress={() => go('/events')} />
+              </View>
+              <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 10, marginVertical: 10 }} />
+              <View style={{ gap: 2 }}>
+                {brand.dashboardUrl ? <MinorItem glyph="chart" role="link" title={t('drawer.dashboard')} onPress={() => void openDashboard()} /> : null}
+                <MinorItem glyph="info" title={t('drawer.guide', { center: community })} onPress={() => go('/guide')} />
+                {volunteer.data && volunteer.data.length > 0 ? (
+                  <MinorItem glyph="scan" title={t('drawer.volunteer')} sub={t('drawer.volunteerSub', { n: volunteer.data.length })} onPress={() => go('/volunteer')} />
+                ) : null}
+              </View>
+              {volunteer.error ? (
+                <View style={{ paddingHorizontal: 10, paddingTop: space.sm }}>
+                  <Txt variant="caption" color="danger" style={{ fontFamily: fonts.body }}>
+                    {volunteer.error.userMessage}
+                  </Txt>
+                </View>
               ) : null}
-              <View style={{ height: 1, backgroundColor: colors.divider, marginVertical: space.sm }} />
+            </ScrollView>
+            <View style={{ paddingTop: space.sm, paddingHorizontal: space.sm, paddingBottom: space.xl, borderTopWidth: 1, borderTopColor: colors.border }}>
               {member ? (
-                <Item icon="settings-outline" title={t('drawer.settings')} sub={t('drawer.settingsSub')} onPress={() => go('/settings')} />
+                <Item glyph="gear" tint="navy" title={t('drawer.settings')} sub={t('drawer.settingsSub')} onPress={() => go('/settings')} />
               ) : guest ? (
                 <Item
-                  icon="log-in-outline"
+                  glyph="sign-in"
+                  tint="navy"
                   title={t('drawer.signIn')}
                   sub={t('drawer.signInSub')}
                   onPress={() => {
@@ -104,10 +180,10 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
                   }}
                 />
               ) : null}
-              <Txt variant="fine" color="faint" style={{ marginTop: space.md }}>
-                {t('drawer.version', { version: '1.0.0' })}
+              <Txt variant="fine" color="faint" style={{ paddingTop: space.xxs, paddingHorizontal: space.md }}>
+                {t('drawer.version', { version })}
               </Txt>
-            </ScrollView>
+            </View>
           </View>
           <Pressable style={{ flex: 1, backgroundColor: colors.scrimLight, minWidth: touch.min }} onPress={() => setVisible(false)} accessibilityRole="button" accessibilityLabel={t('common.close')} />
         </View>

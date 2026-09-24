@@ -22,7 +22,7 @@ export default function GyanGoalScreen() {
   const state = useLoad(() => (center && member ? loadGyan(center, [member.person.id]) : Promise.reject(new Error('not signed in'))), [center?.id, member?.person.id], 'load Gyan Path');
 
   return (
-    <Screen title={t('learn.gyanPath')}>
+    <Screen title={t('learn.gyanPath')} tabBar={false}>
       <Loaded state={state}>
         {(g) => {
           const goal = g.goals.find((x) => x.id === goalId);

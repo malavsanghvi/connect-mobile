@@ -38,7 +38,7 @@ export default function GyanLevelScreen() {
     'load this level',
   );
   return (
-    <Screen title={t('learn.levelTitle')}>
+    <Screen title={t('learn.levelTitle')} tabBar={false}>
       <Loaded state={state}>
         {({ data, goal, level, content }) =>
           goal && level && member ? <LevelBody data={data} goalName={goal.name} isFinal={goal.levels[goal.levels.length - 1]?.id === level.id} level={level} content={content} index={goal.levels.findIndex((l) => l.id === level.id)} /> : <EmptyState title={t('learn.goalMissing')} />

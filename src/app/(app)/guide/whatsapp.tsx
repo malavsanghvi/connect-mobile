@@ -43,7 +43,7 @@ export default function WhatsAppScreen() {
   };
 
   return (
-    <Screen title={t('guide.waTitle')}>
+    <Screen title={t('guide.waTitle')} tabBar={false}>
       <Txt variant="small" color="ink2">
         {t('guide.waIntro')}
       </Txt>
