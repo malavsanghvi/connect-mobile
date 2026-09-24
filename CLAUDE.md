@@ -43,3 +43,11 @@ Verify before finishing: `pnpm typecheck`, `pnpm lint`, `pnpm test`,
 - Decisions + open questions: `connect-crm/docs/DECISIONS.md` · design doc: `connect-crm/docs/design-doc/`
 - Screen specs extracted from the prototype: `docs/PROTOTYPE_*.md` (source prototypes: `connect-crm/docs/handoff/prototypes/source/Main.dc.html`, `Onboarding`, `Welcome`, `GyanPath`)
 - Founder rules: bolis say "pledge", never "bid"; money/RSVP/bolis/pledges are adults-only; show JSH member ID and JSH household ID exactly as issued (leading zeros kept); every failure shown in plain English with retry.
+
+## Pull requests — standing authorisation (owner, 2026-09-24)
+
+Claude opens a PR for each change, waits for **App checks** (typecheck, lint, test, build;
+plus **Database tests** in connect-crm when `supabase/**` changes) to pass, merges it, then
+confirms the resulting **Deploy** run is green and the app answers. Ask the owner first,
+even with checks green, for anything that changes money rules, permissions/RLS, or deletes
+data. Repository settings, secrets and passwords stay with the owner.
