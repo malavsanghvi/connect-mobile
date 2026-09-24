@@ -2,7 +2,9 @@ import type { Tables } from '../database.types';
 import { AppError, check, must } from '../errors';
 import { supabase } from '../supabase';
 
-import type { DailyMinutes } from '../learning';
+import { isMissingBucket } from './photos';
+
+import { classSchedule, registrationOpen, type AttendanceMark, type DailyMinutes } from '../learning';
 
 import type { Center } from './member';
 
@@ -113,7 +115,12 @@ export async function uploadRecitation(opts: { centerId: string; personId: strin
   if (body.byteLength === 0) throw new AppError('The recording was empty. Please record again.', 'empty recording');
   const path = `${opts.centerId}/${opts.personId}/${opts.stepId}-${Date.now()}.${ext}`;
   const up = await supabase.storage.from(RECITATION_BUCKET).upload(path, body, { contentType, upsert: false });
-  if (up.error) throw new AppError("We couldn't upload your recitation. Recording storage isn't available yet.", `storage upload to ${RECITATION_BUCKET}: ${up.error.message}`);
+  if (up.error) {
+    throw new AppError(
+      isMissingBucket(up.error) ? "Recitation recordings aren't set up for your community yet, so this one wasn't saved." : "We couldn't upload your recitation. Please check your connection and try again.",
+      `storage upload to ${RECITATION_BUCKET}: ${up.error.message}`,
+    );
+  }
   const prev = opts.existing.find((p) => p.person_id === opts.personId && p.step_id === opts.stepId);
   const expires = new Date(Date.now() + RECORDING_RETENTION_DAYS * 86400000).toISOString();
   check(
@@ -148,7 +155,20 @@ export function parseQuiz(raw: unknown): Quiz {
   return out;
 }
 
-export type Enrollment = Tables<'pathshala_enrollments'> & { termName: string | null; className: string | null; levelName: string | null; schedule: string | null };
+export type ProgressReport = Pick<
+  Tables<'pathshala_progress_reports'>,
+  'id' | 'enrollment_id' | 'period' | 'attendance_present' | 'attendance_late' | 'attendance_total' | 'teacher_comments' | 'published_at'
+>;
+export type Enrollment = Tables<'pathshala_enrollments'> & {
+  termName: string | null;
+  className: string | null;
+  levelName: string | null;
+  schedule: string | null;
+  /** Class days marked for this student (parents read them through RLS attendance_household). */
+  attendance: AttendanceMark[];
+  /** Published progress reports, newest first. */
+  reports: ProgressReport[];
+};
 
 export async function loadPathshala(householdId: string): Promise<Enrollment[]> {
   const rows = must(await supabase.from('pathshala_enrollments').select('*').eq('household_id', householdId).neq('status', 'withdrawn').order('registered_at', { ascending: false }), 'load Pathshala enrollments');
@@ -156,10 +176,19 @@ export async function loadPathshala(householdId: string): Promise<Enrollment[]> 
   const termIds = [...new Set(rows.map((r) => r.term_id))];
   const classIds = [...new Set(rows.map((r) => r.class_id).filter((x): x is string => !!x))];
   const levelIds = [...new Set(rows.map((r) => r.requested_level_id).filter((x): x is string => !!x))];
-  const [terms, classes, levels] = await Promise.all([
+  const enrollmentIds = rows.map((r) => r.id);
+  const [terms, classes, levels, marks, reports] = await Promise.all([
     supabase.from('pathshala_terms').select('id, name').in('id', termIds).then((r) => must(r, 'load Pathshala terms')),
     classIds.length ? supabase.from('pathshala_classes').select('id, name, meets_on, starts_time, level_id').in('id', classIds).then((r) => must(r, 'load Pathshala classes')) : Promise.resolve([]),
     levelIds.length ? supabase.from('pathshala_levels').select('id, name').in('id', levelIds).then((r) => must(r, 'load Pathshala levels')) : Promise.resolve([]),
+    supabase.from('pathshala_attendance').select('enrollment_id, status, marked_at').in('enrollment_id', enrollmentIds).then((r) => must(r, 'load Pathshala attendance')),
+    supabase
+      .from('pathshala_progress_reports')
+      .select('id, enrollment_id, period, attendance_present, attendance_late, attendance_total, teacher_comments, published_at')
+      .in('enrollment_id', enrollmentIds)
+      .not('published_at', 'is', null)
+      .order('published_at', { ascending: false })
+      .then((r) => must(r, 'load Pathshala progress reports')),
   ]);
   return rows.map((r) => {
     const cls = classes.find((c) => c.id === r.class_id);
@@ -168,9 +197,57 @@ export async function loadPathshala(householdId: string): Promise<Enrollment[]> 
       termName: terms.find((t) => t.id === r.term_id)?.name ?? null,
       className: cls?.name ?? null,
       levelName: levels.find((l) => l.id === r.requested_level_id)?.name ?? null,
-      schedule: cls ? `${cls.meets_on.charAt(0).toUpperCase()}${cls.meets_on.slice(1)}${cls.starts_time ? ` · ${cls.starts_time.slice(0, 5)}` : ''}` : null,
+      schedule: cls ? classSchedule(cls.meets_on, cls.starts_time) : null,
+      // Parents can't read pathshala_sessions, so the class day is when it was marked.
+      attendance: marks.filter((m) => m.enrollment_id === r.id).map((m) => ({ status: m.status, held_on: m.marked_at.slice(0, 10) })),
+      reports: reports.filter((p) => p.enrollment_id === r.id),
     };
   });
+}
+
+export type EnrollOptions = {
+  terms: (Pick<Tables<'pathshala_terms'>, 'id' | 'name' | 'status' | 'starts_on' | 'ends_on' | 'registration_opens_at' | 'registration_closes_at' | 'membership_required' | 'fee_per_child_cents'>)[];
+  levels: Pick<Tables<'pathshala_levels'>, 'id' | 'name' | 'sort_order' | 'track_id'>[];
+  /** term id → student person ids that already have an enrollment that term. */
+  taken: Record<string, string[]>;
+};
+
+/** Terms that take requests now, the levels to ask for, and who is already enrolled. */
+export async function loadEnrollOptions(centerId: string, householdId: string): Promise<EnrollOptions> {
+  const [terms, levels, tracks, mine] = await Promise.all([
+    supabase
+      .from('pathshala_terms')
+      .select('id, name, status, starts_on, ends_on, registration_opens_at, registration_closes_at, membership_required, fee_per_child_cents')
+      .eq('center_id', centerId)
+      .in('status', ['registration', 'active'])
+      .order('starts_on')
+      .then((r) => must(r, 'load Pathshala terms')),
+    supabase.from('pathshala_levels').select('id, name, sort_order, track_id').eq('center_id', centerId).order('sort_order').then((r) => must(r, 'load Pathshala levels')),
+    supabase.from('pathshala_tracks').select('id, name').eq('center_id', centerId).then((r) => must(r, 'load Pathshala tracks')),
+    supabase.from('pathshala_enrollments').select('term_id, student_person_id').eq('household_id', householdId).then((r) => must(r, 'load your enrollments')),
+  ]);
+  const taken: Record<string, string[]> = {};
+  for (const e of mine) (taken[e.term_id] ??= []).push(e.student_person_id);
+  // Group the levels by track (Gujarati, Hindi, Jainism…), in level order within each.
+  const trackName = new Map(tracks.map((t) => [t.id, t.name]));
+  const sorted = [...levels].sort((a, b) => (trackName.get(a.track_id) ?? '').localeCompare(trackName.get(b.track_id) ?? '') || a.sort_order - b.sort_order);
+  return { terms: terms.filter((t) => registrationOpen(t, new Date())), levels: sorted, taken };
+}
+
+/** Ask for a place (RLS enrollments_household_insert: an adult of the household, status requested, no class). */
+export async function requestEnrollment(args: { centerId: string; termId: string; householdId: string; personId: string; levelId: string | null; note: string | null; userId: string }): Promise<void> {
+  const res = await supabase.from('pathshala_enrollments').insert({
+    center_id: args.centerId,
+    term_id: args.termId,
+    household_id: args.householdId,
+    student_person_id: args.personId,
+    requested_level_id: args.levelId,
+    status: 'requested',
+    registered_by: args.userId,
+    notes: args.note,
+  });
+  if (res.error?.code === '23505') throw new AppError('This child already has an enrollment for that term.', res.error.message);
+  check(res, 'send the enrollment request');
 }
 
 /** Mark Pathshala attendance from the class QR (app.redeem_attendance_qr). Pass the child's id when a parent scans. */
@@ -182,4 +259,47 @@ export async function redeemAttendance(sessionId: string, token: string, personI
 export function assertCanLearn(personId: string | null): string {
   if (!personId) throw new AppError('Sign in to track your Gyan Path progress.', 'guest');
   return personId;
+}
+
+export type TeacherPosition = Pick<Tables<'teacher_positions'>, 'id' | 'title' | 'description' | 'min_qualifications' | 'term_id' | 'level_id'>;
+export type TeacherApplication = Pick<Tables<'teacher_applications'>, 'id' | 'position_id' | 'outcome' | 'submitted_at'>;
+
+/** Open positions (RLS teacher_positions_member_read) and my own applications (teacher_apps_own). */
+export async function loadTeaching(centerId: string, personId: string): Promise<{ positions: TeacherPosition[]; mine: TeacherApplication[] }> {
+  const [positions, mine] = await Promise.all([
+    supabase.from('teacher_positions').select('id, title, description, min_qualifications, term_id, level_id').eq('center_id', centerId).eq('status', 'open').order('created_at', { ascending: false }).then((r) => must(r, 'load teacher positions')),
+    supabase.from('teacher_applications').select('id, position_id, outcome, submitted_at').eq('center_id', centerId).eq('person_id', personId).order('submitted_at', { ascending: false }).then((r) => must(r, 'load your applications')),
+  ]);
+  return { positions, mine };
+}
+
+/** Apply to teach (RLS teacher_apps_insert: my own person, outcome pending). */
+export async function applyToTeach(args: {
+  centerId: string;
+  positionId: string;
+  personId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  education: string | null;
+  qualifications: string | null;
+  activities: string | null;
+  motivation: string | null;
+}): Promise<void> {
+  check(
+    await supabase.from('teacher_applications').insert({
+      center_id: args.centerId,
+      position_id: args.positionId,
+      person_id: args.personId,
+      name: args.name,
+      email: args.email,
+      phone_e164: args.phone,
+      education: args.education,
+      qualifications: args.qualifications,
+      relevant_activities: args.activities,
+      motivation: args.motivation,
+      outcome: 'pending',
+    }),
+    'send your application',
+  );
 }

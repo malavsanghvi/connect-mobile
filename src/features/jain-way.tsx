@@ -26,6 +26,7 @@ import {
 import { logError, report } from '@/lib/errors';
 import { formatDay, formatTimeOfDay, weekdayOf } from '@/lib/format';
 import {
+  attendanceSummary,
   behindDays,
   categoryLabel,
   circleStatus,
@@ -525,7 +526,12 @@ export function LearnPane() {
         <Loaded state={pathshala}>
           {(rows) =>
             rows.length === 0 ? (
-              <EmptyState icon="school-outline" title={t('learn.noEnrollments')} body={t('learn.noEnrollmentsBody')} />
+              <EmptyState
+                icon="school-outline"
+                title={t('learn.noEnrollments')}
+                body={t('learn.noEnrollmentsBody')}
+                action={member?.isAdult ? { label: t('enrollReq.cta'), onPress: () => router.push('/pathshala-enroll') } : undefined}
+              />
             ) : (
               <Card>
                 {rows.map((r, i) => {
@@ -542,7 +548,7 @@ export function LearnPane() {
                       {pending ? (
                         <Text style={{ fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted }}>
                           {`${[name, level, statusLabel].filter(Boolean).join(' · ')} · `}
-                          <Text onPress={() => router.push('/guide/ask')} accessibilityRole="link" style={{ color: colors.navy, textDecorationLine: 'underline' }}>
+                          <Text onPress={() => router.push('/pathshala-enroll')} accessibilityRole="link" style={{ color: colors.navy, textDecorationLine: 'underline' }}>
                             {t('learn.completeEnrollment')}
                           </Text>
                         </Text>
@@ -560,6 +566,28 @@ export function LearnPane() {
                             <Txt variant="meta" color="muted">
                               {[r.schedule, t('learn.attendanceByQr')].filter(Boolean).join(' · ')}
                             </Txt>
+                        ) : null}
+                        {(() => {
+                          const a = attendanceSummary(r.attendance);
+                          return a.last ? (
+                            <Txt variant="meta" color="ink2">
+                              {[
+                                t('learn.lastClass', { date: formatDay(a.last.held_on), status: t(`attendStatus.${a.last.status}` as 'attendStatus.present') }),
+                                t('learn.attended', { n: a.attended, total: a.total }),
+                              ].join(' · ')}
+                            </Txt>
+                          ) : null;
+                        })()}
+                        {r.reports[0] ? (
+                          <Txt variant="meta" color="ink2">
+                            {[
+                              t('learn.report', { period: r.reports[0].period }),
+                              t('learn.reportAttendance', { present: r.reports[0].attendance_present + r.reports[0].attendance_late, total: r.reports[0].attendance_total }),
+                              r.reports[0].teacher_comments,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </Txt>
                         ) : null}
                       </>
                     )}
@@ -580,6 +608,15 @@ export function LearnPane() {
           )
         }
       </Loaded>
+      ) : null}
+
+      {pathshalaOn && member?.isAdult ? (
+        <Row style={{ flexWrap: 'wrap' }}>
+          {(pathshala.data?.length ?? 0) > 0 ? (
+            <Button label={t('enrollReq.cta')} tone="secondary" size="sm" icon="school-outline" fill={false} onPress={() => router.push('/pathshala-enroll')} />
+          ) : null}
+          <Button label={t('teach.cta')} tone="secondary" size="sm" icon="people-outline" fill={false} onPress={() => router.push('/pathshala-teach')} />
+        </Row>
       ) : null}
 
       {lessonsOn ? <Txt variant="section">{t('learn.listen')}</Txt> : null}
@@ -723,7 +760,7 @@ export function SaathiPane() {
                   const statusLabel = status === 'behind' ? (days ? t('saathi.status.behind', { n: days }) : t('saathi.status.behindUnknown')) : t(`saathi.status.${status}`);
                   const goalLine = act
                     ? act.p.complete
-                      ? t('saathi.goalLineDone', { goal: act.goal.name, n: act.p.levelsTotal })
+                      ? t(act.p.levelsTotal === 1 ? 'saathi.goalLineDoneOne' : 'saathi.goalLineDone', { goal: act.goal.name, n: act.p.levelsTotal })
                       : t('saathi.goalLine', { goal: act.goal.name, level: act.p.levelsDone + 1, n: act.p.levelsTotal })
                     : null;
                   const daily = m.selected > 0 ? t('saathi.dailyLine', { done: m.doneToday, n: m.selected }) : t('saathi.noPractices');
@@ -757,7 +794,7 @@ export function SaathiPane() {
                 const key = `c:${c.person_id}:${c.occurred_at}`;
                 const headline =
                   c.kind === 'goal_completed'
-                    ? t('saathi.headlineGoal', { name: c.person_name, title: c.title.charAt(0).toLowerCase() + c.title.slice(1), detail: c.detail })
+                    ? t(/^1 levels?$/.test(c.detail) ? 'saathi.headlineGoalOne' : 'saathi.headlineGoal', { name: c.person_name, title: c.title.charAt(0).toLowerCase() + c.title.slice(1), detail: c.detail })
                     : t('saathi.headlineDaily', { name: c.person_name, detail: c.detail });
                 const others = c.i_sent
                   ? t('saathi.othersSentMine', { points: rules.anumodana, center: community })

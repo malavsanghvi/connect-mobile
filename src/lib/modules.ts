@@ -266,6 +266,8 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   'gyan/[goalId]/index': 'gyan_path',
   'gyan/[goalId]/level/[levelId]': 'gyan_path',
   'pathshala-scan': 'pathshala',
+  'pathshala-enroll': 'pathshala',
+  'pathshala-teach': 'pathshala',
   // library + photos
   'pachchakhan/[id]': 'content',
   'album/[id]': 'content',
