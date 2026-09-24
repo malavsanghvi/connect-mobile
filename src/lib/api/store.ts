@@ -32,12 +32,7 @@ export async function listPickupWindows(centerId: string): Promise<PickupWindow[
 
 export type PlacedOrder = { id: string; orderNumber: string; totalCents: number };
 
-/**
- * Place an order. RLS lets a household add lines only while the order is a
- * 'cart', so: insert the order as a cart → add lines → mark it 'placed'.
- * Sales tax is not computed in the app (no tax rate in the schema — see README).
- */
-export async function placeOrder(args: {
+export type OrderArgs = {
   centerId: string;
   householdId: string;
   personId: string;
@@ -45,7 +40,16 @@ export async function placeOrder(args: {
   lines: { itemId: string; qty: number; giftQty: number; unitCents: number }[];
   giftPackCents: number | null;
   giftMessage: string;
-}): Promise<PlacedOrder> {
+};
+
+/**
+ * Step 1 of placing an order ("Sending N items to the kitchen"): RLS lets a
+ * household add lines only while the order is a 'cart', so insert the order
+ * as a cart and add its lines. Sales tax is not computed in the app (no tax
+ * rate in the schema — see README). A failure after the cart row exists
+ * leaves it as an unsent 'cart' (never shown to the kitchen) and is logged.
+ */
+export async function startOrder(args: OrderArgs): Promise<PlacedOrder> {
   if (args.lines.length === 0) throw new AppError('Your order is empty.', 'empty order');
   const subtotal = args.lines.reduce((s, l) => s + l.unitCents * l.qty, 0);
   const giftUnits = args.lines.reduce((s, l) => s + l.giftQty, 0);
@@ -81,11 +85,26 @@ export async function placeOrder(args: {
       return out;
     });
     check(await supabase.from('store_order_lines').insert(rows), 'add items to your order');
-    check(await supabase.from('store_orders').update({ status: 'placed', placed_at: new Date().toISOString() }).eq('id', order.id), 'place your order');
   } catch (err) {
-    // The cart row stays as 'cart' (never sent to the kitchen); log for cleanup.
     logError(`order ${order.order_number} left as an unplaced cart after a failure`, err);
     throw err;
   }
   return { id: order.id, orderNumber: order.order_number, totalCents: order.total_cents };
+}
+
+/** Step 2 ("Scheduling pickup"): send the cart to the kitchen as a placed order. */
+export async function submitOrder(order: PlacedOrder): Promise<void> {
+  try {
+    check(await supabase.from('store_orders').update({ status: 'placed', placed_at: new Date().toISOString() }).eq('id', order.id), 'place your order');
+  } catch (err) {
+    logError(`order ${order.orderNumber} left as an unplaced cart after a failure`, err);
+    throw err;
+  }
+}
+
+/** Both steps in one call. */
+export async function placeOrder(args: OrderArgs): Promise<PlacedOrder> {
+  const order = await startOrder(args);
+  await submitOrder(order);
+  return order;
 }
