@@ -146,9 +146,9 @@ describe('identifiers', () => {
     expect(orgIdDisplay('')).toBeNull();
     expect(orgIdDisplay(null)).toBeNull();
   });
-  it('joins the org id and Connect number, hiding what is absent', () => {
-    expect(identifierLine({ orgLabel: 'JSH member ID', orgId: '0417', connectNumber: 'JSH-10421' })).toBe('JSH member ID 0417 · Connect JSH-10421');
-    expect(identifierLine({ orgLabel: 'JSH member ID', orgId: null, connectNumber: 'JSH-10421' })).toBe('Connect JSH-10421');
+  it('joins the org id and member number, hiding what is absent', () => {
+    expect(identifierLine({ orgLabel: 'JSH member ID', orgId: '0417', connectNumber: 'JSH-10421' })).toBe('JSH member ID 0417 · JSH-10421');
+    expect(identifierLine({ orgLabel: 'JSH member ID', orgId: null, connectNumber: 'JSH-10421' })).toBe('JSH-10421');
   });
 });
 

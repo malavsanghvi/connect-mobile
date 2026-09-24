@@ -43,7 +43,7 @@ export default function FamilyScreen() {
   const householdLine = [
     household?.display_name,
     member.orgHouseholdId ? `${orgHouseholdLabel} ${member.orgHouseholdId}` : null,
-    household?.household_number ? `Connect ${household.household_number}` : null,
+    household?.household_number ? household.household_number : null,
   ]
     .filter(Boolean)
     .join(' · ');
