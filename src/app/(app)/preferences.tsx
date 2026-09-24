@@ -1,12 +1,16 @@
 import { useRouter } from 'expo-router';
 
 import { Screen } from '@/components/screen';
-import { ContactPrefsForm } from '@/features/onboarding/contact-prefs-form';
+import { DocumentsForm } from '@/features/onboarding/contact-prefs-form';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
 
-/** Contact channels, language, topics and documents & mail — the onboarding step 5 form. */
+/**
+ * Family › Documents and mail: the household's paper-or-digital choice
+ * (onboarding step 5 asks it once; this is where it changes later).
+ * Channels, language and notification topics are set per person in Profile.
+ */
 export default function PreferencesScreen() {
   const t = useT();
   const router = useRouter();
@@ -14,11 +18,10 @@ export default function PreferencesScreen() {
   const { toast } = useFeedback();
   if (!member || !center) return null;
   return (
-    <Screen title={t('prefs.title')}>
-      <ContactPrefsForm
+    <Screen title={t('prefs.documents')}>
+      <DocumentsForm
         member={member}
         centerId={center.id}
-        mode="settings"
         onSaved={() => {
           toast(t('prefs.saved'));
           router.back();
