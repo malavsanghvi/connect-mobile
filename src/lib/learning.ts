@@ -326,3 +326,52 @@ export function formatSources(raw: unknown): string | null {
 export function normaliseQuestion(q: string): string {
   return q.trim().replace(/\s+/g, ' ');
 }
+
+// ---------------------------------------------------------------------------
+// Pathshala (enrollment, schedule, attendance)
+// ---------------------------------------------------------------------------
+
+export type TermLike = { status: string; registration_opens_at: string | null; registration_closes_at: string | null; ends_on: string };
+
+/**
+ * A family may ask for a place when the office has opened registration
+ * (status "registration"), or while an active term's registration window is
+ * open. Closed and draft terms never take requests.
+ */
+export function registrationOpen(term: TermLike, now: Date): boolean {
+  if (term.status === 'registration') {
+    if (term.registration_closes_at && new Date(term.registration_closes_at) < now) return false;
+    return true;
+  }
+  if (term.status !== 'active') return false;
+  if (!term.registration_opens_at && !term.registration_closes_at) return false;
+  if (term.registration_opens_at && new Date(term.registration_opens_at) > now) return false;
+  if (term.registration_closes_at && new Date(term.registration_closes_at) < now) return false;
+  return true;
+}
+
+const DAY_PLURAL: Record<string, string> = {
+  sunday: 'Sundays',
+  monday: 'Mondays',
+  tuesday: 'Tuesdays',
+  wednesday: 'Wednesdays',
+  thursday: 'Thursdays',
+  friday: 'Fridays',
+  saturday: 'Saturdays',
+};
+
+/** "sunday" + "10:00:00" → "Sundays 10:00 AM" (the prototype's schedule line). */
+export function classSchedule(meetsOn: string | null | undefined, startsTime: string | null | undefined): string | null {
+  const day = meetsOn ? (DAY_PLURAL[meetsOn.toLowerCase()] ?? meetsOn) : null;
+  const time = startsTime ? formatTimeOfDay(startsTime) : null;
+  return [day, time].filter(Boolean).join(' ') || null;
+}
+
+export type AttendanceMark = { status: string; held_on: string };
+
+/** Latest mark plus "present or late" out of all marked class days. */
+export function attendanceSummary(marks: AttendanceMark[]): { last: AttendanceMark | null; attended: number; total: number } {
+  const sorted = [...marks].sort((a, b) => (a.held_on < b.held_on ? 1 : a.held_on > b.held_on ? -1 : 0));
+  const attended = marks.filter((m) => m.status === 'present' || m.status === 'late').length;
+  return { last: sorted[0] ?? null, attended, total: marks.length };
+}
