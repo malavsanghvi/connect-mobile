@@ -597,6 +597,7 @@ function ResultStep({
               accessibilityRole="checkbox"
               accessibilityLabel={`${a.name}. ${note}`}
               accessibilityState={{ checked: done || on, disabled: done }}
+              aria-checked={done || on}
               style={{
                 minHeight: touch.row,
                 borderRadius: radii.card,
