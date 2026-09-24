@@ -22,7 +22,7 @@ if (Platform.OS !== 'web') {
  * (RLS: a login manages only its own devices). Never throws for expected
  * "can't do push here" cases — those come back as a status with a reason.
  */
-export async function registerPushDevice(userId: string, centerId: string, opts: { prompt: boolean }): Promise<PushStatus> {
+export async function registerPushDevice(_userId: string, centerId: string, opts: { prompt: boolean }): Promise<PushStatus> {
   if (Platform.OS === 'web') return { state: 'unsupported', reason: 'Push notifications are only available in the mobile app.' };
   if (!Device.isDevice) return { state: 'unsupported', reason: 'Push notifications need a real phone; simulators cannot receive them.' };
   if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
@@ -40,10 +40,11 @@ export async function registerPushDevice(userId: string, centerId: string, opts:
   if (status !== 'granted') return { state: 'denied', reason: "Notifications are turned off for Community Connect in your phone's settings." };
 
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  // app.register_push_device (o-messaging): the phone follows the login now using it (a
+  // plain upsert fails when the token was registered by another login on this phone),
+  // and a token Expo reported dead is re-armed.
   check(
-    await supabase
-      .from('push_devices')
-      .upsert({ user_id: userId, center_id: centerId, platform: Platform.OS === 'ios' ? 'ios' : 'android', token, last_seen_at: new Date().toISOString() }, { onConflict: 'token' }),
+    await supabase.rpc('register_push_device', { p_center: centerId, p_token: token, p_platform: Platform.OS === 'ios' ? 'ios' : 'android' }),
     'register this phone for notifications',
   );
   return { state: 'registered', token };
