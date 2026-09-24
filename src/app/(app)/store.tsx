@@ -10,12 +10,13 @@ import { PhotoGlyph } from '@/features/give/icons';
 import { GiftToggle, QtyButton } from '@/features/give/store-parts';
 import { pickupPill } from '@/features/give/rules';
 import { BUCKETS, signedUrls } from '@/lib/api/files';
-import { giftPackCents, listPickupWindows, loadStore, type StoreItem } from '@/lib/api/store';
-import { logError } from '@/lib/errors';
-import { formatCents } from '@/lib/format';
+import { cancelMyOrder, giftPackCents, listMyOrders, listPickupWindows, loadStore, type MyOrder, type StoreItem } from '@/lib/api/store';
+import { logError, report } from '@/lib/errors';
+import { formatCents, formatDate, formatTimeRange } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useCart } from '@/providers/cart';
+import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, shadows, space } from '@/theme';
 
@@ -45,8 +46,10 @@ function ItemPhoto({ url }: { url: string | undefined }) {
 export default function StoreScreen() {
   const t = useT();
   const router = useRouter();
-  const { center } = useApp();
+  const { center, member } = useApp();
   const cart = useCart();
+  const householdId = member?.household?.id ?? null;
+  const orders = useLoad(() => (center && householdId ? listMyOrders(center.id, householdId) : Promise.resolve([] as MyOrder[])), [center?.id, householdId], 'load your orders');
   const [category, setCategory] = useState<string | null>(null);
   const state = useLoad(() => (center ? loadStore(center.id) : Promise.reject(new Error('no center'))), [center?.id], 'load the store');
   const windows = useLoad(() => (center ? listPickupWindows(center.id) : Promise.resolve([])), [center?.id], 'load pickup times');
@@ -94,6 +97,8 @@ export default function StoreScreen() {
           </View>
         ) : null}
       </View>
+      {orders.error ? <Banner tone="error" message={orders.error.userMessage} action={{ label: t('common.retry'), onPress: () => void orders.reload() }} /> : null}
+      {orders.data && orders.data.length > 0 ? <MyOrders orders={orders.data} onChanged={() => void orders.reload()} /> : null}
       {windows.error ? <Banner tone="error" message={windows.error.userMessage} action={{ label: t('common.retry'), onPress: () => void windows.reload() }} /> : null}
       {photos.error ? <Banner tone="warning" message={photos.error.userMessage} action={{ label: t('common.retry'), onPress: () => void photos.reload() }} /> : null}
       <Loaded state={state}>
@@ -141,7 +146,7 @@ export default function StoreScreen() {
                         {giftCents !== null && item.gift_pack ? <GiftToggle grow on={gifted} label={giftLabel(gifted)} onPress={() => cart.setGiftQty(item.id, gifted ? 0 : line.qty)} /> : null}
                       </Row>
                     ) : (
-                      <Button label={t('store.add')} tone="outlineStore" size="sm" style={{ minHeight: 44, borderRadius: radii.pill }} onPress={() => setQty(item, 1)} />
+                      <Button label={t('store.add')} accessibilityLabel={t('store.addItem', { name: item.name })} tone="outlineStore" size="sm" style={{ minHeight: 44, borderRadius: radii.pill }} onPress={() => setQty(item, 1)} />
                     )}
                   </Card>
                 );
@@ -151,5 +156,74 @@ export default function StoreScreen() {
         }}
       </Loaded>
     </Screen>
+  );
+}
+
+const STATUS_COLOR: Record<string, 'store' | 'green' | 'muted' | 'danger' | 'navy'> = {
+  placed: 'navy',
+  preparing: 'store',
+  ready: 'green',
+  picked_up: 'muted',
+  cancelled: 'danger',
+  refunded: 'muted',
+};
+
+/** "Your orders": follow each order through the kitchen; cancel while the store allows it (checked by the database). */
+function MyOrders({ orders, onChanged }: { orders: MyOrder[]; onChanged: () => void }) {
+  const t = useT();
+  const { center } = useApp();
+  const { confirm, toast } = useFeedback();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const tz = center?.time_zone ?? null;
+
+  const cancel = async (o: MyOrder) => {
+    const yes = await confirm({ title: t('store.cancelTitle', { order: o.orderNumber }), body: t('store.cancelBody'), confirmLabel: t('store.cancelOrder'), tone: 'danger', cancelLabel: t('store.keepOrder') });
+    if (!yes) return;
+    setBusy(o.id);
+    setError(null);
+    try {
+      await cancelMyOrder(o.id);
+      toast(t('store.cancelledToast', { order: o.orderNumber }));
+      onChanged();
+    } catch (err) {
+      setError(report(err, 'cancel your order').userMessage);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card style={{ gap: space.sm }}>
+      <Txt variant="section" accessibilityRole="header">
+        {t('store.myOrders')}
+      </Txt>
+      {error ? <Banner tone="error" message={error} /> : null}
+      {orders.map((o) => {
+        const open = o.status === 'placed' || o.status === 'preparing';
+        const statusKey = `store.orderStatus.${o.status}` as Parameters<typeof t>[0];
+        return (
+          <VStack key={o.id} gap={4} style={{ paddingVertical: space.sm, borderTopWidth: 1, borderTopColor: colors.divider }}>
+            <Row style={{ justifyContent: 'space-between' }} gap={space.sm}>
+              <Txt variant="bodyStrong">{t('store.orderHead', { order: o.orderNumber })}</Txt>
+              <Txt variant="smallStrong" color={STATUS_COLOR[o.status] ?? 'muted'}>
+                {t(statusKey)}
+              </Txt>
+            </Row>
+            <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+              {o.lines.map((l) => t(l.gift ? 'store.orderLineGift' : 'store.orderLine', { name: l.name, n: l.qty })).join(' · ')}
+            </Txt>
+            <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+              {o.window ? t('store.orderPickup', { when: `${formatDate(o.window.starts_at, tz)} · ${formatTimeRange(o.window.starts_at, o.window.ends_at, tz)}` }) : t('store.orderNoPickup')}
+              {' · '}
+              {o.status === 'picked_up' || o.status === 'cancelled' || o.status === 'refunded' ? t('store.orderTotalDone', { amount: formatCents(o.totalCents, { alwaysCents: true }) }) : t('store.orderTotal', { amount: formatCents(o.totalCents, { alwaysCents: true }) })}
+            </Txt>
+            {open ? (
+              <Button label={t('store.cancelOrder')} accessibilityLabel={`${t('store.cancelOrder')} ${o.orderNumber}`} tone="ghost" size="sm" fill={false} busy={busy === o.id} onPress={() => void cancel(o)} />
+            ) : null}
+          </VStack>
+        );
+      })}
+    </Card>
   );
 }

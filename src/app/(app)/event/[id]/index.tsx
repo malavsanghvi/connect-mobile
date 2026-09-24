@@ -143,6 +143,8 @@ function PersonRow({ label, sub, checked, onPress, disabled }: { label: string; 
       accessibilityRole="checkbox"
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       accessibilityState={{ checked, disabled: !!disabled }}
+      // react-native-web reads aria-* (accessibilityState is not mapped on web).
+      aria-checked={checked}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

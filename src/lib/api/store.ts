@@ -108,3 +108,72 @@ export async function placeOrder(args: OrderArgs): Promise<PlacedOrder> {
   await submitOrder(order);
   return order;
 }
+
+export type MyOrder = {
+  id: string;
+  orderNumber: string;
+  status: 'placed' | 'preparing' | 'ready' | 'picked_up' | 'cancelled' | 'refunded' | string;
+  totalCents: number;
+  giftPackingCents: number;
+  window: { starts_at: string; ends_at: string } | null;
+  lines: { name: string; qty: number; gift: boolean }[];
+  placedAt: string | null;
+};
+
+/** Statuses that are still with the kitchen (the member can follow them). */
+export const OPEN_ORDER_STATUSES = ['placed', 'preparing', 'ready'];
+
+/**
+ * The family's orders to follow on the Store screen: everything still with the
+ * kitchen, plus orders picked up or cancelled in the last two weeks. Carts that
+ * never reached the kitchen are left out.
+ */
+export async function listMyOrders(centerId: string, householdId: string): Promise<MyOrder[]> {
+  const since = new Date(Date.now() - 14 * 86400 * 1000).toISOString();
+  const orders = must(
+    await supabase
+      .from('store_orders')
+      .select('id, order_number, status, total_cents, gift_packing_cents, placed_at, pickup_window_id, updated_at')
+      .eq('center_id', centerId)
+      .eq('household_id', householdId)
+      .neq('status', 'cart')
+      .or(`status.in.(${OPEN_ORDER_STATUSES.join(',')}),updated_at.gte.${since}`)
+      .order('placed_at', { ascending: false })
+      .limit(20),
+    'load your orders',
+  );
+  if (orders.length === 0) return [];
+  const windowIds = [...new Set(orders.map((o) => o.pickup_window_id).filter((x): x is string => !!x))];
+  const [linesRes, windowsRes] = await Promise.all([
+    supabase.from('store_order_lines').select('order_id, quantity, is_gift, item_id').in('order_id', orders.map((o) => o.id)),
+    windowIds.length ? supabase.from('pickup_windows').select('id, starts_at, ends_at').in('id', windowIds) : Promise.resolve({ data: [] as { id: string; starts_at: string; ends_at: string }[], error: null }),
+  ]);
+  const lines = must(linesRes, 'load your orders');
+  const itemIds = [...new Set(lines.map((l) => l.item_id))];
+  const items = itemIds.length ? must(await supabase.from('store_items').select('id, name').in('id', itemIds), 'load your orders') : [];
+  const names = new Map(items.map((i) => [i.id, i.name]));
+  // A closed pickup window is not readable to members (only open ones are); the order still shows, without its time.
+  if (windowsRes.error) logError('loading pickup times for your orders (showing orders without them)', windowsRes.error);
+  const windows = new Map((windowsRes.data ?? []).map((w) => [w.id, w]));
+  return orders.map((o) => ({
+    id: o.id,
+    orderNumber: o.order_number,
+    status: o.status,
+    totalCents: o.total_cents,
+    giftPackingCents: o.gift_packing_cents,
+    placedAt: o.placed_at,
+    window: o.pickup_window_id ? (windows.get(o.pickup_window_id) ?? null) : null,
+    lines: lines
+      .filter((l) => l.order_id === o.id)
+      .map((l) => ({ name: names.get(l.item_id) ?? 'Item', qty: l.quantity, gift: l.is_gift })),
+  }));
+}
+
+/**
+ * Cancel the family's order (connect-crm 0120 app.cancel_my_store_order):
+ * the database checks the cancellation window and gives the stock and the
+ * pickup seat back. Nothing was charged (pay at pickup).
+ */
+export async function cancelMyOrder(orderId: string): Promise<void> {
+  check(await supabase.rpc('cancel_my_store_order', { p_order: orderId, p_reason: 'Member cancelled the order in the app' }), 'cancel your order');
+}
