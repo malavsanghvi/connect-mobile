@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Children, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 
 import { useSettings } from '@/providers/settings';
-import { colors, fonts, radii, space, touch, type as typeScale, type ColorName } from '@/theme';
+import { colors, fonts, radii, space, touch, tracking, type as typeScale, type ColorName } from '@/theme';
 
 import { Icon, type IconName } from './icon';
+import { StrokeIcon, type StrokeIconName } from './stroke-icon';
 
 // ---------------------------------------------------------------------------
 // Text
@@ -54,7 +55,7 @@ const variants: Record<TxtVariant, TextStyle> = {
   smallStrong: { fontFamily: fonts.bodySemi, fontSize: typeScale.bodySmall, lineHeight: 20 },
   meta: { fontFamily: fonts.body, fontSize: typeScale.meta, lineHeight: 18 },
   caption: { fontFamily: fonts.bodyMedium, fontSize: typeScale.caption, lineHeight: 16 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption, lineHeight: 16, letterSpacing: 0.9, textTransform: 'uppercase' },
+  eyebrow: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption, lineHeight: 16, letterSpacing: tracking.eyebrow, textTransform: 'uppercase' },
   fine: { fontFamily: fonts.body, fontSize: typeScale.fine, lineHeight: 15 },
   badge: { fontFamily: fonts.bodyBold, fontSize: typeScale.badge, lineHeight: 13, letterSpacing: 0.6, textTransform: 'uppercase' },
 };
@@ -87,11 +88,35 @@ export function Txt({ variant = 'body', color = 'ink', center, style, ...rest }:
 // Buttons
 // ---------------------------------------------------------------------------
 
-export type ButtonTone = 'primary' | 'secondary' | 'ghost' | 'danger' | 'brown' | 'green' | 'maroon' | 'store' | 'purple' | 'light';
+/**
+ * Prototype buttons (Main.dc.html): fully rounded, weight 600, 1px border on
+ * outlined tones. Filled: navy primary, green, brown, purple, black (#111),
+ * store, maroon, danger. Outlined (white fill, coloured 1px border and text):
+ * secondary (navy), outlineGreen, outlineBrown, outlinePurple, outlineDanger,
+ * outlineStore, outlineBlack.
+ */
+export type ButtonTone =
+  | 'primary'
+  | 'secondary'
+  | 'ghost'
+  | 'danger'
+  | 'brown'
+  | 'green'
+  | 'maroon'
+  | 'store'
+  | 'purple'
+  | 'black'
+  | 'light'
+  | 'outlineGreen'
+  | 'outlineBrown'
+  | 'outlinePurple'
+  | 'outlineDanger'
+  | 'outlineStore'
+  | 'outlineBlack';
 
 const buttonTones: Record<ButtonTone, { bg: string; fg: ColorName; border?: string }> = {
   primary: { bg: colors.navy, fg: 'white' },
-  secondary: { bg: colors.card, fg: 'navy', border: colors.navyBorder },
+  secondary: { bg: colors.card, fg: 'navy', border: colors.navy },
   ghost: { bg: 'transparent', fg: 'navy' },
   danger: { bg: colors.danger, fg: 'white' },
   brown: { bg: colors.brown, fg: 'white' },
@@ -99,14 +124,29 @@ const buttonTones: Record<ButtonTone, { bg: string; fg: ColorName; border?: stri
   maroon: { bg: colors.maroonButton, fg: 'white' },
   store: { bg: colors.store, fg: 'white' },
   purple: { bg: colors.purple, fg: 'white' },
+  black: { bg: colors.black, fg: 'white' },
   light: { bg: colors.white, fg: 'navy' },
+  outlineGreen: { bg: colors.card, fg: 'green', border: colors.green },
+  outlineBrown: { bg: colors.card, fg: 'brown', border: colors.brown },
+  outlinePurple: { bg: colors.card, fg: 'purple', border: colors.purple },
+  outlineDanger: { bg: colors.card, fg: 'danger', border: colors.danger },
+  outlineStore: { bg: colors.card, fg: 'store', border: colors.store },
+  outlineBlack: { bg: colors.card, fg: 'black', border: colors.black },
 };
+
+/** cta 52/r26/16 · md 48/r26/15 · card 46/r22/14 (buttons inside cards) · sm 44/r20/13. */
+const buttonSizes = {
+  cta: { h: touch.cta, r: radii.cta, font: typeScale.section, padX: space.gutter },
+  md: { h: touch.secondary, r: radii.cta, font: typeScale.body, padX: space.lg },
+  card: { h: 46, r: radii.pill, font: typeScale.bodySmall, padX: space.lg },
+  sm: { h: touch.min, r: radii.xxl, font: typeScale.meta, padX: 14 },
+} as const;
 
 export type ButtonProps = {
   label: string;
   onPress: () => void;
   tone?: ButtonTone;
-  size?: 'cta' | 'md' | 'sm';
+  size?: keyof typeof buttonSizes;
   disabled?: boolean;
   busy?: boolean;
   icon?: IconName;
@@ -116,10 +156,13 @@ export type ButtonProps = {
 };
 
 export function Button({ label, onPress, tone = 'primary', size = 'cta', disabled, busy, icon, accessibilityHint, style, fill = true }: ButtonProps) {
+  const { scale } = useSettings();
   const t = buttonTones[tone];
+  const sz = buttonSizes[size];
   const inactive = disabled || busy;
-  const height = size === 'cta' ? touch.cta : size === 'md' ? touch.secondary : touch.min;
-  const bg = inactive && (tone === 'primary' || tone === 'brown' || tone === 'green' || tone === 'maroon' || tone === 'store' || tone === 'purple' || tone === 'danger') ? colors.navyDisabled : t.bg;
+  const filled = !t.border && tone !== 'ghost' && tone !== 'light';
+  const bg = inactive && filled ? colors.navyDisabled : t.bg;
+  const fg: ColorName = inactive && !filled ? 'faint' : t.fg;
   return (
     <Pressable
       onPress={onPress}
@@ -130,12 +173,12 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
       accessibilityState={{ disabled: !!inactive, busy: !!busy }}
       style={({ pressed }) => [
         {
-          minHeight: height,
-          borderRadius: size === 'cta' ? radii.cta : radii.pill,
+          minHeight: sz.h,
+          borderRadius: sz.r,
           backgroundColor: bg,
-          borderWidth: t.border ? 1.5 : 0,
-          borderColor: t.border,
-          paddingHorizontal: size === 'sm' ? space.md : space.lg,
+          borderWidth: t.border ? 1 : 0,
+          borderColor: inactive ? colors.borderInput : t.border,
+          paddingHorizontal: sz.padX,
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'row',
@@ -145,33 +188,73 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
         },
         style,
       ]}>
-      {busy ? <ActivityIndicator color={colors[t.fg]} /> : icon ? <Icon name={icon} size={18} color={colors[t.fg]} /> : null}
-      <Txt variant={size === 'cta' ? 'section' : 'smallStrong'} color={inactive && tone === 'secondary' ? 'faint' : t.fg} center>
+      {busy ? <ActivityIndicator color={colors[fg]} /> : icon ? <Icon name={icon} size={18} color={colors[fg]} /> : null}
+      <Txt variant="smallStrong" color={fg} center style={{ fontSize: sz.font * scale, lineHeight: Math.round(sz.font * 1.3) * scale }}>
         {label}
       </Txt>
     </Pressable>
   );
 }
 
-/** Round icon-only button with a 44px target. */
-export function IconButton({ icon, label, onPress, color = colors.navy, disabled }: { icon: IconName; label: string; onPress: () => void; color?: string; disabled?: boolean }) {
+export type IconButtonVariant = 'plain' | 'outline' | 'filled';
+
+/**
+ * 44px round icon-only button. `outline` = the prototype header button (white,
+ * 1px #E3D9C8 border); `filled` = the navy member-card button. Pass `glyph`
+ * for the prototype's stroke icons, or `icon` for an Ionicons name.
+ */
+export function IconButton({
+  icon,
+  glyph,
+  label,
+  onPress,
+  color,
+  disabled,
+  variant = 'plain',
+  size = touch.min,
+  iconSize,
+}: {
+  icon?: IconName;
+  glyph?: StrokeIconName;
+  label: string;
+  onPress: () => void;
+  color?: string;
+  disabled?: boolean;
+  variant?: IconButtonVariant;
+  size?: number;
+  iconSize?: number;
+}) {
+  const fg = color ?? (variant === 'filled' ? colors.white : colors.navy);
+  const glyphSize = iconSize ?? (glyph ? 20 : 24);
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={4}
-      style={({ pressed }) => ({ width: touch.min, height: touch.min, borderRadius: touch.min / 2, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.4 : pressed ? 0.6 : 1 })}>
-      <Icon name={icon} size={24} color={color} />
+      hitSlop={size < touch.min ? (touch.min - size) / 2 : 4}
+      style={({ pressed }) => ({
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        backgroundColor: variant === 'filled' ? colors.navy : variant === 'outline' ? colors.card : 'transparent',
+        borderWidth: variant === 'outline' ? 1 : 0,
+        borderColor: colors.borderInput,
+        opacity: disabled ? 0.4 : pressed ? 0.6 : 1,
+      })}>
+      {glyph ? <StrokeIcon name={glyph} size={glyphSize} color={fg} strokeWidth={2} /> : icon ? <Icon name={icon} size={glyphSize} color={fg} /> : null}
     </Pressable>
   );
 }
 
-export function LinkText({ label, onPress, color = 'navy' }: { label: string; onPress: () => void; color?: ColorName }) {
+/** Text button (prototype: 14/600 navy, no underline). */
+export function LinkText({ label, onPress, color = 'navy', underline = false }: { label: string; onPress: () => void; color?: ColorName; underline?: boolean }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="link" style={{ minHeight: touch.min, justifyContent: 'center' }}>
-      <Txt variant="smallStrong" color={color} style={{ textDecorationLine: 'underline' }}>
+    <Pressable onPress={onPress} accessibilityRole="link" style={({ pressed }) => ({ minHeight: touch.min, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+      <Txt variant="smallStrong" color={color} style={underline ? { textDecorationLine: 'underline' } : null}>
         {label}
       </Txt>
     </Pressable>
@@ -182,20 +265,51 @@ export function LinkText({ label, onPress, color = 'navy' }: { label: string; on
 // Containers
 // ---------------------------------------------------------------------------
 
-export type CardTone = 'default' | 'navy' | 'brown' | 'amber' | 'green' | 'purple' | 'maroon' | 'store' | 'danger' | 'panel' | 'dashed';
+/**
+ * Card tones (prototype): `default` white with a 1px #E8E0D2 border; tinted
+ * callouts (`amber`, `green`, `purple`, `danger`, `panel`); solid colour
+ * cards with white text (`navy`, `brown`, `greenSolid`, `maroon`, `store`);
+ * white cards with a 2px coloured border (`outlineNavy`, `outlinePurple`,
+ * `outlineSaffron`, `outlineBrown`, `outlineGreen`), used for the Home
+ * feature cards (feedback, special day, …).
+ */
+export type CardTone =
+  | 'default'
+  | 'navy'
+  | 'brown'
+  | 'amber'
+  | 'green'
+  | 'greenSolid'
+  | 'purple'
+  | 'maroon'
+  | 'store'
+  | 'danger'
+  | 'panel'
+  | 'dashed'
+  | 'outlineNavy'
+  | 'outlinePurple'
+  | 'outlineSaffron'
+  | 'outlineBrown'
+  | 'outlineGreen';
 
-const cardTones: Record<CardTone, { bg: string; border: string; dashed?: boolean }> = {
+const cardTones: Record<CardTone, { bg: string; border: string; dashed?: boolean; width?: number }> = {
   default: { bg: colors.card, border: colors.border },
   navy: { bg: colors.navy, border: colors.navy },
   brown: { bg: colors.brown, border: colors.brown },
   amber: { bg: colors.brownTint, border: colors.brownBorder },
   green: { bg: colors.greenTint, border: colors.greenBorder },
+  greenSolid: { bg: colors.green, border: colors.green },
   purple: { bg: colors.purpleBg, border: colors.purpleBorder },
   maroon: { bg: colors.maroon, border: colors.maroon },
   store: { bg: colors.store, border: colors.store },
   danger: { bg: colors.dangerTint, border: colors.danger },
   panel: { bg: colors.panel, border: colors.panel },
   dashed: { bg: 'transparent', border: colors.dashed, dashed: true },
+  outlineNavy: { bg: colors.card, border: colors.navy, width: 2 },
+  outlinePurple: { bg: colors.card, border: colors.purple, width: 2 },
+  outlineSaffron: { bg: colors.card, border: colors.saffron, width: 2 },
+  outlineBrown: { bg: colors.card, border: colors.brown, width: 2 },
+  outlineGreen: { bg: colors.card, border: colors.green, width: 2 },
 };
 
 export function Card({
@@ -205,9 +319,12 @@ export function Card({
   accessibilityLabel,
   style,
   padded = true,
+  hero,
 }: {
   children: ReactNode;
   tone?: CardTone;
+  /** Home "hero" card: radius 20, padding 16. */
+  hero?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
@@ -217,10 +334,11 @@ export function Card({
   const base: ViewStyle = {
     backgroundColor: t.bg,
     borderColor: t.border,
-    borderWidth: 1,
+    borderWidth: t.width ?? 1,
     borderStyle: t.dashed ? 'dashed' : 'solid',
-    borderRadius: radii.xl,
-    padding: padded ? space.lg : 0,
+    borderRadius: hero ? radii.xxl : radii.xl,
+    paddingVertical: padded ? (hero ? space.lg : space.cardY) : 0,
+    paddingHorizontal: padded ? space.cardX : 0,
     gap: space.sm,
   };
   if (onPress) {
@@ -247,7 +365,7 @@ export function Divider({ color = colors.divider }: { color?: string }) {
 
 export function SectionTitle({ children, action }: { children: string; action?: ReactNode }) {
   return (
-    <Row style={{ justifyContent: 'space-between', marginTop: space.sm }}>
+    <Row style={{ justifyContent: 'space-between', marginTop: space.sm, paddingHorizontal: space.xxs, paddingTop: space.xxs }}>
       <Txt variant="eyebrow" color="muted" accessibilityRole="header">
         {children}
       </Txt>
@@ -259,6 +377,15 @@ export function SectionTitle({ children, action }: { children: string; action?: 
 // ---------------------------------------------------------------------------
 // Lists
 // ---------------------------------------------------------------------------
+
+/** The prototype's row chevron: a "›" glyph, 18px faint. */
+export function Chevron({ color = 'faint' }: { color?: ColorName }) {
+  return (
+    <Text style={{ fontFamily: fonts.body, fontSize: 18, lineHeight: 22, color: colors[color] }} accessibilityElementsHidden importantForAccessibility="no">
+      {'\u203A'}
+    </Text>
+  );
+}
 
 export function ListRow({
   title,
@@ -293,7 +420,7 @@ export function ListRow({
         ) : null}
       </View>
       {right}
-      {chevron ? <Icon name="chevron-forward" size={18} color={colors.faint} /> : null}
+      {chevron ? <Chevron /> : null}
     </Row>
   );
   if (!onPress) return content;
@@ -308,8 +435,18 @@ export function ListRow({
 // Selection controls
 // ---------------------------------------------------------------------------
 
-export function Chip({ label, selected, onPress, disabled, tone = 'navy' }: { label: string; selected: boolean; onPress: () => void; disabled?: boolean; tone?: 'navy' | 'brown' | 'store' | 'purple' }) {
+export type ChipTone = 'navy' | 'brown' | 'store' | 'purple';
+
+/**
+ * Prototype chip: white with a 1px border and text in the tone colour when
+ * idle, solid tone with white text when selected, no checkmark.
+ * `grid` = the compact cell used in fixed 2/3-column sets (40px, radius 12,
+ * 13/500); otherwise the free-wrapping pill (44px, radius 20, 14/500).
+ */
+export function Chip({ label, selected, onPress, disabled, tone = 'navy', grid }: { label: string; selected: boolean; onPress: () => void; disabled?: boolean; tone?: ChipTone; grid?: boolean }) {
+  const { scale } = useSettings();
   const on = { navy: colors.navy, brown: colors.brown, store: colors.store, purple: colors.purple }[tone];
+  const size = grid ? typeScale.meta : typeScale.bodySmall;
   return (
     <Pressable
       onPress={onPress}
@@ -318,28 +455,47 @@ export function Chip({ label, selected, onPress, disabled, tone = 'navy' }: { la
       accessibilityLabel={label}
       accessibilityState={{ checked: selected, disabled: !!disabled }}
       style={({ pressed }) => ({
-        minHeight: touch.min,
-        paddingHorizontal: space.lg,
-        borderRadius: radii.pill,
-        borderWidth: 1.5,
-        borderColor: selected ? on : colors.borderInput,
+        minHeight: grid ? 40 : touch.min,
+        paddingHorizontal: grid ? space.sm : 14,
+        borderRadius: grid ? radii.lg : radii.xxl,
+        borderWidth: 1,
+        borderColor: on,
         backgroundColor: selected ? on : colors.card,
         alignItems: 'center',
         justifyContent: 'center',
-        flexDirection: 'row',
-        gap: 6,
+        flexGrow: grid ? 1 : 0,
         opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
       })}>
-      {selected ? <Icon name="checkmark" size={16} color={colors.white} /> : null}
-      <Txt variant="smallStrong" color={selected ? 'white' : 'ink2'}>
-        {label}
-      </Txt>
+      <Text style={{ fontFamily: fonts.bodyMedium, fontSize: size * scale, lineHeight: Math.round(size * 1.35) * scale, color: selected ? colors.white : on, textAlign: 'center' }}>{label}</Text>
     </Pressable>
   );
 }
 
-export function ChipGroup({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>{children}</View>;
+/**
+ * Chips that wrap (default), or a fixed `columns` grid (2 or 3) as the
+ * prototype uses for fixed sets (channels, times, languages, text size).
+ */
+export function ChipGroup({ children, columns }: { children: ReactNode; columns?: 2 | 3 | 4 }) {
+  if (!columns) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>{children}</View>;
+  const items = Children.toArray(children);
+  const rows: ReactNode[][] = [];
+  for (let i = 0; i < items.length; i += columns) rows.push(items.slice(i, i + columns));
+  return (
+    <View style={{ gap: space.xs }}>
+      {rows.map((row, r) => (
+        <View key={r} style={{ flexDirection: 'row', gap: space.xs }}>
+          {row.map((item, c) => (
+            <View key={c} style={{ flex: 1, flexDirection: 'row' }}>
+              {item}
+            </View>
+          ))}
+          {Array.from({ length: columns - row.length }, (_, k) => (
+            <View key={`pad${k}`} style={{ flex: 1 }} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
 }
 
 export function Segmented<T extends string>({ options, value, onChange, label }: { options: { value: T; label: string; badge?: boolean }[]; value: T; onChange: (v: T) => void; label: string }) {
@@ -402,16 +558,16 @@ export function Checkbox({ label, sub, checked, onChange, disabled, right }: { l
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: touch.row, opacity: disabled ? 0.5 : pressed ? 0.8 : 1 })}>
       <View
         style={{
-          width: 26,
-          height: 26,
-          borderRadius: radii.sm,
+          width: 24,
+          height: 24,
+          borderRadius: radii.xs,
           borderWidth: 2,
-          borderColor: checked ? colors.navy : colors.dashed,
+          borderColor: colors.navy,
           backgroundColor: checked ? colors.navy : colors.card,
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-        {checked ? <Icon name="checkmark" size={18} color={colors.white} /> : null}
+        {checked ? <Icon name="checkmark" size={16} color={colors.white} /> : null}
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="bodyStrong">{label}</Txt>
@@ -487,11 +643,23 @@ export function Stepper({ valueLabel, onMinus, onPlus, minusDisabled, plusDisabl
 // Inputs
 // ---------------------------------------------------------------------------
 
-export function TextField({ label, hint, error, style, ...input }: TextInputProps & { label: string; hint?: string; error?: string | null }) {
+/**
+ * Prototype input: label 13 regular muted above; field 48px, radius 12, 1px
+ * #E3D9C8 border, 15px text. `size="lg"` = the onboarding sign-in field
+ * (52px, radius 14, 16px); `size="sm"` = compact forms (44px, radius 10, 14px).
+ */
+const fieldSizes = {
+  sm: { h: touch.min, r: radii.md, font: typeScale.bodySmall, padX: 10 },
+  md: { h: 48, r: radii.lg, font: typeScale.body, padX: space.md },
+  lg: { h: touch.cta, r: radii.card, font: typeScale.section, padX: 14 },
+} as const;
+
+export function TextField({ label, hint, error, style, size = 'md', ...input }: TextInputProps & { label: string; hint?: string; error?: string | null; size?: keyof typeof fieldSizes }) {
   const { scale } = useSettings();
+  const f = fieldSizes[size];
   return (
     <View style={{ gap: 6 }}>
-      <Txt variant="smallStrong" color="ink2">
+      <Txt variant="meta" color="muted">
         {label}
       </Txt>
       <TextInput
@@ -501,15 +669,15 @@ export function TextField({ label, hint, error, style, ...input }: TextInputProp
         {...input}
         style={[
           {
-            minHeight: touch.min + 4,
-            borderWidth: 1.5,
+            minHeight: f.h,
+            borderWidth: 1,
             borderColor: error ? colors.danger : colors.borderInput,
-            borderRadius: radii.md,
+            borderRadius: f.r,
             backgroundColor: colors.card,
-            paddingHorizontal: space.md,
+            paddingHorizontal: f.padX,
             paddingVertical: space.sm,
             fontFamily: fonts.body,
-            fontSize: typeScale.body * scale,
+            fontSize: f.font * scale,
             color: colors.ink,
           },
           input.multiline ? { minHeight: 110, textAlignVertical: 'top' } : null,
@@ -546,7 +714,7 @@ export function ProgressBar({ value, color = colors.green, track = colors.panel,
   );
 }
 
-export type PillTone = 'green' | 'amber' | 'navy' | 'grey' | 'red' | 'purple';
+export type PillTone = 'green' | 'amber' | 'navy' | 'grey' | 'red' | 'purple' | 'live';
 
 const pillTones: Record<PillTone, { bg: string; fg: ColorName }> = {
   green: { bg: colors.greenTint, fg: 'greenDark' },
@@ -555,13 +723,15 @@ const pillTones: Record<PillTone, { bg: string; fg: ColorName }> = {
   grey: { bg: colors.chip, fg: 'muted' },
   red: { bg: colors.dangerTint, fg: 'danger' },
   purple: { bg: colors.purpleTint, fg: 'purpleDark' },
+  /** The only solid pill in the prototype: LIVE. */
+  live: { bg: colors.live, fg: 'white' },
 };
 
 export function Pill({ label, tone = 'grey' }: { label: string; tone?: PillTone }) {
   const t = pillTones[tone];
   return (
     <View style={{ backgroundColor: t.bg, borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' }}>
-      <Txt variant="caption" color={t.fg}>
+      <Txt variant="caption" color={t.fg} style={{ fontFamily: tone === 'live' ? fonts.bodyBold : fonts.bodySemi }}>
         {label}
       </Txt>
     </View>

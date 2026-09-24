@@ -65,7 +65,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           pointerEvents="none"
           accessibilityLiveRegion="polite"
           accessibilityRole="alert"
-          style={{ position: 'absolute', top: insets.top + 12, left: space.gutter, right: space.gutter, backgroundColor: toastBg, borderRadius: radii.card, paddingVertical: space.md, paddingHorizontal: space.lg, zIndex: 1000 }}>
+          style={{ position: 'absolute', top: insets.top + 12, left: space.gutter, right: space.gutter, backgroundColor: toastBg, borderRadius: radii.card, paddingVertical: space.md, paddingHorizontal: 14, zIndex: 1000 }}>
           <Txt variant="smallStrong" color="white" center>
             {toastState.message}
           </Txt>
@@ -74,19 +74,21 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
       <Modal visible={!!confirmState} transparent animationType="fade" onRequestClose={() => closeConfirm(false)}>
         <View style={{ flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', padding: space.xl }}>
-          <View accessibilityViewIsModal style={{ backgroundColor: colors.card, borderRadius: radii.sheet, padding: space.xl, gap: space.md }}>
-            <Txt variant="title" color="navy" accessibilityRole="header">
+          <View accessibilityViewIsModal style={{ backgroundColor: colors.card, borderRadius: radii.sheet, paddingVertical: 22, paddingHorizontal: space.gutter, gap: space.md }}>
+            <Txt variant="title" accessibilityRole="header">
               {confirmState?.title ?? ''}
             </Txt>
-            <Txt variant="body" color="ink2">
+            <Txt variant="small" color="ink2">
               {confirmState?.body ?? ''}
             </Txt>
             <Button
               label={confirmState?.confirmLabel ?? t('common.confirm')}
               tone={confirmState?.tone === 'danger' ? 'danger' : confirmState?.tone === 'brown' ? 'brown' : 'primary'}
+              size="md"
+              style={{ minHeight: 50, borderRadius: radii.sheet }}
               onPress={() => closeConfirm(true)}
             />
-            <Button label={confirmState?.cancelLabel ?? t('common.cancel')} tone="secondary" onPress={() => closeConfirm(false)} />
+            <Button label={confirmState?.cancelLabel ?? t('common.cancel')} tone="secondary" size="card" style={{ borderRadius: radii.sheet }} onPress={() => closeConfirm(false)} />
           </View>
         </View>
       </Modal>

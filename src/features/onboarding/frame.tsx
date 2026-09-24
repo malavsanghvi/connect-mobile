@@ -31,7 +31,7 @@ export function OnboardingFrame({
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}>
       <View style={{ paddingHorizontal: space.md, paddingTop: space.sm, gap: space.sm }}>
         <Row style={{ justifyContent: 'space-between' }}>
-          {onBack ? <IconButton icon="chevron-back" label={t('common.back')} onPress={onBack} /> : <View style={{ width: 44 }} />}
+          {onBack ? <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={onBack} /> : <View style={{ width: 44 }} />}
           <Txt variant="smallStrong" color="muted">
             {t('onboarding.stepOf', { step, total: ONBOARDING_STEPS })}
           </Txt>
