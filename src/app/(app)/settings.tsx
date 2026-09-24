@@ -167,9 +167,9 @@ export default function SettingsScreen() {
         <Txt variant="smallStrong" color="ink2">
           {t('settings.language')}
         </Txt>
-        <ChipGroup>
+        <ChipGroup columns={3}>
           {LANGUAGES.map((l) => (
-            <Chip key={l.code} label={l.label} selected={language === l.code} onPress={() => changeLanguage(l.code)} />
+            <Chip key={l.code} grid label={l.label} selected={language === l.code} onPress={() => changeLanguage(l.code)} />
           ))}
         </ChipGroup>
         <Txt variant="meta" color="muted">
@@ -179,9 +179,9 @@ export default function SettingsScreen() {
         <Txt variant="smallStrong" color="ink2">
           {t('settings.textSize')}
         </Txt>
-        <ChipGroup>
+        <ChipGroup columns={3}>
           {TEXT_SIZES.map((s) => (
-            <Chip key={s.value} label={t(s.key)} selected={textSize === s.value} onPress={() => changeTextSize(s.value)} />
+            <Chip key={s.value} grid label={t(s.key)} selected={textSize === s.value} onPress={() => changeTextSize(s.value)} />
           ))}
         </ChipGroup>
       </Card>
