@@ -102,6 +102,20 @@ export const colors = {
   scrimLight: 'rgba(20,18,14,0.45)',
   /** Niva popover. */
   scrimFaint: 'rgba(20,18,14,0.35)',
+
+  // Volunteer check-in board (Volunteer.dc.html, dark)
+  volBg: '#16140F',
+  volPanel: '#26231C',
+  volBorder: '#4A443A',
+  volGold: '#D7A15F',
+  volOnGold: '#1E1508',
+  volText: '#F4EFE6',
+  volMuted: '#B8B0A2',
+  volViewfinder: '#0B0A08',
+  volScanLine: '#E0533F',
+
+  // Special days: anniversary ink (Main.dc.html KT)
+  anniversary: '#9C1B5E',
 } as const;
 
 export type ColorName = keyof typeof colors;
