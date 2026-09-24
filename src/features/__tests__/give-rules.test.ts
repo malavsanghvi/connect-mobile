@@ -12,6 +12,7 @@ import {
   parseOptions,
   parsePresets,
   pickupPill,
+  presetAmounts,
   pronounFor,
   recurringState,
   slotsLine,
@@ -27,6 +28,12 @@ import { runSteps, stepStatuses } from '../pay/steps';
 const row = (o: Partial<Availability>): Availability => ({ optionKey: null, taken: false, takenCount: 0, slotsTaken: 0, slotsTotal: null, goalPercent: null, ...o });
 
 describe('opportunity options', () => {
+  it('offers the suggested amount as a tile when an amount opportunity has no presets', () => {
+    expect(presetAmounts({ kind: 'amount', options: [], amount_cents: 500000 })).toEqual([500000]);
+    expect(presetAmounts({ kind: 'amount', options: [{ amount_cents: 2500 }, 1000], amount_cents: 500000 })).toEqual([1000, 2500]);
+    expect(presetAmounts({ kind: 'amount', options: [], amount_cents: null })).toEqual([]);
+    expect(presetAmounts({ kind: 'open', options: [], amount_cents: 500000 })).toEqual([]);
+  });
   it('parses tier/multi options and drops invalid rows', () => {
     const opts = parseOptions([
       { key: 'plat', label: 'Platinum', amount_cents: 500000, recognition: 'Stage' },

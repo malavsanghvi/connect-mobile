@@ -6,7 +6,7 @@ import { Screen } from '@/components/screen';
 import { Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Card, Checkbox, Row, Txt, VStack } from '@/components/ui';
 import { AmountTile, AvailabilityBar, CheckRow, DollarField, slotsText, TileGrid } from '@/features/give/parts';
-import { availabilityFraction, multiTotalCents, opportunityKind, parseOptions, parsePresets, slotsLine, takenKeys, type Availability, type OpportunityOption } from '@/features/give/rules';
+import { availabilityFraction, multiTotalCents, opportunityKind, parseOptions, presetAmounts, slotsLine, takenKeys, type Availability, type OpportunityOption } from '@/features/give/rules';
 import { runSaving, startPayment, type SavingStep } from '@/features/pay';
 import { createPledge, getOpportunity, opportunityAvailability, pledgeSourceFor, type OpportunityWithCampaign } from '@/lib/api/giving';
 import { AppError, report } from '@/lib/errors';
@@ -46,7 +46,7 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
   const { invalidate } = useDataVersion();
   const kind = opportunityKind(opp.kind);
   const options = parseOptions(opp.options);
-  const presets = parsePresets(opp.options);
+  const presets = kind === 'amount' || kind === 'open' ? presetAmounts(opp) : [];
   const taken = takenKeys(availability);
   const min = opp.min_amount_cents ?? 0;
 

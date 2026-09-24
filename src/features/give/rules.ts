@@ -67,6 +67,18 @@ export function parsePresets(options: unknown): number[] {
   return [...set].sort((a, b) => a - b);
 }
 
+/**
+ * The amount tiles for an "amount" opportunity: its presets, or — when the
+ * center set only a suggested amount (amount_cents) and no presets — that one
+ * amount, so the screen offers what the Give list advertises ("From $5K")
+ * instead of an empty "Your amount" box. "Other" stays available either way.
+ */
+export function presetAmounts(o: { kind: string; options: unknown; amount_cents: number | null }): number[] {
+  const presets = parsePresets(o.options);
+  if (presets.length || opportunityKind(o.kind) !== 'amount') return presets;
+  return o.amount_cents && o.amount_cents > 0 ? [o.amount_cents] : [];
+}
+
 /** The "From $X" amount on the Give list; null means "Any amount". */
 export function fromAmountCents(o: { kind: string; options: unknown; amount_cents: number | null; min_amount_cents: number | null }): number | null {
   const kind = opportunityKind(o.kind);
