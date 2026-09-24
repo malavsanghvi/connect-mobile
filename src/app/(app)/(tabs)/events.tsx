@@ -1,34 +1,31 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
-import { Card, Row, Segmented, Txt, VStack } from '@/components/ui';
+import { Card, Chevron, Segmented, Txt, VStack } from '@/components/ui';
 import { CalendarView } from '@/features/calendar';
+import { EventIcon } from '@/features/event-icons';
+import { compactTime } from '@/features/event-rules';
 import { bandFor, eventStatusLine } from '@/features/events';
+import { AlbumGrid, useAlbums } from '@/features/photos';
 import { loadEventsList } from '@/lib/api/events';
-import { formatDate, formatTime, monthShortUpper, parseISODate, zonedParts } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
-import { colors, radii, space } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
-type View_ = 'upcoming' | 'calendar';
+type Pane = 'upcoming' | 'calendar' | 'photos';
 
+/** Events: Upcoming · Calendar · Photos (prototype L158–256). */
 export default function EventsScreen() {
   const t = useT();
   const router = useRouter();
   const params = useLocalSearchParams<{ view?: string }>();
-  const view: View_ = params.view === 'calendar' ? 'calendar' : 'upcoming';
-  const { center, member } = useApp();
+  const view: Pane = params.view === 'calendar' ? 'calendar' : params.view === 'photos' ? 'photos' : 'upcoming';
   const { invalidate } = useDataVersion();
-  const tz = center?.time_zone ?? null;
-  const state = useLoad(
-    async () => ({ ...(await loadEventsList(center?.id ?? '', member?.household?.id ?? null, member?.person.id ?? null)), now: new Date() }),
-    [center?.id, member?.household?.id, member?.person.id],
-    'load events',
-  );
 
   return (
     <Screen title={t('tab.events')} root onRefresh={async () => invalidate()}>
@@ -39,75 +36,116 @@ export default function EventsScreen() {
         options={[
           { value: 'upcoming', label: t('events.upcoming') },
           { value: 'calendar', label: t('events.calendar') },
+          { value: 'photos', label: t('events.photos') },
         ]}
       />
-      {view === 'calendar' ? (
-        <CalendarView />
-      ) : (
-        <Loaded state={state}>
-          {({ items, feedback, now }) => (
-            <VStack gap={space.lg}>
-              {items.length === 0 ? <EmptyState icon="calendar-outline" title={t('events.none')} body={t('events.noneBody')} /> : null}
-              {items.map(({ event, rsvp, count }) => {
-                const status = eventStatusLine(t, event, rsvp, count, now, tz);
-                const hasTickets = !!rsvp && rsvp.status !== 'cancelled';
-                const iso = event.starts_at ? zonedParts(new Date(event.starts_at), tz).iso : null;
-                return (
-                  <Card
-                    key={event.id}
-                    padded={false}
-                    onPress={() => router.push(hasTickets ? { pathname: '/event/[id]/tickets', params: { id: event.id } } : { pathname: '/event/[id]', params: { id: event.id } })}
-                    accessibilityLabel={`${event.name}. ${formatDate(event.starts_at, tz)}. ${status.text}`}
-                    style={{ overflow: 'hidden' }}>
-                    <View style={{ height: 76, backgroundColor: bandFor(event.id), padding: space.md, justifyContent: 'flex-end' }}>
-                      {iso ? (
-                        <View style={{ position: 'absolute', top: space.md, left: space.md, backgroundColor: colors.white, borderRadius: radii.md, paddingHorizontal: 10, paddingVertical: 4, alignItems: 'center' }}>
-                          <Txt variant="badge" color="maroon">
-                            {monthShortUpper(iso)}
-                          </Txt>
-                          <Txt variant="section" color="ink">
-                            {String(parseISODate(iso)?.d ?? '')}
-                          </Txt>
-                        </View>
-                      ) : null}
-                      {event.status === 'live' ? (
-                        <View style={{ position: 'absolute', top: space.md, right: space.md, backgroundColor: colors.live, borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 2 }}>
-                          <Txt variant="badge" color="white">
-                            {t('events.live')}
-                          </Txt>
-                        </View>
-                      ) : null}
-                    </View>
-                    <View style={{ padding: space.lg, gap: 4 }}>
-                      <Txt variant="headline">{event.name}</Txt>
-                      <Txt variant="meta" color="muted">
-                        {[formatDate(event.starts_at, tz), event.venue, formatTime(event.starts_at, tz)].filter(Boolean).join(' · ')}
-                      </Txt>
-                      <Txt variant="smallStrong" color={status.tone === 'green' ? 'green' : status.tone === 'maroon' ? 'maroon' : status.tone === 'navy' ? 'navy' : 'muted'}>
-                        {status.text}
-                      </Txt>
-                    </View>
-                  </Card>
-                );
-              })}
-              {feedback.map(({ survey, eventName }) => (
-                <Card key={survey.id} tone="purple" onPress={() => router.push({ pathname: '/survey/[id]', params: { id: survey.id } })} accessibilityLabel={t('events.shareFeedbackOn', { event: eventName })}>
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <View style={{ flex: 1 }}>
-                      <Txt variant="bodyStrong" color="purpleDark">
-                        {t('events.shareFeedbackOn', { event: eventName })}
-                      </Txt>
-                      <Txt variant="meta" color="purple">
-                        {survey.title}
-                      </Txt>
-                    </View>
-                  </Row>
-                </Card>
-              ))}
-            </VStack>
-          )}
-        </Loaded>
-      )}
+      {view === 'calendar' ? <CalendarView /> : view === 'photos' ? <AlbumGrid /> : <UpcomingPane onPhotos={() => router.setParams({ view: 'photos' })} />}
     </Screen>
+  );
+}
+
+function UpcomingPane({ onPhotos }: { onPhotos: () => void }) {
+  const t = useT();
+  const router = useRouter();
+  const { center, member } = useApp();
+  const tz = center?.time_zone ?? null;
+  const state = useLoad(
+    async () => ({ ...(await loadEventsList(center?.id ?? '', member?.household?.id ?? null, member?.person.id ?? null)), now: new Date() }),
+    [center?.id, member?.household?.id, member?.person.id],
+    'load events',
+  );
+  const albums = useAlbums();
+  const albumList = albums.data?.albums ?? [];
+
+  return (
+    <Loaded state={state}>
+      {({ items, feedback, now }) => (
+        <VStack gap={space.md}>
+          {items.length === 0 ? <EmptyState icon="calendar-outline" title={t('events.none')} body={t('events.noneBody')} /> : null}
+          {items.map(({ event, rsvp, count }) => {
+            const status = eventStatusLine(t, event, rsvp, count, now, tz);
+            const hasTickets = !!rsvp && rsvp.status !== 'cancelled';
+            const place = [event.venue, compactTime(event.starts_at, tz)].filter(Boolean).join(' · ');
+            return (
+              <Card
+                key={event.id}
+                hero
+                padded={false}
+                onPress={() => router.push(hasTickets ? { pathname: '/event/[id]/tickets', params: { id: event.id } } : { pathname: '/event/[id]', params: { id: event.id } })}
+                accessibilityLabel={`${event.name}. ${formatDate(event.starts_at, tz)}. ${place}. ${status.text}`}
+                style={{ overflow: 'hidden', gap: 0 }}>
+                <View style={{ height: 88, backgroundColor: bandFor(event.id), paddingVertical: space.md, paddingHorizontal: space.lg, justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+                  {event.starts_at ? (
+                    <View style={{ backgroundColor: colors.white, borderRadius: radii.md, paddingHorizontal: 10, paddingVertical: 4 }}>
+                      <Txt variant="caption" style={{ fontFamily: fonts.bodySemi }}>
+                        {formatDate(event.starts_at, tz)}
+                      </Txt>
+                    </View>
+                  ) : null}
+                  {event.status === 'live' ? (
+                    <View style={{ position: 'absolute', top: space.md, right: space.md, backgroundColor: colors.live, borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <Txt variant="badge" color="white">
+                        {t('events.live')}
+                      </Txt>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={{ paddingTop: space.md, paddingHorizontal: space.lg, paddingBottom: space.lg, gap: 4 }}>
+                  <Txt variant="headline">{event.name}</Txt>
+                  {place ? (
+                    <Txt variant="meta" color="muted">
+                      {place}
+                    </Txt>
+                  ) : null}
+                  <Txt variant="meta" color={status.tone === 'green' ? 'green' : status.tone === 'brown' ? 'brown' : status.tone === 'navy' ? 'navy' : 'muted'} style={{ fontFamily: fonts.bodySemi }}>
+                    {status.text}
+                  </Txt>
+                </View>
+              </Card>
+            );
+          })}
+
+          {member && albumList.length > 0 ? (
+            <Pressable
+              onPress={onPhotos}
+              accessibilityRole="button"
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: radii.xl, paddingVertical: 14, paddingHorizontal: space.lg, opacity: pressed ? 0.9 : 1 })}>
+              <View style={{ width: 44, height: 44, borderRadius: radii.lg, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center' }}>
+                <EventIcon name="photo" size={22} color={colors.brown} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt variant="bodyStrong">{t('events.pastPhotos')}</Txt>
+                <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+                  {albumList.length === 1 ? t('events.pastPhotosSubOne', { name: albumList[0].album.title }) : t('events.pastPhotosSub', { n: albumList.length, name: albumList[0].album.title })}
+                </Txt>
+              </View>
+              <Chevron />
+            </Pressable>
+          ) : null}
+          {member && albums.error && !albums.data ? (
+            <Txt variant="meta" color="danger">
+              {albums.error.userMessage}
+            </Txt>
+          ) : null}
+
+          {feedback ? (
+            <Pressable
+              onPress={() => router.push({ pathname: '/survey/[id]', params: { id: feedback.survey.id } })}
+              disabled={feedback.sent}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: feedback.sent }}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, borderWidth: 1, borderColor: colors.purpleBorder, backgroundColor: colors.purpleBg, borderRadius: radii.xl, paddingVertical: 14, paddingHorizontal: space.lg, opacity: pressed ? 0.9 : 1 })}>
+              <View style={{ flex: 1 }}>
+                <Txt variant="bodyStrong">{feedback.sent ? t('events.feedbackSent') : t('events.shareFeedbackRecent')}</Txt>
+                <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+                  {feedback.attended ? t('events.youAttended', { event: feedback.eventName }) : feedback.eventName}
+                </Txt>
+              </View>
+              {feedback.sent ? null : <Chevron />}
+            </Pressable>
+          ) : null}
+        </VStack>
+      )}
+    </Loaded>
   );
 }

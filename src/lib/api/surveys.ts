@@ -3,7 +3,10 @@ import { AppError, check, logError, must } from '../errors';
 import { readPref, writePref } from '../storage';
 import { supabase } from '../supabase';
 
-export type QuestionType = 'rating' | 'nps' | 'single' | 'multi' | 'text';
+export type QuestionType = 'rating' | 'nps' | 'likert' | 'single' | 'multi' | 'text';
+
+/** Default five-point scale for likert questions without options (prototype "Rate each part"). */
+export const LIKERT_DEFAULT = ['Poor', 'Fair', 'Good', 'Great', 'Superb'];
 
 export type Question = { id: string; type: QuestionType; label: string; options: string[]; required: boolean; scale: string[] };
 
@@ -18,8 +21,9 @@ export function parseQuestions(raw: Json): Question[] {
     if (!label) return;
     const t = typeof o.type === 'string' ? o.type.toLowerCase() : 'text';
     const type: QuestionType =
-      t === 'rating' || t === 'stars' ? 'rating' : t === 'nps' || t === 'scale_10' ? 'nps' : t === 'single' || t === 'choice' || t === 'radio' || t === 'likert' || t === 'scale' ? 'single' : t === 'multi' || t === 'checkbox' || t === 'multiple' ? 'multi' : 'text';
-    const options = Array.isArray(o.options) ? o.options.filter((x): x is string => typeof x === 'string') : [];
+      t === 'rating' || t === 'stars' ? 'rating' : t === 'nps' || t === 'scale_10' ? 'nps' : t === 'likert' || t === 'scale' ? 'likert' : t === 'single' || t === 'choice' || t === 'radio' ? 'single' : t === 'multi' || t === 'checkbox' || t === 'multiple' ? 'multi' : 'text';
+    const given = Array.isArray(o.options) ? o.options.filter((x): x is string => typeof x === 'string') : [];
+    const options = type === 'likert' && given.length === 0 ? LIKERT_DEFAULT : given;
     out.push({
       id: typeof o.id === 'string' ? o.id : String(o.id ?? `q${i + 1}`),
       type: type === 'single' && options.length === 0 ? 'text' : type,

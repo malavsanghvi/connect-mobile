@@ -62,6 +62,17 @@ export async function listOpenSurveys(centerId: string, personId: string): Promi
   return surveys.filter((s) => !mine.has(s.id) && !anonAnswered.includes(s.id) && (!s.closes_at || new Date(s.closes_at).getTime() > now) && (!s.opens_at || new Date(s.opens_at).getTime() <= now));
 }
 
+export type FeedbackRequest = { survey: Survey; eventName: string | null };
+
+/** Home "Feedback requested" card: open surveys with the event they are about (surveys.event_id). */
+export async function listFeedbackRequests(centerId: string, personId: string): Promise<FeedbackRequest[]> {
+  const surveys = await listOpenSurveys(centerId, personId);
+  const eventIds = [...new Set(surveys.map((s) => s.event_id).filter((x): x is string => !!x))];
+  const events = eventIds.length ? must(await supabase.from('events').select('id, name').in('id', eventIds), 'load the events these surveys are about') : [];
+  const names = new Map(events.map((e) => [e.id, e.name]));
+  return surveys.map((survey) => ({ survey, eventName: survey.event_id ? (names.get(survey.event_id) ?? null) : null }));
+}
+
 // ---------------------------------------------------------------------------
 // Home event cards: next event, 24-hour confirmation prompt, event-day lunch card
 // ---------------------------------------------------------------------------
@@ -71,8 +82,8 @@ export type HomeEvents = {
   next: EventRow | null;
   nextRsvp: Rsvp | null;
   nextCount: number;
-  confirm: { event: EventRow; rsvp: Rsvp; count: number } | null;
-  lunch: { event: EventRow; card: LunchCard } | null;
+  confirm: { event: EventRow; rsvp: Rsvp; count: number; names: string[] } | null;
+  lunch: { event: EventRow; card: LunchCard; checkedInAt: string | null } | null;
   timeZone: string;
 };
 
@@ -94,8 +105,8 @@ export async function loadHomeEvents(center: Center, member: Member | null): Pro
     if (!r || rsvpState(r) !== 'rsvpd' || !e.starts_at) continue;
     const hoursLeft = (new Date(e.starts_at).getTime() - now.getTime()) / 3600000;
     if (hoursLeft > 0 && hoursLeft <= e.confirmation_hours_before) {
-      const count = (await listAttendees(r.id)).filter((a) => a.status !== 'cancelled').length;
-      confirm = { event: e, rsvp: r, count };
+      const active = (await listAttendees(r.id)).filter((a) => a.status !== 'cancelled');
+      confirm = { event: e, rsvp: r, count: active.length, names: active.map((a) => a.display_name) };
       break;
     }
   }
@@ -112,7 +123,8 @@ export async function loadHomeEvents(center: Center, member: Member | null): Pro
       center.time_zone,
     );
     if (card.state !== 'not_checked_in') {
-      lunch = { event: e, card };
+      const checkedInAt = attendees.map((a) => a.checked_in_at).filter((x): x is string => !!x).sort()[0] ?? null;
+      lunch = { event: e, card, checkedInAt };
       break;
     }
   }

@@ -22,10 +22,15 @@ function monthBounds(year: number, month: number): { first: string; last: string
 /** Layers, entries, tithis and events for one month (layers readable by guests too). */
 export async function loadCalendarMonth(center: Center, year: number, month: number): Promise<CalendarMonth> {
   const { first, last } = monthBounds(year, month);
+  return loadCalendarRange(center, first, last);
+}
+
+/** Same as a month, for any date range ("Add these calendars to my phone" exports 12 months). */
+export async function loadCalendarRange(center: Center, first: string, last: string): Promise<CalendarMonth> {
   const [layersRes, entriesRes, tithiRes, eventsRes] = await Promise.all([
     supabase.from('calendar_layers').select('*').or(`center_id.eq.${center.id},center_id.is.null`).order('name'),
     // Multi-day entries (e.g. Paryushan) start before the month; overlap is checked below.
-    supabase.from('calendar_entries').select('*').gte('starts_on', addDays(first, -60)).lte('starts_on', last).or(`center_id.eq.${center.id},center_id.is.null`).limit(2000),
+    supabase.from('calendar_entries').select('*').gte('starts_on', addDays(first, -60)).lte('starts_on', last).or(`center_id.eq.${center.id},center_id.is.null`).limit(5000),
     supabase.from('tithi_days').select('*').gte('gregorian', first).lte('gregorian', last).or(`center_id.eq.${center.id},center_id.is.null`),
     supabase.from('events').select('id, name, starts_at, venue').eq('center_id', center.id).in('status', ['published', 'rsvp_closed', 'live', 'completed']).gte('starts_at', `${addDays(first, -1)}T00:00:00Z`).lte('starts_at', `${addDays(last, 1)}T23:59:59Z`),
   ]);
