@@ -26,18 +26,18 @@ export async function registerPushDevice(userId: string, centerId: string, opts:
   if (Platform.OS === 'web') return { state: 'unsupported', reason: 'Push notifications are only available in the mobile app.' };
   if (!Device.isDevice) return { state: 'unsupported', reason: 'Push notifications need a real phone; simulators cannot receive them.' };
   if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
-    return { state: 'unsupported', reason: 'Push notifications need the Connect app build; Expo Go on Android cannot receive them.' };
+    return { state: 'unsupported', reason: 'Push notifications need the Community Connect app build; Expo Go on Android cannot receive them.' };
   }
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   if (!projectId) return { state: 'unsupported', reason: 'This build is not linked to an EAS project yet, so it cannot receive push notifications.' };
 
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', { name: 'Connect', importance: Notifications.AndroidImportance.DEFAULT });
+    await Notifications.setNotificationChannelAsync('default', { name: 'Community Connect', importance: Notifications.AndroidImportance.DEFAULT });
   }
   const existing = await Notifications.getPermissionsAsync();
   let status = existing.status;
   if (status !== 'granted' && opts.prompt) status = (await Notifications.requestPermissionsAsync()).status;
-  if (status !== 'granted') return { state: 'denied', reason: "Notifications are turned off for Connect in your phone's settings." };
+  if (status !== 'granted') return { state: 'denied', reason: "Notifications are turned off for Community Connect in your phone's settings." };
 
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   check(

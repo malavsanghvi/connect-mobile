@@ -63,7 +63,7 @@ export const en = {
   'drawer.settingsSub': 'Account, privacy and app preferences',
   'drawer.signIn': 'Sign in or create an account',
   'drawer.signInSub': 'RSVP, give, and keep up your Jain Way',
-  'drawer.version': 'Connect · version {version}',
+  'drawer.version': 'Community Connect · version {version}',
 
   // Locked (children)
   'locked.title': 'Ask a parent',
@@ -79,7 +79,7 @@ export const en = {
   // Boot / setup / lock
   'boot.loadingFamily': 'Loading your family…',
   'setup.eyebrow': 'Setup needed',
-  'setup.title': 'Connect is not configured yet',
+  'setup.title': 'Community Connect is not configured yet',
   'setup.body': 'This build does not know which Supabase project to use, so it cannot show anything. Nothing here is sample data — add the settings below and restart.',
   'setup.present': 'Set',
   'setup.missing': 'Missing',
@@ -87,7 +87,7 @@ export const en = {
   'setup.howTitle': 'How to fix it',
   'setup.how': 'Copy .env.example to .env.local in the connect-mobile folder, fill in the values, then restart with "npx expo start -c". For EAS builds, set them as EAS environment variables.',
   'lock.title': 'Welcome back',
-  'lock.body': 'Connect is locked. Use {method} to open it.',
+  'lock.body': 'Community Connect is locked. Use {method} to open it.',
   'lock.unlock': 'Unlock with {method}',
   'lock.signOut': 'Sign out instead',
   'notFound.title': "We couldn't find that page",
@@ -540,7 +540,7 @@ export const en = {
   'bolis.reminderSet': 'Reminder set on this phone',
   'bolis.reminderTitle': 'Boli coming up',
   'bolis.reminderBody': '{name} is called in about 15 minutes.',
-  'bolis.reminderUnavailable': "We couldn't set a reminder — reminders need notifications turned on in the Connect app on your phone.",
+  'bolis.reminderUnavailable': "We couldn't set a reminder — reminders need notifications turned on in the Community Connect app on your phone.",
   'bolis.reminderNoTime': "The center hasn't published a time for this boli yet, so we can't set a reminder.",
 
   // Recurring
@@ -766,7 +766,7 @@ export const en = {
   'settings.account': 'Account',
   'settings.profileFamily': 'Profile and family',
   'settings.biometric': '{method} sign-in',
-  'settings.biometricSub': 'Unlock Connect with your face or fingerprint.',
+  'settings.biometricSub': 'Unlock Community Connect with your face or fingerprint.',
   'settings.notifications': 'Notifications',
   'settings.push': 'Push notifications',
   'settings.pushOn': 'Master switch for all alerts · on for this phone',
@@ -797,7 +797,7 @@ export const en = {
   'settings.contact': 'Contact the center',
   'settings.contactSub': 'Ask a question · replies in 3–5 business days',
   'settings.about': 'About this app',
-  'settings.aboutSub': 'Connect version {version}',
+  'settings.aboutSub': 'Community Connect version {version}',
   'settings.status': 'Account status',
   'settings.statusBody': 'Deactivating pauses notifications and signs you out; your membership, pledges and giving history are kept. Deleting removes your login, preferences and My Jain Way history; the center keeps membership and donation records it is required to keep.',
   'settings.deactivate': 'Deactivate account',
@@ -926,7 +926,7 @@ export const en = {
   // Camera scanning (shared)
   'scan.webNote': 'Scanning works in the mobile app. You can type or paste the code below.',
   'scan.cameraAsk': 'Allow the camera to scan QR codes.',
-  'scan.cameraDenied': "Camera access is off for Connect. Turn it on in your phone's settings, or type the code below.",
+  'scan.cameraDenied': "Camera access is off for Community Connect. Turn it on in your phone's settings, or type the code below.",
   'scan.allowCamera': 'Allow camera',
   'scan.cameraLabel': 'Camera view for scanning a QR code',
 

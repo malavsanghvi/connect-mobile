@@ -35,7 +35,7 @@ export async function biometricSupport(): Promise<BiometricSupport> {
 
 export async function authenticate(label: string): Promise<{ ok: boolean; message: string | null }> {
   try {
-    const res = await LocalAuthentication.authenticateAsync({ promptMessage: `Unlock Connect with ${label}`, cancelLabel: 'Cancel' });
+    const res = await LocalAuthentication.authenticateAsync({ promptMessage: `Unlock Community Connect with ${label}`, cancelLabel: 'Cancel' });
     if (res.success) return { ok: true, message: null };
     if (res.error === 'user_cancel' || res.error === 'system_cancel' || res.error === 'app_cancel') return { ok: false, message: 'Unlock was cancelled. Try again when you are ready.' };
     if (res.error === 'lockout') return { ok: false, message: `${label} is locked after too many attempts. Unlock your phone with its passcode, then try again.` };

@@ -198,7 +198,7 @@ export function orgIdDisplay(value: string | null | undefined): string | null {
 export function identifierLine(parts: { orgLabel: string; orgId: string | null; connectNumber: string | null }): string {
   const out: string[] = [];
   if (parts.orgId) out.push(`${parts.orgLabel} ${parts.orgId}`);
-  if (parts.connectNumber) out.push(`Connect ${parts.connectNumber}`);
+  if (parts.connectNumber) out.push(parts.connectNumber);
   return out.join(' · ');
 }
 

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Connect",
+    "name": "Community Connect",
     "slug": "connect-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -48,14 +48,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Connect to use the camera to scan event tickets when you volunteer at check-in.",
+          "cameraPermission": "Allow Community Connect to use the camera to scan event tickets when you volunteer at check-in.",
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow Connect to use Face ID to unlock the app."
+          "faceIDPermission": "Allow Community Connect to use Face ID to unlock the app."
         }
       ],
       [

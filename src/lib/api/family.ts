@@ -214,7 +214,7 @@ export async function requestAddFamilyMember(args: { centerId: string; userId: s
       `Name: ${args.first.trim()} ${args.last.trim()}`,
       `Relationship: ${args.relationship || 'not given'}`,
       `Date of birth: ${dob ?? 'not given'}`,
-      'Sent from the Connect member app.',
+      'Sent from the Community Connect app.',
     ].join('\n'),
   });
 }
