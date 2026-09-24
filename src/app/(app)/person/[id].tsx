@@ -7,6 +7,7 @@ import { EmptyState, Loaded } from '@/components/states';
 import { Banner, Button, Card, Chip, ChipGroup, Divider, TextField, Toggle, Txt, VStack } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { ProfileFields } from '@/features/onboarding/profile-fields';
+import { formatMemberCustomValue } from '@/features/custom-fields';
 import { INTERESTS, normalizeInterests, relationshipChanged, toggle, type InterestKey } from '@/features/profile';
 import { LANGUAGES, isLanguage, type Language, type StringKey } from '@/i18n';
 import {
@@ -14,6 +15,7 @@ import {
   CONTACT_CHANNELS,
   draftFromPerson,
   loadContactPrefs,
+  loadMemberCustomFields,
   planEmailChanges,
   profileToUpdate,
   recordChannelOptins,
@@ -227,6 +229,8 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
         ) : null}
       </Section>
 
+      <MoreDetails centerId={center.id} personId={fm.person.id} community={community} />
+
       {adult && canEdit ? (
         <>
           <Section>
@@ -324,5 +328,33 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
         <Banner tone="info" message={t('profile.viewOnly')} />
       )}
     </VStack>
+  );
+}
+
+/** The community's own details about this person that it shows them (custom fields marked member_self), read-only. */
+function MoreDetails({ centerId, personId, community }: { centerId: string; personId: string; community: string }) {
+  const t = useT();
+  const state = useLoad(() => loadMemberCustomFields(centerId, personId), [centerId, personId], 'load your other details');
+  return (
+    <Loaded state={state}>
+      {(fields) => {
+        const shown = fields.map((f) => ({ ...f, text: formatMemberCustomValue(f.type, f.value, t('profile.yes'), t('profile.no')) })).filter((f) => f.text);
+        if (shown.length === 0) return null;
+        return (
+          <Section>
+            <CardTitle>{t('profile.moreDetails')}</CardTitle>
+            {shown.map((f) => (
+              <View key={`${f.entity}.${f.key}`} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                <FieldLabel>{f.label}</FieldLabel>
+                <Txt variant="bodyStrong">{f.text}</Txt>
+              </View>
+            ))}
+            <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+              {t('profile.moreDetailsNote', { community })}
+            </Txt>
+          </Section>
+        );
+      }}
+    </Loaded>
   );
 }

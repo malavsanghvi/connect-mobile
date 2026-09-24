@@ -1,5 +1,7 @@
 import type { Enums, Tables, TablesInsert } from '../database.types';
-import { AppError, check, maybe, must } from '../errors';
+import type { MemberCustomField } from '@/features/custom-fields';
+
+import { AppError, check, logError, maybe, must } from '../errors';
 import { formatDob, formatPhone, isValidEmail, parseDobInput, toE164 } from '../format';
 import { planEmailChanges, type EmailDraft } from '../emails';
 import { withAuditReason } from '../request-context';
@@ -378,4 +380,20 @@ export async function nextTithiDates(centerId: string, fromDate: string, days: {
     if (hit) out[d.id] = hit.gregorian;
   }
   return out;
+}
+
+/**
+ * The details the community keeps about this person that it chose to show
+ * them (custom fields marked member_self), read-only. Until the database has
+ * app.person_custom_fields (connect-crm 0190) there are none to show; that is
+ * logged, not shown as an error.
+ */
+export async function loadMemberCustomFields(centerId: string, personId: string): Promise<MemberCustomField[]> {
+  const res = await supabase.rpc('person_custom_fields', { p_center: centerId, p_person: personId });
+  if (res.error && (res.error.code === 'PGRST202' || res.error.code === '42883')) {
+    logError('person_custom_fields is not in the database yet; no custom details to show', res.error);
+    return [];
+  }
+  const rows = must(res, 'load your other details');
+  return rows.map((r) => ({ entity: r.entity, key: r.key, label: r.label, type: r.type, value: r.value }));
 }
