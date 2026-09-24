@@ -3,14 +3,16 @@ import { View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
-import { Button, Card, Chevron, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Chevron, Row, Txt, VStack } from '@/components/ui';
 import { RepeatGlyph } from '@/features/give/icons';
 import { AvailabilityBar, Heading, slotsText, TintTile } from '@/features/give/parts';
 import { availabilityFraction, fromAmountCents, opportunityKind, slotsLine } from '@/features/give/rules';
 import { startPayment } from '@/features/pay';
+import { HowToGive } from '@/features/pay/how-to-give';
 import { isBoliOpen, listBolis } from '@/lib/api/bolis';
+import { loadPaymentOptions, type OfflineMethod } from '@/lib/api/payments';
 import { listOpenPledges, listOpportunitiesWithAvailability, loadGiveSummary, type GiveSummary, type OpportunityListItem } from '@/lib/api/giving';
-import { report } from '@/lib/errors';
+import { AppError, logError, report } from '@/lib/errors';
 import { formatCents, formatCentsCompact } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { isGiveSectionVisible, type ModuleMap } from '@/lib/modules';
@@ -43,6 +45,16 @@ export default function GiveScreen() {
         bolisOn ? listBolis(center.id) : [],
         givingOn ? listOpenPledges(member.household.id) : [],
       ]);
+      // How to give (o-payments): a failure here is shown on its card, not over the whole tab.
+      const howToGive: HowToGiveState = !givingOn
+        ? null
+        : await loadPaymentOptions(center.id).then(
+            (o) => ({ methods: o.offline, error: null }),
+            (err: unknown) => {
+              logError('load how to give', err);
+              return { methods: [], error: err instanceof AppError ? err.userMessage : "We couldn't load how to give." };
+            },
+          );
       const now = new Date();
       return {
         summary,
@@ -50,6 +62,7 @@ export default function GiveScreen() {
         openPledges,
         openDigital: bolis.filter((b) => b.kind === 'digital' && isBoliOpen(b, b.summary, now)).length,
         inPerson: bolis.filter((b) => b.kind === 'in_person' && (b.status === 'open' || b.status === 'paused')).length,
+        howToGive,
       };
     },
     [member?.household?.id, center?.id, year, givingOn, bolisOn],
@@ -83,9 +96,11 @@ export default function GiveScreen() {
   );
 }
 
-type GiveBodyProps = { summary: GiveSummary | null; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: { id: string; pledge_number: string | null }[]; map: ModuleMap };
+type HowToGiveState = { methods: OfflineMethod[]; error: string | null } | null;
 
-function GiveBody({ summary, opps, openDigital, inPerson, openPledges, map }: GiveBodyProps) {
+type GiveBodyProps = { howToGive: HowToGiveState; summary: GiveSummary | null; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: { id: string; pledge_number: string | null }[]; map: ModuleMap };
+
+function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges, map }: GiveBodyProps) {
   const t = useT();
   const router = useRouter();
   const bolisCard = isGiveSectionVisible(map, 'bolis') ? <BolisCard openDigital={openDigital} inPerson={inPerson} /> : null;
@@ -170,6 +185,18 @@ function GiveBody({ summary, opps, openDigital, inPerson, openPledges, map }: Gi
       </Card>
 
       {summary.openCents > 0 ? <Button label={t('give.payOpen', { amount: formatCents(summary.openCents) })} onPress={payOpen} /> : null}
+
+      {howToGive ? (
+        <>
+          <Heading>{t('howToGive.title')}</Heading>
+          <Card style={{ gap: 10 }}>
+            {howToGive.error ? <Banner tone="error" message={howToGive.error} /> : <HowToGive methods={howToGive.methods} />}
+            <Txt variant="meta" color="muted">
+              {t('howToGive.intro')}
+            </Txt>
+          </Card>
+        </>
+      ) : null}
     </VStack>
   );
 }

@@ -25,7 +25,7 @@ Platform conventions live in `connect-crm/docs/ARCHITECTURE.md` — read it firs
 - **Money is integer cents**; format only with `formatCents`.
 - **Bolis: always say "pledge", never "bid"** (labels, buttons, toasts). A unit test
   enforces this on the English strings.
-- **No payment function yet**: every Pay button calls `payNotice()` — never fake success.
+- **Online payment** goes through `src/features/pay/online.ts` (the portal's /api/payments/intent → the organization's Stripe/PayPal; recorded only by the provider's webhook). Without it the Pay sheet shows the honest notice and the offline "how to give" instructions — never fake success.
 - **No mock data**: when env vars are missing the app shows the setup screen.
 - **Strings** live in `src/i18n/en.ts` (complete); `gu.ts` / `hi.ts` carry every key
   and fall back to English. Use `useT()`.

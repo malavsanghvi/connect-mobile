@@ -4,14 +4,18 @@
  * Pay button in the app goes through startPayment(); every multi-step save
  * (pledges, recurring gifts, labh, store orders) through runSaving().
  *
- * Card payment is NOT connected. Until a card charger is registered, the Pay
- * sheet's confirm step shows the honest "online payment is being set up · pay
- * at the office or by Zelle" notice instead of charging — never a fake
- * success. The Thank-you screen is only reached after a real charge.
+ * Online payment (o-payments): features/pay/online.ts registers a card charger
+ * only while the community takes member payments online (its own Stripe or
+ * PayPal account; a sandbox always in test mode). Without one, the Pay sheet
+ * shows the honest "online payment is being set up" notice and the
+ * community's offline instructions instead — never a fake success. The
+ * Thank-you screen is only reached after the provider confirmed the payment.
  *
  * The UI lives in <PayHost/> (mounted once in the root layout); this module is
  * a small controller so any screen or helper can start a flow.
  */
+
+import { useSyncExternalStore } from 'react';
 
 import type { SavingStep } from './steps';
 
@@ -80,15 +84,34 @@ export function registerPayHost(h: Host): () => void {
 }
 
 /** For the future payment integration. Returns the unregister function. */
+const chargerListeners = new Set<() => void>();
+const notifyCharger = () => chargerListeners.forEach((l) => l());
+
 export function registerCardCharger(c: CardCharger): () => void {
   charger = c;
+  notifyCharger();
   return () => {
-    if (charger === c) charger = null;
+    if (charger === c) {
+      charger = null;
+      notifyCharger();
+    }
   };
 }
 
 export function cardCharger(): CardCharger | null {
   return charger;
+}
+
+/** The registered charger as React state, so screens re-render when online payment becomes available. */
+export function useCardCharger(): CardCharger | null {
+  return useSyncExternalStore(
+    (l) => {
+      chargerListeners.add(l);
+      return () => chargerListeners.delete(l);
+    },
+    () => charger,
+    () => charger,
+  );
 }
 
 /** Open the Pay sheet. Resolves when the member closes it. */
