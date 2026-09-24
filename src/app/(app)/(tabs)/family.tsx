@@ -3,10 +3,12 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { ErrorState, LoadingState } from '@/components/states';
-import { Button, Card, Row, Txt } from '@/components/ui';
+import { Banner, Button, Card, Row, Txt } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { listDisplayName, whenText } from '@/features/special-days';
 import { listSpecialDays, loadEligibility } from '@/lib/api/family';
+import { myApplication, myReferenceRequests } from '@/lib/api/membership';
+import { applicationStatusKey } from '@/features/membership';
 import { logError } from '@/lib/errors';
 import { formatLongDate, fullName } from '@/lib/format';
 import { ageOn, nextOccurrence } from '@/lib/rules';
@@ -14,6 +16,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -28,6 +31,9 @@ export default function FamilyScreen() {
   const { member, center, setGuest, orgMemberLabel, orgHouseholdLabel, signOut, setOnboarding } = useApp();
   const { invalidate } = useDataVersion();
   const { confirm } = useFeedback();
+  const membershipOn = useModule('membership');
+  const refs = useLoad(() => (member && membershipOn ? myReferenceRequests() : Promise.resolve([])), [member?.person.id, membershipOn], 'load the reference requests');
+  const application = useLoad(() => (member && center && membershipOn ? myApplication(center.id) : Promise.resolve(null)), [member?.person.id, center?.id, membershipOn], 'load your membership application');
   const days = useLoad(() => (member?.household ? listSpecialDays(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load special days');
   const eligibility = useLoad(() => (member ? loadEligibility(member.person.id) : Promise.resolve(null)), [member?.person.id], 'load voting eligibility');
   const community = center?.short_name || center?.name || '';
@@ -84,6 +90,22 @@ export default function FamilyScreen() {
           </Txt>
         </View>
       ) : null}
+
+      {(refs.data ?? []).length > 0 ? (
+        <Banner tone="info" message={t('refreq.card', { n: refs.data?.length ?? 0 })} action={{ label: t('refreq.title'), onPress: () => router.push('/reference-requests') }} />
+      ) : null}
+      {refs.error ? <Banner tone="error" message={refs.error.userMessage} action={{ label: t('common.retry'), onPress: () => void refs.reload() }} /> : null}
+      {application.data && application.data.status !== 'approved' ? (
+        <Pressable onPress={() => router.push('/guide/apply')} accessibilityRole="link">
+          <Card tone="panel" style={{ gap: 4 }}>
+            <Txt variant="smallStrong">{t('apply.inProgress', { type: application.data.type_name })}</Txt>
+            <Txt variant="meta" color="ink2">
+              {t(applicationStatusKey(application.data.status), { name: application.data.reference_name ?? '' })}
+            </Txt>
+          </Card>
+        </Pressable>
+      ) : null}
+      {application.error ? <Banner tone="error" message={application.error.userMessage} action={{ label: t('common.retry'), onPress: () => void application.reload() }} /> : null}
 
       <Pressable
         onPress={() => router.push('/special-days')}
