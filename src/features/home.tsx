@@ -1,33 +1,83 @@
-import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
-import { View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
-import { Icon } from '@/components/icon';
 import { ErrorState, LoadingState } from '@/components/states';
-import { Banner, Button, Card, IconButton, ProgressBar, Row, Txt, VStack } from '@/components/ui';
+import { StrokeIcon } from '@/components/stroke-icon';
+import { Banner, Button, Card, Chevron, ProgressBar, Row, Txt, VStack } from '@/components/ui';
 import { listDisplayName } from '@/features/special-days';
 import { confirmAttendance, listAttendees } from '@/lib/api/events';
 import { listSpecialDays, nextTithiDates } from '@/lib/api/family';
 import { listOpportunities } from '@/lib/api/giving';
-import { listAlerts, listOpenSurveys, loadHomeEvents, loadToday } from '@/lib/api/home';
+import { listAlerts, listFeedbackRequests, loadHomeEvents, loadToday, type HomeEvents } from '@/lib/api/home';
 import { loadJainWayToday } from '@/lib/api/jainway';
 import { reactivateAccount } from '@/lib/api/settings';
-import { report } from '@/lib/errors';
-import { daysBetween, formatCents, formatDate, formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt, zonedParts } from '@/lib/format';
-import { isWithinReminder, lunchLines, nextOccurrence, streakDisplay, streakLabel, tithiLabel } from '@/lib/rules';
-import { useLoad } from '@/lib/use-load';
+import { logError, report } from '@/lib/errors';
+import { daysBetween, formatCents, formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt, zonedParts } from '@/lib/format';
+import { isWithinReminder, nextOccurrence, streakDisplay, streakLabel, tithiLabel } from '@/lib/rules';
+import { readPref, writePref } from '@/lib/storage';
+import { useLoad, type LoadState } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
+
+import { useConfirmPopup } from './confirm-popup';
+import { EventIcon } from './event-icons';
+import { confirmSchedule, pronounFor, relativeDay, shortWhen, specialDayDismissKey, specialDayLead, tierLadder, turnsAge } from './event-rules';
+import { peopleLabel } from './events';
+
+/*
+ * Home cards, in prototype order (Main.dc.html L43–139): deactivated → Today →
+ * My Jain Way → Feedback → Lunch → Special day → Please confirm → Store →
+ * Giving → Next event → "New to {center}? Start here".
+ */
 
 function SectionLoading() {
   return (
-    <Card>
+    <Card hero>
       <LoadingState />
     </Card>
+  );
+}
+
+/** Eyebrow row with a right-hand note (feedback, special day, confirm cards). */
+function EyebrowRow({ left, right, color }: { left: string; right?: string | null; color: 'purple' | 'brown' | 'navy' }) {
+  return (
+    <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }} gap={space.sm}>
+      <Txt variant="eyebrow" color={color} style={color === 'navy' ? { fontFamily: fonts.bodySemi, letterSpacing: 0.48 } : null}>
+        {left}
+      </Txt>
+      {right ? (
+        <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+          {right}
+        </Txt>
+      ) : null}
+    </Row>
+  );
+}
+
+/** Rounded in-card button that sizes to its label (prototype "align-self: flex-start" pills). */
+function PillButton({ label, onPress, tone, busy, disabled, fill }: { label: string; onPress: () => void; tone: 'purple' | 'brown' | 'green' | 'secondary' | 'plain'; busy?: boolean; disabled?: boolean; fill?: boolean }) {
+  if (tone === 'plain') {
+    return (
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={({ pressed }) => ({ flex: fill ? 1 : undefined, minHeight: 46, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg, opacity: pressed ? 0.85 : 1 })}>
+        <Txt variant="smallStrong" color="muted">
+          {label}
+        </Txt>
+      </Pressable>
+    );
+  }
+  return (
+    <View style={fill ? { flex: 1 } : { alignSelf: 'flex-start' }}>
+      <Button label={label} onPress={onPress} tone={tone} size="card" busy={busy} disabled={disabled} fill={!!fill} style={fill ? undefined : { paddingHorizontal: 18 }} />
+    </View>
   );
 }
 
@@ -53,46 +103,83 @@ export function DeactivatedBanner() {
   };
   return (
     <Card tone="amber">
-      <Txt variant="cardTitle" color="brownDark">
-        {t('home.deactivatedTitle')}
-      </Txt>
-      <Txt variant="small" color="brownText">
-        {t('home.deactivatedBody')}
-      </Txt>
+      <Row gap={space.md}>
+        <View style={{ flex: 1 }}>
+          <Txt variant="bodyStrong" color="brownDark" style={{ fontFamily: fonts.bodyBold }}>
+            {t('home.deactivatedTitle')}
+          </Txt>
+          <Txt variant="caption" color="brownText" style={{ fontFamily: fonts.body }}>
+            {t('home.deactivatedBody')}
+          </Txt>
+        </View>
+        <Button label={t('settings.reactivate')} tone="green" size="sm" fill={false} onPress={reactivate} busy={busy} />
+      </Row>
       {error ? <Banner tone="error" message={error} /> : null}
-      <Button label={t('settings.reactivate')} tone="brown" size="md" onPress={reactivate} busy={busy} />
     </Card>
   );
 }
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ flex: 1, backgroundColor: colors.navyPanel, borderRadius: radii.lg, padding: space.md, gap: 2 }}>
-      <Txt variant="caption" color="onNavy">
+    <View style={{ flex: 1, backgroundColor: colors.panel, borderRadius: radii.lg, padding: 10, gap: 2 }}>
+      <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
         {label}
       </Txt>
-      <Txt variant="section" color="white">
-        {value}
-      </Txt>
+      <Txt variant="section">{value}</Txt>
     </View>
   );
 }
 
-/** "Today at JSH": tithi + timings + live darshan (prototype §2.1 item 2). */
+const TODAY_HIDDEN_KEY = 'homeTodayHidden';
+
+/** "Today at {center}": tithi, timings and the live darshan link (prototype L50–69). */
 export function TodayCard() {
   const t = useT();
+  const router = useRouter();
   const { center, member } = useApp();
   const [collapsed, setCollapsed] = useState(false);
   const state = useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], "load today's timings");
-  const greeting = member?.household ? t('home.greetingFamily', { family: member.household.display_name }) : t('welcome.jaiJinendra');
+  const community = center?.short_name || center?.name || '';
+  const family = member?.household?.display_name ?? null;
+
+  useEffect(() => {
+    let alive = true;
+    readPref<boolean>(TODAY_HIDDEN_KEY, false).then((v) => {
+      if (alive) setCollapsed(v);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const setHidden = (v: boolean) => {
+    setCollapsed(v);
+    writePref(TODAY_HIDDEN_KEY, v).catch((err: unknown) => logError('remembering the Today card on this device', err));
+  };
 
   if (collapsed) {
     return (
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Txt variant="headline" color="navy">
-          {greeting}
+      <Row gap={space.sm}>
+        <Txt variant="body" color="ink2" style={{ flex: 1 }}>
+          {family ? (
+            <>
+              {`${t('home.greetingLead')} `}
+              <Txt variant="bodyStrong" color="ink2">
+                {family}
+              </Txt>
+            </>
+          ) : (
+            t('welcome.jaiJinendra')
+          )}
         </Txt>
-        <Button label={t('home.showToday')} tone="ghost" size="sm" fill={false} onPress={() => setCollapsed(false)} />
+        <Pressable
+          onPress={() => setHidden(false)}
+          accessibilityRole="button"
+          style={({ pressed }) => ({ minHeight: 40, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+          <Txt variant="meta" color="navy" style={{ fontFamily: fonts.bodySemi }}>
+            {t('home.showToday', { center: community })}
+          </Txt>
+        </Pressable>
       </Row>
     );
   }
@@ -103,49 +190,53 @@ export function TodayCard() {
     timings?.navkarsi ? { label: t('home.navkarsi'), value: formatTimeOfDay(timings.navkarsi) } : null,
     timings?.chauvihar ? { label: t('home.chauvihar'), value: formatTimeOfDay(timings.chauvihar) } : null,
   ].filter((x): x is { label: string; value: string } => x !== null);
-
-  const openDarshan = async () => {
-    if (!darshan) return;
-    try {
-      await WebBrowser.openBrowserAsync(darshan.url);
-    } catch (err) {
-      report(err, 'open the live darshan');
-    }
-  };
+  const aarti = timings?.aarti ? formatTimeOfDay(timings.aarti) : null;
 
   return (
-    <Card tone="navy">
-      <Row style={{ justifyContent: 'space-between' }} align="flex-start">
-        <VStack gap={2} style={{ flex: 1 }}>
-          <Txt variant="small" color="onNavy">
-            {greeting}
+    <Card hero style={{ gap: space.md }}>
+      <Row align="flex-start" gap={space.sm}>
+        <View style={{ flex: 1 }}>
+          <Txt variant="meta" color="muted">
+            {family ? t('home.greetingFamily', { family }) : t('welcome.jaiJinendra')}
           </Txt>
-          <Txt variant="title" color="white" accessibilityRole="header">
-            {t('home.todayAt', { center: center?.short_name || center?.name || '' })}
+          <Txt variant="cardTitle" accessibilityRole="header">
+            {t('home.todayAt', { center: community })}
           </Txt>
-          <Txt variant="small" color="onNavy">
+          <Txt variant="meta" color="muted">
             {tithi ? `${formatDay(today)} · ${tithiLabel(tithi)}` : formatDay(today)}
           </Txt>
-        </VStack>
-        <IconButton icon="close" label={t('home.hideToday')} color={colors.onNavy} onPress={() => setCollapsed(true)} />
+        </View>
+        <Pressable
+          onPress={() => setHidden(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('home.hideToday', { center: community })}
+          hitSlop={2}
+          style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.ground, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+          <StrokeIcon name="close" size={16} color={colors.muted} strokeWidth={2} />
+        </Pressable>
       </Row>
       {tiles.length ? (
-        <Row gap={space.sm}>
+        <Row gap={space.sm} align="stretch">
           {tiles.map((x) => (
             <Tile key={x.label} label={x.label} value={x.value} />
           ))}
         </Row>
       ) : (
-        <Txt variant="small" color="onNavy">
+        <Txt variant="small" color="muted">
           {t('home.noTimings')}
         </Txt>
       )}
-      {timings?.aarti ? (
-        <Txt variant="small" color="onNavy">
-          {t('home.aartiAt', { time: formatTimeOfDay(timings.aarti) })}
-        </Txt>
+      {darshan || aarti ? (
+        <Pressable
+          onPress={() => router.push({ pathname: '/jain-way', params: { tab: 'library' } })}
+          accessibilityRole="button"
+          style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.ground, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.md, opacity: pressed ? 0.8 : 1 })}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.live }} />
+          <Txt variant="small" color="navy" style={{ fontFamily: fonts.bodyMedium }}>
+            {aarti ? t('home.watchDarshanAarti', { time: aarti }) : t('home.watchDarshan')}
+          </Txt>
+        </Pressable>
       ) : null}
-      {darshan ? <Button label={t('home.watchDarshan')} tone="light" size="md" icon="play-circle-outline" onPress={openDarshan} /> : null}
     </Card>
   );
 }
@@ -175,19 +266,20 @@ export function JainWayCard() {
   const done = d.doneIds.length;
   const streak = streakDisplay(d.streak, d.today);
   const next = d.selected.find((p) => !d.doneIds.includes(p.id));
+  const community = center?.short_name || center?.name || '';
   return (
-    <Card onPress={() => router.push('/jain-way')} accessibilityLabel={t('home.myWay')}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Txt variant="cardTitle">{t('home.myWay')}</Txt>
-        <Txt variant="smallStrong" color="green">
+    <Card hero onPress={() => router.push('/jain-way')} accessibilityLabel={t('home.myWay')} style={{ gap: 10 }}>
+      <Row style={{ justifyContent: 'space-between' }} align="baseline">
+        <Txt variant="section">{t('home.myWay')}</Txt>
+        <Txt variant="meta" color="green" style={{ fontFamily: fonts.bodySemi }}>
           {t('home.doneOf', { done, n })}
         </Txt>
       </Row>
-      <ProgressBar value={n ? done / n : 0} label={t('home.doneOf', { done, n })} />
+      <ProgressBar value={n ? done / n : 0} track={colors.divider} label={t('home.doneOf', { done, n })} />
       <Row gap={space.xs}>
-        <Icon name="flame" size={18} color={colors.flame} />
-        <Txt variant="small" color="ink2">
-          {`${streakLabel(streak.days)} · ${t('home.points', { points: d.pointsTotal.toLocaleString('en-US') })}`}
+        <EventIcon name="flame" size={16} color={colors.flame2} />
+        <Txt variant="meta" color="brown" style={{ fontFamily: fonts.bodySemi, flex: 1 }}>
+          {`${streakLabel(streak.days)} · ${t('home.centerPoints', { points: d.pointsTotal.toLocaleString('en-US'), center: community })}`}
         </Txt>
       </Row>
       <Txt variant="meta" color="muted">
@@ -197,56 +289,114 @@ export function JainWayCard() {
   );
 }
 
-export function SurveysSection() {
+/** "FEEDBACK REQUESTED" card: the most recent open survey (prototype L77–84). */
+export function FeedbackCard() {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
-  const state = useLoad(() => (center && member ? listOpenSurveys(center.id, member.person.id) : Promise.resolve([])), [center?.id, member?.person.id], 'load surveys');
+  const state = useLoad(() => (center && member ? listFeedbackRequests(center.id, member.person.id) : Promise.resolve([])), [center?.id, member?.person.id], 'load feedback requests');
   if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : null;
+  const first = state.data[0];
+  if (!first) return null;
+  const { survey, eventName } = first;
   return (
-    <>
-      {state.data.slice(0, 2).map((s) => (
-        <Card key={s.id} tone="purple">
-          <Txt variant="eyebrow" color="purple">
-            {s.anonymous ? t('home.feedbackAnon') : t('home.feedbackRequested')}
-          </Txt>
-          <Txt variant="headline" color="purpleDark">
-            {s.title}
-          </Txt>
-          {s.description ? (
-            <Txt variant="small" color="ink2">
-              {s.description}
-            </Txt>
-          ) : null}
-          <Button label={t('home.shareFeedback')} tone="purple" size="md" onPress={() => router.push({ pathname: '/survey/[id]', params: { id: s.id } })} />
-        </Card>
-      ))}
-    </>
+    <Card hero tone="outlinePurple">
+      <EyebrowRow left={t('home.feedbackRequested')} right={t('home.feedbackMeta')} color="purple" />
+      <Txt variant="headline">{eventName ? t('home.feedbackTitle', { event: eventName }) : survey.title}</Txt>
+      <Txt variant="meta" color="muted">
+        {survey.description?.trim() || t('home.feedbackBody')}
+      </Txt>
+      <PillButton label={t('home.shareFeedback')} tone="purple" onPress={() => router.push({ pathname: '/survey/[id]', params: { id: survey.id } })} />
+    </Card>
   );
 }
 
-/** Lunch card, 24-hour confirmation prompt and the next event row. */
-export function EventsSection() {
+/** One load feeds the lunch card, the confirm card and the next-event row. */
+export function useHomeEvents(): LoadState<HomeEvents> {
+  const { center, member } = useApp();
+  return useLoad(() => (center ? loadHomeEvents(center, member) : Promise.reject(new Error('no center'))), [center?.id, member?.household?.id], 'load upcoming events');
+}
+
+/** Solid green "Your lunch times" card after check-in (prototype L85–91). */
+export function LunchCard({ state }: { state: LoadState<HomeEvents> }) {
   const t = useT();
   const router = useRouter();
-  const { center, member } = useApp();
+  const { member } = useApp();
+  const lunch = state.data?.lunch;
+  if (!lunch || member?.isAdult === false || !state.data) return null;
+  const tz = state.data.timeZone;
+  const eyebrow = lunch.checkedInAt ? t('home.lunchEyebrowCheckedIn', { event: lunch.event.name, time: formatTime(lunch.checkedInAt, tz) }) : t('home.lunchEyebrow', { event: lunch.event.name });
+  return (
+    <Card hero tone="greenSolid" onPress={() => router.push({ pathname: '/event/[id]/tickets', params: { id: lunch.event.id } })} accessibilityLabel={t('home.lunchTitle')}>
+      <Txt variant="eyebrow" color="onStore">
+        {eyebrow}
+      </Txt>
+      <Txt variant="title" color="white" style={{ fontFamily: fonts.display }}>
+        {t('home.lunchTitle')}
+      </Txt>
+      {lunch.card.state === 'ready' ? (
+        <>
+          {lunch.card.groups.map((g) => (
+            <Row key={g.startsAt} style={{ justifyContent: 'space-between' }} gap={10}>
+              <Txt variant="small" color="white" style={{ flex: 1 }}>
+                {g.names.join(', ')}
+              </Txt>
+              <Txt variant="small" color="white" style={{ fontFamily: fonts.bodyBold }}>
+                {g.time}
+              </Txt>
+            </Row>
+          ))}
+          <Txt variant="caption" color="onStore" style={{ fontFamily: fonts.body }}>
+            {lunch.card.nowServing ? t('home.lunchReminderServing', { slot: lunch.card.nowServing }) : t('home.lunchReminder')}
+          </Txt>
+        </>
+      ) : (
+        <Txt variant="small" color="white">
+          {t('lunch.assigning')}
+        </Txt>
+      )}
+    </Card>
+  );
+}
+
+/** "PLEASE CONFIRM" card, 24 hours before (prototype L103–112); also opens the in-app pop-up once. */
+export function ConfirmCard({ state }: { state: LoadState<HomeEvents> }) {
+  const t = useT();
+  const router = useRouter();
+  const { member } = useApp();
   const { toast } = useFeedback();
   const { invalidate } = useDataVersion();
+  const { showConfirm } = useConfirmPopup();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const state = useLoad(() => (center ? loadHomeEvents(center, member) : Promise.reject(new Error('no center'))), [center?.id, member?.household?.id], 'load upcoming events');
-  if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <SectionLoading />;
-  const { next, nextRsvp, nextCount, confirm, lunch, timeZone } = state.data;
+  const confirm = state.data?.confirm ?? null;
+  const confirmEventId = member?.isAdult ? (confirm?.event.id ?? null) : null;
+
+  useEffect(() => {
+    if (!confirmEventId) return;
+    showConfirm(confirmEventId, { auto: true }).catch((err: unknown) => logError('showing the RSVP confirm pop-up', err));
+  }, [confirmEventId, showConfirm]);
+
+  if (!confirm || !member?.isAdult || !state.data) return null;
+  const tz = state.data.timeZone;
+  const eventIso = confirm.event.starts_at ? zonedParts(new Date(confirm.event.starts_at), tz).iso : null;
+  const rel = relativeDay(eventIso, todayAt(tz));
+  const title =
+    rel === 'tomorrow'
+      ? t('home.stillComingTomorrow', { event: confirm.event.name })
+      : rel === 'today'
+        ? t('home.stillComingToday', { event: confirm.event.name })
+        : t('home.stillComing', { event: confirm.event.name, when: shortWhen(confirm.event.starts_at, tz) });
+  const schedule = confirm.event.starts_at ? confirmSchedule(confirm.event.starts_at, tz, confirm.event.confirmation_hours_before) : null;
 
   const confirmYes = async () => {
-    if (!confirm) return;
     setBusy(true);
     setError(null);
     try {
       const attendees = (await listAttendees(confirm.rsvp.id)).filter((a) => a.status !== 'cancelled');
       await confirmAttendance(confirm.rsvp.id, attendees.map((a) => a.id), []);
       invalidate();
-      toast(t('events.confirmedToast', { n: attendees.length }));
+      toast(t('notif.confirmedToast', { people: peopleLabel(t, attendees.length) }));
     } catch (err) {
       setError(report(err, 'confirm your attendance').userMessage);
     } finally {
@@ -254,91 +404,92 @@ export function EventsSection() {
     }
   };
 
-  const nextStatus = (() => {
-    if (!next) return '';
-    const when = formatTime(next.starts_at, timeZone);
-    if (!nextRsvp || nextRsvp.status === 'cancelled') return nextRsvp ? t('home.youCancelled') : t('home.rsvpOpen', { when: `${formatDate(next.starts_at, timeZone)} ${when}` });
-    return nextRsvp.status === 'confirmed' ? t('home.nConfirmed', { n: nextCount, when }) : t('home.nAttending', { n: nextCount, when });
-  })();
-  const hasActiveRsvp = !!nextRsvp && nextRsvp.status !== 'cancelled';
-
   return (
-    <>
-      {lunch && member?.isAdult !== false ? (
-        <Card tone="green" onPress={() => router.push({ pathname: '/event/[id]/tickets', params: { id: lunch.event.id } })} accessibilityLabel={t('home.lunchTitle')}>
-          <Txt variant="eyebrow" color="greenDark">
-            {t('home.lunchEyebrow', { event: lunch.event.name })}
-          </Txt>
-          <Txt variant="headline" color="greenDark">
-            {t('home.lunchTitle')}
-          </Txt>
-          {lunch.card.state === 'ready' ? (
-            <>
-              {lunchLines(lunch.card).map((l) => (
-                <Txt key={l} variant="bodyStrong" color="greenDark">
-                  {l}
-                </Txt>
-              ))}
-              <Txt variant="meta" color="greenDark">
-                {lunch.card.nowServing ? t('home.lunchReminderServing', { slot: lunch.card.nowServing }) : t('home.lunchReminder')}
-              </Txt>
-            </>
-          ) : (
-            <Txt variant="small" color="greenDark">
-              {t('lunch.assigning')}
-            </Txt>
-          )}
-        </Card>
-      ) : null}
-
-      {confirm && member?.isAdult ? (
-        <Card style={{ borderColor: colors.navy, borderWidth: 1.5 }}>
-          <Txt variant="eyebrow" color="navy">
-            {t('home.pleaseConfirm')}
-          </Txt>
-          <Txt variant="headline" color="navy">
-            {t('home.stillComing', { event: confirm.event.name, when: formatDate(confirm.event.starts_at, timeZone) })}
-          </Txt>
-          <Txt variant="small" color="ink2">
-            {t('home.confirmBody', { n: confirm.count })}
-          </Txt>
-          {error ? <Banner tone="error" message={error} /> : null}
-          <Button label={t('events.yesComing')} onPress={confirmYes} busy={busy} />
-          <Button label={t('events.changeOrCancel')} tone="secondary" onPress={() => router.push({ pathname: '/event/[id]/confirm', params: { id: confirm.event.id } })} />
-        </Card>
-      ) : null}
-
-      {next ? (
-        <Card onPress={() => router.push(hasActiveRsvp ? { pathname: '/event/[id]/tickets', params: { id: next.id } } : { pathname: '/event/[id]', params: { id: next.id } })} accessibilityLabel={`${next.name}. ${nextStatus}`}>
-          <Row gap={space.md}>
-            <View style={{ width: 56, borderRadius: radii.md, backgroundColor: colors.maroon, alignItems: 'center', paddingVertical: space.sm }}>
-              <Txt variant="badge" color="onMaroon">
-                {next.starts_at ? monthShortUpper(zonedParts(new Date(next.starts_at), timeZone).iso) : ''}
-              </Txt>
-              <Txt variant="title" color="white">
-                {next.starts_at ? String(parseISODate(zonedParts(new Date(next.starts_at), timeZone).iso)?.d ?? '') : ''}
-              </Txt>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Txt variant="cardTitle">{next.name}</Txt>
-              <Txt variant="meta" color="muted">
-                {nextStatus}
-              </Txt>
-            </View>
-            {!hasActiveRsvp && member?.isAdult ? <Txt variant="smallStrong" color="maroon">{t('events.rsvp')}</Txt> : <Icon name="chevron-forward" size={18} color={colors.faint} />}
-          </Row>
-        </Card>
-      ) : (
-        <Card tone="dashed">
-          <Txt variant="small" color="muted">
-            {t('home.noEvents')}
-          </Txt>
-        </Card>
-      )}
-    </>
+    <Card hero tone="outlineNavy" style={{ gap: 10 }}>
+      <EyebrowRow left={t('home.pleaseConfirm')} right={schedule ? t('home.confirmSent', { when: schedule.sentAt, hours: confirm.event.confirmation_hours_before }) : null} color="navy" />
+      <Txt variant="headline">{title}</Txt>
+      <Txt variant="meta" color="muted">
+        {t('home.confirmBody', { people: peopleLabel(t, confirm.count) })}
+      </Txt>
+      {error ? <Banner tone="error" message={error} /> : null}
+      <Row gap={space.sm}>
+        <View style={{ flex: 1 }}>
+          <Button label={t('events.yesComing')} tone="green" size="md" onPress={confirmYes} busy={busy} style={{ borderRadius: radii.pill, paddingHorizontal: space.sm }} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button label={t('events.changeOrCancel')} tone="secondary" size="md" onPress={() => router.push({ pathname: '/event/[id]/confirm', params: { id: confirm.event.id } })} style={{ borderRadius: radii.pill, paddingHorizontal: space.sm }} />
+        </View>
+      </Row>
+    </Card>
   );
 }
 
+/** Next event row: navy date block, name, status, RSVP pill or chevron (prototype L124–134). */
+export function NextEventRow({ state }: { state: LoadState<HomeEvents> }) {
+  const t = useT();
+  const router = useRouter();
+  const { member } = useApp();
+  if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <SectionLoading />;
+  const { next, nextRsvp, nextCount, timeZone } = state.data;
+  if (!next) {
+    return (
+      <Card tone="dashed" hero>
+        <Txt variant="small" color="muted">
+          {t('home.noEvents')}
+        </Txt>
+      </Card>
+    );
+  }
+  const when = shortWhen(next.starts_at, timeZone);
+  const hasActiveRsvp = !!nextRsvp && nextRsvp.status !== 'cancelled';
+  const status = !nextRsvp
+    ? t('home.rsvpOpen', { when })
+    : nextRsvp.status === 'cancelled'
+      ? t('home.youCancelled')
+      : nextRsvp.status === 'confirmed'
+        ? t('home.nConfirmed', { n: nextCount, when })
+        : t('home.nAttending', { n: nextCount, when });
+  const iso = next.starts_at ? zonedParts(new Date(next.starts_at), timeZone).iso : null;
+  const open = () => router.push(hasActiveRsvp ? { pathname: '/event/[id]/tickets', params: { id: next.id } } : { pathname: '/event/[id]', params: { id: next.id } });
+  const needsRsvp = !hasActiveRsvp && member?.isAdult;
+  return (
+    <Card hero onPress={open} accessibilityLabel={`${next.name}. ${status}`}>
+      <Row gap={space.md}>
+        <View style={{ width: 48, height: 52, borderRadius: radii.lg, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt variant="fine" color="white">
+            {iso ? monthShortUpper(iso) : ''}
+          </Txt>
+          <Txt variant="subhead" color="white" style={{ lineHeight: 22 }}>
+            {iso ? String(parseISODate(iso)?.d ?? '') : ''}
+          </Txt>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt variant="bodyStrong">{next.name}</Txt>
+          <Txt variant="meta" color="muted">
+            {status}
+          </Txt>
+        </View>
+        {needsRsvp ? (
+          <Pressable
+            onPress={open}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('events.rsvp')} · ${next.name}`}
+            style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.navy, backgroundColor: colors.card, paddingHorizontal: 14, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+            <Txt variant="smallStrong" color="navy">
+              {t('events.rsvp')}
+            </Txt>
+          </Pressable>
+        ) : (
+          <View style={{ width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' }}>
+            <StrokeIcon name="forward" size={20} color={colors.faint} strokeWidth={2} />
+          </View>
+        )}
+      </Row>
+    </Card>
+  );
+}
+
+/** "NEW GIVING OPPORTUNITY" with the tier ladder when the campaign has fixed levels (prototype L119–123). */
 export function GivingSection() {
   const t = useT();
   const router = useRouter();
@@ -347,32 +498,42 @@ export function GivingSection() {
   if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : null;
   const opp = state.data[0];
   if (!opp) return null;
+  const siblings = state.data.filter((o) => o.campaign_id === opp.campaign_id);
+  const ladder = tierLadder(siblings, (c) => formatCents(c));
   const from = opp.amount_cents ?? opp.min_amount_cents;
+  const title = ladder && opp.campaign ? opp.campaign.name : opp.name;
+  const sub = ladder ?? [opp.campaign?.name, from ? t('give.from', { amount: formatCents(from) }) : t('give.anyAmount')].filter(Boolean).join(' · ');
   return (
-    <Card tone="amber">
-      <Txt variant="eyebrow" color="brown">
+    <Card hero tone="amber">
+      <Txt variant="eyebrow" color="brown" style={{ fontFamily: fonts.bodySemi, letterSpacing: 0.48 }}>
         {t('home.newOpportunity')}
       </Txt>
-      <Txt variant="headline" color="brownDark">
-        {opp.name}
-      </Txt>
+      <Txt variant="headline">{title}</Txt>
       <Txt variant="small" color="brownText">
-        {[opp.campaign?.name, from ? t('give.from', { amount: formatCents(from) }) : t('give.anyAmount')].filter(Boolean).join(' · ')}
+        {sub}
       </Txt>
-      <Button label={t('home.viewAndSponsor')} tone="brown" size="md" onPress={() => router.push({ pathname: '/opportunity/[id]', params: { id: opp.id } })} />
+      <PillButton label={t('home.viewAndSponsor')} tone="brown" onPress={() => router.push({ pathname: '/opportunity/[id]', params: { id: opp.id } })} />
     </Card>
   );
 }
 
-export function SpecialDaySection() {
+type SpecialHit = { dayId: string; title: string; body: string; lead: string; date: string; labh: boolean; dismissKey: string };
+
+const DISMISSED_KEY = 'specialDaysNotThisYear';
+
+/** Special-day card: "Choose a labh" and "Not this year" (prototype L93–102). */
+export function SpecialDayCard() {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
+  const { toast } = useFeedback();
+  const [dismissed, setDismissed] = useState<string[]>([]);
   const state = useLoad(
-    async () => {
+    async (): Promise<SpecialHit | null> => {
       if (!center || !member?.household) return null;
       const today = todayAt(center.time_zone);
-      const days = (await listSpecialDays(member.household.id)).filter((d) => d.show_on_home);
+      const [all, hidden] = await Promise.all([listSpecialDays(member.household.id), readPref<string[]>(DISMISSED_KEY, [])]);
+      const days = all.filter((d) => d.show_on_home);
       const tithiDates = await nextTithiDates(
         center.id,
         today,
@@ -380,29 +541,71 @@ export function SpecialDaySection() {
       );
       const upcoming = days
         .map((d) => ({ day: d, next: d.calendar_date ? nextOccurrence(d.calendar_date, today) : (tithiDates[d.id] ?? null) }))
-        .filter((x) => isWithinReminder(x.next, today, x.day.reminder_days_before))
-        .sort((a, b) => (a.next ?? '').localeCompare(b.next ?? ''));
-      return upcoming[0] ? { ...upcoming[0], today } : null;
+        .filter((x): x is { day: (typeof days)[number]; next: string } => !!x.next && isWithinReminder(x.next, today, x.day.reminder_days_before))
+        .filter((x) => !hidden.includes(specialDayDismissKey(x.day.id, x.next)))
+        .sort((a, b) => a.next.localeCompare(b.next));
+      const hit = upcoming[0];
+      if (!hit) return null;
+      const lead = specialDayLead(daysBetween(today, hit.next));
+      const person = hit.day.person_id ? (member.members.find((m) => m.person.id === hit.day.person_id)?.person ?? null) : null;
+      const age = hit.day.kind === 'birthday' && person ? turnsAge(person.date_of_birth, hit.next) : null;
+      const pronoun = pronounFor(person?.gender);
+      const pronounWord = pronoun === 'her' ? t('home.pronounHer') : pronoun === 'his' ? t('home.pronounHis') : t('home.pronounTheir');
+      const leadText =
+        lead.kind === 'today'
+          ? t('home.specialLeadToday')
+          : lead.kind === 'tomorrow'
+            ? t('home.specialLeadTomorrow')
+            : lead.kind === 'weeks'
+              ? lead.n === 1
+                ? t('home.specialLeadWeek')
+                : t('home.specialLeadWeeks', { n: lead.n })
+              : t('home.specialLeadDays', { n: lead.n });
+      return {
+        dayId: hit.day.id,
+        title: person && age != null ? t('home.turns', { name: person.preferred_name || person.first_name, age }) : listDisplayName(t, hit.day, member.members),
+        body: hit.day.kind === 'birthday' && person ? t('home.specialBirthdayBody', { pronoun: pronounWord }) : t('home.specialBody'),
+        lead: leadText,
+        date: formatDay(hit.next),
+        labh: hit.day.labh_prompt_enabled,
+        dismissKey: specialDayDismissKey(hit.day.id, hit.next),
+      };
     },
     [center?.id, member?.household?.id],
     'load special days',
   );
   if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : null;
   const hit = state.data;
-  if (!hit || !hit.next || !member) return null;
-  const inDays = daysBetween(hit.today, hit.next);
+  if (!hit || dismissed.includes(hit.dismissKey)) return null;
+
+  const notThisYear = async () => {
+    setDismissed([...dismissed, hit.dismissKey]);
+    try {
+      const prev = await readPref<string[]>(DISMISSED_KEY, []);
+      await writePref(DISMISSED_KEY, [...new Set([...prev, hit.dismissKey])]);
+      toast(t('home.notThisYearToast', { name: hit.title }), 'info');
+    } catch (err) {
+      toast(report(err, 'hide this special day').userMessage, 'error');
+    }
+  };
+
   return (
-    <Card tone="amber" style={{ borderColor: colors.saffron }}>
-      <Txt variant="eyebrow" color="brown">
-        {inDays === 0 ? t('home.specialToday') : t('home.specialIn', { n: inDays, date: formatDay(hit.next) })}
+    <Card hero tone="outlineSaffron" style={{ gap: 10 }}>
+      <EyebrowRow left={hit.lead} right={hit.date} color="brown" />
+      <Txt variant="title" style={{ fontFamily: fonts.display }}>
+        {hit.title}
       </Txt>
-      <Txt variant="headline" color="brownDark">
-        {listDisplayName(t, hit.day, member.members)}
+      <Txt variant="meta" color="muted">
+        {hit.body}
       </Txt>
-      <Txt variant="small" color="brownText">
-        {t('home.specialBody')}
-      </Txt>
-      <Button label={t('home.planDay')} tone="brown" size="md" onPress={() => router.push('/special-days')} />
+      <Row gap={space.sm}>
+        {hit.labh ? (
+          <PillButton label={t('home.chooseLabh')} tone="brown" fill onPress={() => router.push(`/labh/${encodeURIComponent(hit.dayId)}` as Href)} />
+        ) : (
+          <PillButton label={t('home.planDay')} tone="brown" fill onPress={() => router.push('/special-days')} />
+        )}
+        <PillButton label={t('home.notThisYear')} tone="plain" fill onPress={notThisYear} />
+      </Row>
     </Card>
   );
 }
@@ -414,16 +617,23 @@ export function StoreBanner() {
   const flags = center?.feature_flags && typeof center.feature_flags === 'object' && !Array.isArray(center.feature_flags) ? (center.feature_flags as Record<string, unknown>) : {};
   if (flags.store === false) return null;
   return (
-    <Card tone="store" onPress={() => router.push('/store')} accessibilityLabel={t('store.title')}>
-      <Txt variant="eyebrow" color="onStore">
-        {t('home.storeEyebrow', { center: center?.short_name || '' })}
-      </Txt>
-      <Txt variant="headline" color="white">
-        {t('home.storeTitle')}
-      </Txt>
-      <Txt variant="small" color="onStore">
-        {t('home.storeBody')}
-      </Txt>
+    <Card hero tone="store" onPress={() => router.push('/store')} accessibilityLabel={t('store.title')}>
+      <Row gap={14}>
+        <View style={{ width: 52, height: 52, borderRadius: radii.row, backgroundColor: colors.storeLight, alignItems: 'center', justifyContent: 'center' }}>
+          <StrokeIcon name="bag" size={26} color={colors.white} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Txt variant="eyebrow" color="onStore">
+            {t('home.storeEyebrow', { center: center?.short_name || '' })}
+          </Txt>
+          <Txt variant="headline" color="white">
+            {t('home.storeTitle')}
+          </Txt>
+          <Txt variant="caption" color="onStore" style={{ fontFamily: fonts.body }}>
+            {t('home.storeBody')}
+          </Txt>
+        </View>
+      </Row>
     </Card>
   );
 }
@@ -432,17 +642,22 @@ export function GuideLink() {
   const t = useT();
   const router = useRouter();
   const { center } = useApp();
+  const title = t('home.guideTitle', { center: center?.short_name || '' });
   return (
-    <Card onPress={() => router.push('/guide')} accessibilityLabel={t('home.guideTitle', { center: center?.short_name || '' })}>
+    <Card hero onPress={() => router.push('/guide')} accessibilityLabel={title} style={{ paddingVertical: 14 }}>
       <Row gap={space.md}>
-        <Icon name="compass-outline" size={26} color={colors.navy} />
+        <View style={{ width: 44, height: 44, borderRadius: radii.card, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt variant="subhead" color="navy" style={{ fontFamily: fonts.bodyBold }}>
+            i
+          </Txt>
+        </View>
         <View style={{ flex: 1 }}>
-          <Txt variant="bodyStrong">{t('home.guideTitle', { center: center?.short_name || '' })}</Txt>
-          <Txt variant="meta" color="muted">
+          <Txt variant="bodyStrong">{title}</Txt>
+          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
             {t('home.guideBody')}
           </Txt>
         </View>
-        <Icon name="chevron-forward" size={18} color={colors.faint} />
+        <Chevron />
       </Row>
     </Card>
   );

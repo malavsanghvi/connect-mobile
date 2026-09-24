@@ -63,6 +63,29 @@
         {
           "color": "#1B2C5C"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Community Connect to choose photos you want to add to an event album.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Community Connect to save event photos to your library.",
+          "savePhotosPermission": "Allow Community Connect to save event photos to your library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher.",
+          "enableBackgroundPlayback": false
+        }
       ]
     ],
     "experiments": {

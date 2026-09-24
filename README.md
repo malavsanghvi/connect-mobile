@@ -124,9 +124,9 @@ changed. The app works around each one as noted.
 | 7 | No onboarding progress / completion record | Linked = onboarded; profile can be finished from Family |
 | 8 | `accounts.quiet_hours` int4range can't wrap midnight | Stores `[1260,1860)` for 9 PM–7 AM |
 | 9 | `accounts.large_text` is boolean; three text sizes | "Largest" kept on the device |
-| 10 | `practices` has no time of day / reminder time | Ordered by `sort_order`; no practice reminders |
-| 11 | Completing a Gyan Path step/level awards no points or streak (members can't insert `points_ledger`; 0017 awards a level's points only when a teacher approves a sign-off) | Progress saved in `gyan_progress`; points arrive with the teacher sign-off |
-| 12 | No monthly per-category standings data | Section omitted |
+| 10 | ~~`practices` has no time of day~~ fixed in 0021 (`default_time`) | Sorted by time; Navkarsi/Chauvihar follow `daily_timings`; bell = daily local reminder 10 min before |
+| 11 | Completing a Gyan Path step/level awards no points or streak (members can't insert `points_ledger`; 0017 awards a level's points only when a teacher approves a sign-off) | 0018 awards `gyan_steps.points` once per step; the level-complete screen shows exactly those points (0 on a replay) and the level's sign-off points separately |
+| 12 | ~~No monthly per-category standings~~ fixed in 0021 (`my_practice_standing`) | "Your standing this month" card; "Too few people yet" when suppressed |
 | 13 | Survey audience targeting isn't enforced by RLS; anonymous answers can't be marked "responded" | Shows all open surveys (event feedback via `surveys.event_id`); anonymous answers remembered on the device |
 | 14 | `opportunities.quantity_taken` isn't updated when a member pledges; no member-readable campaign progress | Shows quantity from the row as-is |
 | 15 | No sales-tax rate; no gift-pack price in the schema; generated Insert type requires `store_orders.order_number` though a trigger issues it | No tax computed (said so at checkout); gift price from `centers.rules.store.gift_pack_cents` if set; typed cast for `order_number` |
@@ -139,4 +139,8 @@ changed. The app works around each one as noted.
 | 22 | `zones` has no lead name / family count | Zone lead messaged through the zone inbox |
 | 23 | `eligibility_snapshots.reasons`, `gyan_steps.quiz` and `content_items.metadata` jsonb shapes are unspecified | Parsed defensively (strings or `{label, ok}`; `{questions:[{question, options, answer}]}`; `metadata.when` / `metadata.what`) |
 | 24 | Expertise tag vocabulary isn't center configuration | Prototype's nine tags in the profile screen |
+| 25 | No storage bucket for Gyan Path recitations (`gyan_progress.recording_path` exists) | Uploads to bucket `gyan-recordings` at `{center}/{person}/{step}-{ts}.m4a`; until the bucket + policies exist the upload fails with a plain message and the step is saved at 2 stars |
+| 26 | Niva has no answering backend (approved-content retrieval + model edge function) | Chat saves each question to `niva_conversations` as `unanswered` (portal "Unanswered questions") and says answers are coming; staff answers with `sources` render when present |
+| 27 | No sender for family-circle pushes (saathi_feed milestones / behind) | App routes `data.type = 'family_circle'` taps to the Saathi tab and handles the "Send anumodana" button (`src/lib/notification-routes.ts`) |
+| 28 | Recitation "clear recitation · steady pace" scoring needs speech analysis | Recording is saved for the teacher; no automatic pace/pronunciation verdict is claimed |
 | 25 | A person in several households | App uses the household they are primary in |

@@ -1,27 +1,28 @@
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
-import { Band, Screen } from '@/components/screen';
+import { Screen } from '@/components/screen';
 import { Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Card, LinkText, Row, Stat, Stepper, Toggle, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Stepper, Toggle, Txt, VStack } from '@/components/ui';
 import { boliStatusText } from '@/features/bolis';
+import { PlayGlyph } from '@/features/give/icons';
+import { useBoliReminders } from '@/features/give/reminders';
 import { getBoli, isBoliOpen, placePledge, type BoliWithSummary } from '@/lib/api/bolis';
-import { logError, report } from '@/lib/errors';
-import { formatCents, formatDateTime, formatTimeLeft } from '@/lib/format';
-import { cancelLocalReminder, scheduleLocalReminder } from '@/lib/push';
+import { report } from '@/lib/errors';
+import { formatCents, formatDateTime, formatTime, formatTimeLeft } from '@/lib/format';
 import { boliStatus, canStepDown, clampPledge, stepPledge } from '@/lib/rules';
-import { readPref, writePref } from '@/lib/storage';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, space } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
 const REFRESH_MS = 20000;
 
-/** Digital boli pledge screen and in-person boli info (prototype §2.10, §2.11). */
+/** Digital boli "Make a pledge" (L511–547) and "In-person boli" (L771–791). */
 export default function BoliScreen() {
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,40 +39,110 @@ export default function BoliScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload reads the latest loader through a ref
   }, [id]);
 
+  const hall = state.data?.boli.kind === 'in_person';
   return (
-    <Screen title={t('bolis.pledgeTitle')}>
+    <Screen title={hall ? t('bolis.hallTitle') : t('bolis.pledgeTitle')}>
       {!member?.isAdult ? <LockedState /> : <Loaded state={state}>{({ boli, now }) => (boli.kind === 'digital' ? <DigitalBoli boli={boli} now={now} /> : <HallBoli boli={boli} />)}</Loaded>}
     </Screen>
   );
 }
 
+function Hero({ color, eyebrow, name, lines }: { color: string; eyebrow?: string; name: string; lines: (string | null)[] }) {
+  return (
+    <View style={{ borderRadius: radii.xxl, backgroundColor: color, padding: 18, gap: 4 }}>
+      {eyebrow ? (
+        <Txt variant="eyebrow" color="onBrown" style={{ fontFamily: fonts.body }}>
+          {eyebrow}
+        </Txt>
+      ) : null}
+      <Txt color="white" accessibilityRole="header" style={{ fontFamily: fonts.display, fontSize: 21, lineHeight: 27 }}>
+        {name}
+      </Txt>
+      {lines.filter(Boolean).map((l, i) => (
+        <Txt key={i} variant="meta" color="onBrown">
+          {l}
+        </Txt>
+      ))}
+    </View>
+  );
+}
+
+/** Explainer with a video thumbnail and "Read more" for the extra text (prototype L516–527). */
 function Explainer({ boli }: { boli: BoliWithSummary }) {
   const t = useT();
-  const [more, setMore] = useState(false);
-  if (!boli.explainer_md && !boli.description && !boli.explainer_video_url) return null;
-  const text = boli.explainer_md ?? boli.description ?? '';
-  const short = text.length > 220 && !more ? `${text.slice(0, 220).trim()}…` : text;
-  const playVideo = async () => {
+  const [open, setOpen] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const main = (boli.description ?? '').trim();
+  const extra = (boli.explainer_md ?? '').trim();
+  // Without a description, the first paragraph of the explainer is the summary and the rest is "more".
+  const [text, more] = main ? [main, extra] : [extra.split(/\n\s*\n/)[0] ?? '', extra.split(/\n\s*\n/).slice(1).join('\n\n')];
+  if (!text && !boli.explainer_video_url) return null;
+  const play = async () => {
     if (!boli.explainer_video_url) return;
+    setError(null);
+    setOpening(true);
     try {
       await WebBrowser.openBrowserAsync(boli.explainer_video_url);
     } catch (err) {
-      report(err, 'open the explainer video');
+      setError(report(err, 'open the explainer video').userMessage);
+    } finally {
+      setOpening(false);
     }
   };
   return (
-    <Card>
-      <Txt variant="eyebrow" color="brown">
-        {t('bolis.whatIs')}
-      </Txt>
-      {text ? (
-        <Txt variant="small" color="ink2">
-          {short}
-        </Txt>
+    <Card style={{ padding: space.md, flexDirection: 'row', alignItems: 'flex-start', gap: space.md }}>
+      {boli.explainer_video_url ? (
+        <Pressable
+          onPress={play}
+          accessibilityRole="button"
+          accessibilityLabel={t('bolis.playVideo')}
+          style={({ pressed }) => ({ width: 96, height: 72, borderRadius: radii.lg, backgroundColor: colors.lock, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+          <PlayGlyph color={colors.ground} />
+        </Pressable>
       ) : null}
-      {text.length > 220 ? <LinkText label={more ? t('bolis.showLess') : t('bolis.readMore')} onPress={() => setMore(!more)} /> : null}
-      {boli.explainer_video_url ? <Button label={t('bolis.playVideo')} tone="secondary" size="md" icon="play-circle-outline" onPress={playVideo} /> : null}
+      <View style={{ flex: 1, gap: 4 }}>
+        <Txt variant="caption" color="brown" style={{ fontFamily: fonts.bodyBold, letterSpacing: 0.5 }}>
+          {t('bolis.whatIs').toUpperCase()}
+        </Txt>
+        {text ? (
+          <Txt variant="small" style={{ lineHeight: 20 }}>
+            {text}
+          </Txt>
+        ) : null}
+        {open && more ? (
+          <Txt variant="meta" color="ink2">
+            {more}
+          </Txt>
+        ) : null}
+        {opening ? (
+          <Txt variant="caption" color="green" style={{ fontFamily: fonts.bodySemi }}>
+            {t('bolis.playing')}
+          </Txt>
+        ) : null}
+        {error ? <Banner tone="error" message={error} /> : null}
+        {more ? (
+          <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" style={{ minHeight: 32, justifyContent: 'center', alignSelf: 'flex-start' }}>
+            <Txt variant="meta" color="navy" style={{ fontFamily: fonts.bodySemi }}>
+              {open ? t('bolis.showLess') : t('bolis.readMore')}
+            </Txt>
+          </Pressable>
+        ) : null}
+      </View>
     </Card>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.card, padding: 10 }}>
+      <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+        {label}
+      </Txt>
+      <Txt variant="cardTitle" style={{ fontFamily: fonts.bodyBold }}>
+        {value}
+      </Txt>
+    </View>
   );
 }
 
@@ -96,7 +167,7 @@ function DigitalBoli({ boli, now }: { boli: BoliWithSummary; now: Date }) {
 
   const place = async () => {
     if (!member?.household) return;
-    const ok = await confirm({ title: t('bolis.confirmTitle', { amount: formatCents(amount) }), body: t('bolis.confirmBody', { name: boli.name }), confirmLabel: t('bolis.pledgeAmount', { amount: formatCents(amount) }), tone: 'brown' });
+    const ok = await confirm({ title: t('bolis.confirmTitle', { amount: formatCents(amount) }), body: t('bolis.confirmBody', { name: boli.name }), confirmLabel: t('bolis.pledgeAmount', { amount: formatCents(amount) }), tone: 'primary' });
     if (!ok) return;
     setBusy(true);
     setError(null);
@@ -113,98 +184,73 @@ function DigitalBoli({ boli, now }: { boli: BoliWithSummary; now: Date }) {
     }
   };
 
+  const bannerStyle =
+    status === 'mine_top' ? { bg: colors.greenTint, fg: colors.greenDark } : status === 'pledged_more' ? { bg: colors.dangerTint, fg: colors.danger } : status === 'closed' ? { bg: colors.chip, fg: colors.muted } : { bg: colors.brownTint, fg: colors.brown };
+
   return (
-    <VStack gap={space.lg}>
-      <Band color={colors.brown} eyebrow={boli.eventName ?? undefined} title={boli.name} subtitle={closes ? (left ? t('bolis.closesLeft', { date: formatDateTime(closes, tz), left }) : t('bolis.closedOn', { date: formatDateTime(closes, tz) })) : undefined} />
+    <VStack gap={14}>
+      <Hero color={colors.brown} name={boli.name} lines={[boli.eventName, closes ? (left ? t('bolis.closesLeft', { date: formatDateTime(closes, tz), left }) : t('bolis.closedOn', { date: formatDateTime(closes, tz) })) : null]} />
       <Explainer boli={boli} />
-      <Card>
-        <Row gap={space.md}>
-          <Stat label={t('bolis.floor')} value={formatCents(boli.floor_cents)} />
-          <Stat label={t('bolis.topPledge')} value={summary?.topCents ? formatCents(summary.topCents) : '—'} color="brown" />
-          <Stat label={t('bolis.pledges')} value={String(summary?.entries ?? 0)} />
-        </Row>
-      </Card>
-      <Banner tone={status === 'mine_top' ? 'success' : status === 'pledged_more' ? 'error' : status === 'closed' ? 'info' : 'warning'} message={boliStatusText(t, status)} />
+      <View style={{ flexDirection: 'row', gap: space.sm }}>
+        <StatTile label={t('bolis.floor')} value={formatCents(boli.floor_cents)} />
+        <StatTile label={t('bolis.topPledge')} value={summary?.topCents ? formatCents(summary.topCents) : '—'} />
+        <StatTile label={t('bolis.pledges')} value={String(summary?.entries ?? 0)} />
+      </View>
+      <View style={{ backgroundColor: bannerStyle.bg, borderRadius: radii.card, paddingVertical: space.md, paddingHorizontal: 14 }} accessibilityLiveRegion="polite">
+        <Txt variant="smallStrong" style={{ color: bannerStyle.fg }}>
+          {boliStatusText(t, status)}
+        </Txt>
+      </View>
       {open ? (
-        <Card>
-          <Txt variant="section" center>
-            {t('bolis.yourPledge')}
-          </Txt>
-          <Stepper
-            valueLabel={formatCents(amount)}
-            onMinus={() => setChosen(stepPledge(amount, step, -1, min))}
-            onPlus={() => setChosen(stepPledge(amount, step, 1, min))}
-            minusDisabled={!canStepDown(amount, step, min)}
-            minusLabel={t('bolis.less', { step: formatCents(step) })}
-            plusLabel={t('bolis.more', { step: formatCents(step) })}
-          />
-          <Txt variant="meta" color="muted" center>
-            {t('bolis.minimumLine', { min: formatCents(min), step: formatCents(step) })}
-          </Txt>
-          <Toggle label={t('bolis.anonymous')} sub={t('bolis.anonymousSub')} value={anonymous} onChange={setAnonymous} />
+        <>
+          <Card style={{ gap: space.md }}>
+            <Txt variant="body" style={{ fontFamily: fonts.bodySemi }}>
+              {t('bolis.yourPledge')}
+            </Txt>
+            <Stepper
+              valueLabel={formatCents(amount)}
+              onMinus={() => setChosen(stepPledge(amount, step, -1, min))}
+              onPlus={() => setChosen(stepPledge(amount, step, 1, min))}
+              minusDisabled={!canStepDown(amount, step, min)}
+              minusLabel={t('bolis.less', { step: formatCents(step) })}
+              plusLabel={t('bolis.more', { step: formatCents(step) })}
+            />
+            <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
+              {t('bolis.minimumLine', { min: formatCents(min), step: formatCents(step) })}
+            </Txt>
+            <Toggle label={t('bolis.anonymous')} sub={t('bolis.anonymousSub')} value={anonymous} onChange={setAnonymous} />
+          </Card>
           {error ? <Banner tone="error" message={error} /> : null}
-          <Button label={t('bolis.pledgeAmount', { amount: formatCents(amount) })} tone="brown" onPress={place} busy={busy} />
-          <Txt variant="meta" color="muted">
+          <Button label={t('bolis.pledgeAmount', { amount: formatCents(amount) })} onPress={place} busy={busy} />
+          <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
             {t('bolis.notifyNote')}
           </Txt>
-        </Card>
+        </>
       ) : null}
     </VStack>
   );
 }
 
-type Reminders = Record<string, string>;
-
 function HallBoli({ boli }: { boli: BoliWithSummary }) {
   const t = useT();
   const { center } = useApp();
-  const { toast } = useFeedback();
+  const reminders = useBoliReminders();
   const tz = center?.time_zone ?? null;
-  const [reminders, setReminders] = useState<Reminders | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    readPref<Reminders>('boliReminders', {}).then((r) => alive && setReminders(r));
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const set = reminders?.[boli.id];
-  const toggle = async () => {
-    setError(null);
-    try {
-      const next = { ...(reminders ?? {}) };
-      if (set) {
-        await cancelLocalReminder(set);
-        delete next[boli.id];
-      } else {
-        const at = boli.opens_at ? new Date(new Date(boli.opens_at).getTime() - 15 * 60000) : null;
-        const id = at ? await scheduleLocalReminder(t('bolis.reminderTitle'), t('bolis.reminderBody', { name: boli.name }), at) : null;
-        if (!id) {
-          setError(at ? t('bolis.reminderUnavailable') : t('bolis.reminderNoTime'));
-          return;
-        }
-        next[boli.id] = id;
-        toast(t('bolis.reminderSet'));
-      }
-      setReminders(next);
-      await writePref('boliReminders', next).catch((err: unknown) => logError('saving boli reminders on this device', err));
-    } catch (err) {
-      setError(report(err, 'set a reminder').userMessage);
-    }
-  };
-
+  const on = reminders.isSet(boli.id);
   return (
-    <VStack gap={space.lg}>
-      <Band color={colors.brownDark} eyebrow={t('bolis.inPersonOnly')} title={boli.name} subtitle={[boli.eventName, boli.opens_at ? t('bolis.calledAbout', { time: formatDateTime(boli.opens_at, tz) }) : null].filter(Boolean).join(' · ')} />
+    <VStack gap={14}>
+      <Hero
+        color={colors.brownDark}
+        eyebrow={t('bolis.inPersonOnly')}
+        name={boli.name}
+        lines={[[boli.eventName, boli.opens_at ? t('bolis.calledAbout', { time: formatTime(boli.opens_at, tz) }) : null].filter(Boolean).join(' · ') || null]}
+      />
       <Explainer boli={boli} />
-      <Txt variant="body" color="ink2">
+      <Txt variant="meta" color="muted">
         {t('bolis.hallNote')}
       </Txt>
-      {error ? <Banner tone="error" message={error} /> : null}
-      <Button label={set ? t('bolis.reminderOn') : t('bolis.remindMe')} tone={set ? 'secondary' : 'brown'} onPress={toggle} icon="notifications-outline" />
+      {reminders.error ? <Banner tone="error" message={reminders.error} /> : null}
+      <Button label={on ? t('bolis.reminderOn') : t('bolis.remindMe')} tone={on ? 'green' : 'primary'} onPress={() => void reminders.toggle(boli)} disabled={!reminders.ready} />
     </VStack>
   );
 }

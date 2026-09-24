@@ -1,13 +1,14 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import * as Device from 'expo-device';
+import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { Avatar, Banner, Button, Card, Chip, ChipGroup, Divider, ListRow, Pill, Row, SectionTitle, Toggle, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Chip, ChipGroup, Divider, ListRow, Pill, Row, SectionTitle, Toggle, Txt } from '@/components/ui';
 import { LANGUAGES, type Language } from '@/i18n';
 import { biometricSupport, readBiometricOptIn, writeBiometricOptIn, type BiometricSupport } from '@/lib/biometrics';
-import { createDataRequest, deactivateAccount, QUIET_HOURS_RANGE, requestDeletion, setDirectoryOptIn, updateAccount } from '@/lib/api/settings';
+import { createDataRequest, deactivateAccount, QUIET_HOURS_RANGE, reactivateAccount, requestDeletion, setDirectoryOptIn, updateAccount } from '@/lib/api/settings';
 import { check, logError, report } from '@/lib/errors';
 import { formatPhone, fullName } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -16,7 +17,7 @@ import { useFeedback } from '@/providers/feedback';
 import { usePush } from '@/providers/push';
 import { useSettings } from '@/providers/settings';
 import type { TextSize } from '@/theme';
-import { space } from '@/theme';
+import { colors, fonts, space } from '@/theme';
 
 const TEXT_SIZES: { value: TextSize; key: 'settings.textStandard' | 'settings.textLarge' | 'settings.textLargest' }[] = [
   { value: 'standard', key: 'settings.textStandard' },
@@ -29,7 +30,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { t, language, setLanguage, textSize, setTextSize } = useSettings();
   const { member, center, refreshMember, signOut } = useApp();
-  const { toast, confirm } = useFeedback();
+  const { toast, confirm, payNotice } = useFeedback();
   const push = usePush();
   const [bio, setBio] = useState<BiometricSupport | null>(null);
   const [bioOn, setBioOn] = useState(false);
@@ -50,6 +51,8 @@ export default function SettingsScreen() {
 
   if (!member || !center) return null;
   const account = member.account;
+  const deactivated = account?.status === 'deactivated';
+  const community = center.short_name || center.name;
   const household = member.household;
 
   const run = async (key: string, action: string, fn: () => Promise<void>, success?: string) => {
@@ -94,7 +97,12 @@ export default function SettingsScreen() {
     const ok = await confirm({ title: copy.title, body: copy.body, confirmLabel: copy.cta, tone: copy.tone });
     if (!ok) return;
     await run(kind, kind === 'signout' ? 'sign out' : kind === 'delete' ? 'request deletion' : 'deactivate your account', async () => {
-      if (kind === 'deactivate') await deactivateAccount(center.id, member.person.id, member.userId);
+      if (kind === 'deactivate') {
+        // Prototype: stay in the app with the deactivated notice and a Reactivate button.
+        await deactivateAccount(center.id, member.person.id, member.userId);
+        await refreshMember();
+        return;
+      }
       if (kind === 'delete') await requestDeletion(center.id, member.person.id, member.userId);
       await signOut();
     });
@@ -113,7 +121,11 @@ export default function SettingsScreen() {
     <Screen title={t('settings.title')} niva={false}>
       <Card>
         <Row gap={space.md}>
-          <Avatar name={member.person.first_name} size={52} />
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">
+            <Txt variant="subhead" color="white" style={{ fontFamily: fonts.bodyBold }}>
+              {member.person.first_name.charAt(0).toUpperCase()}
+            </Txt>
+          </View>
           <View style={{ flex: 1 }}>
             <Txt variant="cardTitle">{fullName(member.person)}</Txt>
             <Txt variant="meta" color="muted">
@@ -127,7 +139,9 @@ export default function SettingsScreen() {
 
       <SectionTitle>{t('settings.account')}</SectionTitle>
       <Card>
-        <ListRow title={t('settings.profileFamily')} onPress={() => router.push('/family')} />
+        <ListRow title={t('settings.profileFamily')} subtitle={t('settings.profileFamilySub')} onPress={() => router.push('/family')} />
+        <Divider />
+        <ListRow title={t('settings.security')} subtitle={t('settings.securitySub')} onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.person.id } })} />
         <Divider />
         {bio ? (
           bio.available ? (
@@ -136,6 +150,8 @@ export default function SettingsScreen() {
             <ListRow title={t('settings.biometric', { method: bio.label })} subtitle={bio.reason} />
           )
         ) : null}
+        <Divider />
+        <ListRow title={t('settings.devices')} subtitle={t('settings.devicesSub', { device: Device.modelName ?? t('settings.thisDevice') })} />
       </Card>
 
       <SectionTitle>{t('settings.notifications')}</SectionTitle>
@@ -159,7 +175,7 @@ export default function SettingsScreen() {
           })}
         />
         <Divider />
-        <ListRow title={t('settings.topics')} subtitle={t('settings.topicsSub')} onPress={() => router.push('/preferences')} />
+        <ListRow title={t('settings.topics')} subtitle={t('settings.topicsSub')} onPress={() => router.push('/family')} />
       </Card>
 
       <SectionTitle>{t('settings.preferences')}</SectionTitle>
@@ -184,6 +200,18 @@ export default function SettingsScreen() {
             <Chip key={s.value} grid label={t(s.key)} selected={textSize === s.value} onPress={() => changeTextSize(s.value)} />
           ))}
         </ChipGroup>
+        <Divider />
+        <Txt variant="smallStrong" color="ink2">
+          {t('settings.appearance')}
+        </Txt>
+        <ChipGroup columns={3}>
+          <Chip grid label={t('settings.themeLight')} selected onPress={() => undefined} />
+          <Chip grid label={t('settings.themeDark')} selected={false} disabled onPress={() => undefined} />
+          <Chip grid label={t('settings.themeSystem')} selected={false} disabled onPress={() => undefined} />
+        </ChipGroup>
+        <Txt variant="meta" color="muted">
+          {t('settings.themeNote')}
+        </Txt>
       </Card>
 
       <SectionTitle>{t('settings.privacy')}</SectionTitle>
@@ -211,15 +239,17 @@ export default function SettingsScreen() {
           onPress={() => run('export', 'request your data', () => createDataRequest(center.id, member.person.id, member.userId, 'export'), t('settings.downloadToast'))}
         />
         <Divider />
-        <ListRow title={t('settings.privacyPolicy')} onPress={() => router.push({ pathname: '/legal', params: { kind: 'privacy' } })} />
+        <ListRow title={t('settings.privacyPolicy')} subtitle={t('settings.privacyPolicySub', { center: community })} onPress={() => router.push({ pathname: '/legal', params: { kind: 'privacy' } })} />
         <Divider />
-        <ListRow title={t('settings.terms')} onPress={() => router.push({ pathname: '/legal', params: { kind: 'terms' } })} />
+        <ListRow title={t('settings.terms')} subtitle={t('settings.termsSub')} onPress={() => router.push({ pathname: '/legal', params: { kind: 'terms' } })} />
       </Card>
 
       {member.isAdult ? (
         <>
           <SectionTitle>{t('settings.payments')}</SectionTitle>
           <Card>
+            <ListRow title={t('settings.savedMethods')} subtitle={t('settings.savedMethodsSub')} onPress={() => payNotice({ saved: false })} />
+            <Divider />
             <ListRow title={t('settings.receipts')} subtitle={t('settings.receiptsSub', { email: member.person.email ?? member.email ?? '' })} onPress={() => router.push('/pledges')} />
           </Card>
         </>
@@ -227,20 +257,40 @@ export default function SettingsScreen() {
 
       <SectionTitle>{t('settings.support')}</SectionTitle>
       <Card>
-        <ListRow title={t('settings.contact')} subtitle={t('settings.contactSub')} onPress={() => router.push('/guide/ask')} />
+        <ListRow title={t('settings.help')} subtitle={t('settings.helpSub')} onPress={() => router.push('/guide')} />
         <Divider />
-        <ListRow title={t('settings.about')} subtitle={t('settings.aboutSub', { version: Constants.expoConfig?.version ?? '1.0.0' })} />
+        <ListRow title={t('settings.contact', { center: community })} subtitle={t('settings.contactSub')} onPress={() => router.push('/guide/ask')} />
+        <Divider />
+        <ListRow title={t('settings.report')} subtitle={t('settings.reportSub')} onPress={() => router.push({ pathname: '/guide/ask', params: { topic: 'office' } })} />
+        <Divider />
+        <ListRow title={t('settings.about')} subtitle={t('settings.aboutSub', { version: Constants.expoConfig?.version ?? '1.0.0', build: String(Constants.nativeBuildVersion ?? Constants.expoConfig?.version ?? '1') })} />
       </Card>
 
       <SectionTitle>{t('settings.status')}</SectionTitle>
-      <Card>
-        <Txt variant="small" color="ink2">
-          {t('settings.statusBody')}
-        </Txt>
-        <VStack gap={space.sm}>
-          <Button label={t('settings.deactivate')} tone="secondary" onPress={() => accountAction('deactivate')} busy={busy === 'deactivate'} />
-          <Button label={t('settings.delete')} tone="ghost" onPress={() => accountAction('delete')} busy={busy === 'delete'} />
-        </VStack>
+      <Card style={{ gap: 10 }}>
+        {deactivated ? (
+          <>
+            <Txt variant="meta" color="brown" style={{ fontFamily: fonts.bodySemi }}>
+              {t('settings.deactivatedBody')}
+            </Txt>
+            <Button label={t('settings.reactivateAccount')} tone="green" size="card" onPress={() => run('reactivate', 'reactivate your account', async () => {
+              await reactivateAccount(center.id, member.person.id, member.userId);
+              await refreshMember();
+            }, t('settings.reactivated'))} busy={busy === 'reactivate'} />
+          </>
+        ) : (
+          <>
+            <Txt variant="meta" color="muted">
+              {t('settings.statusBody', { center: community })}
+            </Txt>
+            <Button label={t('settings.deactivate')} tone="outlineBrown" size="card" onPress={() => accountAction('deactivate')} busy={busy === 'deactivate'} />
+          </>
+        )}
+        <Pressable onPress={() => void accountAction('delete')} accessibilityRole="button" disabled={busy === 'delete'} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <Txt variant="smallStrong" color="danger">
+            {t('settings.delete')}
+          </Txt>
+        </Pressable>
       </Card>
       <Button
         label={t('settings.signOut')}

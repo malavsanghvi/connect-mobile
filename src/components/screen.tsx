@@ -57,6 +57,8 @@ export type ScreenProps = {
   children: ReactNode;
   /** Sticky area under the content (primary CTA). */
   footer?: ReactNode;
+  /** Stays pinned under the header while the content scrolls (e.g. My Jain Way sub-tabs). */
+  sticky?: ReactNode;
   onRefresh?: () => Promise<void>;
   headerRight?: ReactNode;
   scroll?: boolean;
@@ -77,7 +79,7 @@ export type ScreenProps = {
 };
 
 /** Every screen: safe area, header (menu/back · title · member card), scroll, pull-to-refresh, tab bar, Niva. */
-export function Screen({ title, root, showWordmark, children, footer, onRefresh, headerRight, scroll = true, contentStyle, hideHeader, tabBar = true, niva }: ScreenProps) {
+export function Screen({ title, root, showWordmark, children, footer, sticky, onRefresh, headerRight, scroll = true, contentStyle, hideHeader, tabBar = true, niva }: ScreenProps) {
   const [refreshing, setRefreshing] = useState(false);
   const refresh = onRefresh
     ? async () => {
@@ -106,6 +108,11 @@ export function Screen({ title, root, showWordmark, children, footer, onRefresh,
   return (
     <SafeAreaView edges={root || ownTabBar ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.ground }}>
       {hideHeader ? null : <AppHeader title={title} root={root} showWordmark={showWordmark} right={headerRight} />}
+      {sticky ? (
+        <View style={{ paddingHorizontal: space.gutter, paddingBottom: space.md, backgroundColor: colors.ground, zIndex: 3 }}>
+          <View style={{ width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center' }}>{sticky}</View>
+        </View>
+      ) : null}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={{ flex: 1 }}>
           {scroll ? (

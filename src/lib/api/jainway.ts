@@ -1,6 +1,7 @@
 import type { Tables } from '../database.types';
 import { check, maybe, must } from '../errors';
 import { addDays, todayAt, zonedParts } from '../format';
+import type { FeedItem, FeedKind } from '../learning';
 import type { StreakRow } from '../rules';
 import { supabase } from '../supabase';
 
@@ -60,6 +61,31 @@ export async function logPractice(centerId: string, practiceId: string, onDate: 
   return { pointsAwarded: r?.points_awarded ?? 0, dayComplete: r?.day_complete ?? false, streakDays: r?.streak_days ?? 0 };
 }
 
+/** Undo a day's practice (app.unlog_practice reverses its points, and the day bonus when the day is no longer complete). */
+export async function unlogPractice(personId: string, practiceId: string, onDate: string): Promise<{ pointsReversed: number; dayComplete: boolean; streakDays: number }> {
+  const rows = must(await supabase.rpc('unlog_practice', { p_person: personId, p_practice: practiceId, p_on: onDate }), 'unmark this practice');
+  const r = rows[0];
+  return { pointsReversed: r?.points_reversed ?? 0, dayComplete: r?.day_complete ?? false, streakDays: r?.streak_days ?? 0 };
+}
+
+export type Standing = { category: string; topPercent: number | null; practicesCount: number; doneToday: number };
+
+/** "Your standing this month" (app.my_practice_standing): private to the person and their parents. */
+export async function loadStanding(personId: string): Promise<Standing[]> {
+  const rows = must(await supabase.rpc('my_practice_standing', { p_person: personId }), 'load your standing this month');
+  return rows.map((r) => ({ category: r.category, topPercent: r.top_percent ?? null, practicesCount: r.practices_count ?? 0, doneToday: r.done_today ?? 0 }));
+}
+
+/** Points total and streak for the Gyan Path header chips (same ledger as My Jain Way). */
+export async function loadPointsAndStreak(center: Center, personId: string): Promise<{ points: number; streak: StreakRow }> {
+  const [pointsRes, streakRes] = await Promise.all([
+    supabase.from('points_ledger').select('points').eq('person_id', personId).limit(10000),
+    supabase.from('streaks').select('current_days, longest_days, last_logged_on').eq('person_id', personId).eq('center_id', center.id).maybeSingle(),
+  ]);
+  const points = must(pointsRes, 'load your points');
+  return { points: points.reduce((s, p) => s + p.points, 0), streak: maybe(streakRes, 'load your streak') ?? null };
+}
+
 export async function addPractice(centerId: string, personId: string, practiceId: string): Promise<void> {
   check(await supabase.from('practice_selections').insert({ center_id: centerId, person_id: personId, practice_id: practiceId }), 'add this practice');
 }
@@ -112,6 +138,23 @@ export async function loadSaathi(center: Center, member: Member): Promise<{ circ
     received: withNames.filter((a) => a.to_person_id === member.person.id),
     sent: withNames.filter((a) => a.from_person_id === member.person.id),
   };
+}
+
+/** The family circle's milestones and support asks (app.saathi_feed, last 14 days). */
+export async function loadSaathiFeed(householdId: string): Promise<FeedItem[]> {
+  const rows = must(await supabase.rpc('saathi_feed', { p_household: householdId }), 'load your family circle');
+  return rows
+    .filter((r): r is typeof r & { kind: FeedKind } => r.kind === 'goal_completed' || r.kind === 'daily_goal_met' || r.kind === 'behind')
+    .map((r) => ({
+      kind: r.kind,
+      person_id: r.person_id,
+      person_name: r.person_name ?? '',
+      title: r.title ?? '',
+      detail: r.detail ?? '',
+      occurred_at: r.occurred_at,
+      anumodana_count: r.anumodana_count ?? 0,
+      i_sent: !!r.i_sent,
+    }));
 }
 
 export async function sendAnumodana(centerId: string, toPersonId: string, kind: 'celebrate' | 'support', message: string | null): Promise<number> {

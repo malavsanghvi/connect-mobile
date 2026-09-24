@@ -1,32 +1,36 @@
 import { useRouter } from 'expo-router';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
 import { ErrorState, LoadingState } from '@/components/states';
-import { Avatar, Banner, Button, Card, IconButton, LinkText, Pill, Row, SectionTitle, Txt } from '@/components/ui';
+import { Button, Card, Row, Txt } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
-import { listDisplayName } from '@/features/special-days';
+import { listDisplayName, whenText } from '@/features/special-days';
 import { listSpecialDays, loadEligibility } from '@/lib/api/family';
 import { logError } from '@/lib/errors';
-import { formatDay, formatLongDate, fullName } from '@/lib/format';
-import { ageOn, identifierLine, nextOccurrence } from '@/lib/rules';
+import { formatLongDate, fullName } from '@/lib/format';
+import { ageOn, nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, space } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
-/** Family (prototype §2.20): identifiers, members, special days, voting eligibility, membership. */
+/**
+ * Family tab (Main.dc.html isFamily, L454–482): household identifiers,
+ * Special days preview, members with Profile and QR, voting eligibility,
+ * the per-person preferences note, guide link and sign out.
+ */
 export default function FamilyScreen() {
   const t = useT();
   const router = useRouter();
-  const { member, setGuest, orgMemberLabel, orgHouseholdLabel, signOut } = useApp();
+  const { member, center, setGuest, orgMemberLabel, orgHouseholdLabel, signOut, setOnboarding } = useApp();
   const { invalidate } = useDataVersion();
   const { confirm } = useFeedback();
   const days = useLoad(() => (member?.household ? listSpecialDays(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load special days');
   const eligibility = useLoad(() => (member ? loadEligibility(member.person.id) : Promise.resolve(null)), [member?.person.id], 'load voting eligibility');
+  const community = center?.short_name || center?.name || '';
 
   if (!member) {
     return (
@@ -40,16 +44,11 @@ export default function FamilyScreen() {
   }
 
   const household = member.household;
-  const householdLine = [
-    household?.display_name,
-    member.orgHouseholdId ? `${orgHouseholdLabel} ${member.orgHouseholdId}` : null,
-    household?.household_number ? household.household_number : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
   const ms = member.membership;
+  const tierOne = ms && ms.status === 'active' ? t(`tierOne.${ms.tier}` as 'tierOne.life') : null;
   const upcomingDays = (days.data ?? [])
     .map((d) => ({ d, next: d.calendar_date ? nextOccurrence(d.calendar_date, member.today) : null }))
+    .filter((x) => x.next)
     .sort((a, b) => (a.next ?? '9999').localeCompare(b.next ?? '9999'))
     .slice(0, 2);
 
@@ -58,111 +57,148 @@ export default function FamilyScreen() {
     if (ok) signOut().catch((err: unknown) => logError('signing out', err));
   };
 
+  const pill = (label: string, onPress: () => void, filled: boolean, a11y: string) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.navy, backgroundColor: filled ? colors.navy : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+      <Txt variant="meta" color={filled ? 'white' : 'navy'} style={{ fontFamily: fonts.bodySemi }}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+
   return (
     <Screen title={t('tab.family')} root onRefresh={async () => invalidate()}>
-      <Card tone="navy">
-        <Txt variant="headline" color="white" accessibilityRole="header">
-          {household?.display_name ?? fullName(member.person)}
-        </Txt>
-        <Txt variant="small" color="onNavy" selectable>
-          {householdLine}
-        </Txt>
-        {ms ? (
-          <Row gap={space.sm}>
-            <Pill label={t(`tier.${ms.tier}`)} tone={ms.status === 'active' ? 'green' : 'amber'} />
-            <Txt variant="caption" color="onNavy">
-              {ms.status === 'active' ? t('family.memberSince', { date: formatLongDate(ms.starts_on) }) : t(`membership.${ms.status}` as 'membership.pending')}
-              {ms.ends_on ? ` · ${t('family.until', { date: formatLongDate(ms.ends_on) })}` : ''}
-            </Txt>
-          </Row>
-        ) : (
-          <Txt variant="caption" color="onNavy">
-            {t('family.noMembership')}
+      {/* Household identifiers stay visible (founder rule: IDs exactly as issued). */}
+      {household ? (
+        <View style={{ paddingHorizontal: 4, gap: 2 }}>
+          <Txt variant="headline" accessibilityRole="header">
+            {household.display_name}
           </Txt>
-        )}
-      </Card>
+          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }} selectable>
+            {[member.orgHouseholdId ? `${orgHouseholdLabel} ${member.orgHouseholdId}` : null, household.household_number, ms ? (ms.status === 'active' ? t('family.memberSince', { date: formatLongDate(ms.starts_on) }) : t(`membership.${ms.status}` as 'membership.pending')) : t('family.noMembership')]
+              .filter(Boolean)
+              .join(' · ')}
+          </Txt>
+        </View>
+      ) : null}
 
-      <Card tone="amber" onPress={() => router.push('/special-days')} accessibilityLabel={t('family.specialDays')}>
+      <Pressable
+        onPress={() => router.push('/special-days')}
+        accessibilityRole="button"
+        accessibilityLabel={`${t('family.specialDays')}. ${t('family.seeAll')}`}
+        style={({ pressed }) => ({ backgroundColor: colors.brownTint, borderWidth: 1, borderColor: colors.brownBorder, borderRadius: radii.xl, paddingVertical: 14, paddingHorizontal: space.lg, gap: space.sm, opacity: pressed ? 0.9 : 1 })}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Txt variant="cardTitle" color="brownDark">
+          <Txt variant="body" color="brownDark" style={{ fontFamily: fonts.bodyBold }}>
             {t('family.specialDays')}
           </Txt>
-          <Icon name="chevron-forward" size={18} color={colors.brown} />
+          <Txt variant="meta" color="brown" style={{ fontFamily: fonts.bodySemi }}>
+            {t('family.seeAll')}
+          </Txt>
         </Row>
         {days.data === undefined ? (
           days.error ? <ErrorState error={days.error} onRetry={() => void days.reload()} /> : <LoadingState />
         ) : upcomingDays.length === 0 ? (
-          <Txt variant="small" color="brownText">
+          <Txt variant="meta" color="brownText">
             {t('family.noSpecialDays')}
           </Txt>
         ) : (
           upcomingDays.map(({ d, next }) => (
-            <Txt key={d.id} variant="small" color="brownText">
-              {`${listDisplayName(t, d, member.members)}${next ? ` — ${formatDay(next)}` : d.tithi ? ` — ${d.tithi_month ?? ''} ${d.tithi}` : ''}`}
-            </Txt>
+            <Row key={d.id} style={{ justifyContent: 'space-between' }} gap={space.sm}>
+              <Txt variant="meta" style={{ flexShrink: 1 }}>
+                {listDisplayName(t, d, member.members)}
+              </Txt>
+              <Txt variant="meta" color="brownText" style={{ fontFamily: fonts.bodySemi }}>
+                {whenText(t, member.today, next)}
+              </Txt>
+            </Row>
           ))
         )}
-      </Card>
+      </Pressable>
 
-      <SectionTitle>{t('family.members')}</SectionTitle>
-      <Card>
+      <Card style={{ paddingVertical: 6, gap: 0 }}>
         {member.members.map((fm) => {
           const age = ageOn(fm.person.date_of_birth, member.today);
-          const ids = identifierLine({ orgLabel: orgMemberLabel, orgId: fm.orgMemberId, connectNumber: fm.person.member_number });
+          const id = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
+          const tag = [roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id].filter(Boolean).join(' · ');
           return (
-            <Row key={fm.person.id} gap={space.md} style={{ paddingVertical: space.sm }}>
-              <Avatar name={fm.person.first_name} tone={fm.isAdult ? 'navy' : 'purple'} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Txt variant="bodyStrong">{fullName(fm.person)}</Txt>
-                <Txt variant="meta" color="muted">
-                  {[roleLabel(t, fm.role), age != null ? t('family.age', { age }) : null].filter(Boolean).join(' · ')}
+            <Row key={fm.person.id} gap={space.md} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.navyTint2, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">
+                <Txt variant="bodyStrong" color="navy">
+                  {fm.person.first_name.charAt(0).toUpperCase()}
                 </Txt>
-                {ids ? (
-                  <Txt variant="caption" color="muted" selectable>
-                    {ids}
-                  </Txt>
-                ) : null}
               </View>
-              <Button label={t('family.profile')} tone="secondary" size="sm" fill={false} onPress={() => router.push({ pathname: '/person/[id]', params: { id: fm.person.id } })} />
-              <IconButton icon="qr-code-outline" label={t('family.qrFor', { name: fm.person.first_name })} onPress={() => router.push({ pathname: '/member-card', params: { person: fm.person.id } })} />
+              <View style={{ flex: 1 }}>
+                <Txt variant="body" style={{ fontFamily: fonts.bodyMedium }}>
+                  {fullName(fm.person)}
+                </Txt>
+                <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }} selectable>
+                  {tag}
+                </Txt>
+              </View>
+              {pill(t('family.profile'), () => router.push({ pathname: '/person/[id]', params: { id: fm.person.id } }), true, `${t('family.profile')}: ${fm.person.first_name}`)}
+              {pill(t('family.qr'), () => router.push({ pathname: '/member-card', params: { person: fm.person.id } }), false, t('family.qrFor', { name: fm.person.first_name }))}
             </Row>
           );
         })}
-        {member.isAdult ? <LinkText label={t('family.updateFamily')} onPress={() => router.push('/family-review')} /> : null}
+        {member.isAdult ? (
+          <Pressable onPress={() => setOnboarding(true)} accessibilityRole="button" style={{ paddingVertical: 14 }}>
+            <Txt variant="smallStrong" color="navy">
+              {t('family.updateFamily')}
+            </Txt>
+          </Pressable>
+        ) : null}
       </Card>
 
       {eligibility.data === undefined ? (
         eligibility.error ? <ErrorState error={eligibility.error} onRetry={() => void eligibility.reload()} /> : null
       ) : eligibility.data ? (
-        <Card tone={eligibility.data.canVote ? 'green' : 'default'}>
-          <Txt variant="cardTitle" color={eligibility.data.canVote ? 'greenDark' : 'ink'}>
+        <Card tone={eligibility.data.canVote ? 'green' : 'default'} style={{ gap: 6 }}>
+          <Txt variant="body" color={eligibility.data.canVote ? 'greenDark' : 'ink'} style={{ fontFamily: fonts.bodySemi }}>
             {eligibility.data.canVote ? t('family.votingGood') : t('family.votingNot')}
           </Txt>
           {eligibility.data.reasons.map((r) => (
-            <Row key={r.label} gap={space.sm} align="flex-start">
-              <Icon name={r.ok === false ? 'close-circle' : 'checkmark-circle'} size={18} color={r.ok === false ? colors.danger : colors.green} />
-              <Txt variant="small" style={{ flex: 1 }}>
-                {r.ok === false ? `${t('family.notMet')}: ${r.label}` : r.label}
-              </Txt>
-            </Row>
+            <Txt key={r.label} variant="meta" color={r.ok === false ? 'danger' : 'greenDark2'}>
+              {r.ok === false ? `✗ ${t('family.notMet')}: ${r.label}` : `✓ ${r.label}`}
+            </Txt>
           ))}
-          <Txt variant="caption" color="muted">
+          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
             {t('family.votingAsOf', { date: formatLongDate(eligibility.data.computedAt.slice(0, 10)) })}
             {eligibility.data.overridden ? ` · ${t('family.votingOverride')}` : ''}
           </Txt>
         </Card>
       ) : (
-        <Banner tone="info" message={t('family.votingUnknown')} />
+        <Card tone="panel">
+          <Txt variant="meta" color="muted">
+            {t('family.votingUnknown')}
+          </Txt>
+        </Card>
       )}
 
-      <Txt variant="meta" color="muted">
-        {t('family.prefsNote')}
-      </Txt>
-      <Card>
-        <LinkText label={t('family.contactPrefs')} onPress={() => router.push('/preferences')} />
-        <LinkText label={t('family.guide')} onPress={() => router.push('/guide')} />
-        <LinkText label={t('settings.signOut')} onPress={doSignOut} color="danger" />
-      </Card>
+      <View style={{ backgroundColor: colors.panel, borderRadius: radii.card, paddingVertical: space.md, paddingHorizontal: 14 }}>
+        <Txt variant="meta" color="muted">
+          {t('family.prefsNote')}
+        </Txt>
+      </View>
+      <Pressable onPress={() => router.push('/guide')} accessibilityRole="link" style={{ padding: space.md, alignItems: 'center' }}>
+        <Txt variant="smallStrong" color="navy">
+          {t('family.guide', { center: community })}
+        </Txt>
+      </Pressable>
+      {member.isAdult && household ? (
+        <Pressable onPress={() => router.push('/preferences')} accessibilityRole="link" style={{ paddingVertical: 4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}>
+          <Txt variant="meta" color="navy">
+            {t('family.contactPrefs')}
+          </Txt>
+        </Pressable>
+      ) : null}
+      <Pressable onPress={() => void doSignOut()} accessibilityRole="button" style={{ padding: 4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}>
+        <Txt variant="small" color="muted" style={{ fontFamily: fonts.bodyMedium }}>
+          {t('settings.signOut')}
+        </Txt>
+      </Pressable>
     </Screen>
   );
 }

@@ -36,6 +36,9 @@ export function PushProvider({ children }: { children: ReactNode }) {
     };
   }, [userId, centerId]);
 
+  // Taps are routed in one place: features/confirm-popup (and components/notification-router for
+  // family-circle actions), so a notification never opens two screens.
+
   const setEnabled = async (on: boolean) => {
     if (!userId || !centerId) return;
     if (on) {

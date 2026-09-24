@@ -1,6 +1,7 @@
 import type { Enums, Tables, TablesInsert } from '../database.types';
 import { AppError, check, maybe, must } from '../errors';
 import { formatDob, formatPhone, isValidEmail, parseDobInput, toE164 } from '../format';
+import { planEmailChanges, type EmailDraft } from '../emails';
 import { supabase } from '../supabase';
 
 import type { Person } from './member';
@@ -20,9 +21,11 @@ export type ProfileDraft = {
   employer: string;
   phone: string;
   email: string;
+  /** Relationship as the family describes it ("Daughter"); changes go to the membership team. */
+  relationship: string;
 };
 
-export function draftFromPerson(p: Person): ProfileDraft {
+export function draftFromPerson(p: Person, relationship = ''): ProfileDraft {
   const g = (p.gender ?? '').toLowerCase();
   return {
     first_name: p.first_name,
@@ -33,6 +36,7 @@ export function draftFromPerson(p: Person): ProfileDraft {
     employer: p.employer ?? '',
     phone: formatPhone(p.phone_e164),
     email: p.email ?? '',
+    relationship,
   };
 }
 
@@ -75,37 +79,54 @@ export async function updatePerson(personId: string, patch: Partial<Person>): Pr
 }
 
 // ---------------------------------------------------------------------------
-// Contact preferences (onboarding step 5, Settings › Preferences)
+// Contact preferences (onboarding step 5, Profile, Family › Documents and mail)
 // ---------------------------------------------------------------------------
 
-export type ContactChannel = 'sms' | 'whatsapp' | 'email';
-export const CONTACT_CHANNELS: ContactChannel[] = ['sms', 'whatsapp', 'email'];
+/** people.contact_channels (0018): phone_call, sms, whatsapp, email. */
+export type ContactChannel = 'phone_call' | 'sms' | 'whatsapp' | 'email';
+export const CONTACT_CHANNELS: ContactChannel[] = ['phone_call', 'sms', 'whatsapp', 'email'];
+/** Channels that also have a consent trail in channel_optins (the 'channel' enum has no phone call). */
+const OPTIN_CHANNELS: ('sms' | 'whatsapp' | 'email')[] = ['sms', 'whatsapp', 'email'];
 const PREF_CHANNELS: Enums<'channel'>[] = ['push', 'email', 'sms', 'whatsapp'];
+
+export type BestCallTime = 'morning' | 'afternoon' | 'evening';
+export const BEST_CALL_TIMES: BestCallTime[] = ['morning', 'afternoon', 'evening'];
+
+export function isContactChannel(v: string): v is ContactChannel {
+  return (CONTACT_CHANNELS as string[]).includes(v);
+}
 
 export type ContactPrefs = {
   topics: Tables<'notification_topics'>[];
   /** Topic keys the person wants to hear about. */
   selectedTopics: string[];
   channels: ContactChannel[];
+  /** True when the person has never chosen channels (onboarding pre-selects a sensible set). */
+  channelsChosen: boolean;
   /** The person's last recorded documents-and-mail choice (consents kind 'physical_mail'); null if never chosen. */
   physicalMail: boolean | null;
-  /** households.physical_mail_opt_in as stored (defaults to true in the schema, so it can't mean "chosen"). */
+  /** households.physical_mail_opt_in as stored (null = not chosen yet, 0018). */
   householdPhysicalMail: boolean | null;
+  emails: Tables<'person_emails'>[];
 };
 
 export async function loadContactPrefs(centerId: string, personId: string, householdId: string | null): Promise<ContactPrefs> {
-  const [topicsRes, prefsRes, optinsRes, consentRes, householdRes] = await Promise.all([
+  const [topicsRes, prefsRes, optinsRes, consentRes, householdRes, personRes, emailsRes] = await Promise.all([
     supabase.from('notification_topics').select('*').order('name'),
     supabase.from('notification_preferences').select('topic_key, channel, enabled').eq('person_id', personId),
     supabase.from('channel_optins').select('channel, opted_in, recorded_at').eq('person_id', personId).order('recorded_at', { ascending: false }),
     supabase.from('consents').select('granted, recorded_at').eq('person_id', personId).eq('kind', 'physical_mail').order('recorded_at', { ascending: false }).limit(1),
     householdId ? supabase.from('households').select('physical_mail_opt_in').eq('id', householdId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    supabase.from('people').select('contact_channels').eq('id', personId).single(),
+    supabase.from('person_emails').select('*').eq('person_id', personId).order('created_at'),
   ]);
   const topics = must(topicsRes, 'load notification topics');
   const prefs = must(prefsRes, 'load your notification choices');
   const optins = must(optinsRes, 'load your contact choices');
   const consent = must(consentRes, 'load your mail choice');
   const household = maybe(householdRes, 'load your mail choice');
+  const person = must(personRes, 'load your contact choices');
+  const emails = must(emailsRes, 'load your email addresses');
 
   const selectedTopics = topics
     .filter((topic) => {
@@ -114,35 +135,27 @@ export async function loadContactPrefs(centerId: string, personId: string, house
     })
     .map((topic) => topic.key);
 
+  // people.contact_channels is the record; older rows only have the channel_optins trail.
+  const stored = (person.contact_channels ?? []).filter(isContactChannel);
   const latest = new Map<string, boolean>();
   for (const o of optins) if (!latest.has(o.channel)) latest.set(o.channel, o.opted_in);
-  const channels = CONTACT_CHANNELS.filter((c) => latest.get(c) === true);
+  const fromOptins = OPTIN_CHANNELS.filter((c) => latest.get(c) === true);
+  const channels = stored.length ? stored : fromOptins;
 
   return {
     topics,
     selectedTopics,
     channels,
+    channelsChosen: stored.length > 0 || latest.size > 0,
     physicalMail: consent.length > 0 ? consent[0].granted : null,
     householdPhysicalMail: household ? household.physical_mail_opt_in : null,
+    emails,
   };
 }
 
-export async function saveContactPrefs(args: {
-  centerId: string;
-  userId: string;
-  personId: string;
-  householdId: string | null;
-  isAdult: boolean;
-  topics: Tables<'notification_topics'>[];
-  selectedTopics: string[];
-  channels: ContactChannel[];
-  physicalMail: boolean | null;
-  phone: string | null;
-  email: string | null;
-}): Promise<void> {
+/** Per topic × channel. Push follows the topic choice; SMS / WhatsApp / email also need the channel. */
+export async function saveTopicPrefs(args: { centerId: string; personId: string; isAdult: boolean; topics: Tables<'notification_topics'>[]; selectedTopics: string[]; channels: ContactChannel[] }): Promise<void> {
   const now = new Date().toISOString();
-
-  // Per topic × channel. Push follows the topic choice; SMS / WhatsApp / email also need the channel.
   const prefRows: TablesInsert<'notification_preferences'>[] = [];
   for (const topic of args.topics) {
     if (!args.isAdult && topic.marketing) continue; // children never receive marketing
@@ -155,27 +168,116 @@ export async function saveContactPrefs(args: {
   if (prefRows.length) {
     check(await supabase.from('notification_preferences').upsert(prefRows, { onConflict: 'person_id,topic_key,channel' }), 'save your notification choices');
   }
+}
 
-  // Channel opt-ins are an append-only consent trail; record one row per channel with an address.
+/** Channel opt-ins are an append-only consent trail; one row per channel that has an address. */
+export async function recordChannelOptins(args: { centerId: string; personId: string; channels: ContactChannel[]; phone: string | null; email: string | null; source: string }): Promise<void> {
   const optinRows: TablesInsert<'channel_optins'>[] = [];
-  for (const channel of CONTACT_CHANNELS) {
+  for (const channel of OPTIN_CHANNELS) {
     const address = channel === 'email' ? args.email : args.phone;
     if (!address) continue;
-    optinRows.push({ center_id: args.centerId, person_id: args.personId, channel, address, opted_in: args.channels.includes(channel), source: 'onboarding' });
+    optinRows.push({ center_id: args.centerId, person_id: args.personId, channel, address, opted_in: args.channels.includes(channel), source: args.source });
   }
   if (optinRows.length) check(await supabase.from('channel_optins').insert(optinRows), 'save how we contact you');
+}
 
+/** The household's documents-and-mail choice plus a consent record (adults only). */
+export async function saveDocumentsChoice(args: { centerId: string; userId: string; personId: string; householdId: string; physicalMail: boolean }): Promise<void> {
+  check(await supabase.from('households').update({ physical_mail_opt_in: args.physicalMail }).eq('id', args.householdId), 'save your documents and mail choice');
+  check(
+    await supabase.from('consents').insert({ center_id: args.centerId, person_id: args.personId, given_by_user: args.userId, kind: 'physical_mail', granted: args.physicalMail, source: 'app' }),
+    'record your documents and mail choice',
+  );
+}
+
+export async function saveContactPrefs(args: {
+  centerId: string;
+  userId: string;
+  personId: string;
+  householdId: string | null;
+  isAdult: boolean;
+  topics: Tables<'notification_topics'>[];
+  selectedTopics: string[];
+  channels: ContactChannel[];
+  bestCallTime?: BestCallTime | null;
+  interests?: string[];
+  physicalMail: boolean | null;
+  phone: string | null;
+  email: string | null;
+}): Promise<void> {
+  const patch: Partial<Tables<'people'>> = { contact_channels: args.isAdult ? args.channels : [] };
+  if (args.bestCallTime !== undefined) patch.best_call_time = args.channels.includes('phone_call') ? args.bestCallTime : null;
+  if (args.interests !== undefined) patch.interests = args.interests;
+  check(await supabase.from('people').update(patch).eq('id', args.personId), 'save how we contact you');
+  await saveTopicPrefs(args);
+  if (args.isAdult) await recordChannelOptins({ centerId: args.centerId, personId: args.personId, channels: args.channels, phone: args.phone, email: args.email, source: 'onboarding' });
   if (args.physicalMail !== null && args.householdId && args.isAdult) {
-    check(await supabase.from('households').update({ physical_mail_opt_in: args.physicalMail }).eq('id', args.householdId), 'save your documents and mail choice');
-    check(
-      await supabase.from('consents').insert({ center_id: args.centerId, person_id: args.personId, given_by_user: args.userId, kind: 'physical_mail', granted: args.physicalMail, source: 'app' }),
-      'record your documents and mail choice',
-    );
+    await saveDocumentsChoice({ centerId: args.centerId, userId: args.userId, personId: args.personId, householdId: args.householdId, physicalMail: args.physicalMail });
   }
 }
 
 // ---------------------------------------------------------------------------
-// Requests to the office (members cannot insert people directly — see README "Schema gaps")
+// Extra email addresses (person_emails, 0018). people.email stays the primary.
+// ---------------------------------------------------------------------------
+
+export { planEmailChanges, type EmailDraft, type EmailLabel } from '../emails';
+
+export async function listPersonEmails(personId: string): Promise<Tables<'person_emails'>[]> {
+  return must(await supabase.from('person_emails').select('*').eq('person_id', personId).order('created_at'), 'load your email addresses');
+}
+
+export async function saveExtraEmails(args: { centerId: string; personId: string; existing: Tables<'person_emails'>[]; drafts: EmailDraft[]; primary: string | null }): Promise<void> {
+  const plan = planEmailChanges(args.existing, args.drafts, args.primary);
+  if (plan.remove.length) check(await supabase.from('person_emails').delete().in('id', plan.remove), 'remove an email address');
+  for (const r of plan.relabel) check(await supabase.from('person_emails').update({ label: r.label }).eq('id', r.id), 'update an email address');
+  if (plan.insert.length) {
+    check(await supabase.from('person_emails').insert(plan.insert.map((i) => ({ center_id: args.centerId, person_id: args.personId, email: i.email, label: i.label }))), 'add an email address');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Household changes (household_change_requests, 0018) — members never edit
+// the family tree directly; the membership coordinator reviews each request.
+// ---------------------------------------------------------------------------
+
+export async function requestAddFamilyMember(args: { centerId: string; userId: string; householdId: string; first: string; last: string; relationship: string; dob: string }): Promise<void> {
+  if (!args.first.trim() || !args.last.trim()) throw new AppError('Please enter their first and last name.', 'validation');
+  const dob = args.dob.trim() ? parseDobInput(args.dob) : null;
+  if (args.dob.trim() && !dob) throw new AppError('Use the format MM/DD/YYYY for the date of birth.', 'validation');
+  check(
+    await supabase.from('household_change_requests').insert({
+      center_id: args.centerId,
+      household_id: args.householdId,
+      requested_by: args.userId,
+      kind: 'add_member',
+      status: 'open',
+      details: { first_name: args.first.trim(), last_name: args.last.trim(), relationship: args.relationship.trim() || null, dob },
+    }),
+    'send the request to add a family member',
+  );
+}
+
+export async function requestRelationshipChange(args: { centerId: string; userId: string; householdId: string; personId: string; from: string; to: string }): Promise<void> {
+  check(
+    await supabase.from('household_change_requests').insert({
+      center_id: args.centerId,
+      household_id: args.householdId,
+      requested_by: args.userId,
+      kind: 'change_relationship',
+      status: 'open',
+      details: { person_id: args.personId, relationship_from: args.from, relationship: args.to.trim() },
+    }),
+    'send the relationship change to the membership team',
+  );
+}
+
+/** Open requests for the household, so a pending add or change is shown instead of sent twice. */
+export async function listOpenHouseholdRequests(householdId: string): Promise<Tables<'household_change_requests'>[]> {
+  return must(await supabase.from('household_change_requests').select('*').eq('household_id', householdId).eq('status', 'open').order('created_at', { ascending: false }), 'load your family requests');
+}
+
+// ---------------------------------------------------------------------------
+// Messages to a team inbox (Ask a question, zone lead, committee)
 // ---------------------------------------------------------------------------
 
 async function findInbox(centerId: string, preferredKeys: string[]): Promise<Tables<'inboxes'>> {
@@ -188,7 +290,7 @@ async function findInbox(centerId: string, preferredKeys: string[]): Promise<Tab
   throw new AppError("The center hasn't set up a team inbox yet, so we can't send this. Please contact the office directly.", 'no inboxes for center');
 }
 
-/** Send a message to a team inbox as a new thread (Ask a question, add a family member, …). */
+/** Send a message to a team inbox as a new thread. Returns the thread id. */
 export async function sendToInbox(args: { centerId: string; userId: string; personId: string; inboxId?: string; preferredKeys?: string[]; subject: string; body: string }): Promise<string> {
   const inboxId = args.inboxId ?? (await findInbox(args.centerId, args.preferredKeys ?? ['office'])).id;
   const thread = must(
@@ -197,26 +299,6 @@ export async function sendToInbox(args: { centerId: string; userId: string; pers
   );
   check(await supabase.from('thread_messages').insert({ center_id: args.centerId, thread_id: thread.id, author_user: args.userId, body: args.body }), 'send your message');
   return thread.id;
-}
-
-export async function requestAddFamilyMember(args: { centerId: string; userId: string; personId: string; householdName: string; first: string; last: string; relationship: string; dob: string }): Promise<void> {
-  if (!args.first.trim() || !args.last.trim()) throw new AppError('Please enter their first and last name.', 'validation');
-  const dob = args.dob.trim() ? parseDobInput(args.dob) : null;
-  if (args.dob.trim() && !dob) throw new AppError('Use the format MM/DD/YYYY for the date of birth.', 'validation');
-  await sendToInbox({
-    centerId: args.centerId,
-    userId: args.userId,
-    personId: args.personId,
-    preferredKeys: ['membership', 'office'],
-    subject: `Add a family member to ${args.householdName}`,
-    body: [
-      `Please add a family member to ${args.householdName}.`,
-      `Name: ${args.first.trim()} ${args.last.trim()}`,
-      `Relationship: ${args.relationship || 'not given'}`,
-      `Date of birth: ${dob ?? 'not given'}`,
-      'Sent from the Community Connect app.',
-    ].join('\n'),
-  });
 }
 
 // ---------------------------------------------------------------------------

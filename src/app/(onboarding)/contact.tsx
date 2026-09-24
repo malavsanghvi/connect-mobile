@@ -20,7 +20,6 @@ export default function ContactStepScreen() {
       <ContactPrefsForm
         member={member}
         centerId={center.id}
-        mode="onboarding"
         onSaved={(summary) =>
           router.push({
             pathname: '/done',
