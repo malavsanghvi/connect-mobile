@@ -144,6 +144,8 @@ export const en = {
   'match.nameRequired': 'Please enter your first and last name.',
   'match.officeHelp': "If your family is a member but isn't shown, the office can link your login to your record.",
   'match.alreadyLinked': "You're linked to {family}.",
+  'match.pendingTitle': 'A family member already added you',
+  'match.pendingBody': '{requester} from the {household} household asked to add you as a family member. It is waiting for the office to approve — check back soon, or contact the office if this is not right.',
 
   // About you (step 3) + profile fields
   'about.title': 'About you',
@@ -226,6 +228,7 @@ export const en = {
   'familyStep.relationshipPlaceholder': 'e.g. Daughter',
   'familyStep.addSend': 'Send to the membership team',
   'familyStep.addSent': 'Sent · the membership team will add them',
+  'familyStep.addContactHint': "If you know their phone or email, add it — it helps us tell it's really them if they sign up themselves later, instead of creating a duplicate profile.",
   'familyStep.relationshipNote': 'To change a relationship or move someone between families, contact the office.',
   'familyStep.newMember': 'New family member',
   'familyStep.pending': 'waiting for the membership team',

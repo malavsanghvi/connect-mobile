@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { Loaded } from '@/components/states';
 import { Banner, Button, Card, LinkText, Row, TextField, Txt, VStack } from '@/components/ui';
 import { OnboardingFrame } from '@/features/onboarding/frame';
+import { findPendingFamilyAddRequests, type PendingFamilyAddRequest } from '@/lib/api/family';
 import { createMyHousehold, findMyFamily, linkAccount } from '@/lib/api/member';
 import { logError, report } from '@/lib/errors';
 import { useLoad } from '@/lib/use-load';
@@ -18,6 +19,11 @@ export default function FamilyMatchScreen() {
   const t = useT();
   const { center, session, member, refreshMember, signOut, setOnboarding } = useApp();
   const candidates = useLoad(() => (center ? findMyFamily(center.id) : Promise.resolve([])), [center?.id, session?.user.id], 'look up your family');
+  // A family member may already have asked to add this person before they signed up
+  // themselves -- checked by verified email/phone, since the request has no linkable
+  // person record yet (app.find_pending_family_add_requests, 0524). Shown instead of
+  // "start a new household" so two logins never end up representing the same person.
+  const pendingRequests = useLoad(() => (center ? findPendingFamilyAddRequests(center.id) : Promise.resolve([])), [center?.id, session?.user.id], 'look up pending family requests');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [startNew, setStartNew] = useState(false);
@@ -90,15 +96,22 @@ export default function FamilyMatchScreen() {
     <OnboardingFrame step={2} title={t('match.title')} onBack={() => signOut().catch((err: unknown) => logError('signing out from family match', err))}>
       {error ? <Banner tone="error" message={error} /> : null}
       <Loaded state={candidates} loadingLabel={t('match.looking')}>
-        {(rows) =>
-          rows.length === 0 ? (
-            <VStack>
-              <Txt variant="body" color="ink2">
-                {t('match.none', { identity, center: center?.name ?? '' })}
-              </Txt>
-              {newForm}
-            </VStack>
-          ) : (
+        {(rows) => {
+          const pending = pendingRequests.data ?? [];
+          const startNewOrPending = pending.length > 0 ? <PendingMatchCard t={t} rows={pending} /> : newForm;
+          if (rows.length === 0) {
+            return (
+              <VStack>
+                {pending.length === 0 ? (
+                  <Txt variant="body" color="ink2">
+                    {t('match.none', { identity, center: center?.name ?? '' })}
+                  </Txt>
+                ) : null}
+                {startNewOrPending}
+              </VStack>
+            );
+          }
+          return (
             <VStack>
               <Txt variant="small" color="muted">
                 {t('match.found', { identity: session?.user.email ? t('match.yourEmail') : t('match.yourMobile'), center: center?.short_name || center?.name || '' })}
@@ -109,7 +122,7 @@ export default function FamilyMatchScreen() {
                   <Button label={t('match.yes')} onPress={() => link(c.person_id)} busy={busyId === c.person_id} disabled={busyId !== null && busyId !== c.person_id} />
                 </VStack>
               ))}
-              {startNew ? newForm : (
+              {startNew ? startNewOrPending : (
                 <View style={{ alignItems: 'center' }}>
                   <LinkText label={t('match.notMine')} onPress={() => setStartNew(true)} />
                 </View>
@@ -118,10 +131,29 @@ export default function FamilyMatchScreen() {
                 {t('match.officeHelp')}
               </Txt>
             </VStack>
-          )
-        }
+          );
+        }}
       </Loaded>
     </OnboardingFrame>
+  );
+}
+
+/** "A family member already asked to add you" (app.find_pending_family_add_requests, 0524) --
+ * shown instead of "start a new household" so a second signup never creates a duplicate
+ * person for someone whose add-member request is still waiting on the office. */
+function PendingMatchCard({ t, rows }: { t: ReturnType<typeof useT>; rows: PendingFamilyAddRequest[] }) {
+  return (
+    <Card tone="outlineNavy" style={{ borderWidth: 1, gap: space.sm }}>
+      <Txt variant="section">{t('match.pendingTitle')}</Txt>
+      {rows.map((r) => (
+        <Txt key={r.requestId} variant="body" color="ink2">
+          {t('match.pendingBody', { requester: r.requestedByName, household: r.householdName })}
+        </Txt>
+      ))}
+      <Txt variant="meta" color="muted">
+        {t('match.officeHelp')}
+      </Txt>
+    </Card>
   );
 }
 
