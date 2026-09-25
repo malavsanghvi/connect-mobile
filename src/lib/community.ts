@@ -18,6 +18,15 @@ export function parseJoinInput(raw: string | null | undefined): string | null {
 }
 
 /** "7K4M-Q2PD" */
+/**
+ * Search results a member may pick: live communities only. The database never lists a sandbox
+ * (app.find_community, owner decision 2026-09-25 #21); this keeps the screen honest even if a
+ * sandbox ever came back — a sandbox opens with its join code only.
+ */
+export function searchableCommunities<T extends { sandbox: boolean }>(rows: readonly T[]): T[] {
+  return rows.filter((r) => !r.sandbox);
+}
+
 export function formatJoinCode(code: string): string {
   const c = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
   return c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c;

@@ -384,7 +384,7 @@ export async function nextTithiDates(centerId: string, fromDate: string, days: {
 
 /**
  * The details the community keeps about this person that it chose to show
- * them (custom fields marked member_self), read-only. Until the database has
+ * them (custom fields marked member_self or directory), read-only; never a staff-only one. Until the database has
  * app.person_custom_fields (connect-crm 0190) there are none to show; that is
  * logged, not shown as an error.
  */

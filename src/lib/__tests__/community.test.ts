@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { brandAssetUrl, brandColors, brandPalette, communityToOpen, formatJoinCode, isCommunityChoice, mixHex, openedPath, parseJoinInput } from '../community';
+import { brandAssetUrl, brandColors, brandPalette, communityToOpen, formatJoinCode, isCommunityChoice, mixHex, openedPath, parseJoinInput, searchableCommunities } from '../community';
 
 describe('parseJoinInput', () => {
   it('reads a typed code in any case, with spaces or a dash', () => {
@@ -82,5 +82,15 @@ describe('brand theme', () => {
     expect(brandAssetUrl('c1/logo.png', 'https://x.supabase.co/')).toBe('https://x.supabase.co/storage/v1/object/public/branding/c1/logo.png');
     expect(brandAssetUrl('../secret', 'https://x.supabase.co')).toBeNull();
     expect(brandAssetUrl(null, 'https://x.supabase.co')).toBeNull();
+  });
+});
+
+describe('searchableCommunities', () => {
+  it('never offers a sandbox in search results (join code only)', () => {
+    const rows = [
+      { slug: 'jsh', sandbox: false },
+      { slug: 'jsh-sandbox', sandbox: true },
+    ];
+    expect(searchableCommunities(rows).map((r) => r.slug)).toEqual(['jsh']);
   });
 });

@@ -331,7 +331,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
   );
 }
 
-/** The community's own details about this person that it shows them (custom fields marked member_self), read-only. */
+/** The community's own details about this person that it shows them (custom fields marked member_self or directory), read-only. */
 function MoreDetails({ centerId, personId, community }: { centerId: string; personId: string; community: string }) {
   const t = useT();
   const state = useLoad(() => loadMemberCustomFields(centerId, personId), [centerId, personId], 'load your other details');
