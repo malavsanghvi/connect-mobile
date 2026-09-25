@@ -2,6 +2,8 @@ import type { Session } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { pendingSteps, type LegalStepDoc } from '@/features/legal-step';
+import { loadLegalSteps } from '@/lib/api/legal';
 import { loadCenter, loadMember, orgIdentifierRules, type Center, type Member } from '@/lib/api/member';
 import { brandPalette, communityToOpen, isCommunityChoice, openedPath, type CommunityChoice } from '@/lib/community';
 import { env, isConfigured } from '@/lib/env';
@@ -46,6 +48,16 @@ export type AppContextValue = {
   /** True while the onboarding steps are in progress. */
   onboarding: boolean;
   setOnboarding: (on: boolean) => void;
+  /**
+   * The community's documents this member must accept or answer before continuing (#20): the
+   * first sign-in, and again for a newly published version. Empty when nothing is due; null
+   * while they load.
+   */
+  legalPending: LegalStepDoc[] | null;
+  legalError: AppError | null;
+  retryLegal: () => void;
+  /** After the answers are recorded: read the step again (it comes back empty). */
+  finishLegal: () => void;
   /** Label for the org's person id, e.g. "JSH member ID". */
   orgMemberLabel: string;
   /** Label for the org's household id, e.g. "JSH household ID". */
@@ -190,6 +202,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [memberKey]);
 
+  // The legal step: loaded for a linked member, re-read after answering or on retry.
+  const [legalNonce, setLegalNonce] = useState(0);
+  const [legalResult, setLegalResult] = useState<Loaded<LegalStepDoc[] | null> | null>(null);
+  const linkedPerson = session && memberResult?.key === memberKey ? (memberResult.value?.person.id ?? null) : null;
+  const legalKey = `${memberKey}#${linkedPerson ?? ''}#${legalNonce}`;
+  useEffect(() => {
+    const c = latest.current.center;
+    if (!c || !linkedPerson) return;
+    let active = true;
+    loadLegalSteps(c.id)
+      .then((value) => active && setLegalResult({ key: legalKey, value: value === null ? [] : pendingSteps(value) }))
+      .catch((err: unknown) => active && setLegalResult({ key: legalKey, error: report(err, "load your community's documents") }));
+    return () => {
+      active = false;
+    };
+  }, [legalKey, linkedPerson]);
+  const currentLegal = linkedPerson && legalResult?.key === legalKey ? legalResult : null;
+
   const refreshMember = async (): Promise<Member | null> => {
     if (!center) return null;
     const { data, error } = await supabase.auth.getUser();
@@ -238,6 +268,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshMember,
     onboarding,
     setOnboarding,
+    legalPending: linkedPerson ? (currentLegal ? (currentLegal.value ?? null) : null) : [],
+    legalError: currentLegal?.error ?? null,
+    retryLegal: () => setLegalNonce((n) => n + 1),
+    finishLegal: () => setLegalNonce((n) => n + 1),
     orgMemberLabel: memberLabel ?? `${shortName} member ID`.trim(),
     orgHouseholdLabel: householdLabel ?? `${shortName} household ID`.trim(),
     signOut,
