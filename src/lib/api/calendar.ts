@@ -1,4 +1,5 @@
 import type { Tables } from '../database.types';
+import { entryDetails } from '../calendar-entry';
 import { must } from '../errors';
 import { addDays, toISODate, zonedParts } from '../format';
 import { supabase } from '../supabase';
@@ -6,7 +7,7 @@ import { supabase } from '../supabase';
 import type { Center } from './member';
 
 export type CalendarLayer = Tables<'calendar_layers'>;
-export type CalendarItem = { date: string; layerId: string; title: string; sub: string | null };
+export type CalendarItem = { date: string; layerId: string; title: string; sub: string | null; notes?: string | null; link?: string | null };
 export type CalendarMonth = {
   layers: CalendarLayer[];
   items: CalendarItem[];
@@ -51,7 +52,7 @@ export async function loadCalendarRange(center: Center, first: string, last: str
     if ((e.ends_on ?? e.starts_on) < first) continue;
     const end = e.ends_on ?? e.starts_on;
     for (let d = e.starts_on < first ? first : e.starts_on; d <= end && d <= last; d = addDays(d, 1)) {
-      items.push({ date: d, layerId: e.layer_id, title: e.title, sub: typeof (e.metadata as Record<string, unknown> | null)?.sub === 'string' ? ((e.metadata as Record<string, unknown>).sub as string) : null });
+      items.push({ date: d, layerId: e.layer_id, title: e.title, ...entryDetails(e.metadata) });
     }
   }
   const eventsLayer = layers.find((l) => l.kind === 'events');
