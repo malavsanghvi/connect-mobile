@@ -297,4 +297,8 @@ export type TextSize = keyof typeof textScales;
 export const layout = {
   maxContentWidth: 640,
   tabBarHeight: 76,
+  /** Web only: the whole app (header, tab bar, everything) is boxed to this width and
+   * centred, so a wide monitor still reads as a phone screen instead of stretching a
+   * mobile layout edge-to-edge. See WebFrame in app/_layout.tsx. */
+  webAppWidth: 480,
 } as const;

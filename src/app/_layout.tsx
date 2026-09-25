@@ -8,8 +8,8 @@ import { useFonts } from 'expo-font';
 import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { View } from 'react-native';
+import { useEffect, type ReactNode } from 'react';
+import { Platform, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BiometricGate } from '@/components/biometric-gate';
@@ -27,7 +27,11 @@ import { DataVersionProvider } from '@/providers/data-version';
 import { FeedbackProvider } from '@/providers/feedback';
 import { ModulesProvider } from '@/providers/modules';
 import { SettingsProvider, useT } from '@/providers/settings';
-import { colors } from '@/theme';
+import { colors, layout } from '@/theme';
+
+// Web only — Metro drops CSS imports on native builds. Boxes react-native-web's
+// <Modal> portals (drawer, sheets, popovers) to the same width as WebFrame below.
+import '@/global.css';
 
 SplashScreen.preventAutoHideAsync().catch((err: unknown) => logError('keeping the splash screen up', err));
 
@@ -50,22 +54,39 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <SettingsProvider>
-        <DataVersionProvider>
-          <AppProvider>
-            <ModulesProvider>
-              <FeedbackProvider>
-                <StatusBar style="dark" />
-                <ScreenTracker />
-                <RootNavigator />
-                <PayHost />
-              </FeedbackProvider>
-            </ModulesProvider>
-          </AppProvider>
-        </DataVersionProvider>
-      </SettingsProvider>
-    </SafeAreaProvider>
+    <WebFrame>
+      <SafeAreaProvider>
+        <SettingsProvider>
+          <DataVersionProvider>
+            <AppProvider>
+              <ModulesProvider>
+                <FeedbackProvider>
+                  <StatusBar style="dark" />
+                  <ScreenTracker />
+                  <RootNavigator />
+                  <PayHost />
+                </FeedbackProvider>
+              </ModulesProvider>
+            </AppProvider>
+          </DataVersionProvider>
+        </SettingsProvider>
+      </SafeAreaProvider>
+    </WebFrame>
+  );
+}
+
+/**
+ * Web only: boxes the whole app (header, tab bar, drawer, every screen) to a
+ * phone-sized column and centres it, so opening the site on a wide monitor
+ * still reads as a mobile app instead of a mobile layout stretched edge to
+ * edge. Native builds render children untouched.
+ */
+function WebFrame({ children }: { children: ReactNode }) {
+  if (Platform.OS !== 'web') return <>{children}</>;
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.frame, alignItems: 'center' }}>
+      <View style={{ flex: 1, width: '100%', maxWidth: layout.webAppWidth, backgroundColor: colors.ground, overflow: 'hidden' }}>{children}</View>
+    </View>
   );
 }
 
