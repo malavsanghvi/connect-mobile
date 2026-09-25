@@ -270,6 +270,7 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   'pathshala-teach': 'pathshala',
   // library + photos
   'pachchakhan/[id]': 'content',
+  darshan: 'content',
   'album/[id]': 'content',
   'guide/[slug]': 'content',
   // surveys, Niva

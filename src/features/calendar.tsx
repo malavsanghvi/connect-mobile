@@ -278,11 +278,17 @@ export function CalendarView() {
             return (
               <View key={`${it.title}-${i}`} style={{ flexDirection: 'row', gap: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: radii.card, paddingVertical: 10, paddingHorizontal: space.md }}>
                 <View style={{ width: 4, borderRadius: 2, backgroundColor: layerColor(layer) }} />
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, gap: 2 }}>
                   <Txt variant="smallStrong">{it.title}</Txt>
                   <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
                     {[it.sub, layer?.name].filter(Boolean).join(' · ')}
                   </Txt>
+                  {it.notes ? (
+                    <Txt variant="caption" color="ink2" style={{ fontFamily: fonts.body }} numberOfLines={4}>
+                      {it.notes}
+                    </Txt>
+                  ) : null}
+                  {it.link ? <EntryLink url={it.link} /> : null}
                 </View>
               </View>
             );
@@ -296,6 +302,30 @@ export function CalendarView() {
       </Txt>
       {sheet ? <FeedSheet feeds={sheet} onClose={() => setSheet(null)} onSaveFile={() => void saveFile(visibleLayers)} /> : null}
     </VStack>
+  );
+}
+
+/** A subscribed calendar's link on an entry (a Zoom session, a form): opens in the browser. */
+function EntryLink({ url }: { url: string }) {
+  const t = useT();
+  const [error, setError] = useState<string | null>(null);
+  const open = async () => {
+    setError(null);
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      setError(report(err, 'open the link').userMessage);
+    }
+  };
+  return (
+    <View style={{ gap: 4, paddingTop: 2 }}>
+      <Pressable onPress={() => void open()} accessibilityRole="link" accessibilityLabel={`${t('calendar.openLink')}: ${url}`} style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+        <Txt variant="caption" color="navy" style={{ fontFamily: fonts.bodySemi }} numberOfLines={1}>
+          {`${t('calendar.openLink')} ›`}
+        </Txt>
+      </Pressable>
+      {error ? <Banner tone="error" message={error} /> : null}
+    </View>
   );
 }
 

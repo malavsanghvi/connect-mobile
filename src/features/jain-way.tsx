@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -948,11 +947,12 @@ export function LibraryPane() {
   const aarti = today.data?.timings?.aarti ? formatTimeOfDay(today.data.timings.aarti) : null;
   const [openError, setOpenError] = useState<string | null>(null);
 
-  const openDarshan = async () => {
+  // The full-screen player (src/app/(app)/darshan.tsx): embedded on the web, the in-app browser on a phone.
+  const openDarshan = () => {
     if (!darshan) return;
     setOpenError(null);
     try {
-      await WebBrowser.openBrowserAsync(darshan.url);
+      router.push('/darshan');
     } catch (err) {
       setOpenError(report(err, 'open the live darshan').userMessage);
     }

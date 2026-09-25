@@ -1,5 +1,6 @@
 import type { Tables } from '../database.types';
-import { maybe, must } from '../errors';
+import { pickDarshan, type Darshan } from '../darshan';
+import { logError, maybe, must } from '../errors';
 import { todayAt } from '../format';
 import { lunchCard, type LunchCard } from '../rules';
 import { readPref } from '../storage';
@@ -12,7 +13,7 @@ export type TodayInfo = {
   today: string;
   tithi: Tables<'tithi_days'> | null;
   timings: Tables<'daily_timings'> | null;
-  darshan: { title: string; url: string } | null;
+  darshan: Darshan | null;
 };
 
 /** Today at the center: tithi (center row beats the shared tradition row), timings, live darshan link. */
@@ -21,7 +22,7 @@ export async function loadToday(center: Center): Promise<TodayInfo> {
   const [tithiRes, timingsRes, darshanRes] = await Promise.all([
     supabase.from('tithi_days').select('*').eq('gregorian', today).or(`center_id.eq.${center.id},center_id.is.null`),
     supabase.from('daily_timings').select('*').eq('center_id', center.id).eq('on_date', today).maybeSingle(),
-    supabase.from('content_items').select('title, media_url').eq('kind', 'darshan_stream').eq('status', 'published').or(`center_id.eq.${center.id},center_id.is.null`).limit(1),
+    supabase.from('content_items').select('title, media_url, center_id, metadata').eq('kind', 'darshan_stream').eq('status', 'published').or(`center_id.eq.${center.id},center_id.is.null`).limit(20),
   ]);
   const tithis = must(tithiRes, "load today's tithi");
   const tithi =
@@ -31,8 +32,8 @@ export async function loadToday(center: Center): Promise<TodayInfo> {
     null;
   // Guests can't read member-only content; a missing darshan link is not an error.
   const darshanRows = darshanRes.error ? [] : (darshanRes.data ?? []);
-  const d = darshanRows.find((r) => typeof r.media_url === 'string' && r.media_url);
-  return { today, tithi, timings: maybe(timingsRes, "load today's timings"), darshan: d && d.media_url ? { title: d.title, url: d.media_url } : null };
+  if (darshanRes.error) logError('reading the live darshan stream (hidden for this reader)', darshanRes.error);
+  return { today, tithi, timings: maybe(timingsRes, "load today's timings"), darshan: pickDarshan(darshanRows, center.id) };
 }
 
 export type Alert = Tables<'alerts'>;
