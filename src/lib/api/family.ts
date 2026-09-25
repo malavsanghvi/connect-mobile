@@ -251,21 +251,49 @@ export async function saveExtraEmails(args: { centerId: string; personId: string
 // the family tree directly; the membership coordinator reviews each request.
 // ---------------------------------------------------------------------------
 
-export async function requestAddFamilyMember(args: { centerId: string; userId: string; householdId: string; first: string; last: string; relationship: string; dob: string }): Promise<void> {
+/**
+ * Sends the request through app.request_add_family_member (0524) rather than
+ * inserting the row directly -- the RPC checks phone/email (or, absent
+ * those, exact name+DOB) against everyone already on file at the center AND
+ * every other open request, so two family members onboarding independently
+ * never each create a record for the same person.
+ */
+export async function requestAddFamilyMember(args: { centerId: string; userId: string; householdId: string; first: string; last: string; relationship: string; dob: string; phone?: string; email?: string }): Promise<void> {
   if (!args.first.trim() || !args.last.trim()) throw new AppError('Please enter their first and last name.', 'validation');
   const dob = args.dob.trim() ? parseDobInput(args.dob) : null;
   if (args.dob.trim() && !dob) throw new AppError('Use the format MM/DD/YYYY for the date of birth.', 'validation');
-  check(
-    await supabase.from('household_change_requests').insert({
-      center_id: args.centerId,
-      household_id: args.householdId,
-      requested_by: args.userId,
-      kind: 'add_member',
-      status: 'open',
-      details: { first_name: args.first.trim(), last_name: args.last.trim(), relationship: args.relationship.trim() || null, dob },
+  let phone: string | null = null;
+  if (args.phone?.trim()) {
+    phone = toE164(args.phone);
+    if (!phone) throw new AppError('Enter a 10-digit US number, or an international number starting with +.', 'validation');
+  }
+  const email = args.email?.trim() ? args.email.trim().toLowerCase() : null;
+  if (email && !isValidEmail(email)) throw new AppError('That email address does not look right.', 'validation');
+  must(
+    await supabase.rpc('request_add_family_member', {
+      p_household: args.householdId,
+      p_first: args.first.trim(),
+      p_last: args.last.trim(),
+      p_relationship: args.relationship.trim() || undefined,
+      p_dob: dob ?? undefined,
+      p_phone: phone ?? undefined,
+      p_email: email ?? undefined,
     }),
     'send the request to add a family member',
   );
+}
+
+export type PendingFamilyAddRequest = { requestId: string; householdName: string; requestedByName: string; firstName: string | null; lastName: string | null };
+
+/**
+ * Someone already asked to add the signed-in person as a family member,
+ * matched by their verified email/phone (app.find_pending_family_add_requests,
+ * 0524) -- the sibling check to findMyFamily for the not-yet-approved case,
+ * so onboarding can offer "wait for that" instead of "start a new profile".
+ */
+export async function findPendingFamilyAddRequests(centerId: string): Promise<PendingFamilyAddRequest[]> {
+  const rows = must(await supabase.rpc('find_pending_family_add_requests', { p_center: centerId }), 'look up pending family requests');
+  return rows.map((r) => ({ requestId: r.request_id, householdName: r.household_name, requestedByName: r.requested_by_name, firstName: r.first_name, lastName: r.last_name }));
 }
 
 export async function requestRelationshipChange(args: { centerId: string; userId: string; householdId: string; personId: string; from: string; to: string }): Promise<void> {

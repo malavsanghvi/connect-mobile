@@ -79,6 +79,8 @@ function AddMemberCard({ onClose }: { onClose: () => void }) {
   const [last, setLast] = useState(member?.person.last_name ?? '');
   const [relationship, setRelationship] = useState('');
   const [dob, setDob] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const relOptions = useLoad(() => (center ? loadRelationshipOptions(center.id) : Promise.resolve([])), [center?.id], 'load the relationship options');
@@ -89,7 +91,7 @@ function AddMemberCard({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await requestAddFamilyMember({ centerId: center.id, userId: member.userId, householdId, first, last, relationship, dob });
+      await requestAddFamilyMember({ centerId: center.id, userId: member.userId, householdId, first, last, relationship, dob, phone, email });
       invalidate();
       toast(t('familyStep.addSent'));
       onClose();
@@ -130,6 +132,17 @@ function AddMemberCard({ onClose }: { onClose: () => void }) {
           <DateField size="sm" label={t('profile.dob')} value={dob} onChangeText={setDob} />
         </View>
       </Row>
+      <Row gap={space.sm} align="flex-start">
+        <View style={{ flex: 1 }}>
+          <TextField size="sm" label={t('profile.mobile')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="(713) 555-0142" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <TextField size="sm" label={t('profile.email')} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+        </View>
+      </Row>
+      <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+        {t('familyStep.addContactHint')}
+      </Txt>
       <Button label={t('familyStep.addSend')} onPress={send} busy={busy} size="md" />
       <Button label={t('common.cancel')} onPress={onClose} tone="ghost" size="md" />
     </Card>
