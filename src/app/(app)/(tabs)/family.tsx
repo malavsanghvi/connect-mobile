@@ -9,6 +9,7 @@ import { listDisplayName, whenText } from '@/features/special-days';
 import { listSpecialDays, loadEligibility } from '@/lib/api/family';
 import { myApplication, myReferenceRequests } from '@/lib/api/membership';
 import { applicationStatusKey } from '@/features/membership';
+import { rememberedName } from '@/features/remembrance';
 import { logError } from '@/lib/errors';
 import { formatLongDate, fullName } from '@/lib/format';
 import { ageOn, nextOccurrence } from '@/lib/rules';
@@ -165,6 +166,13 @@ export default function FamilyScreen() {
             </Row>
           );
         })}
+        {member.remembered.length ? (
+          <View testID="in-memory" style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }} accessibilityRole="text">
+            <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+              {t('family.inMemory', { names: member.remembered.map((m) => rememberedName(m.person)).join(', ') })}
+            </Txt>
+          </View>
+        ) : null}
         {member.isAdult ? (
           <Pressable onPress={() => setOnboarding(true)} accessibilityRole="button" style={{ paddingVertical: 14 }}>
             <Txt variant="smallStrong" color="navy">

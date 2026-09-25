@@ -1863,6 +1863,25 @@ export const en = {
   'howToGive.field.legal_name': 'Legal name',
   'howToGive.field.ein': 'EIN',
   'howToGive.field.note': 'Note',
+
+  // Wave E (e-people-legal): the legal step at the first sign-in (#20) and the In memory line (deceased)
+  'legal.stepTitle': 'Before you continue',
+  'legal.stepSub': "Please read {center}'s documents. Your answers are recorded with the version, the date and this device.",
+  'legal.stepSubAgain': '{center} has updated some documents since you last agreed. Please read the new versions.',
+  'legal.newVersion': 'New version {version} (you agreed to {previous})',
+  'legal.versionShort': 'Version {version}',
+  'legal.read': 'Read it',
+  'legal.hide': 'Hide the text',
+  'legal.accept': 'I have read and accept {title}',
+  'legal.consentYes': 'Yes',
+  'legal.consentNo': 'No',
+  'legal.mustAccept': 'To use the app, accept "{title}".',
+  'legal.mustAnswer': 'Choose yes or no for "{title}".',
+  'legal.continue': 'Agree and continue',
+  'legal.saving': 'Recording your answers…',
+  'legal.loading': "Loading your community's documents…",
+  'legal.signOut': 'Not now — sign out',
+  'family.inMemory': 'In memory · {names}',
 } as const;
 
 export type StringKey = keyof typeof en;

@@ -1,6 +1,10 @@
 import { formatCents } from '@/lib/format';
 
-/** A member's own detail kept by the community (app.person_custom_fields, sensitivity member_self). */
+/**
+ * A member's own detail kept by the community (app.person_custom_fields): fields marked member_self
+ * or directory. Staff-only values never reach the member app — the database keeps them off the
+ * records members can read (connect-crm 0401, owner decision 2026-09-25 #22).
+ */
 export type MemberCustomField = { entity: string; key: string; label: string; type: string; value: unknown };
 
 /** How a custom value reads on the profile ("" when there is nothing to show). */
