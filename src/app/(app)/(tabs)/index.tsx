@@ -11,7 +11,6 @@ import {
   LunchCard,
   NextEventRow,
   SpecialDayCard,
-  StoreBanner,
   TodayCard,
   useHomeEvents,
 } from '@/features/home';
@@ -42,7 +41,6 @@ export default function HomeScreen() {
       {on('lunch') ? <LunchCard state={events} /> : null}
       {member?.isAdult && on('specialDay') ? <SpecialDayCard /> : null}
       {on('confirm') ? <ConfirmCard state={events} /> : null}
-      {on('store') ? <StoreBanner /> : null}
       {member?.isAdult && on('giving') ? <GivingSection /> : null}
       {on('nextEvent') ? <NextEventRow state={events} /> : null}
       {on('guide') ? <GuideLink /> : null}

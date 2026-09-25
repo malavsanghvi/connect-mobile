@@ -137,7 +137,6 @@ export const HOME_CARD_MODULE = {
   lunch: 'events',
   specialDay: 'giving',
   confirm: 'events',
-  store: 'store',
   giving: 'giving',
   nextEvent: 'events',
   guide: null,

@@ -615,34 +615,6 @@ export function SpecialDayCard() {
   );
 }
 
-export function StoreBanner() {
-  const t = useT();
-  const router = useRouter();
-  const { center } = useApp();
-  const flags = center?.feature_flags && typeof center.feature_flags === 'object' && !Array.isArray(center.feature_flags) ? (center.feature_flags as Record<string, unknown>) : {};
-  if (flags.store === false) return null;
-  return (
-    <Card hero tone="store" onPress={() => router.push('/store')} accessibilityLabel={t('store.title')}>
-      <Row gap={14}>
-        <View style={{ width: 52, height: 52, borderRadius: radii.row, backgroundColor: colors.storeLight, alignItems: 'center', justifyContent: 'center' }}>
-          <StrokeIcon name="bag" size={26} color={colors.white} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt variant="eyebrow" color="onStore">
-            {t('home.storeEyebrow', { center: center?.short_name || '' })}
-          </Txt>
-          <Txt variant="headline" color="white">
-            {t('home.storeTitle')}
-          </Txt>
-          <Txt variant="caption" color="onStore" style={{ fontFamily: fonts.body }}>
-            {t('home.storeBody')}
-          </Txt>
-        </View>
-      </Row>
-    </Card>
-  );
-}
-
 export function GuideLink() {
   const t = useT();
   const router = useRouter();

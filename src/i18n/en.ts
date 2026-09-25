@@ -30,6 +30,7 @@ export const en = {
   // Navigation
   'nav.openMenu': 'Open menu',
   'nav.memberCard': 'Show member card',
+  'nav.store': 'Store',
   'tab.home': 'Home',
   'tab.events': 'Events',
   'tab.give': 'Give',

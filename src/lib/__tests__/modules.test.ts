@@ -115,7 +115,7 @@ describe('Home, drawer and guide', () => {
     const m = off('events', 'store', 'jain_way', 'surveys', 'comms', 'giving', 'content');
     expect(isHomeCardVisible(m, 'today')).toBe(true);
     expect(isHomeCardVisible(m, 'guide')).toBe(true);
-    for (const card of ['lunch', 'confirm', 'nextEvent', 'store', 'jainWay', 'feedback', 'alerts', 'giving', 'specialDay', 'todayDarshan'] as const) {
+    for (const card of ['lunch', 'confirm', 'nextEvent', 'jainWay', 'feedback', 'alerts', 'giving', 'specialDay', 'todayDarshan'] as const) {
       expect(isHomeCardVisible(m, card)).toBe(false);
     }
   });
