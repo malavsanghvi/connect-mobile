@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { DateField, SelectField } from '@/components/pickers';
 import { Banner, Button, Card, Row, TextField, Txt, VStack } from '@/components/ui';
 import { genderLabel, roleLabel } from '@/features/labels';
 import { relationshipChanged } from '@/features/profile';
-import { draftFromPerson, listOpenHouseholdRequests, profileToUpdate, requestAddFamilyMember, requestRelationshipChange, updatePerson, type ProfileErrors } from '@/lib/api/family';
+import { draftFromPerson, listOpenHouseholdRequests, loadRelationshipOptions, profileToUpdate, requestAddFamilyMember, requestRelationshipChange, updatePerson, type ProfileErrors } from '@/lib/api/family';
 import type { FamilyMember } from '@/lib/api/member';
 import { report } from '@/lib/errors';
 import { formatDob, fullName } from '@/lib/format';
@@ -80,6 +81,7 @@ function AddMemberCard({ onClose }: { onClose: () => void }) {
   const [dob, setDob] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const relOptions = useLoad(() => (center ? loadRelationshipOptions(center.id) : Promise.resolve([])), [center?.id], 'load the relationship options');
   if (!member || !center || !member.household) return null;
   const householdId = member.household.id;
 
@@ -115,10 +117,17 @@ function AddMemberCard({ onClose }: { onClose: () => void }) {
       </Row>
       <Row gap={space.sm} align="flex-start">
         <View style={{ flex: 1 }}>
-          <TextField size="sm" label={t('familyStep.relationship')} value={relationship} onChangeText={setRelationship} placeholder={t('familyStep.relationshipPlaceholder')} />
+          <SelectField
+            size="sm"
+            label={t('familyStep.relationship')}
+            value={relationship}
+            options={relOptions.data ?? []}
+            onChange={setRelationship}
+            placeholder={t('familyStep.relationshipPlaceholder')}
+          />
         </View>
         <View style={{ flex: 1 }}>
-          <TextField size="sm" label={t('profile.dob')} value={dob} onChangeText={setDob} placeholder="MM/DD/YYYY" keyboardType="numbers-and-punctuation" />
+          <DateField size="sm" label={t('profile.dob')} value={dob} onChangeText={setDob} />
         </View>
       </Row>
       <Button label={t('familyStep.addSend')} onPress={send} busy={busy} size="md" />
@@ -214,22 +223,6 @@ export function FamilyReview({ onContinue }: { onContinue?: () => void }) {
             {t('familyStep.add')}
           </Txt>
         </Pressable>
-      ) : null}
-      {onContinue ? (
-        <Button
-          label={t('familyStep.looksRight')}
-          busy={saving && !openId}
-          onPress={async () => {
-            if (openId && saveRef.current) {
-              setSaving(true);
-              const ok = await saveRef.current();
-              setSaving(false);
-              if (!ok) return;
-              setOpenId(null);
-            }
-            onContinue();
-          }}
-        />
       ) : null}
       {onContinue ? (
         <Button
