@@ -1,7 +1,11 @@
 import { Pressable, TextInput, View } from 'react-native';
 
+import { DateField, SelectField } from '@/components/pickers';
 import { Chip, ChipGroup, IconButton, Row, TextField, Txt, VStack } from '@/components/ui';
+import { loadRelationshipOptions } from '@/lib/api/family';
 import type { EmailDraft, Gender, ProfileDraft, ProfileErrors } from '@/lib/api/family';
+import { useLoad } from '@/lib/use-load';
+import { useApp } from '@/providers/app';
 import { useSettings, useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
@@ -39,6 +43,8 @@ export function ProfileFields({
   onEmailsChange?: (next: EmailDraft[]) => void;
 }) {
   const t = useT();
+  const { center } = useApp();
+  const relOptions = useLoad(() => (center ? loadRelationshipOptions(center.id) : Promise.resolve([])), [center?.id], 'load the relationship options');
   const set = (patch: Partial<ProfileDraft>) => onChange({ ...draft, ...patch });
   const compact = variant !== 'about';
   const size = compact ? 'sm' : 'md';
@@ -57,21 +63,22 @@ export function ProfileFields({
       {compact ? (
         <Row gap={space.sm} align="flex-start">
           <View style={{ flex: 1 }}>
-            <TextField
+            <SelectField
               size="sm"
               label={t(variant === 'family' ? 'familyStep.relationship' : 'profile.relationship')}
               value={draft.relationship}
-              onChangeText={(v) => set({ relationship: v })}
+              options={relOptions.data ?? []}
+              onChange={(v) => set({ relationship: v })}
               editable={editable}
               placeholder={t('familyStep.relationshipPlaceholder')}
             />
           </View>
           <View style={{ flex: 1 }}>
-            <TextField size="sm" label={t('profile.dob')} value={draft.dob} onChangeText={(v) => set({ dob: v })} error={errors.dob} editable={editable} placeholder="MM/DD/YYYY" keyboardType="numbers-and-punctuation" />
+            <DateField size="sm" label={t('profile.dob')} value={draft.dob} onChangeText={(v) => set({ dob: v })} error={errors.dob} editable={editable} />
           </View>
         </Row>
       ) : (
-        <TextField label={t('profile.dob')} value={draft.dob} onChangeText={(v) => set({ dob: v })} error={errors.dob} editable={editable} placeholder="MM / DD / YYYY" keyboardType="numbers-and-punctuation" />
+        <DateField label={t('profile.dob')} value={draft.dob} onChangeText={(v) => set({ dob: v })} error={errors.dob} editable={editable} size="md" />
       )}
       <VStack gap={space.xs}>
         <Txt variant={compact ? 'caption' : 'meta'} color="muted" style={compact ? { fontFamily: fonts.body } : undefined}>

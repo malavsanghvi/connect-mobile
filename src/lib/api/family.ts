@@ -43,6 +43,13 @@ export function draftFromPerson(p: Person, relationship = ''): ProfileDraft {
   };
 }
 
+/** The center's relationship picklist (app.relationship_options, 0491) — an admin-managed add/remove list. */
+export async function loadRelationshipOptions(centerId: string): Promise<string[]> {
+  const res = await supabase.rpc('relationship_options', { p_center: centerId });
+  const rows = must(res, 'load the relationship options');
+  return rows.map((r) => r.name);
+}
+
 export type ProfileErrors = Partial<Record<keyof ProfileDraft, string>>;
 
 /** Validate and convert to a people update. `withContact` is false for children (no contact fields). */
