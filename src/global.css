@@ -1,0 +1,18 @@
+/**
+ * Web only (Metro strips CSS imports on native — see app/_layout.tsx). React
+ * Native's <Modal> renders on web via a portal appended straight to <body>,
+ * outside the app tree, so it ignores the phone-width column app/_layout.tsx's
+ * WebFrame boxes everything else into — the drawer, confirm dialogs, the pay
+ * sheet, pickers, the Niva popover and the photo viewer would otherwise cover
+ * the full browser width on a wide monitor. react-native-web always marks
+ * that fixed-position overlay `aria-modal="true"`, so we can box it here
+ * without touching every call site. Keep 480px in sync with
+ * theme.ts `layout.webAppWidth`.
+ */
+[aria-modal='true'] {
+  left: 50% !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: 480px !important;
+  transform: translateX(-50%);
+}
