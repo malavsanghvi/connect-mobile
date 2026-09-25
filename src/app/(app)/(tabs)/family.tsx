@@ -6,12 +6,12 @@ import { ErrorState, LoadingState } from '@/components/states';
 import { Banner, Button, Card, Row, Txt } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { listDisplayName, whenText } from '@/features/special-days';
-import { listSpecialDays, loadEligibility } from '@/lib/api/family';
+import { listOpenHouseholdRequests, listSpecialDays, loadEligibility } from '@/lib/api/family';
 import { myApplication, myReferenceRequests } from '@/lib/api/membership';
 import { applicationStatusKey } from '@/features/membership';
 import { rememberedName } from '@/features/remembrance';
 import { logError } from '@/lib/errors';
-import { formatLongDate, fullName } from '@/lib/format';
+import { formatDob, formatLongDate, fullName } from '@/lib/format';
 import { ageOn, nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -37,6 +37,7 @@ export default function FamilyScreen() {
   const application = useLoad(() => (member && center && membershipOn ? myApplication(center.id) : Promise.resolve(null)), [member?.person.id, center?.id, membershipOn], 'load your membership application');
   const days = useLoad(() => (member?.household ? listSpecialDays(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load special days');
   const eligibility = useLoad(() => (member ? loadEligibility(member.person.id) : Promise.resolve(null)), [member?.person.id], 'load voting eligibility');
+  const pendingRequests = useLoad(() => (member?.household ? listOpenHouseholdRequests(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load your family requests');
   const community = center?.short_name || center?.name || '';
 
   if (!member) {
@@ -181,6 +182,38 @@ export default function FamilyScreen() {
           </Pressable>
         ) : null}
       </Card>
+
+      {pendingRequests.data && pendingRequests.data.length > 0 ? (
+        <View style={{ gap: space.sm }}>
+          <Txt variant="meta" color="muted">
+            {t('family.pendingRequests')}
+          </Txt>
+          {pendingRequests.data.map((r) => {
+            const d = (r.details ?? {}) as Record<string, unknown>;
+            let title: string;
+            let sub: string | null;
+            if (r.kind === 'add_member') {
+              title = [d.first_name, d.last_name].filter((x) => typeof x === 'string').join(' ') || t('familyStep.newMember');
+              sub = [typeof d.relationship === 'string' ? d.relationship : null, typeof d.dob === 'string' ? formatDob(d.dob) : null].filter(Boolean).join(' · ') || null;
+            } else if (r.kind === 'change_relationship') {
+              const person = typeof d.person_id === 'string' ? member.members.find((m) => m.person.id === d.person_id)?.person : undefined;
+              title = person ? fullName(person) : t('familyStep.newMember');
+              sub = typeof d.relationship === 'string' ? t('family.relationshipChangeTo', { relationship: d.relationship }) : null;
+            } else {
+              title = t('familyStep.newMember');
+              sub = null;
+            }
+            return (
+              <View key={r.id} style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.xl, paddingVertical: space.md, paddingHorizontal: 14, gap: 2 }}>
+                <Txt variant="bodyStrong">{title}</Txt>
+                <Txt variant="caption" color="brown" style={{ fontFamily: fonts.body }}>
+                  {[sub, t('familyStep.pending')].filter(Boolean).join(' · ')}
+                </Txt>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
 
       {eligibility.data === undefined ? (
         eligibility.error ? <ErrorState error={eligibility.error} onRetry={() => void eligibility.reload()} /> : null
