@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import type { Enums, Tables } from '../database.types';
 import { AppError, check, maybe, must } from '../errors';
 import { todayAt } from '../format';
+import { splitRemembered } from '@/features/remembrance';
 import { isAdult, orgIdDisplay } from '../rules';
 import { supabase } from '../supabase';
 
@@ -28,7 +29,10 @@ export type Member = {
   household: Household | null;
   /** Organization's own HOUSEHOLD id (external_ids kind 'org_household'), e.g. "0212". */
   orgHouseholdId: string | null;
+  /** The living members of the household (a member recorded as deceased is never listed or offered). */
   members: FamilyMember[];
+  /** Household members recorded as deceased: shown only as the "In memory" line on the Family tab. */
+  remembered: FamilyMember[];
   membership: Tables<'memberships'> | null;
   account: Tables<'accounts'> | null;
   /** Center date when the member record was loaded ('YYYY-MM-DD'). */
@@ -90,6 +94,7 @@ export async function loadMember(center: Center, user: User): Promise<Member | n
   let household: Household | null = null;
   let orgHouseholdId: string | null = null;
   let members: FamilyMember[] = [];
+  let remembered: FamilyMember[] = [];
   let membership: Tables<'memberships'> | null = null;
 
   if (chosen) {
@@ -136,6 +141,7 @@ export async function loadMember(center: Center, user: User): Promise<Member | n
         if (ROLE_ORDER[a.role] !== ROLE_ORDER[b.role]) return ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
         return (a.person.date_of_birth ?? '').localeCompare(b.person.date_of_birth ?? '');
       });
+    ({ living: members, remembered } = splitRemembered(members));
   }
 
   if (!members.some((m) => m.person.id === person.id)) {
@@ -150,6 +156,7 @@ export async function loadMember(center: Center, user: User): Promise<Member | n
     household,
     orgHouseholdId,
     members,
+    remembered,
     membership,
     account,
     today,

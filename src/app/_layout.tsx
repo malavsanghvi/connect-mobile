@@ -18,6 +18,7 @@ import { iconFont } from '@/components/icon';
 import { SetupScreen } from '@/components/setup-screen';
 import { Txt } from '@/components/ui';
 import { FindCommunityScreen } from '@/features/community/find-community';
+import { LegalStepScreen } from '@/features/onboarding/legal-step';
 import { PayHost } from '@/features/pay';
 import { logError } from '@/lib/errors';
 import { setClientScreen } from '@/lib/request-context';
@@ -131,9 +132,48 @@ function RootNavigator() {
         </Stack.Protected>
         <Stack.Screen name="join/[code]" />
       </Stack>
+      {/* The legal step (#20) covers the app until the member's answers are recorded; the
+          navigation underneath keeps its place, so onboarding continues where it was. */}
+      {signedIn && linked ? <LegalGate /> : null}
       {app.sandbox ? <SandboxWatermark /> : null}
       </View>
     </BiometricGate>
+  );
+}
+
+/** Over the app: loading, an error with retry, or the documents to answer. */
+function LegalGate() {
+  const app = useApp();
+  const t = useT();
+  const cover = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const;
+  if (app.legalError) {
+    return (
+      <View style={cover}>
+        <FullScreenError
+          error={app.legalError}
+          onRetry={app.retryLegal}
+          secondary={{
+            label: t('lock.signOut'),
+            onPress: () => {
+              app.signOut().catch((err: unknown) => logError('signing out after the legal step failed to load', err));
+            },
+          }}
+        />
+      </View>
+    );
+  }
+  if (app.legalPending === null) {
+    return (
+      <View style={cover}>
+        <FullScreenLoading label={t('legal.loading')} />
+      </View>
+    );
+  }
+  if (app.legalPending.length === 0) return null;
+  return (
+    <View style={cover}>
+      <LegalStepScreen key={app.legalPending.map((d) => d.documentId).join(',')} docs={app.legalPending} />
+    </View>
   );
 }
 
