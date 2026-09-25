@@ -35,3 +35,18 @@ export async function communityByJoinCode(code: string): Promise<CommunityResult
   if (!r) return null;
   return { slug: r.slug, name: r.name, shortName: r.short_name, place: place(null, r.state_region), sandbox: r.environment === 'sandbox' };
 }
+
+/**
+ * The community with this web name, read like the app's own community (public read of centers:
+ * active or onboarding), sandboxes included. Used for the build's default community
+ * (EXPO_PUBLIC_CENTER_SLUG), which must still open when it is a sandbox that search never lists
+ * (JSH became one on 2026-09-25). Null when there is no such open community.
+ */
+export async function communityBySlug(slug: string): Promise<CommunityResult | null> {
+  const row = maybe(
+    await supabase.from('centers').select('slug, name, short_name, state_region, environment').eq('slug', slug.trim().toLowerCase()).maybeSingle(),
+    'load the suggested community',
+  );
+  if (!row) return null;
+  return { slug: String(row.slug), name: row.name, shortName: row.short_name, place: place(null, row.state_region), sandbox: row.environment === 'sandbox' };
+}

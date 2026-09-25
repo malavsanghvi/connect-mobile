@@ -1825,7 +1825,7 @@ export const en = {
   'community.open': 'Open {name}',
   'community.opening': 'Opening…',
   'community.sandboxTag': 'Sandbox · test data',
-  'community.sandboxNote': 'This is a practice sandbox. Nothing here is real, and messages reach only test recipients.',
+  'community.sandboxNote': 'This community is a sandbox while it is being set up: messages reach only test recipients and payments run in test mode.',
   'community.cancel': 'Stay in {current}',
   'community.notYours': 'Not your community? Choose another',
   'community.linkTitle': 'Open a community',
