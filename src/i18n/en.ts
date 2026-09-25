@@ -30,6 +30,7 @@ export const en = {
   // Navigation
   'nav.openMenu': 'Open menu',
   'nav.memberCard': 'Show member card',
+  'nav.store': 'Store',
   'tab.home': 'Home',
   'tab.events': 'Events',
   'tab.give': 'Give',
@@ -1050,6 +1051,8 @@ export const en = {
   'family.qrFor': 'Member card for {name}',
   'family.qr': 'QR',
   'family.updateFamily': 'Update family profile (onboarding)',
+  'family.pendingRequests': 'Waiting for the membership team',
+  'family.relationshipChangeTo': 'change relationship to {relationship}',
   'family.seeAll': 'See all ›',
   'family.votingGood': 'Voting eligibility · In good standing',
   'family.votingNot': 'Voting eligibility · Not eligible yet',

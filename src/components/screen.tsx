@@ -3,7 +3,6 @@ import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useApp } from '@/providers/app';
 import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, components, layout, space } from '@/theme';
@@ -21,19 +20,20 @@ export { CenterMark };
  * Left: 44px white round menu (tab roots) or back button with a 1px #E3D9C8
  * border. Middle: the community mark + two-line wordmark, centred (Home), or
  * the screen title left-aligned right after the button (Fraunces 22 navy).
- * Right: the member card as a filled navy circle with a white QR glyph.
+ * Right: the Store shortcut as a filled navy circle with a white bag glyph
+ * (module-gated; the member card moved to a per-person QR on the Family tab).
  */
 export function AppHeader({ title, root, showWordmark, right }: { title?: string; root?: boolean; showWordmark?: boolean; right?: ReactNode }) {
   const router = useRouter();
   const t = useT();
   const drawer = useDrawer();
-  const { member } = useApp();
+  const storeOn = useModule('store');
   const spec = components.header;
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };
-  const cardButton = member ? <IconButton glyph="qr" variant="filled" label={t('nav.memberCard')} onPress={() => router.push('/member-card')} /> : <View style={{ width: spec.iconButton }} />;
+  const cardButton = storeOn ? <IconButton glyph="bag" variant="filled" label={t('nav.store')} onPress={() => router.push('/store')} /> : <View style={{ width: spec.iconButton }} />;
   return (
     <Row gap={spec.gap} style={{ paddingTop: spec.padTop, paddingHorizontal: spec.padX, paddingBottom: spec.padBottom, minHeight: spec.iconButton, backgroundColor: colors.ground }}>
       {root ? <IconButton glyph="menu" variant="outline" label={t('nav.openMenu')} onPress={drawer.open} /> : <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={goBack} />}
