@@ -5,7 +5,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { FullScreen } from '@/components/full-screen';
 import { QrScanner } from '@/components/qr-scanner';
 import { Banner, Button, Card, LinkText, ListRow, Pill, SectionTitle, TextField, Txt } from '@/components/ui';
-import { communityByJoinCode, findCommunity, type CommunityResult } from '@/lib/api/community';
+import { communityByJoinCode, communityBySlug, findCommunity, type CommunityResult } from '@/lib/api/community';
 import { formatJoinCode, parseJoinInput } from '@/lib/community';
 import { env } from '@/lib/env';
 import { report, type AppError } from '@/lib/errors';
@@ -41,12 +41,9 @@ export function FindCommunityScreen() {
   }, [query]);
 
   const results = useLoad(() => (debounced.length >= 2 ? findCommunity(debounced) : Promise.resolve([])), [debounced], 'search for communities');
-  // The build's own community (JSH for the JSH build), offered as one tap.
-  const suggested = useLoad(
-    async () => (await findCommunity(env.centerSlug)).find((c) => c.slug === env.centerSlug) ?? null,
-    [env.centerSlug],
-    'load the suggested community',
-  );
+  // The build's own community (JSH for the JSH build), offered as one tap. Read by its web name,
+  // not through search: search never lists a sandbox, and the build's community may be one.
+  const suggested = useLoad(() => communityBySlug(env.centerSlug), [env.centerSlug], 'load the suggested community');
 
   const lookUp = async (raw: string) => {
     setCodeError(null);
