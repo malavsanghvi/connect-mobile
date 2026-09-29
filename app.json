@@ -30,6 +30,12 @@
       "backgroundColor": "#FBF7F0",
       "themeColor": "#1B2C5C"
     },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d61c6e7c-7999-4c49-aa39-bef5baf1fea7"
+    },
     "extra": {
       "eas": {
         "projectId": "d61c6e7c-7999-4c49-aa39-bef5baf1fea7"
