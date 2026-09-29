@@ -1,5 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
+import { listGivingPurposes } from '../api/giving';
+
 jest.mock('../supabase', () => {
   // A minimal chainable query-builder mock: every method returns `this` except the final await,
   // which resolves via `then` (mirroring how supabase-js's PostgrestFilterBuilder is thenable).
@@ -33,8 +35,6 @@ jest.mock('../supabase', () => {
     },
   };
 });
-
-import { listGivingPurposes } from '../api/giving';
 
 describe('listGivingPurposes', () => {
   it('does not list a fund a second time when a published campaign shares its exact name (the recurring-gift picker duplicate bug)', async () => {
