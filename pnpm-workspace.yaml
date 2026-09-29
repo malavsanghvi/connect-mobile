@@ -1,5 +1,13 @@
 # unrs-resolver (a native helper pulled in by the lint tooling) has an install script we do not
-# need to run. Ignoring it explicitly keeps `pnpm install` from failing with ERR_PNPM_IGNORED_BUILDS
-# on newer pnpm, which is what broke the EAS "Install dependencies" phase.
+# need to run. Ignoring it explicitly keeps `pnpm install` from failing with ERR_PNPM_IGNORED_BUILDS.
+# pnpm 11 reads `allowBuilds`; pnpm 10 reads `ignoredBuiltDependencies`. Both name the same choice.
+allowBuilds:
+  unrs-resolver: false
 ignoredBuiltDependencies:
   - unrs-resolver
+
+# pnpm 11 refuses packages published less than a day ago. expo-updates 57.0.24 (an official Expo
+# release we chose on purpose) was inside that window when it was added; this exempts exactly that
+# version, so the rule stays on for everything else and lapses by itself when the version is bumped.
+minimumReleaseAgeExclude:
+  - expo-updates@57.0.24
