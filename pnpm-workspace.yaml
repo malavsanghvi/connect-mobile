@@ -1,0 +1,5 @@
+# unrs-resolver (a native helper pulled in by the lint tooling) has an install script we do not
+# need to run. Ignoring it explicitly keeps `pnpm install` from failing with ERR_PNPM_IGNORED_BUILDS
+# on newer pnpm, which is what broke the EAS "Install dependencies" phase.
+ignoredBuiltDependencies:
+  - unrs-resolver
