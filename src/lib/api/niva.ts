@@ -15,14 +15,24 @@ export async function listMyNivaQuestions(centerId: string, userId: string): Pro
 }
 
 /**
- * There is no answering service yet (it needs approved-content retrieval and
- * a model behind an edge function). The question is saved as unanswered so
- * staff see it under "Unanswered questions" in the portal.
+ * Saves the question and hands it to the background worker (app.niva_ask →
+ * job kind niva.answer, worker/src/handlers/niva.answer.ts), which retrieves
+ * from this center's approved niva_source content and answers with an
+ * Anthropic call made by connect-crm's worker — never from this app, so no
+ * key ever reaches the client. The row comes back unanswered=true; `answer`
+ * and `sources` fill in once the worker finishes (the caller re-fetches via
+ * listMyNivaQuestions). No matching source, or the model isn't confident →
+ * the row simply stays unanswered and the UI shows the existing honest
+ * "still being set up" message (niva.pending) — never a fabricated answer.
+ *
+ * userId kept in the signature for call-site compatibility; app.niva_ask
+ * always uses auth.uid() for the row's user_id, never a caller-supplied id.
  */
-export async function askNiva(centerId: string, userId: string, question: string): Promise<NivaConversation> {
+export async function askNiva(centerId: string, _userId: string, question: string): Promise<NivaConversation> {
   const q = normaliseQuestion(question).slice(0, 1000);
-  return must(
-    await supabase.from('niva_conversations').insert({ center_id: centerId, user_id: userId, question: q, unanswered: true }).select('*').single(),
-    'save your question for Niva',
-  );
+  // app.niva_ask returns the app.niva_conversations row; the codegen script maps every
+  // composite return to `string` (see supabase/scripts/gen-types.mjs, same as every other
+  // row-returning RPC in this schema), so the real shape is asserted here.
+  const row = must(await supabase.rpc('niva_ask', { p_center: centerId, p_question: q }), 'save your question for Niva');
+  return row as unknown as NivaConversation;
 }
