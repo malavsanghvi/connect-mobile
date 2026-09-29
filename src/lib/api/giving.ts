@@ -224,7 +224,12 @@ export async function listOpportunitiesWithAvailability(centerId: string): Promi
 
 export type GivingPurpose = { key: string; label: string; sub: string | null; fundId: string | null; campaignId: string | null };
 
-/** What a recurring gift can go towards: the center's active funds, then its published campaigns. */
+/**
+ * What a recurring gift can go towards: the center's active funds, then its published campaigns.
+ * A fund whose name exactly matches a published campaign's name (e.g. a fund and its dedicated
+ * campaign both called "Dev Dravya") is left out of the bare-fund list — the campaign row already
+ * covers it, and listing both showed the donor the same choice twice under an identical label.
+ */
 export async function listGivingPurposes(centerId: string): Promise<GivingPurpose[]> {
   const [fundsRes, campaignsRes] = await Promise.all([
     supabase.from('funds').select('id, name').eq('center_id', centerId).eq('active', true).order('name'),
@@ -232,8 +237,9 @@ export async function listGivingPurposes(centerId: string): Promise<GivingPurpos
   ]);
   const funds = must(fundsRes, 'load what you can give towards');
   const campaigns = must(campaignsRes, 'load what you can give towards');
+  const campaignLabels = new Set(campaigns.map((c) => c.name.trim().toLowerCase()));
   return [
-    ...funds.map((f) => ({ key: `fund:${f.id}`, label: f.name, sub: null, fundId: f.id, campaignId: null })),
+    ...funds.filter((f) => !campaignLabels.has(f.name.trim().toLowerCase())).map((f) => ({ key: `fund:${f.id}`, label: f.name, sub: null, fundId: f.id, campaignId: null })),
     ...campaigns.map((c) => ({ key: `campaign:${c.id}`, label: c.name, sub: c.description?.trim() || null, fundId: c.fund_id, campaignId: c.id })),
   ];
 }
