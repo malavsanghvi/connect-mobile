@@ -47,6 +47,28 @@ it never falls back to sample data.
 
 For EAS builds set them as EAS environment variables.
 
+### Android on a phone (EAS)
+
+One-time, from the repo folder on your own computer (needs an Expo account):
+
+```bash
+npx eas-cli login
+npx eas-cli init                 # creates the EAS project and writes extra.eas.projectId into app.json
+```
+
+Set the three `EXPO_PUBLIC_*` values above as EAS environment variables (expo.dev › project ›
+Environment variables) for the environments you build. Then:
+
+```bash
+npx eas-cli build --platform android --profile development   # dev build (APK) with push, camera, Face ID
+npx eas-cli build --platform android --profile preview       # installable APK for testers
+```
+
+Open the build link on the phone to install the APK (allow installs from your browser when
+asked). For the development profile run `pnpm start` and open the app to connect. The
+`production` profile builds an app bundle for Google Play; submitting needs a Play Console
+account and a service-account key (`submit.production.android`).
+
 ### Supabase auth settings this app expects
 
 - **Email OTP**: the email template must include the 6-digit code (`{{ .Token }}`),
