@@ -77,6 +77,25 @@ account and a service-account key (`submit.production.android`).
 - **Push**: builds need an EAS `projectId` (`extra.eas.projectId`) to register Expo
   push tokens in `app.push_devices`; without it Settings explains why push is off.
 
+
+### Over-the-air updates (EAS Update)
+
+Changes to screens, text and logic (JavaScript, images) reach installed phones without a
+reinstall. Changes to native parts (a new native library, permissions, icon, app name, an Expo
+SDK upgrade) still need a new build, and the app can tell the difference: `runtimeVersion` uses
+the `fingerprint` policy, so an update is only ever offered to builds with identical native code.
+
+Each build profile listens to its own channel (`development`, `preview`, `production`). To ship a
+JavaScript-only change to the testers' APK (built with `--profile preview`):
+
+```bash
+npx eas-cli update --channel preview --environment preview --message "what changed"
+```
+
+Phones fetch it in the background: close the app fully and open it again (sometimes twice) to
+load it. Rebuild instead of updating whenever `npx eas-cli fingerprint:compare` says the native
+part changed. Builds made before this setup have no updates in them; install one fresh build first.
+
 ## Scripts
 
 | Command | What it does |
