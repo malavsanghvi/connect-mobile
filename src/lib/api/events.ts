@@ -243,10 +243,21 @@ const AUDIT_REASON = {
   notComing: 'Member confirmed attendance in the app and released the tickets of family members who are not coming',
 };
 
-/** "We can't make it": cancel the RSVP and release every ticket. */
-export async function cancelRsvp(rsvpId: string): Promise<void> {
-  check(await withAuditReason(supabase.from('attendees').update({ status: 'cancelled', ticket_revoked: true }).eq('rsvp_id', rsvpId).is('checked_in_at', null), AUDIT_REASON.cantMakeIt), 'release your seats');
-  check(await withAuditReason(supabase.from('rsvps').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', rsvpId), AUDIT_REASON.cantMakeIt), 'cancel your RSVP');
+/** What cancelling told us: whether the pledge went with the RSVP, and how much of it was already paid. */
+export type CancelOutcome = { rsvpCancelled: boolean; pledgeCancelled: boolean; paidCents: number };
+
+/**
+ * "We can't make it": cancel the RSVP and release every ticket. `cancelPledge` is the family's answer to
+ * "cancel your donation commitment too?"; only an unpaid pledge is cancelled (connect-crm 0542).
+ */
+export async function cancelRsvp(rsvpId: string, cancelPledge = false): Promise<CancelOutcome> {
+  const r = must(await supabase.rpc('cancel_my_rsvp', { p_rsvp: rsvpId, p_cancel_pledge: cancelPledge }), 'cancel your RSVP') as { rsvp_cancelled?: boolean; pledge_cancelled?: boolean; paid_cents?: number } | null;
+  return { rsvpCancelled: r?.rsvp_cancelled ?? true, pledgeCancelled: r?.pledge_cancelled ?? false, paidCents: r?.paid_cents ?? 0 };
+}
+
+/** People were added to an RSVP that already has a pledge: raise that pledge by the amount for the added people. */
+export async function raiseRsvpCommitment(rsvpId: string, addCents: number, mode: string): Promise<string> {
+  return must(await supabase.rpc('raise_rsvp_commitment', { p_rsvp: rsvpId, p_add_cents: addCents, p_mode: mode }), 'add to your donation commitment') as string;
 }
 
 export async function getPledgeById(id: string): Promise<Tables<'pledges'> | null> {
