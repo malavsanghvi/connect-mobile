@@ -6,9 +6,9 @@ import { IconButton, LinkText, ProgressBar, Row, Txt } from '@/components/ui';
 import { useT } from '@/providers/settings';
 import { colors, layout, space } from '@/theme';
 
-export const ONBOARDING_STEPS = 5;
+export const ONBOARDING_STEPS = 6;
 
-/** Chrome for onboarding steps 1–5: back, "Step n of 5", optional skip, progress. */
+/** Chrome for onboarding steps 1–6: back, "Step n of 6", optional skip, progress. */
 export function OnboardingFrame({
   step,
   title,
@@ -29,7 +29,7 @@ export function OnboardingFrame({
   const t = useT();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}>
-      {/* Onboarding.dc.html top bar: padding 16/20/8, back · "Step n of 5" · skip, 6px progress. */}
+      {/* Onboarding.dc.html top bar: padding 16/20/8, back · "Step n of 6" · skip, 6px progress. */}
       <View style={{ paddingHorizontal: space.gutter, paddingTop: space.lg, paddingBottom: space.sm, gap: 10 }}>
         <Row gap={space.md}>
           {onBack ? <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={onBack} /> : <View style={{ width: 44, height: 44 }} />}

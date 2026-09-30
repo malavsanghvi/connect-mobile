@@ -13,7 +13,7 @@ export default function ContactStepScreen() {
   if (!member || !center) return null;
   return (
     <OnboardingFrame
-      step={5}
+      step={6}
       title={t('prefs.title')}
       onBack={() => router.back()}
       onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>

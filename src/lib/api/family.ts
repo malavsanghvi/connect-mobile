@@ -193,6 +193,20 @@ export async function recordChannelOptins(args: { centerId: string; personId: st
 }
 
 /** The household's documents-and-mail choice plus a consent record (adults only). */
+export type AddressDraft = { address_line1: string; address_line2: string; city: string; state_region: string; postal_code: string };
+
+/** An adult confirms or corrects the household's mailing address (households_adult_update). Blank optional parts are cleared. */
+export async function updateHouseholdAddress(householdId: string, a: AddressDraft): Promise<void> {
+  const n = (v: string) => (v.trim() ? v.trim() : null);
+  check(
+    await supabase
+      .from('households')
+      .update({ address_line1: n(a.address_line1), address_line2: n(a.address_line2), city: n(a.city), state_region: n(a.state_region)?.toUpperCase() ?? null, postal_code: n(a.postal_code) })
+      .eq('id', householdId),
+    'save your address',
+  );
+}
+
 export async function saveDocumentsChoice(args: { centerId: string; userId: string; personId: string; householdId: string; physicalMail: boolean }): Promise<void> {
   check(await supabase.from('households').update({ physical_mail_opt_in: args.physicalMail }).eq('id', args.householdId), 'save your documents and mail choice');
   check(
