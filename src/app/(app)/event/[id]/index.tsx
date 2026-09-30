@@ -10,7 +10,7 @@ import { Banner, Button, Card, IconButton, LinkText, Pill, Row, Segmented, TextF
 import { bandFor, peopleLabel, tierSingular } from '@/features/events';
 import { roleLabel } from '@/features/labels';
 import { startPayment } from '@/features/pay';
-import { commitmentOptions, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, rsvpBlockReason, submitRsvp, type Attendee, type EventRow, type GoingPerson, type Rsvp } from '@/lib/api/events';
+import { commitmentOptions, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, raiseRsvpCommitment, rsvpBlockReason, submitRsvp, type Attendee, type EventRow, type GoingPerson, type Rsvp } from '@/lib/api/events';
 import type { FamilyMember, Member } from '@/lib/api/member';
 import type { Tables } from '@/lib/database.types';
 import { report } from '@/lib/errors';
@@ -220,11 +220,11 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
   const allowGuests = event.audience === 'members_and_guests' || event.audience === 'public';
   const options = commitmentOptions(event);
   const hasCommitmentOptions = options.perPerson.length > 0 || options.lumpSum.length > 0 || options.open;
-  const canCommit = hasCommitmentOptions && !pledge;
+  const pledgeOpen = !!pledge && pledge.status !== 'cancelled' && pledge.status !== 'written_off';
   const tier = member.membership && member.membership.status === 'active' ? tierSingular(t, member.membership.tier) : null;
 
   // Prototype default: Per person with the middle amount, on a first RSVP only.
-  const defaultMode: Mode = canCommit && !activeRsvp && options.perPerson.length ? 'per_person' : 'none';
+  const defaultMode: Mode = hasCommitmentOptions && (!activeRsvp || pledgeOpen) && options.perPerson.length ? 'per_person' : 'none';
   const [going, setGoing] = useState<GoingState>(() => {
     const init: GoingState = {};
     for (const m of member.members) {
@@ -245,8 +245,14 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
 
   const selectedMembers = member.members.filter((m) => going[m.person.id]?.going);
   const count = selectedMembers.length + guests.length;
+  // With a pledge already on this RSVP, only the people added now carry a new amount.
+  const activePeople = new Set(attendees.filter((a) => a.status !== 'cancelled' && a.person_id).map((a) => a.person_id as string));
+  const activeGuests = new Set(attendees.filter((a) => a.status !== 'cancelled' && !a.person_id).map((a) => a.display_name.trim().toLowerCase()));
+  const addedCount = selectedMembers.filter((m) => !activePeople.has(m.person.id)).length + guests.filter((g) => !activeGuests.has(g.trim().toLowerCase())).length;
+  const canCommit = hasCommitmentOptions && (pledge ? pledgeOpen && !!activeRsvp && addedCount > 0 : true);
+  const commitCount = pledge ? addedCount : count;
   const unitCents = unit === 'other' ? (parseAmountToCents(other) ?? 0) : unit;
-  const total = canCommit ? commitmentTotalCents(mode, unitCents, count) : 0;
+  const total = canCommit ? commitmentTotalCents(mode, unitCents, commitCount) : 0;
   const committing = canCommit && mode !== 'none' && total > 0;
   const community = center?.short_name || center?.name || '';
   const family = member.household?.display_name ?? '';
@@ -283,10 +289,16 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
         onStep: (s) => onSync((prev) => (prev ? { ...prev, at: s === 'registered' ? 2 : 3 } : prev)),
       });
       invalidate();
-      const result = res.pledgeNumber ? `${t('sync.resultRsvp', { people })} ${t('sync.resultPledge', { pledge: res.pledgeNumber, amount: formatCents(total) })}` : t('sync.resultRsvp', { people });
+      let pledgeId = res.pledgeId;
+      let pledgeNumber = res.pledgeNumber;
+      if (committing && pledge && rsvp) {
+        pledgeId = await raiseRsvpCommitment(rsvp.id, total, mode);
+        pledgeNumber = pledge.pledge_number;
+      }
+      const result = pledgeNumber && committing ? `${t('sync.resultRsvp', { people })} ${t('sync.resultPledge', { pledge: pledgeNumber, amount: formatCents(total) })}` : t('sync.resultRsvp', { people });
       onSync((prev) => (prev ? { ...prev, at: prev.steps.length, result } : prev));
-      if (committing && payNow && res.pledgeId) {
-        await startPayment({ amountCents: total, forLabel: event.name, pledgeId: res.pledgeId, pledgeNumber: res.pledgeNumber, context: 'rsvp' }, { payNotice, formatAmount: (c) => formatCents(c) });
+      if (committing && payNow && pledgeId) {
+        await startPayment({ amountCents: total, forLabel: event.name, pledgeId, pledgeNumber, context: 'rsvp' }, { payNotice, formatAmount: (c) => formatCents(c) });
       }
     } catch (err) {
       const message = report(err, 'save your RSVP').userMessage;
@@ -351,12 +363,11 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
         ) : null}
       </Card>
 
-      {pledge ? (
-        <Banner tone="info" message={t('events.existingPledge', { amount: formatCents(pledge.amount_cents), pledge: pledge.pledge_number ?? '' })} />
-      ) : canCommit ? (
+      {pledge ? <Banner tone="info" message={t('events.existingPledge', { amount: formatCents(pledge.amount_cents), pledge: pledge.pledge_number ?? '' })} /> : null}
+      {canCommit ? (
         <Card hero style={{ gap: space.md }}>
           <Row style={{ justifyContent: 'space-between' }} align="baseline">
-            <Txt variant="section">{t('events.commitTitle')}</Txt>
+            <Txt variant="section">{pledge ? t('events.commitAddedTitle') : t('events.commitTitle')}</Txt>
             <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
               {t('events.optional')}
             </Txt>
@@ -405,7 +416,7 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
               ) : null}
               <Row style={{ justifyContent: 'space-between', backgroundColor: colors.brownTint, borderRadius: radii.lg, paddingVertical: 10, paddingHorizontal: space.md }}>
                 <Txt variant="meta" color="brownText">
-                  {mode === 'per_person' ? t('events.perPersonMath', { amount: formatCents(unitCents), people: peopleLabel(t, count) }) : t('events.lumpMath')}
+                  {mode === 'per_person' ? t('events.perPersonMath', { amount: formatCents(unitCents), people: peopleLabel(t, commitCount) }) : t('events.lumpMath')}
                 </Txt>
                 <Txt variant="subhead" color="brown" style={{ fontFamily: fonts.bodyBold }}>
                   {formatCents(total)}

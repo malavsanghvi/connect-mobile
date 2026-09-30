@@ -7,10 +7,11 @@ import { EmptyState, Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Txt, VStack } from '@/components/ui';
 import { bandFor, peopleLabel } from '@/features/events';
 import { compactTime, confirmSchedule, relativeDay } from '@/features/event-rules';
-import { addHouseholdAttendees, cancelRsvp, confirmAttendance, getEvent, getHouseholdRsvp, listAttendees, type Attendee, type EventRow, type Rsvp } from '@/lib/api/events';
+import { addHouseholdAttendees, cancelRsvp, confirmAttendance, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, type Attendee, type EventRow, type Rsvp } from '@/lib/api/events';
 import type { Member } from '@/lib/api/member';
+import type { Tables } from '@/lib/database.types';
 import { report } from '@/lib/errors';
-import { formatDate, fullName, todayAt, zonedParts } from '@/lib/format';
+import { formatCents, formatDate, fullName, todayAt, zonedParts } from '@/lib/format';
 import { isSenior, isUnder12 } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -29,7 +30,8 @@ export default function ConfirmScreen() {
       const event = await getEvent(id);
       const rsvp = member?.household ? await getHouseholdRsvp(id, member.household.id) : null;
       const attendees = rsvp ? await listAttendees(rsvp.id) : [];
-      return { event, rsvp, attendees };
+      const pledge = rsvp?.commitment_pledge_id ? await getPledgeById(rsvp.commitment_pledge_id) : null;
+      return { event, rsvp, attendees, pledge };
     },
     [id, member?.household?.id],
     'load your RSVP',
@@ -40,7 +42,7 @@ export default function ConfirmScreen() {
 /** One row per household member (anyone can be re-ticked) plus guests already on the RSVP. */
 type RowItem = { key: string; name: string; attendee: Attendee | null; personId: string | null; locked: boolean };
 
-function ConfirmBody({ event, rsvp, attendees, member }: { event: EventRow; rsvp: Rsvp | null; attendees: Attendee[]; member: Member }) {
+function ConfirmBody({ event, rsvp, attendees, pledge, member }: { event: EventRow; rsvp: Rsvp | null; attendees: Attendee[]; pledge: Tables<'pledges'> | null; member: Member }) {
   const t = useT();
   const router = useRouter();
   const { center } = useApp();
@@ -98,12 +100,37 @@ function ConfirmBody({ event, rsvp, attendees, member }: { event: EventRow; rsvp
   const doCancel = async () => {
     const ok = await confirm({ title: t('confirm.cancelTitle'), body: t('confirm.cancelBody'), confirmLabel: t('confirm.cancelCta'), tone: 'danger', cancelLabel: t('confirm.keep') });
     if (!ok) return;
+    // A donation commitment still on the account: ask whether it goes too. "Cancel RSVP only" (or dismissing) keeps it.
+    // Money already paid is never refunded: the member is asked whether to hold it as credit (the treasurer follows up);
+    // "no" leaves the pledge and payment as they are and only the RSVP is cancelled.
+    const pledgeLive = !!pledge && pledge.status !== 'cancelled' && pledge.status !== 'written_off';
+    let cancelPledge = false;
+    let releaseCredit = false;
+    if (pledgeLive) {
+      const paid = pledge.paid_cents;
+      const yes = await confirm({
+        title: paid > 0 ? t('confirm.creditTitle', { paid: formatCents(paid) }) : t('confirm.cancelPledgeTitle'),
+        body: paid > 0
+          ? t('confirm.creditBody', { paid: formatCents(paid), pledge: pledge.pledge_number ?? '' })
+          : t('confirm.cancelPledgeBody', { amount: formatCents(pledge.amount_cents), pledge: pledge.pledge_number ?? '' }),
+        confirmLabel: paid > 0 ? t('confirm.creditYes') : t('confirm.cancelPledgeYes'),
+        tone: paid > 0 ? 'primary' : 'danger',
+        cancelLabel: paid > 0 ? t('confirm.creditNo') : t('confirm.cancelPledgeNo'),
+      });
+      cancelPledge = yes;
+      releaseCredit = yes && paid > 0;
+    }
     setBusy('cancel');
     setError(null);
     try {
-      await cancelRsvp(rsvp.id);
+      const outcome = await cancelRsvp(rsvp.id, cancelPledge, releaseCredit);
       invalidate();
-      toast(t('confirm.cancelledToast'));
+      if (outcome.creditCents > 0) {
+        toast(t('confirm.creditHeldToast', { amount: formatCents(outcome.creditCents) }));
+        router.replace('/');
+        return;
+      }
+      toast(outcome.pledgeCancelled ? t('confirm.cancelledBothToast') : t('confirm.cancelledToast'));
       router.replace('/');
     } catch (err) {
       setError(report(err, 'cancel your RSVP').userMessage);
@@ -174,7 +201,7 @@ function ConfirmBody({ event, rsvp, attendees, member }: { event: EventRow; rsvp
       <Button label={keep.length ? t('confirm.confirmN', { people: peopleLabel(t, keep.length) }) : t('events.selectWho')} tone="green" onPress={doConfirm} disabled={keep.length === 0 || busy === 'cancel'} busy={busy === 'confirm'} />
       <Button label={t('confirm.cantMakeIt')} tone="outlineDanger" size="md" onPress={doCancel} busy={busy === 'cancel'} disabled={busy === 'confirm'} />
       <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
-        {rsvp.commitment_pledge_id ? `${footer} ${t('confirm.pledgeStays')}` : footer}
+        {footer}
       </Txt>
     </VStack>
   );
