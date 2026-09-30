@@ -12,7 +12,7 @@ import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 import { colors, fonts, space } from '@/theme';
 
-/** Onboarding step 6 (Onboarding.dc.html s6): centred ✓, summary card, "Go to home" ends onboarding. */
+/** Onboarding final screen (Onboarding.dc.html s6): centred ✓, summary card, "Go to home" ends onboarding. */
 export default function DoneScreen() {
   const t = useT();
   const { member, setOnboarding } = useApp();

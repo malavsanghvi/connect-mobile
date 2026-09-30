@@ -24,6 +24,16 @@ describe('plain-English errors', () => {
     const e = toAppError({ message: 'relation "app.foo" does not exist', code: '42P01' }, 'load your family');
     expect(e.userMessage).toBe('Something went wrong while trying to load your family. Please try again.');
   });
+  it('shows the plain sentence of a check violation raised by one of our own triggers', () => {
+    const e = toAppError({ message: 'The wedding anniversary cannot be in the future.', code: '23514' }, 'save these details');
+    expect(e.userMessage).toBe('The wedding anniversary cannot be in the future.');
+    expect(e.code).toBe('23514');
+  });
+  it('keeps Postgres\' own check failures generic', () => {
+    const e = toAppError({ message: 'new row for relation "person_profile_details" violates check constraint "person_profile_details_ec_pair"', code: '23514' }, 'save these details');
+    expect(e.userMessage).toBe("We couldn't save these details — one of the values isn't valid. Please check and try again.");
+    expect(e.detail).toContain('violates check constraint');
+  });
   it('passes AppErrors through untouched', () => {
     const original = new AppError('Please choose an amount.', 'validation');
     expect(toAppError(original, 'anything')).toBe(original);

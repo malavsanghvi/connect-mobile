@@ -45,7 +45,7 @@ export default function AddressScreen() {
         await updateHouseholdAddress(h.id, draft);
         await refreshMember();
       }
-      router.push('/family');
+      router.push('/details');
     } catch (err) {
       setError(report(err, 'save your address').userMessage);
     } finally {
@@ -54,7 +54,7 @@ export default function AddressScreen() {
   };
 
   return (
-    <OnboardingFrame step={4} title={t('address.title')} subtitle={t('address.subtitle')} onBack={() => router.back()} onSkip={() => router.push('/family')}>
+    <OnboardingFrame step={4} title={t('address.title')} subtitle={t('address.subtitle')} onBack={() => router.back()} onSkip={() => router.push('/details')}>
       <VStack gap={space.md}>
         {error ? <Banner tone="error" message={error} /> : null}
         <TextField label={t('address.line1')} value={draft.address_line1} onChangeText={(v) => set({ address_line1: v })} error={errors.address_line1} autoComplete="street-address" />

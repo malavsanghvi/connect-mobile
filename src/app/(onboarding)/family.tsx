@@ -5,7 +5,7 @@ import { OnboardingFrame } from '@/features/onboarding/frame';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 
-/** Onboarding step 4: Your family (review / edit members; adults vs children). */
+/** Onboarding step 6: Your family (review / edit members; adults vs children). */
 export default function FamilyStepScreen() {
   const router = useRouter();
   const t = useT();
@@ -13,7 +13,7 @@ export default function FamilyStepScreen() {
   if (!member) return null;
   return (
     <OnboardingFrame
-      step={5}
+      step={6}
       title={t('familyStep.title')}
       subtitle={t('familyStep.subtitle')}
       onBack={() => router.back()}

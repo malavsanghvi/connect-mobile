@@ -7,6 +7,7 @@ import { EmptyState, Loaded } from '@/components/states';
 import { Banner, Button, Card, Chip, ChipGroup, Divider, TextField, Toggle, Txt, VStack } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { ProfileFields } from '@/features/onboarding/profile-fields';
+import { MoreAboutYou } from '@/features/profile-details/more-about-you';
 import { formatMemberCustomValue } from '@/features/custom-fields';
 import { INTERESTS, normalizeInterests, relationshipChanged, toggle, type InterestKey } from '@/features/profile';
 import { LANGUAGES, isLanguage, type Language, type StringKey } from '@/i18n';
@@ -227,6 +228,13 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
             {t('profile.relationshipNote')}
           </Txt>
         ) : null}
+      </Section>
+
+      {/* connect-crm 0546: anniversary, dietary needs, volunteering teams, emergency contact. Its own Save:
+          it writes to its own tables, and an adult of the family may fill it in for a child. */}
+      <Section>
+        <CardTitle>{isSelf ? t('details.section') : t('details.sectionFor', { name: first })}</CardTitle>
+        <MoreAboutYou key={fm.person.id} person={fm.person} isAdult={adult} editable={member.isAdult} variant="profile" subjectName={isSelf ? undefined : first} />
       </Section>
 
       <MoreDetails centerId={center.id} personId={fm.person.id} community={community} />
