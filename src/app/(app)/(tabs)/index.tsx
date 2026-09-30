@@ -10,6 +10,7 @@ import {
   JainWayCard,
   LunchCard,
   NextEventRow,
+  PhotosLink,
   SpecialDayCard,
   TodayCard,
   useHomeEvents,
@@ -43,6 +44,7 @@ export default function HomeScreen() {
       {on('confirm') ? <ConfirmCard state={events} /> : null}
       {member?.isAdult && on('giving') ? <GivingSection /> : null}
       {on('nextEvent') ? <NextEventRow state={events} /> : null}
+      {member && on('photos') ? <PhotosLink /> : null}
       {on('guide') ? <GuideLink /> : null}
       {guest ? <GuestSignInCard /> : null}
     </Screen>
