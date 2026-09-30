@@ -244,15 +244,15 @@ const AUDIT_REASON = {
 };
 
 /** What cancelling told us: whether the pledge went with the RSVP, and how much of it was already paid. */
-export type CancelOutcome = { rsvpCancelled: boolean; pledgeCancelled: boolean; paidCents: number };
+export type CancelOutcome = { rsvpCancelled: boolean; pledgeCancelled: boolean; paidCents: number; creditCents: number };
 
 /**
  * "We can't make it": cancel the RSVP and release every ticket. `cancelPledge` is the family's answer to
- * "cancel your donation commitment too?"; only an unpaid pledge is cancelled (connect-crm 0542).
+ * "cancel your donation commitment too?"; money already paid toward it stays with the organization as credit (connect-crm 0543).
  */
 export async function cancelRsvp(rsvpId: string, cancelPledge = false): Promise<CancelOutcome> {
-  const r = must(await supabase.rpc('cancel_my_rsvp', { p_rsvp: rsvpId, p_cancel_pledge: cancelPledge }), 'cancel your RSVP') as { rsvp_cancelled?: boolean; pledge_cancelled?: boolean; paid_cents?: number } | null;
-  return { rsvpCancelled: r?.rsvp_cancelled ?? true, pledgeCancelled: r?.pledge_cancelled ?? false, paidCents: r?.paid_cents ?? 0 };
+  const r = must(await supabase.rpc('cancel_my_rsvp', { p_rsvp: rsvpId, p_cancel_pledge: cancelPledge }), 'cancel your RSVP') as { rsvp_cancelled?: boolean; pledge_cancelled?: boolean; paid_cents?: number; credit_cents?: number } | null;
+  return { rsvpCancelled: r?.rsvp_cancelled ?? true, pledgeCancelled: r?.pledge_cancelled ?? false, paidCents: r?.paid_cents ?? 0, creditCents: r?.credit_cents ?? 0 };
 }
 
 /** People were added to an RSVP that already has a pledge: raise that pledge by the amount for the added people. */
