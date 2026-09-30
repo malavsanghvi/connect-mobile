@@ -80,10 +80,15 @@ account and a service-account key (`submit.production.android`).
 
 ### Over-the-air updates (EAS Update)
 
-Changes to screens, text and logic (JavaScript, images) reach installed phones without a
-reinstall. Changes to native parts (a new native library, permissions, icon, app name, an Expo
-SDK upgrade) still need a new build, and the app can tell the difference: `runtimeVersion` uses
-the `fingerprint` policy, so an update is only ever offered to builds with identical native code.
+Changes to screens, text and logic (JavaScript, images) reach installed phones without a reinstall.
+Changes to native parts still need a new build: a new native library, a permission, the icon, the
+app name, or an Expo SDK upgrade.
+
+`runtimeVersion` in `app.json` is a fixed string (`"1"`). An update is only offered to installed
+builds with the same value. **Whenever you make a native change, bump it** (`"1"` to `"2"`) in the
+same commit, so an older installed app never receives JavaScript that needs native code it lacks.
+(The automatic `fingerprint` policy was tried and rejected: EAS computes it on Linux and the
+CLI on your PC, and the two never match, which fails the build.)
 
 Each build profile listens to its own channel (`development`, `preview`, `production`). To ship a
 JavaScript-only change to the testers' APK (built with `--profile preview`):
@@ -93,8 +98,7 @@ npx eas-cli update --channel preview --environment preview --message "what chang
 ```
 
 Phones fetch it in the background: close the app fully and open it again (sometimes twice) to
-load it. Rebuild instead of updating whenever `npx eas-cli fingerprint:compare` says the native
-part changed. Builds made before this setup have no updates in them; install one fresh build first.
+load it. Builds made before OTA was set up have no updater; install one fresh build first.
 
 ## Scripts
 
