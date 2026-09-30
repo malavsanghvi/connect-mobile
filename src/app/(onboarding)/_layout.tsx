@@ -9,6 +9,7 @@ export default function OnboardingLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
       <Stack.Screen name="family-match" />
       <Stack.Screen name="about" />
+      <Stack.Screen name="address" />
       <Stack.Screen name="family" />
       <Stack.Screen name="contact" />
       <Stack.Screen name="done" />

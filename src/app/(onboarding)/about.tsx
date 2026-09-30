@@ -50,7 +50,7 @@ function AboutForm({ member, existing }: { member: Member; existing: Tables<'per
       await updatePerson(member.person.id, update);
       if (member.isAdult) await saveExtraEmails({ centerId: center.id, personId: member.person.id, existing, drafts: extras, primary: update.email ?? null });
       await refreshMember();
-      router.push('/family');
+      router.push(member.isAdult ? '/address' : '/family');
     } catch (err) {
       setError(report(err, 'save your details').userMessage);
     } finally {

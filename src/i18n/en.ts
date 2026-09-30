@@ -147,6 +147,18 @@ export const en = {
   'match.pendingTitle': 'A family member already added you',
   'match.pendingBody': '{requester} from the {household} household asked to add you as a family member. It is waiting for the office to approve — check back soon, or contact the office if this is not right.',
 
+  // Your home address (step 4)
+  'address.title': 'Your home address',
+  'address.subtitle': "Where the community sends mail and finds your zone. We filled in what the office already has; fix anything that's wrong.",
+  'address.line1': 'Street address',
+  'address.line2': 'Apartment, suite (optional)',
+  'address.city': 'City',
+  'address.state': 'State',
+  'address.zip': 'ZIP code',
+  'address.zipInvalid': 'Enter a 5-digit ZIP code.',
+  'address.needLine1': 'Enter your street address, or skip this step.',
+  'address.saved': 'Address saved',
+
   // About you (step 3) + profile fields
   'about.title': 'About you',
   'about.subtitle': 'This updates your membership record. You can change it later from the Family tab.',
