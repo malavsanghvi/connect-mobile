@@ -1253,7 +1253,7 @@ export const en = {
   'settings.report': 'Report a problem',
   'settings.reportSub': 'Tell us what went wrong in the app',
   'settings.about': 'About this app',
-  'settings.aboutSub': 'Community Connect version {version} (build {build})',
+  'settings.aboutSub': 'Community Connect version {version} (build {build}) · {update}',
   'settings.status': 'Account status',
   'settings.statusBody': "Deactivating pauses your app account: notifications stop. Your {center} membership, pledges and giving history are kept. Reactivate here anytime.",
   'settings.deactivatedBody': 'Your account is deactivated. Notifications are paused.',
