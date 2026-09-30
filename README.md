@@ -84,7 +84,7 @@ Changes to screens, text and logic (JavaScript, images) reach installed phones w
 Changes to native parts still need a new build: a new native library, a permission, the icon, the
 app name, or an Expo SDK upgrade.
 
-`runtimeVersion` in `app.json` is a fixed string (`"1"`). An update is only offered to installed
+`runtimeVersion` in `app.json` is a fixed string (currently `"2"`). An update is only offered to installed
 builds with the same value. **Whenever you make a native change, bump it** (`"1"` to `"2"`) in the
 same commit, so an older installed app never receives JavaScript that needs native code it lacks.
 (The automatic `fingerprint` policy was tried and rejected: EAS computes it on Linux and the
