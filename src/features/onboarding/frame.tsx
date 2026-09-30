@@ -6,9 +6,9 @@ import { IconButton, LinkText, ProgressBar, Row, Txt } from '@/components/ui';
 import { useT } from '@/providers/settings';
 import { colors, layout, space } from '@/theme';
 
-export const ONBOARDING_STEPS = 6;
+export const ONBOARDING_STEPS = 7;
 
-/** Chrome for onboarding steps 1–6: back, "Step n of 6", optional skip, progress. */
+/** Chrome for onboarding steps 1–7: back, "Step n of 7", optional skip, progress. */
 export function OnboardingFrame({
   step,
   title,

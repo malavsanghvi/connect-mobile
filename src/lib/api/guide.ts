@@ -108,9 +108,11 @@ export async function myVolunteerInterests(personId: string): Promise<Tables<'vo
 /**
  * Save the groups the member ticked: new ones as 'interested', ones they
  * un-ticked become 'inactive' (an 'active' volunteer stays active if still ticked).
+ * `allowEmpty` lets the profile's "More about you" form clear every team (the guide screen never does).
  */
-export async function saveVolunteerInterests(args: { centerId: string; personId: string; groupIds: string[]; existing: Tables<'volunteer_interests'>[] }): Promise<void> {
-  if (args.groupIds.length === 0) throw new AppError('Choose at least one group.', 'no groups selected');
+export async function saveVolunteerInterests(args: { centerId: string; personId: string; groupIds: string[]; existing: Tables<'volunteer_interests'>[]; allowEmpty?: boolean }): Promise<void> {
+  // The Welcome guide asks the member to pick something; the profile form lets them un-tick every team.
+  if (args.groupIds.length === 0 && !args.allowEmpty) throw new AppError('Choose at least one group.', 'no groups selected');
   const byGroup = new Map(args.existing.map((r) => [r.group_id, r]));
   const upserts = args.groupIds
     .filter((g) => byGroup.get(g)?.status !== 'active' && byGroup.get(g)?.status !== 'interested')

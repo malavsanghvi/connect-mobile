@@ -5,7 +5,7 @@ import { OnboardingFrame } from '@/features/onboarding/frame';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 
-/** Onboarding step 5: contact preferences + documents & mail (required). */
+/** Onboarding step 7: contact preferences + documents & mail (required). */
 export default function ContactStepScreen() {
   const router = useRouter();
   const t = useT();
@@ -13,7 +13,7 @@ export default function ContactStepScreen() {
   if (!member || !center) return null;
   return (
     <OnboardingFrame
-      step={6}
+      step={7}
       title={t('prefs.title')}
       onBack={() => router.back()}
       onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>

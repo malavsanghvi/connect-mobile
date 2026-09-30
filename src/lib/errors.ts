@@ -92,6 +92,12 @@ export function toAppError(err: unknown, action: string): AppError {
   if (code === '23505') {
     return new AppError(`We couldn't ${action} because it already exists.`, detail, code);
   }
+  // A check_violation raised by one of our own triggers carries a sentence written for people
+  // (connect-crm 0546: "An emergency contact needs both a name and a mobile number."). Postgres' own
+  // generic check failures ("new row for relation … violates check constraint …") stay generic below.
+  if (code === '23514' && message && !/^new row for relation|violates check constraint/i.test(message)) {
+    return new AppError(withPeriod(capitalize(message)), detail, code);
+  }
   if (code === '23514' || code === '22P02' || code === '22007' || code === '22008') {
     return new AppError(`We couldn't ${action} — one of the values isn't valid. Please check and try again.`, detail, code);
   }
