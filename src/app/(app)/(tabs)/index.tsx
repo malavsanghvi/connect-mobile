@@ -13,8 +13,10 @@ import {
   PhotosLink,
   SpecialDayCard,
   TodayCard,
+  useFeedbackHome,
   useHomeEvents,
 } from '@/features/home';
+import { SurveyPopup } from '@/features/survey-popup';
 import { isHomeCardVisible, type HomeCard } from '@/lib/modules';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
@@ -32,21 +34,26 @@ export default function HomeScreen() {
   const { map } = useModules();
   const on = (card: HomeCard) => isHomeCardVisible(map, card);
   const events = useHomeEvents();
+  const feedbackOn = !!member && on('feedback');
+  const feedback = useFeedbackHome(feedbackOn);
   return (
-    <Screen root showWordmark onRefresh={async () => invalidate()}>
-      {member?.account?.status === 'deactivated' ? <DeactivatedBanner /> : null}
-      {on('today') ? <TodayCard /> : null}
-      {member && on('alerts') ? <AlertsSection /> : null}
-      {member && on('jainWay') ? <JainWayCard /> : null}
-      {member && on('feedback') ? <FeedbackCard /> : null}
-      {on('lunch') ? <LunchCard state={events} /> : null}
-      {member?.isAdult && on('specialDay') ? <SpecialDayCard /> : null}
-      {on('confirm') ? <ConfirmCard state={events} /> : null}
-      {member?.isAdult && on('giving') ? <GivingSection /> : null}
-      {on('nextEvent') ? <NextEventRow state={events} /> : null}
-      {member && on('photos') ? <PhotosLink /> : null}
-      {on('guide') ? <GuideLink /> : null}
-      {guest ? <GuestSignInCard /> : null}
-    </Screen>
+    <>
+      <Screen root showWordmark onRefresh={async () => invalidate()}>
+        {member?.account?.status === 'deactivated' ? <DeactivatedBanner /> : null}
+        {on('today') ? <TodayCard /> : null}
+        {member && on('alerts') ? <AlertsSection /> : null}
+        {member && on('jainWay') ? <JainWayCard /> : null}
+        {feedbackOn ? <FeedbackCard state={feedback} /> : null}
+        {on('lunch') ? <LunchCard state={events} /> : null}
+        {member?.isAdult && on('specialDay') ? <SpecialDayCard /> : null}
+        {on('confirm') ? <ConfirmCard state={events} /> : null}
+        {member?.isAdult && on('giving') ? <GivingSection /> : null}
+        {on('nextEvent') ? <NextEventRow state={events} /> : null}
+        {member && on('photos') ? <PhotosLink /> : null}
+        {on('guide') ? <GuideLink /> : null}
+        {guest ? <GuestSignInCard /> : null}
+      </Screen>
+      {feedbackOn ? <SurveyPopup state={feedback} /> : null}
+    </>
   );
 }

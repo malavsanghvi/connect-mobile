@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
@@ -8,9 +8,12 @@ import { Banner, Button, Chip, ChipGroup, Radio, Txt, VStack } from '@/component
 import { EventIcon } from '@/features/event-icons';
 import { dateRangeShort } from '@/features/event-rules';
 import { getEvent, type EventRow } from '@/lib/api/events';
-import { getSurvey, missingRequired, parseQuestions, submitSurvey, type Answers, type Question } from '@/lib/api/surveys';
+import { getSurvey, isAlreadyAnswered, listCompletedSurveyIds, missingRequired, parseQuestions, rememberPopupDismissed, submitSurvey, type Answers, type Question, type SubmitResult } from '@/lib/api/surveys';
 import type { Tables } from '@/lib/database.types';
 import { report } from '@/lib/errors';
+import { todayAt } from '@/lib/format';
+import { communityName } from '@/lib/learning';
+import { pointsLine } from '@/lib/survey-popup';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
@@ -18,22 +21,24 @@ import { useFeedback } from '@/providers/feedback';
 import { useSettings, useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
-/** Event feedback form (prototype L1262–1300): surveys.questions → survey_responses. */
+/** Event feedback form (prototype L1262–1300): surveys.questions, answered through app.submit_survey. */
 export default function SurveyScreen() {
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { member } = useApp();
+  const personId = member?.person.id ?? null;
   const state = useLoad(
     async () => {
       const survey = await getSurvey(id);
-      const event = survey.event_id ? await getEvent(survey.event_id) : null;
-      return { survey, event };
+      const [event, completed] = await Promise.all([survey.event_id ? getEvent(survey.event_id) : Promise.resolve(null), personId ? listCompletedSurveyIds(personId) : Promise.resolve(new Set<string>())]);
+      return { survey, event, answered: completed.has(survey.id) };
     },
-    [id],
+    [id, personId],
     'load this survey',
   );
   return (
     <Screen title={t('survey.title')}>
-      <Loaded state={state}>{(d) => <SurveyForm survey={d.survey} event={d.event} />}</Loaded>
+      <Loaded state={state}>{(d) => <SurveyForm key={d.survey.id} survey={d.survey} event={d.event} answered={d.answered} />}</Loaded>
     </Screen>
   );
 }
@@ -205,7 +210,7 @@ function AnonToggle({ on, onPress }: { on: boolean; onPress: () => void }) {
   );
 }
 
-function SurveyForm({ survey, event }: { survey: Tables<'surveys'>; event: EventRow | null }) {
+function SurveyForm({ survey, event, answered }: { survey: Tables<'surveys'>; event: EventRow | null; answered: boolean }) {
   const t = useT();
   const { member, center } = useApp();
   const { toast } = useFeedback();
@@ -215,11 +220,19 @@ function SurveyForm({ survey, event }: { survey: Tables<'surveys'>; event: Event
   const [anon, setAnon] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  // Set once the answer is saved (or the server says it already had it): the thank-you state.
+  const [result, setResult] = useState<(SubmitResult & { already: boolean }) | null>(answered ? { points: 0, anonymous: false, already: true } : null);
   const tz = center?.time_zone ?? null;
+  const community = communityName(center);
+
+  // Opening the survey counts as having been asked: the Home pop-up does not ask again today.
+  useEffect(() => {
+    void rememberPopupDismissed(survey.id, todayAt(tz, new Date()));
+  }, [survey.id, tz]);
 
   const anonymous = survey.anonymous || anon;
   const dates = event ? dateRangeShort(event.starts_at, event.ends_at, tz) : '';
+  const earn = pointsLine(t, 'earn', survey.reward_points, community);
   const hero = (
     <View style={{ borderRadius: radii.xxl, backgroundColor: colors.purple, paddingVertical: space.lg, paddingHorizontal: 18, gap: 2 }}>
       <Txt variant="eyebrow" color="onPurple">
@@ -233,10 +246,16 @@ function SurveyForm({ survey, event }: { survey: Tables<'surveys'>; event: Event
           {survey.description}
         </Txt>
       ) : null}
+      {earn && !result ? (
+        <Txt variant="meta" color="white" style={{ fontFamily: fonts.bodySemi }}>
+          {earn}
+        </Txt>
+      ) : null}
     </View>
   );
 
-  if (done) {
+  if (result) {
+    const earned = result.already ? null : pointsLine(t, 'earned', result.points, community);
     return (
       <VStack gap={14}>
         {hero}
@@ -245,11 +264,18 @@ function SurveyForm({ survey, event }: { survey: Tables<'surveys'>; event: Event
             {'✓'}
           </Txt>
           <Txt variant="title" color="greenDark" center style={{ fontFamily: fonts.display }}>
-            {t('survey.thanks')}
+            {result.already ? t('survey.alreadyAnswered') : t('survey.thanks')}
           </Txt>
-          <Txt variant="meta" color="greenDark2" center>
-            {anonymous ? t('survey.thanksAnon') : t('survey.thanksNamed')}
-          </Txt>
+          {earned ? (
+            <Txt variant="bodyStrong" color="greenDark" center>
+              {earned}
+            </Txt>
+          ) : null}
+          {result.already ? null : (
+            <Txt variant="meta" color="greenDark2" center>
+              {result.anonymous ? t('survey.thanksAnon') : t('survey.thanksNamed')}
+            </Txt>
+          )}
         </View>
       </VStack>
     );
@@ -266,12 +292,19 @@ function SurveyForm({ survey, event }: { survey: Tables<'surveys'>; event: Event
     setBusy(true);
     setError(null);
     try {
-      await submitSurvey({ centerId: center.id, surveyId: survey.id, personId: anonymous ? null : member.person.id, answers });
+      const saved = await submitSurvey({ surveyId: survey.id, answers, anonymous });
+      // Points and "answered" changed: every mounted screen (Home card, points balance, Events tab) reloads.
       invalidate();
-      toast(anonymous ? t('survey.sentAnon') : t('survey.sent'));
-      setDone(true);
+      toast(saved.anonymous ? t('survey.sentAnon') : t('survey.sent'));
+      setResult({ ...saved, already: false });
     } catch (err) {
-      setError(report(err, 'send your answers').userMessage);
+      if (isAlreadyAnswered(err)) {
+        // Nothing to retry: say so, and let the rest of the app stop offering it.
+        invalidate();
+        setResult({ points: 0, anonymous, already: true });
+      } else {
+        setError(report(err, 'send your answers').userMessage);
+      }
     } finally {
       setBusy(false);
     }

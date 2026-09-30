@@ -3,11 +3,12 @@ import { pickDarshan, type Darshan } from '../darshan';
 import { logError, maybe, must } from '../errors';
 import { todayAt } from '../format';
 import { lunchCard, type LunchCard } from '../rules';
-import { readPref } from '../storage';
 import { supabase } from '../supabase';
+import { isSurveyOpen, pickSurveyForPopup } from '../survey-popup';
 
 import { listAttendees, listHouseholdRsvps, listLunchSlots, listUpcomingEvents, rsvpState, type EventRow, type Rsvp } from './events';
 import type { Center, Member } from './member';
+import { listCompletedSurveyIds, readPopupDismissals } from './surveys';
 
 export type TodayInfo = {
   today: string;
@@ -48,19 +49,17 @@ export async function listAlerts(centerId: string): Promise<Alert[]> {
 export type Survey = Tables<'surveys'>;
 
 /**
- * Open surveys the person hasn't answered. Anonymous answers carry no person
- * id, so those are remembered on this device (see README "Schema gaps").
+ * Open surveys the person hasn't answered. "Answered" comes from
+ * survey_completions (written by app.submit_survey, anonymous answers included).
  */
 export async function listOpenSurveys(centerId: string, personId: string): Promise<Survey[]> {
-  const [surveysRes, mineRes, anonAnswered] = await Promise.all([
+  const [surveysRes, completed] = await Promise.all([
     supabase.from('surveys').select('*').eq('center_id', centerId).eq('status', 'open').order('created_at', { ascending: false }),
-    supabase.from('survey_responses').select('survey_id').eq('person_id', personId),
-    readPref<string[]>('answeredSurveys', []),
+    listCompletedSurveyIds(personId),
   ]);
   const surveys = must(surveysRes, 'load surveys');
-  const mine = new Set(must(mineRes, 'load surveys').map((r) => r.survey_id));
-  const now = Date.now();
-  return surveys.filter((s) => !mine.has(s.id) && !anonAnswered.includes(s.id) && (!s.closes_at || new Date(s.closes_at).getTime() > now) && (!s.opens_at || new Date(s.opens_at).getTime() <= now));
+  const now = new Date();
+  return surveys.filter((s) => !completed.has(s.id) && isSurveyOpen(s, now));
 }
 
 export type FeedbackRequest = { survey: Survey; eventName: string | null };
@@ -72,6 +71,28 @@ export async function listFeedbackRequests(centerId: string, personId: string): 
   const events = eventIds.length ? must(await supabase.from('events').select('id, name').in('id', eventIds), 'load the events these surveys are about') : [];
   const names = new Map(events.map((e) => [e.id, e.name]));
   return surveys.map((survey) => ({ survey, eventName: survey.event_id ? (names.get(survey.event_id) ?? null) : null }));
+}
+
+/**
+ * What Home shows for feedback: the open, unanswered surveys (the card stays
+ * until a survey closes) and, at most once per day for the first days after a
+ * survey opens, the one to ask about in the "How was <event>?" pop-up.
+ */
+export type FeedbackHome = {
+  requests: FeedbackRequest[];
+  /** The request whose pop-up should show now (adults only), or null. */
+  popup: FeedbackRequest | null;
+  /** The center's local date this was worked out for ('YYYY-MM-DD'). */
+  today: string;
+};
+
+export async function loadFeedbackHome(center: Center, member: Member): Promise<FeedbackHome> {
+  const requests = await listFeedbackRequests(center.id, member.person.id);
+  const now = new Date();
+  const today = todayAt(center.time_zone, now);
+  if (!member.isAdult || requests.length === 0) return { requests, popup: null, today };
+  const dismissals = await readPopupDismissals();
+  return { requests, popup: pickSurveyForPopup(requests, { now, tz: center.time_zone, dismissals }), today };
 }
 
 // ---------------------------------------------------------------------------

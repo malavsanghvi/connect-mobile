@@ -9,14 +9,16 @@ import { listDisplayName } from '@/features/special-days';
 import { confirmAttendance, listAttendees } from '@/lib/api/events';
 import { listSpecialDays, nextTithiDates } from '@/lib/api/family';
 import { listOpportunities } from '@/lib/api/giving';
-import { listAlerts, listFeedbackRequests, loadHomeEvents, loadToday, type HomeEvents } from '@/lib/api/home';
+import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type FeedbackHome, type HomeEvents } from '@/lib/api/home';
 import { loadJainWayToday } from '@/lib/api/jainway';
 import { listAlbums } from '@/lib/api/photos';
 import { reactivateAccount } from '@/lib/api/settings';
 import { logError, report } from '@/lib/errors';
 import { daysBetween, formatCents, formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt, zonedParts } from '@/lib/format';
+import { communityName } from '@/lib/learning';
 import { isWithinReminder, nextOccurrence, streakDisplay, streakLabel, tithiLabel } from '@/lib/rules';
 import { readPref, writePref } from '@/lib/storage';
+import { pointsLine } from '@/lib/survey-popup';
 import { useLoad, type LoadState } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useModule } from '@/providers/modules';
@@ -293,16 +295,30 @@ export function JainWayCard() {
   );
 }
 
-/** "FEEDBACK REQUESTED" card: the most recent open survey (prototype L77–84). */
-export function FeedbackCard() {
+/**
+ * One load feeds the Home "Feedback requested" card and the "How was <event>?"
+ * pop-up. `enabled` is false for guests and when the community switched
+ * surveys off: nothing is fetched then.
+ */
+export function useFeedbackHome(enabled: boolean): LoadState<FeedbackHome> {
+  const { center, member } = useApp();
+  return useLoad(
+    () => (enabled && center && member ? loadFeedbackHome(center, member) : Promise.resolve({ requests: [], popup: null, today: '' })),
+    [enabled, center?.id, member?.person.id, member?.isAdult],
+    'load feedback requests',
+  );
+}
+
+/** "FEEDBACK REQUESTED" card: the most recent open survey the member has not answered (prototype L77–84). It stays until the survey closes. */
+export function FeedbackCard({ state }: { state: LoadState<FeedbackHome> }) {
   const t = useT();
   const router = useRouter();
-  const { center, member } = useApp();
-  const state = useLoad(() => (center && member ? listFeedbackRequests(center.id, member.person.id) : Promise.resolve([])), [center?.id, member?.person.id], 'load feedback requests');
+  const { center } = useApp();
   if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : null;
-  const first = state.data[0];
+  const first = state.data.requests[0];
   if (!first) return null;
   const { survey, eventName } = first;
+  const earn = pointsLine(t, 'earn', survey.reward_points, communityName(center));
   return (
     <Card hero tone="outlinePurple">
       <EyebrowRow left={t('home.feedbackRequested')} right={t('home.feedbackMeta')} color="purple" />
@@ -310,6 +326,11 @@ export function FeedbackCard() {
       <Txt variant="meta" color="muted">
         {survey.description?.trim() || t('home.feedbackBody')}
       </Txt>
+      {earn ? (
+        <Txt variant="meta" color="purple" style={{ fontFamily: fonts.bodySemi }}>
+          {earn}
+        </Txt>
+      ) : null}
       <PillButton label={t('home.shareFeedback')} tone="purple" onPress={() => router.push({ pathname: '/survey/[id]', params: { id: survey.id } })} />
     </Card>
   );
