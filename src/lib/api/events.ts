@@ -248,10 +248,10 @@ export type CancelOutcome = { rsvpCancelled: boolean; pledgeCancelled: boolean; 
 
 /**
  * "We can't make it": cancel the RSVP and release every ticket. `cancelPledge` is the family's answer to
- * "cancel your donation commitment too?"; money already paid toward it stays with the organization as credit (connect-crm 0543).
+ * "cancel your donation commitment too?"; money already paid is held as credit for the treasurer ONLY when `releaseCredit` is true, i.e. the member asked for it (connect-crm 0543).
  */
-export async function cancelRsvp(rsvpId: string, cancelPledge = false): Promise<CancelOutcome> {
-  const r = must(await supabase.rpc('cancel_my_rsvp', { p_rsvp: rsvpId, p_cancel_pledge: cancelPledge }), 'cancel your RSVP') as { rsvp_cancelled?: boolean; pledge_cancelled?: boolean; paid_cents?: number; credit_cents?: number } | null;
+export async function cancelRsvp(rsvpId: string, cancelPledge = false, releaseCredit = false): Promise<CancelOutcome> {
+  const r = must(await supabase.rpc('cancel_my_rsvp', { p_rsvp: rsvpId, p_cancel_pledge: cancelPledge, p_release_credit: releaseCredit }), 'cancel your RSVP') as { rsvp_cancelled?: boolean; pledge_cancelled?: boolean; paid_cents?: number; credit_cents?: number } | null;
   return { rsvpCancelled: r?.rsvp_cancelled ?? true, pledgeCancelled: r?.pledge_cancelled ?? false, paidCents: r?.paid_cents ?? 0, creditCents: r?.credit_cents ?? 0 };
 }
 

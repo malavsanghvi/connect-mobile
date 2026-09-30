@@ -376,8 +376,3 @@ export async function commitLabh(args: { dayId: string; optionIds: string[]; ded
 export async function listOpenPledges(householdId: string): Promise<Pick<Pledge, 'id' | 'pledge_number' | 'amount_cents' | 'paid_cents'>[]> {
   return must(await supabase.from('pledges').select('id, pledge_number, amount_cents, paid_cents').eq('household_id', householdId).in('status', ['open', 'partially_paid']), 'load your pledges');
 }
-
-/** Apply the household's account credit (money released from a cancelled pledge) to the chosen open pledges. Returns the cents applied. */
-export async function applyMyCredit(householdId: string, pledgeIds: string[]): Promise<number> {
-  return Number(must(await supabase.rpc('apply_my_credit', { p_household: householdId, p_pledge_ids: pledgeIds }), 'apply your credit'));
-}

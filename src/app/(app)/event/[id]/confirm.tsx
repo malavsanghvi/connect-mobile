@@ -7,7 +7,6 @@ import { EmptyState, Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Txt, VStack } from '@/components/ui';
 import { bandFor, peopleLabel } from '@/features/events';
 import { compactTime, confirmSchedule, relativeDay } from '@/features/event-rules';
-import { applyMyCredit, listOpenPledges } from '@/lib/api/giving';
 import { addHouseholdAttendees, cancelRsvp, confirmAttendance, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, type Attendee, type EventRow, type Rsvp } from '@/lib/api/events';
 import type { Member } from '@/lib/api/member';
 import type { Tables } from '@/lib/database.types';
@@ -102,52 +101,32 @@ function ConfirmBody({ event, rsvp, attendees, pledge, member }: { event: EventR
     const ok = await confirm({ title: t('confirm.cancelTitle'), body: t('confirm.cancelBody'), confirmLabel: t('confirm.cancelCta'), tone: 'danger', cancelLabel: t('confirm.keep') });
     if (!ok) return;
     // A donation commitment still on the account: ask whether it goes too. "Cancel RSVP only" (or dismissing) keeps it.
-    // Money already paid toward it is never refunded: it stays as credit on the family's account.
+    // Money already paid is never refunded: the member is asked whether to hold it as credit (the treasurer follows up);
+    // "no" leaves the pledge and payment as they are and only the RSVP is cancelled.
     const pledgeLive = !!pledge && pledge.status !== 'cancelled' && pledge.status !== 'written_off';
     let cancelPledge = false;
+    let releaseCredit = false;
     if (pledgeLive) {
       const paid = pledge.paid_cents;
-      cancelPledge = await confirm({
-        title: t('confirm.cancelPledgeTitle'),
+      const yes = await confirm({
+        title: paid > 0 ? t('confirm.creditTitle', { paid: formatCents(paid) }) : t('confirm.cancelPledgeTitle'),
         body: paid > 0
-          ? t('confirm.cancelPledgePaidBody', { amount: formatCents(pledge.amount_cents), pledge: pledge.pledge_number ?? '', paid: formatCents(paid) })
+          ? t('confirm.creditBody', { paid: formatCents(paid), pledge: pledge.pledge_number ?? '' })
           : t('confirm.cancelPledgeBody', { amount: formatCents(pledge.amount_cents), pledge: pledge.pledge_number ?? '' }),
-        confirmLabel: paid > 0 ? t('confirm.cancelPledgeYesCredit') : t('confirm.cancelPledgeYes'),
-        tone: 'danger',
-        cancelLabel: t('confirm.cancelPledgeNo'),
+        confirmLabel: paid > 0 ? t('confirm.creditYes') : t('confirm.cancelPledgeYes'),
+        tone: paid > 0 ? 'primary' : 'danger',
+        cancelLabel: paid > 0 ? t('confirm.creditNo') : t('confirm.cancelPledgeNo'),
       });
+      cancelPledge = yes;
+      releaseCredit = yes && paid > 0;
     }
     setBusy('cancel');
     setError(null);
     try {
-      const outcome = await cancelRsvp(rsvp.id, cancelPledge);
+      const outcome = await cancelRsvp(rsvp.id, cancelPledge, releaseCredit);
       invalidate();
-      if (outcome.creditCents > 0 && member.household) {
-        // The released money is credit. Offer to put it toward the family's other open pledges; otherwise it stays as credit.
-        const open = (await listOpenPledges(member.household.id)).filter((p) => p.id !== pledge?.id);
-        const due = open.reduce((sum, p) => sum + Math.max(p.amount_cents - p.paid_cents, 0), 0);
-        if (open.length > 0 && due > 0) {
-          const apply = await confirm({
-            title: t('confirm.applyCreditTitle', { credit: formatCents(outcome.creditCents) }),
-            body: t('confirm.applyCreditBody', { count: String(open.length), due: formatCents(due) }),
-            confirmLabel: t('confirm.applyCreditYes'),
-            tone: 'primary',
-            cancelLabel: t('confirm.applyCreditNo'),
-          });
-          if (apply) {
-            try {
-              const applied = await applyMyCredit(member.household.id, open.map((p) => p.id));
-              toast(t('confirm.creditAppliedToast', { amount: formatCents(applied) }));
-              router.replace('/');
-              return;
-            } catch (err) {
-              // Stay on the screen so the reason is seen; the RSVP is already cancelled and the credit is safe on the account.
-              setError(`${t('confirm.creditKeptToast', { amount: formatCents(outcome.creditCents) })}. ${report(err, 'apply your credit').userMessage}`);
-              return;
-            }
-          }
-        }
-        toast(t('confirm.creditKeptToast', { amount: formatCents(outcome.creditCents) }));
+      if (outcome.creditCents > 0) {
+        toast(t('confirm.creditHeldToast', { amount: formatCents(outcome.creditCents) }));
         router.replace('/');
         return;
       }
