@@ -1,7 +1,8 @@
 import type { Json, Tables } from '../database.types';
-import { AppError, check, logError, must } from '../errors';
+import { AppError, logError, must } from '../errors';
 import { readPref, writePref } from '../storage';
 import { supabase } from '../supabase';
+import { parseDismissals, recordDismissal, type Dismissals } from '../survey-popup';
 
 export type QuestionType = 'rating' | 'nps' | 'likert' | 'single' | 'multi' | 'text';
 
@@ -51,18 +52,77 @@ export async function getSurvey(id: string): Promise<Tables<'surveys'>> {
   return must(await supabase.from('surveys').select('*').eq('id', id).single(), 'load this survey');
 }
 
-export async function submitSurvey(args: { centerId: string; surveyId: string; personId: string | null; answers: Answers }): Promise<void> {
+/**
+ * Surveys this person has already answered. `survey_completions` is the source
+ * of truth (it is written by app.submit_survey, also for anonymous answers,
+ * whose answer row carries no person). Two older records are still honoured so
+ * a survey answered before that existed is not offered again: answers that
+ * carry the person, and anonymous answers this device remembered.
+ */
+export async function listCompletedSurveyIds(personId: string): Promise<Set<string>> {
+  const [completions, answers, onThisDevice] = await Promise.all([
+    supabase.from('survey_completions').select('survey_id').eq('person_id', personId),
+    supabase.from('survey_responses').select('survey_id').eq('person_id', personId),
+    readPref<string[]>('answeredSurveys', []),
+  ]);
+  const ids = [...must(completions, 'check which surveys you have answered'), ...must(answers, 'check which surveys you have answered')].map((r) => r.survey_id);
+  return new Set([...ids, ...onThisDevice]);
+}
+
+export type SubmitResult = { points: number; anonymous: boolean };
+
+/** app.submit_survey returns { points, anonymous }; read it defensively. */
+export function parseSubmitResult(raw: Json | null | undefined): SubmitResult {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, Json | undefined>) : {};
+  const points = typeof o.points === 'number' && Number.isFinite(o.points) && o.points > 0 ? Math.floor(o.points) : 0;
+  return { points, anonymous: o.anonymous === true };
+}
+
+/** The server refused because this person already answered (it says so in plain English). */
+export function isAlreadyAnswered(err: unknown): boolean {
+  return err instanceof AppError && err.code === 'P0001' && /already answered/i.test(err.detail);
+}
+
+/**
+ * Answer a survey through app.submit_survey: it saves the answer, records that
+ * this person answered (so it is not offered again and reminders stop) and
+ * awards the survey's points once. `anonymous` only matters for surveys that
+ * are not anonymous by themselves (the server ORs the two).
+ */
+export async function submitSurvey(args: { surveyId: string; answers: Answers; anonymous: boolean }): Promise<SubmitResult> {
   if (Object.keys(args.answers).length === 0) throw new AppError('Please answer at least one question.', 'empty survey');
-  check(
-    await supabase.from('survey_responses').insert({ center_id: args.centerId, survey_id: args.surveyId, person_id: args.personId, answers: args.answers as Json }),
-    'send your answers',
-  );
-  if (args.personId === null) {
-    try {
-      const done = await readPref<string[]>('answeredSurveys', []);
-      await writePref('answeredSurveys', [...new Set([...done, args.surveyId])]);
-    } catch (err) {
-      logError('remembering an anonymous survey answer on this device (it may be shown again)', err);
-    }
+  const raw = must(await supabase.rpc('submit_survey', { p_survey: args.surveyId, p_answers: args.answers as Json, p_anonymous: args.anonymous }), 'send your answers');
+  return parseSubmitResult(raw);
+}
+
+// ---------------------------------------------------------------------------
+// "How was <event>?" pop-up: which surveys the member already closed, per day
+// ---------------------------------------------------------------------------
+
+const POPUP_PREF = 'surveyPopupDismissed';
+
+/** Survey id → the day (center's local date) the member last closed its pop-up. Never throws. */
+export async function readPopupDismissals(): Promise<Dismissals> {
+  try {
+    return parseDismissals(await readPref<unknown>(POPUP_PREF, {}));
+  } catch (err) {
+    logError('reading which feedback pop-ups were closed on this device (the pop-up may show again today)', err);
+    return {};
+  }
+}
+
+/**
+ * Remember on this device that the pop-up for a survey was closed today. A
+ * failure is logged and returns false: the caller keeps the pop-up closed for
+ * this session instead, so the member is never nagged over a storage problem.
+ */
+export async function rememberPopupDismissed(surveyId: string, today: string): Promise<boolean> {
+  try {
+    const current = await readPopupDismissals();
+    await writePref(POPUP_PREF, recordDismissal(current, surveyId, today));
+    return true;
+  } catch (err) {
+    logError('remembering that the feedback pop-up was closed on this device (it may show again today)', err);
+    return false;
   }
 }

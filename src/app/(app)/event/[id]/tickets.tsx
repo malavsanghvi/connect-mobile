@@ -43,7 +43,7 @@ export default function TicketsScreen() {
         rsvp ? listAttendees(rsvp.id) : Promise.resolve([]),
         event.lunch_enabled ? listLunchSlots(event.id) : Promise.resolve([]),
         rsvp?.commitment_pledge_id && member?.isAdult ? getPledgeById(rsvp.commitment_pledge_id) : Promise.resolve(null),
-        member ? findEventSurvey(event.id) : Promise.resolve(null),
+        member ? findEventSurvey(event.id, member.person.id) : Promise.resolve(null),
         readPref<Record<string, string>>(MOVED_KEY, {}),
       ]);
       return { event, rsvp, attendees, slots, pledge, survey, movedSlotId: moved[event.id] ?? null, now: new Date() };

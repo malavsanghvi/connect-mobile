@@ -1,11 +1,11 @@
 import type { Tables, TablesInsert } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
 import { withAuditReason } from '../request-context';
-import { readPref } from '../storage';
 import { supabase } from '../supabase';
 
 import { createPledge } from './giving';
 import type { Member } from './member';
+import { listCompletedSurveyIds } from './surveys';
 
 export type EventRow = Tables<'events'>;
 export type Rsvp = Tables<'rsvps'>;
@@ -264,10 +264,16 @@ export async function getPledgeById(id: string): Promise<Tables<'pledges'> | nul
   return maybe(await supabase.from('pledges').select('*').eq('id', id).maybeSingle(), 'load your donation commitment');
 }
 
-/** The open feedback survey for an event (surveys.event_id, connect-crm 0016). */
-export async function findEventSurvey(eventId: string): Promise<Tables<'surveys'> | null> {
-  const rows = must(await supabase.from('surveys').select('*').eq('status', 'open').eq('event_id', eventId).order('created_at', { ascending: false }).limit(1), 'look for an event feedback survey');
-  return rows[0] ?? null;
+/**
+ * The open feedback survey for an event (surveys.event_id, connect-crm 0016).
+ * Pass `personId` to leave out a survey that person has already answered.
+ */
+export async function findEventSurvey(eventId: string, personId?: string): Promise<Tables<'surveys'> | null> {
+  const [rows, completed] = await Promise.all([
+    supabase.from('surveys').select('*').eq('status', 'open').eq('event_id', eventId).order('created_at', { ascending: false }).limit(5),
+    personId ? listCompletedSurveyIds(personId) : Promise.resolve(new Set<string>()),
+  ]);
+  return must(rows, 'look for an event feedback survey').find((s) => !completed.has(s.id)) ?? null;
 }
 
 /** Move checked-in family members to a later lunch slot with seats (app.move_lunch_slot, adults only). */
@@ -295,13 +301,11 @@ export async function loadEventsList(centerId: string, householdId: string | nul
 
   let feedback: FeedbackRow | null = null;
   if (personId) {
-    const [surveys, answered, recent, anonAnswered] = await Promise.all([
+    const [surveys, done, recent] = await Promise.all([
       supabase.from('surveys').select('*').eq('center_id', centerId).in('status', ['open', 'closed']).not('event_id', 'is', null).order('created_at', { ascending: false }).limit(20).then((r) => must(r, 'load event feedback')),
-      supabase.from('survey_responses').select('survey_id').eq('person_id', personId).then((r) => must(r, 'load event feedback')),
+      listCompletedSurveyIds(personId),
       listRecentEvents(centerId, 30),
-      readPref<string[]>('answeredSurveys', []),
     ]);
-    const done = new Set([...answered.map((a) => a.survey_id), ...anonAnswered]);
     const byId = new Map([...events, ...recent].map((e) => [e.id, e]));
     const relevant = surveys.filter((s) => s.event_id && byId.has(s.event_id));
     const now = Date.now();

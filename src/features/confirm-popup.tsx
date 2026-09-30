@@ -34,9 +34,11 @@ type PopupData = { event: EventRow; rsvp: Rsvp; attendees: Attendee[]; tz: strin
 type ConfirmPopupValue = {
   /** Show the "TOMORROW · PLEASE CONFIRM" pop-up. `auto` respects "Remind me later". */
   showConfirm: (eventId: string, opts?: { auto?: boolean }) => Promise<void>;
+  /** The confirm pop-up is on screen (the feedback pop-up waits for it to close). */
+  open: boolean;
 };
 
-const ConfirmPopupContext = createContext<ConfirmPopupValue>({ showConfirm: async () => {} });
+const ConfirmPopupContext = createContext<ConfirmPopupValue>({ showConfirm: async () => {}, open: false });
 
 const SNOOZE_KEY = 'confirmPopupSnooze';
 
@@ -270,7 +272,7 @@ export function ConfirmPopupProvider({ children }: { children: ReactNode }) {
   const when = d ? [formatDate(d.event.starts_at, d.tz), compactTime(d.event.starts_at, d.tz), d.event.venue].filter(Boolean).join(' · ') : '';
 
   return (
-    <ConfirmPopupContext.Provider value={{ showConfirm }}>
+    <ConfirmPopupContext.Provider value={{ showConfirm, open: !!popup }}>
       {children}
       <Modal visible={!!d} transparent animationType="fade" onRequestClose={() => void close(true)}>
         <View style={{ flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter }}>
