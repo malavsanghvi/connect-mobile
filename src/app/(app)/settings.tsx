@@ -1,4 +1,3 @@
-import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import * as Device from 'expo-device';
@@ -11,6 +10,7 @@ import { biometricSupport, readBiometricOptIn, writeBiometricOptIn, type Biometr
 import { createDataRequest, deactivateAccount, QUIET_HOURS_RANGE, reactivateAccount, requestDeletion, setDirectoryOptIn, updateAccount } from '@/lib/api/settings';
 import { check, logError, report } from '@/lib/errors';
 import { formatPhone, fullName } from '@/lib/format';
+import { currentRelease, releaseLabel } from '@/lib/release';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
@@ -27,6 +27,8 @@ const TEXT_SIZES: { value: TextSize; key: 'settings.textStandard' | 'settings.te
 ];
 
 /** Settings (prototype §2.27): account, notifications, preferences, privacy, account status. */
+const release = currentRelease();
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, language, setLanguage, textSize, setTextSize } = useSettings();
@@ -277,7 +279,7 @@ export default function SettingsScreen() {
             <Divider />
           </>
         ) : null}
-        <ListRow title={t('settings.about')} subtitle={t('settings.aboutSub', { version: Constants.expoConfig?.version ?? '1.0.0', build: String(Constants.nativeBuildVersion ?? Constants.expoConfig?.version ?? '1') })} />
+        <ListRow title={t('settings.about')} subtitle={t('settings.aboutSub', { version: release.version, build: release.build, update: releaseLabel(release).split(' · ').slice(1).join(' · ') || '—' })} />
       </Card>
 
       <SectionTitle>{t('settings.status')}</SectionTitle>
