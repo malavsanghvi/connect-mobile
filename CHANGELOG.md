@@ -14,6 +14,26 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.4.0 — 2026-10-01
+
+- **3L — Look, Listen, Learn** replaces the Learn and Library tabs of My Jain Way (Today · 3L · Saathi). Look: live darshan,
+  videos, recipes (with a fully Jain filter) and event photos. Listen: My playlist, stavans, podcasts, audio lessons and the
+  pachchakhan library. Learn: the Gyan Path, Pathshala and the community guide. Search, a heart on every item (it teaches
+  the app what the community likes), and a mini player that keeps playing across screens.
+- **Learn → Gyan Path opens your whole path** (the level map) for the goal you are on, with "Play" for the next level.
+  (An earlier build of 3L jumped straight into a lesson.) The Learn shortcut on Home still goes straight to your next level.
+- **Home shortcuts**: a row of round buttons under "Today at …" that scrolls sideways: Learn (your next level), My playlist
+  (plays it; when it is empty, the most-liked stavans), Photos, Recipe (a random fully Jain recipe), Podcast (a random one)
+  and **New here** (the welcome guide). The organization chooses which ones and in what order (portal › Settings › Member
+  app › Home shortcuts); with nothing chosen, all six show.
+- Home: the Photo albums card is gone (Photos is a shortcut and under Events); **the next event / RSVP card now sits above
+  the giving card**.
+- First sign-in shows only a progress bar (no "Step x of y"); the address step has type-ahead for state, ZIP and city;
+  special days ask "Would you like to plan any?" first and let you pick a labh in the form (recorded as a pledge when you
+  save); the Saathi family circle lists every family member, including those waiting for approval.
+- Video and audio limits until the next store build: videos open in the browser on phones (inline video needs a new build),
+  and audio stops when the app goes to the background.
+
 ## 1.3.0 — 2026-10-01
 
 - First sign-in: two new steps for adults after "Your family". **Your family's special days** adds birthdays,

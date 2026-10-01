@@ -11,7 +11,6 @@ import { listSpecialDays, nextTithiDates } from '@/lib/api/family';
 import { listOpportunities } from '@/lib/api/giving';
 import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type FeedbackHome, type HomeEvents } from '@/lib/api/home';
 import { loadJainWayToday } from '@/lib/api/jainway';
-import { listAlbums } from '@/lib/api/photos';
 import { reactivateAccount } from '@/lib/api/settings';
 import { logError, report } from '@/lib/errors';
 import { daysBetween, formatCents, formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt, zonedParts } from '@/lib/format';
@@ -632,33 +631,6 @@ export function SpecialDayCard() {
           <PillButton label={t('home.planDay')} tone="brown" fill onPress={() => router.push('/special-days')} />
         )}
         <PillButton label={t('home.notThisYear')} tone="plain" fill onPress={notThisYear} />
-      </Row>
-    </Card>
-  );
-}
-
-/** Shortcut to the photo albums (Events › Photos). Shown only when the community has albums, so it never opens an empty page. */
-export function PhotosLink() {
-  const t = useT();
-  const router = useRouter();
-  const { center, member } = useApp();
-  const state = useLoad(() => (center && member ? listAlbums(center.id) : Promise.resolve([])), [center?.id, member?.person.id], 'load photo albums');
-  const albums = state.data ?? [];
-  if (albums.length === 0) return null;
-  const title = t('home.photosTitle');
-  return (
-    <Card hero onPress={() => router.push({ pathname: '/events', params: { view: 'photos' } })} accessibilityLabel={title} style={{ paddingVertical: 14 }}>
-      <Row gap={space.md}>
-        <View style={{ width: 44, height: 44, borderRadius: radii.card, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center' }}>
-          <EventIcon name="photo" size={22} color={colors.brown} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt variant="bodyStrong">{title}</Txt>
-          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-            {albums.length === 1 ? t('home.photosSubOne', { name: albums[0].album.title }) : t('home.photosSub', { n: albums.length, name: albums[0].album.title })}
-          </Txt>
-        </View>
-        <Chevron />
       </Row>
     </Card>
   );

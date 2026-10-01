@@ -10,7 +10,6 @@ import {
   JainWayCard,
   LunchCard,
   NextEventRow,
-  PhotosLink,
   SpecialDayCard,
   TodayCard,
   useFeedbackHome,
@@ -50,9 +49,8 @@ export default function HomeScreen() {
         {on('lunch') ? <LunchCard state={events} /> : null}
         {member?.isAdult && on('specialDay') ? <SpecialDayCard /> : null}
         {on('confirm') ? <ConfirmCard state={events} /> : null}
-        {member?.isAdult && on('giving') ? <GivingSection /> : null}
         {on('nextEvent') ? <NextEventRow state={events} /> : null}
-        {member && on('photos') ? <PhotosLink /> : null}
+        {member?.isAdult && on('giving') ? <GivingSection /> : null}
         {on('guide') ? <GuideLink /> : null}
         {guest ? <GuestSignInCard /> : null}
       </Screen>
