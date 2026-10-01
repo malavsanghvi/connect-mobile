@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 
 import { FamilyReview } from '@/features/onboarding/family-review';
 import { OnboardingFrame } from '@/features/onboarding/frame';
+import { stepAfterFamily } from '@/features/onboarding/steps';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 
@@ -18,7 +19,7 @@ export default function FamilyStepScreen() {
       subtitle={t('familyStep.subtitle')}
       onBack={() => router.back()}
       onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>
-      <FamilyReview onContinue={() => router.push('/contact')} />
+      <FamilyReview onContinue={() => router.push(stepAfterFamily(member.isAdult))} />
     </OnboardingFrame>
   );
 }

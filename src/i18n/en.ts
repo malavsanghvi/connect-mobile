@@ -304,6 +304,12 @@ export const en = {
   'prefs.adultsOnly': 'Documents and mail is chosen by an adult of the family.',
 
   // Done (step 6)
+  'planDays.title': "Your family's special days",
+  'planDays.subtitle': 'Add birthdays, anniversaries and other days. We remind you ahead of each one, so you can plan a labh for the day.',
+  'planDays.added': 'Added so far',
+  'planDays.later': 'You can add or change these anytime from Family › Special days, and plan a labh when the day comes closer.',
+  'waStep.title': 'Join our WhatsApp groups',
+  'waStep.zoneLater': 'After setup, find your zone in the welcome guide, then request its group.',
   'done.title': "You're all set, {name}",
   'done.thanksLine': 'Thank you for helping us keep the community connected.',
   'done.skippedLine': 'You can finish your profile anytime from the Family tab.',

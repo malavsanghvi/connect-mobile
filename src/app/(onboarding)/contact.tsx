@@ -2,10 +2,11 @@ import { useRouter } from 'expo-router';
 
 import { ContactPrefsForm } from '@/features/onboarding/contact-prefs-form';
 import { OnboardingFrame } from '@/features/onboarding/frame';
+import { ONBOARDING_STEP_NUMBER } from '@/features/onboarding/steps';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 
-/** Onboarding step 7: contact preferences + documents & mail (required). */
+/** Onboarding step 9 (the last): contact preferences + documents & mail (required). */
 export default function ContactStepScreen() {
   const router = useRouter();
   const t = useT();
@@ -13,7 +14,7 @@ export default function ContactStepScreen() {
   if (!member || !center) return null;
   return (
     <OnboardingFrame
-      step={7}
+      step={ONBOARDING_STEP_NUMBER.contact}
       title={t('prefs.title')}
       onBack={() => router.back()}
       onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>

@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.3.0 — 2026-10-01
+
+- First sign-in: two new steps for adults after "Your family". **Your family's special days** adds birthdays,
+  anniversaries and other days (the same form as Family › Special days, with a reminder ahead of each one).
+  **Join our WhatsApp groups** asks to join the community's groups (the same request as the welcome guide; an
+  admin adds the number). Both are optional and skippable. The WhatsApp step is passed over when Communications is
+  off or the community has no active group, and children go straight to contact preferences. Both screens are
+  still available afterwards (Family › Special days, welcome guide › WhatsApp groups).
+
 ## 1.2.0 — 2026-10-01
 
 - Family › Special days: "Plan labh" (the pledge options for the day) shows on every eligible day, not only in the
