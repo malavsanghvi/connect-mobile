@@ -3,25 +3,26 @@
  * The community picks them and their order in the portal (Settings › Member
  * app › Home shortcuts), stored in `centers.rules.home.shortcuts`:
  *
- * - key absent (or not a list) → all five, in the default order;
+ * - key absent (or not a list) → all six, in the default order;
  * - an empty list → no shortcuts;
  * - unknown keys are ignored, a repeated key counts once.
  *
  * A shortcut whose module is switched off is hidden. Pure, unit-tested in
  * src/lib/__tests__/home-shortcuts.test.ts.
  */
-import { isModuleOn, type ModuleKey, type ModuleMap } from './modules';
+import { anyModuleOn, type ModuleKey, type ModuleMap } from './modules';
 
-export const HOME_SHORTCUT_KEYS = ['learn', 'playlist', 'photos', 'recipe', 'podcast'] as const;
+export const HOME_SHORTCUT_KEYS = ['learn', 'playlist', 'photos', 'recipe', 'podcast', 'guide'] as const;
 export type HomeShortcut = (typeof HOME_SHORTCUT_KEYS)[number];
 
-/** learn → Gyan Path; the playlist, photos, a recipe and a podcast are Content. */
-export const HOME_SHORTCUT_MODULE: Record<HomeShortcut, ModuleKey> = {
+/** learn → Gyan Path; the playlist, photos, a recipe and a podcast are Content; the welcome guide is always there (null). */
+export const HOME_SHORTCUT_MODULE: Record<HomeShortcut, ModuleKey | null> = {
   learn: 'gyan_path',
   playlist: 'content',
   photos: 'content',
   recipe: 'content',
   podcast: 'content',
+  guide: null,
 };
 
 export function isHomeShortcut(v: unknown): v is HomeShortcut {
@@ -46,5 +47,5 @@ export function configuredShortcuts(rules: unknown): HomeShortcut[] {
 
 /** The shortcuts to show, in the community's order, without those of switched-off modules. */
 export function homeShortcuts(rules: unknown, modules: ModuleMap): HomeShortcut[] {
-  return configuredShortcuts(rules).filter((key) => isModuleOn(modules, HOME_SHORTCUT_MODULE[key]));
+  return configuredShortcuts(rules).filter((key) => anyModuleOn(modules, HOME_SHORTCUT_MODULE[key]));
 }

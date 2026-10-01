@@ -139,7 +139,6 @@ export const HOME_CARD_MODULE = {
   confirm: 'events',
   giving: 'giving',
   nextEvent: 'events',
-  photos: 'content',
   guide: null,
 } as const satisfies Record<string, ModuleKey | null>;
 

@@ -14,7 +14,7 @@ import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
 /**
- * 3L › Learn: the Gyan Path hero (straight into the next level), Pathshala
+ * 3L › Learn: the Gyan Path hero (the whole level map), Pathshala
  * enrollments and attendance, and the community guide. Gyan Path and
  * Pathshala are separate modules; guests see the guide.
  */
@@ -38,7 +38,7 @@ export function LearnSection() {
   );
 }
 
-/** Navy Gyan Path hero (prototype Main L636): opens the next level, or the goals when every level is done. */
+/** Navy Gyan Path hero (prototype Main L636): opens the whole path (the level map) of the goal you are on, or the goals when every level is done. The map has the Play button for the next level. */
 function GyanHero() {
   const t = useT();
   const router = useRouter();
@@ -59,9 +59,9 @@ function GyanHero() {
         const levelNo = Math.min(p.levelsDone + 1, Math.max(p.levelsTotal, 1));
         const eyebrow = p.complete ? t('learn.heroEyebrowDone') : t('learn.heroEyebrow', { level: levelNo, n: p.levelsTotal });
         const title = p.currentLevel ? `${goal.name} · ${p.currentLevel.name}` : goal.name;
-        const sub = !next ? t('threeL.heroAllDone') : p.stepsDone === 0 ? t('threeL.heroStart') : minutes ? t('learn.heroContinue', { min: minutes }) : t('learn.heroContinueNoGoal');
+        const sub = !next ? t('threeL.heroAllDone') : p.stepsDone === 0 ? t('threeL.heroStart') : minutes ? t('learn.heroContinue', { min: minutes }) : t('threeL.heroPath');
         const open = () => {
-          if (next) router.push({ pathname: '/gyan/[goalId]/level/[levelId]', params: { goalId: next.goal.id, levelId: next.level.id } });
+          if (next) router.push({ pathname: '/gyan/[goalId]', params: { goalId: next.goal.id } });
           else router.push('/gyan');
         };
         return (

@@ -12,7 +12,7 @@ import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, space, touch } from '@/theme';
 
-type Look = { icon: IconName; bg: string; fg: string; label: 'home.shortcut.learn' | 'home.shortcut.playlist' | 'home.shortcut.photos' | 'home.shortcut.recipe' | 'home.shortcut.podcast'; a11y: 'home.shortcut.learnA11y' | 'home.shortcut.playlistA11y' | 'home.shortcut.photosA11y' | 'home.shortcut.recipeA11y' | 'home.shortcut.podcastA11y' };
+type Look = { icon: IconName; bg: string; fg: string; label: 'home.shortcut.learn' | 'home.shortcut.playlist' | 'home.shortcut.photos' | 'home.shortcut.recipe' | 'home.shortcut.podcast' | 'home.shortcut.guide'; a11y: 'home.shortcut.learnA11y' | 'home.shortcut.playlistA11y' | 'home.shortcut.photosA11y' | 'home.shortcut.recipeA11y' | 'home.shortcut.podcastA11y' | 'home.shortcut.guideA11y' };
 
 // Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
 const looks = (): Record<HomeShortcut, Look> => ({
@@ -21,6 +21,7 @@ const looks = (): Record<HomeShortcut, Look> => ({
   photos: { icon: 'images-outline', bg: colors.brownTint, fg: colors.brown, label: 'home.shortcut.photos', a11y: 'home.shortcut.photosA11y' },
   recipe: { icon: 'restaurant-outline', bg: colors.greenTint, fg: colors.green, label: 'home.shortcut.recipe', a11y: 'home.shortcut.recipeA11y' },
   podcast: { icon: 'mic-outline', bg: colors.storeTint, fg: colors.store, label: 'home.shortcut.podcast', a11y: 'home.shortcut.podcastA11y' },
+  guide: { icon: 'compass-outline', bg: colors.panel, fg: colors.saffron, label: 'home.shortcut.guide', a11y: 'home.shortcut.guideA11y' },
 });
 
 const CIRCLE = 56;
@@ -64,6 +65,7 @@ export function HomeShortcuts() {
     else if (key === 'playlist') router.push({ pathname: '/listen/playlist', params: { autoplay: '1' } });
     else if (key === 'photos') router.push({ pathname: '/events', params: { view: 'photos' } });
     else if (key === 'recipe') router.push('/recipe/random');
+    else if (key === 'guide') router.push('/guide');
     else router.push('/listen/podcast-random');
   };
 
