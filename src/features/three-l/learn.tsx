@@ -2,19 +2,19 @@ import { useRouter } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
 import { EmptyState, Loaded } from '@/components/states';
-import { Button, Card, Chevron, Divider, LinkText, Row, Txt, VStack } from '@/components/ui';
+import { Button, Card, Divider, LinkText, Row, Txt, VStack } from '@/components/ui';
 import { goalProgress, lastActivityByGoal, loadGyan, loadPathshala, nextGyanLevel } from '@/lib/api/gyan';
 import { formatDay } from '@/lib/format';
-import { attendanceSummary, communityName, continueGoalId } from '@/lib/learning';
+import { attendanceSummary, continueGoalId } from '@/lib/learning';
 import { LEARN_PART_MODULE } from '@/lib/modules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii } from '@/theme';
 
 /**
- * 3L › Learn: the Gyan Path hero (the whole level map), Pathshala
+ * 3L › Learn: the Gyan Path hero (the whole level map) and Pathshala
  * enrollments and attendance, and the community guide. Gyan Path and
  * Pathshala are separate modules; guests see the guide.
  */
@@ -33,7 +33,6 @@ export function LearnSection() {
           {t('threeL.guestLearn')}
         </Txt>
       ) : null}
-      <GuideCard />
     </VStack>
   );
 }
@@ -194,40 +193,11 @@ function PathshalaBlock() {
           )
         }
       </Loaded>
-      {member?.isAdult ? (
+      {member?.isAdult && (pathshala.data?.length ?? 0) > 0 ? (
         <Row style={{ flexWrap: 'wrap' }}>
-          {(pathshala.data?.length ?? 0) > 0 ? <Button label={t('enrollReq.cta')} tone="secondary" size="sm" icon="school-outline" fill={false} onPress={() => router.push('/pathshala-enroll')} /> : null}
-          <Button label={t('teach.cta')} tone="secondary" size="sm" icon="people-outline" fill={false} onPress={() => router.push('/pathshala-teach')} />
+          <Button label={t('enrollReq.cta')} tone="secondary" size="sm" icon="school-outline" fill={false} onPress={() => router.push('/pathshala-enroll')} />
         </Row>
       ) : null}
     </VStack>
-  );
-}
-
-/** "{center} guide and directory" (formerly Library). */
-function GuideCard() {
-  const t = useT();
-  const router = useRouter();
-  const { center } = useApp();
-  const community = communityName(center);
-  return (
-    <Pressable
-      onPress={() => router.push('/guide')}
-      accessibilityRole="button"
-      accessibilityLabel={`${t('library.guide', { center: community })}. ${t('library.guideSub')}`}
-      style={({ pressed }) => ({ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.xxl, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.85 : 1 })}>
-      <View style={{ width: 44, height: 44, borderRadius: radii.card, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 18, color: colors.navy }}>i</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Txt variant="body" style={{ fontFamily: fonts.bodySemi }}>
-          {t('library.guide', { center: community })}
-        </Txt>
-        <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-          {t('library.guideSub')}
-        </Txt>
-      </View>
-      <Chevron />
-    </Pressable>
   );
 }
