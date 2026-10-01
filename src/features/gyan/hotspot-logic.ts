@@ -73,8 +73,3 @@ export function practiceScore(spotCount: number, slips: number): number {
 export function practiceSuccess(state: PracticeState, maxSlips: number): boolean {
   return state.done && state.slips <= maxSlips;
 }
-
-/** Stars for finishing the step: 3 for a clean try, 2 within the slip allowance, else 1. */
-export function practiceStars(slips: number, maxSlips: number): number {
-  return slips === 0 ? 3 : slips <= maxSlips ? 2 : 1;
-}

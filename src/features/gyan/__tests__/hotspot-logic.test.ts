@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { HotspotSpot } from '../activity';
-import { freshPractice, hitSpot, MIN_TAP_RADIUS, practiceScore, practiceStars, practiceSuccess, practiceTap, spotBox, spotProgress } from '../hotspot-logic';
+import { freshPractice, hitSpot, MIN_TAP_RADIUS, practiceScore, practiceSuccess, practiceTap, spotBox, spotProgress } from '../hotspot-logic';
 
 const spot = (key: string, x: number, y: number, r = 0.05, puja: number | null = null): HotspotSpot => ({ key, order: 0, puja, label: key, x, y, r, say: null, why: null });
 
@@ -62,8 +62,5 @@ describe('practice', () => {
     expect(practiceSuccess({ next: 3, slips: 2, hint: null, done: true }, 2)).toBe(true);
     expect(practiceSuccess({ next: 3, slips: 3, hint: null, done: true }, 2)).toBe(false);
     expect(practiceSuccess({ next: 2, slips: 0, hint: null, done: false }, 2)).toBe(false);
-    expect(practiceStars(0, 2)).toBe(3);
-    expect(practiceStars(2, 2)).toBe(2);
-    expect(practiceStars(4, 2)).toBe(1);
   });
 });

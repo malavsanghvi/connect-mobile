@@ -12,7 +12,22 @@ import type { StringKey } from '../../i18n/en';
 
 export const DEFAULT_PRACTICE_CAP = 10;
 
-export type AttemptResult = { pointsAwarded: number; triesToday: number; cap: number; firstTime: boolean };
+/**
+ * record_gyan_attempt's answer. A successful try also completes the step, so
+ * `pointsAwarded` is everything the call paid: the try's repeat points plus,
+ * the first time, the step's points and (finishing the level) the level bonus
+ * and treasure. `tryPoints` is the repeat part alone.
+ */
+export type AttemptResult = {
+  pointsAwarded: number;
+  tryPoints: number;
+  stepPoints: number;
+  levelPoints: number;
+  treasurePoints: number;
+  triesToday: number;
+  cap: number;
+  firstTime: boolean;
+};
 
 function int(v: unknown, d: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.round(v)) : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : d;
@@ -21,7 +36,22 @@ function int(v: unknown, d: number): number {
 /** record_gyan_attempt's jsonb answer, read defensively. */
 export function parseAttemptResult(raw: unknown): AttemptResult {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  return { pointsAwarded: int(o.points_awarded, 0), triesToday: int(o.tries_today, 0), cap: int(o.cap, DEFAULT_PRACTICE_CAP) || DEFAULT_PRACTICE_CAP, firstTime: o.first_time === true };
+  const pointsAwarded = int(o.points_awarded, 0);
+  return {
+    pointsAwarded,
+    tryPoints: int(o.try_points, pointsAwarded),
+    stepPoints: int(o.step_points, 0),
+    levelPoints: int(o.level_points, 0),
+    treasurePoints: int(o.treasure_points, 0),
+    triesToday: int(o.tries_today, 0),
+    cap: int(o.cap, DEFAULT_PRACTICE_CAP) || DEFAULT_PRACTICE_CAP,
+    firstTime: o.first_time === true,
+  };
+}
+
+/** Stars for a try's 0–100 score, the same rule the server uses when a try completes the step (90+ → 3, 60+ → 2, else 1). */
+export function scoreStars(score: number): number {
+  return score >= 90 ? 3 : score >= 60 ? 2 : 1;
 }
 
 /** centers.rules.points.gyan_practice_daily_cap (default 10), for the counter shown before the first try. */

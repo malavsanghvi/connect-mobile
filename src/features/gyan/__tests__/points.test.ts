@@ -3,15 +3,30 @@ import { describe, expect, it } from '@jest/globals';
 import { en } from '../../../i18n/en';
 import { translate } from '../../../i18n';
 import { confettiPieces } from '../celebrate';
-import { attemptLine, counterLine, levelBonus, parseAttemptResult, practiceCap } from '../points';
+import { attemptLine, counterLine, levelBonus, parseAttemptResult, practiceCap, scoreStars, type AttemptResult } from '../points';
+
+const result = (o: Partial<AttemptResult>): AttemptResult => ({ pointsAwarded: 0, tryPoints: 0, stepPoints: 0, levelPoints: 0, treasurePoints: 0, triesToday: 0, cap: 10, firstTime: false, ...o });
 
 describe('parseAttemptResult', () => {
   it('reads the RPC answer', () => {
-    expect(parseAttemptResult({ points_awarded: 3, tries_today: 4, cap: 10, first_time: false })).toEqual({ pointsAwarded: 3, triesToday: 4, cap: 10, firstTime: false });
+    expect(parseAttemptResult({ points_awarded: 13, try_points: 3, step_points: 10, level_points: 0, treasure_points: 0, tries_today: 1, cap: 10, first_time: true, level_complete: false })).toEqual(
+      result({ pointsAwarded: 13, tryPoints: 3, stepPoints: 10, triesToday: 1, firstTime: true }),
+    );
   });
   it('defaults safely', () => {
-    expect(parseAttemptResult(null)).toEqual({ pointsAwarded: 0, triesToday: 0, cap: 10, firstTime: false });
+    expect(parseAttemptResult(null)).toEqual(result({}));
     expect(parseAttemptResult({ cap: 0 }).cap).toBe(10);
+    expect(parseAttemptResult({ points_awarded: 3 }).tryPoints).toBe(3);
+  });
+});
+
+describe('scoreStars', () => {
+  it('matches the server rule', () => {
+    expect(scoreStars(100)).toBe(3);
+    expect(scoreStars(90)).toBe(3);
+    expect(scoreStars(89)).toBe(2);
+    expect(scoreStars(60)).toBe(2);
+    expect(scoreStars(59)).toBe(1);
   });
 });
 
@@ -26,16 +41,16 @@ describe('practiceCap', () => {
 describe('attemptLine', () => {
   const say = (l: ReturnType<typeof attemptLine>) => translate('en', l.key, l.vars);
   it('says the points and the counter', () => {
-    expect(say(attemptLine({ pointsAwarded: 3, triesToday: 4, cap: 10, firstTime: false }, true))).toBe('+3 points · 4 of 10 today');
+    expect(say(attemptLine(result({ pointsAwarded: 3, tryPoints: 3, triesToday: 4 }), true))).toBe('+3 points · 4 of 10 today');
   });
   it('says when the day is capped', () => {
-    expect(say(attemptLine({ pointsAwarded: 0, triesToday: 10, cap: 10, firstTime: false }, true))).toBe("Today's practice points are done — keep practising!");
+    expect(say(attemptLine(result({ triesToday: 10 }), true))).toBe("Today's practice points are done — keep practising!");
   });
   it('shows the counter for a try that did not count', () => {
-    expect(say(attemptLine({ pointsAwarded: 0, triesToday: 4, cap: 10, firstTime: false }, false))).toBe('Not counted this time · 4 of 10 today');
+    expect(say(attemptLine(result({ triesToday: 4 }), false))).toBe('Not counted this time · 4 of 10 today');
   });
   it('says a success with no repeat points plainly', () => {
-    expect(say(attemptLine({ pointsAwarded: 0, triesToday: 2, cap: 10, firstTime: true }, true))).toBe('Well done · 2 of 10 today');
+    expect(say(attemptLine(result({ triesToday: 2, firstTime: true }), true))).toBe('Well done · 2 of 10 today');
   });
   it('has a counter line', () => {
     expect(translate('en', counterLine(3, 10).key, counterLine(3, 10).vars)).toBe('3 of 10 today');

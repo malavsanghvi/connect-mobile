@@ -1,10 +1,12 @@
+import { parseAttemptResult, type AttemptResult } from '@/features/gyan/points';
+
 import type { Tables } from '../database.types';
-import { AppError, check, must } from '../errors';
+import { AppError, check, must, report } from '../errors';
 import { supabase } from '../supabase';
 
 import { isMissingBucket } from './photos';
 
-import { classSchedule, continueGoalId, registrationOpen, type AttendanceMark, type DailyMinutes } from '../learning';
+import { classSchedule, continueGoalId, registrationOpen, todayAtMinutes, type AttendanceMark, type DailyMinutes } from '../learning';
 
 import type { Center } from './member';
 
@@ -164,27 +166,38 @@ export async function uploadRecitation(opts: { centerId: string; personId: strin
   return path;
 }
 
+/**
+ * One practice try (Navang puja, voice): app.record_gyan_attempt records it
+ * and pays the step's repeat points for a success, up to the community's
+ * daily cap. Returns what the server awarded.
+ */
+export async function recordGyanAttempt(args: { centerId: string; stepId: string; success: boolean; score: number | null; detail: Record<string, string | number | boolean | null> }): Promise<AttemptResult> {
+  const res = await supabase.rpc('record_gyan_attempt', {
+    p_center: args.centerId,
+    p_step: args.stepId,
+    p_success: args.success,
+    ...(args.score === null ? {} : { p_score: Math.max(0, Math.min(100, Math.round(args.score))) }),
+    p_detail: args.detail,
+  });
+  return parseAttemptResult(must(res, 'save your practice try'));
+}
+
+/**
+ * Successful practice tries of a step since the community's midnight, for the
+ * "3 of 10 today" counter (RLS: your own gyan_attempts rows).
+ */
+export async function loadTriesToday(personId: string, stepId: string, timeZone: string | null): Promise<number> {
+  const since = todayAtMinutes(0, new Date(), timeZone).toISOString();
+  const res = await supabase.from('gyan_attempts').select('id', { count: 'exact', head: true }).eq('person_id', personId).eq('step_id', stepId).eq('success', true).gte('created_at', since);
+  if (res.error) throw report(res.error, 'load your practice tries for today');
+  return res.count ?? 0;
+}
+
 export async function requestSignoff(centerId: string, personId: string, levelId: string): Promise<void> {
   check(await supabase.from('gyan_signoffs').insert({ center_id: centerId, person_id: personId, level_id: levelId, status: 'requested' }), 'request a teacher sign-off');
 }
 
-export type Quiz = { question: string; options: string[]; answer: number }[];
-
-/** gyan_steps.quiz jsonb → questions. Accepts {questions:[...]} or a bare array; answer by index or text. */
-export function parseQuiz(raw: unknown): Quiz {
-  const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' && Array.isArray((raw as { questions?: unknown }).questions) ? (raw as { questions: unknown[] }).questions : [];
-  const out: Quiz = [];
-  for (const q of list) {
-    if (!q || typeof q !== 'object') continue;
-    const o = q as Record<string, unknown>;
-    const question = [o.question, o.q, o.text, o.label].find((v) => typeof v === 'string') as string | undefined;
-    const options = Array.isArray(o.options) ? o.options.filter((x): x is string => typeof x === 'string') : [];
-    let answer = typeof o.answer === 'number' ? o.answer : typeof o.answer_index === 'number' ? o.answer_index : typeof o.correct === 'number' ? o.correct : -1;
-    if (answer < 0 && typeof o.answer === 'string') answer = options.indexOf(o.answer);
-    if (question && options.length >= 2 && answer >= 0 && answer < options.length) out.push({ question, options, answer });
-  }
-  return out;
-}
+// gyan_steps.quiz is parsed by parseQuestions (src/features/gyan/activity.ts): choice, truefalse, order, match, fill.
 
 export type ProgressReport = Pick<
   Tables<'pathshala_progress_reports'>,
