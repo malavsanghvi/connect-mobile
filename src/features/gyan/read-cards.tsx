@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { Markdownish } from '@/components/markdown';
@@ -7,35 +7,65 @@ import { Banner, Txt, VStack } from '@/components/ui';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
 
+import { announceIos } from './a11y';
 import { readActivity, type ReadCard } from './activity';
 import { useActivityImage } from './images';
-import { ExtrasBox, LessonFrame, StepFooter, StepTitle } from './lesson-frame';
-import { haptic } from './motion';
-import { stepActivity, type StepProps } from './step-types';
+import { ExtrasBox, LessonFrame, StepFooter, StepTitle, useBrokenContentLog } from './lesson-frame';
+import { haptic, useReduceMotion } from './motion';
+import { BROKEN_STEP_STARS, stepActivity, type StepProps } from './step-types';
+
+/** How long a Next/Back scroll may take before swipes are followed again. */
+const SCROLL_SETTLE_MS = 700;
 
 /**
  * Read (and practice) steps: a short deck of cards, swiped or stepped through
- * with Next. A practice step names its done button (`confirm_label`).
+ * with Next. A practice step names its done button (`confirm_label`). The
+ * current card follows every scroll (the web has no momentum events), and
+ * screen readers read only the current card; Next and Back step through.
  */
 export function ReadCards({ ctx }: StepProps) {
   const t = useT();
+  const reduce = useReduceMotion();
   const activity = readActivity(stepActivity(ctx.step));
   const cards = activity.cards;
   const [at, setAt] = useState(0);
   const [width, setWidth] = useState(0);
   const scroller = useRef<ScrollView>(null);
+  // The card a Next/Back scroll is heading for: scroll events on the way there don't move the dots back.
+  const heading = useRef<number | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const last = at >= cards.length - 1;
+  useBrokenContentLog(cards.length === 0, ctx.step, 'no cards it can show');
+
+  useEffect(
+    () => () => {
+      if (settle.current) clearTimeout(settle.current);
+    },
+    [],
+  );
 
   const go = (n: number) => {
     const next = Math.max(0, Math.min(cards.length - 1, n));
     setAt(next);
     haptic('tap');
-    scroller.current?.scrollTo({ x: next * width, animated: true });
+    heading.current = next;
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      heading.current = null;
+    }, SCROLL_SETTLE_MS);
+    scroller.current?.scrollTo({ x: next * width, animated: reduce === false });
+    const card = cards[next];
+    announceIos([t('gyan.cardOf', { n: next + 1, total: cards.length }), card?.title].filter(Boolean).join('. '));
   };
-  const onSwipe = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const onScrolled = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (width <= 0) return;
     const n = Math.round(e.nativeEvent.contentOffset.x / width);
-    if (n !== at && n >= 0 && n < cards.length) setAt(n);
+    if (n < 0 || n >= cards.length) return;
+    if (heading.current !== null) {
+      if (n === heading.current) heading.current = null;
+      return;
+    }
+    if (n !== at) setAt(n);
   };
 
   return (
@@ -46,7 +76,7 @@ export function ReadCards({ ctx }: StepProps) {
         <StepFooter
           label={last ? (activity.confirmLabel ?? t('learn.continue')) : t('gyan.nextCard')}
           busy={ctx.frame.saving}
-          onPress={() => (last ? ctx.finish({ kind: 'step', stars: 3 }) : go(at + 1))}
+          onPress={() => (last ? ctx.finish({ kind: 'step', stars: cards.length === 0 ? BROKEN_STEP_STARS : 3 }) : go(at + 1))}
           secondary={at > 0 ? { label: t('gyan.prevCard'), onPress: () => go(at - 1) } : null}
         />
       }>
@@ -58,19 +88,10 @@ export function ReadCards({ ctx }: StepProps) {
       ) : (
         <View onLayout={(e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width))}>
           {width > 0 ? (
-            <ScrollView
-              ref={scroller}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={onSwipe}
-              scrollEventThrottle={32}
-              accessibilityRole="adjustable"
-              accessibilityLabel={t('gyan.cardOf', { n: at + 1, total: cards.length })}
-              accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-              onAccessibilityAction={(e) => go(e.nativeEvent.actionName === 'increment' ? at + 1 : at - 1)}>
+            <ScrollView ref={scroller} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScrolled} onMomentumScrollEnd={onScrolled} scrollEventThrottle={32}>
               {cards.map((c, i) => (
-                <View key={i} style={{ width, paddingRight: 2 }}>
+                // Only the current card is read out; the others are off screen.
+                <View key={i} style={{ width, paddingRight: 2 }} aria-hidden={i !== at}>
                   <CardView card={c} />
                 </View>
               ))}
@@ -81,7 +102,7 @@ export function ReadCards({ ctx }: StepProps) {
               <View key={i} style={{ width: i === at ? 18 : 8, height: 8, borderRadius: 4, backgroundColor: i === at ? colors.saffron : colors.nodeLocked }} />
             ))}
           </View>
-          <Txt variant="caption" color="muted" center style={{ marginTop: 4 }}>
+          <Txt variant="caption" color="muted" center style={{ marginTop: 4 }} accessibilityLiveRegion="polite">
             {t('gyan.cardOf', { n: at + 1, total: cards.length })}
           </Txt>
         </View>
@@ -94,6 +115,8 @@ export function ReadCards({ ctx }: StepProps) {
 function CardView({ card }: { card: ReadCard }) {
   const t = useT();
   const img = useActivityImage(card.image, t('gyan.imageMissing'));
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   return (
     <VStack gap={space.md} style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.xl, paddingVertical: 18, paddingHorizontal: 18, minHeight: 220 }}>
       {card.emoji ? (
@@ -101,8 +124,21 @@ function CardView({ card }: { card: ReadCard }) {
           {card.emoji}
         </Txt>
       ) : null}
-      {img?.status === 'ready' ? (
-        <Image source={img.source} style={{ width: '100%', aspectRatio: img.aspect ?? 4 / 3, borderRadius: radii.lg }} contentFit="cover" accessibilityIgnoresInvertColors />
+      {img?.status === 'ready' && failed ? (
+        <Banner
+          tone="error"
+          message={t('gyan.imageFailed')}
+          action={{
+            label: t('common.retry'),
+            onPress: () => {
+              setFailed(false);
+              setAttempt(attempt + 1);
+              img.retry?.(); // a storage picture gets a new link
+            },
+          }}
+        />
+      ) : img?.status === 'ready' ? (
+        <Image key={attempt} source={img.source} style={{ width: '100%', aspectRatio: img.aspect ?? 4 / 3, borderRadius: radii.lg }} contentFit="cover" accessibilityIgnoresInvertColors onError={() => setFailed(true)} />
       ) : img?.status === 'loading' ? (
         <ActivityIndicator color={colors.navy} />
       ) : img?.status === 'error' ? (
