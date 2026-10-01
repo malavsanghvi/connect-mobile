@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
 import { Banner, Button, Card, Chip, ChipGroup, IconButton, TextField, Txt, VStack } from '@/components/ui';
-import { OCCASIONS, kindLabel, listDisplayName, occasionOf, reminderSpan, splitTithi, whenText, yearsOn, type Occasion } from '@/features/special-days';
+import { OCCASIONS, canPlanLabh, kindLabel, listDisplayName, occasionOf, reminderSpan, splitTithi, whenText, yearsOn, type Occasion } from '@/features/special-days';
 import { deleteSpecialDay, listSpecialDays, nextTithiDates, saveSpecialDay } from '@/lib/api/family';
 import { report } from '@/lib/errors';
 import { formatDay, formatDob, monthShortUpper, parseDobInput, parseISODate, todayAt } from '@/lib/format';
@@ -29,8 +29,9 @@ const TINT: Record<Occasion | 'diksha', { bg: string; fg: string }> = {
 
 /**
  * Special days (Main.dc.html isDays): date tile, title, "Turns 10 · Tue, Oct 6",
- * reminder line in weeks, "Plan labh" inside the reminder window (opens the
- * Birthday labh screen), dashed "+ Add a special day" that toggles to "Close".
+ * reminder line in weeks, "Plan labh" on every eligible day (opens the labh
+ * screen, whatever the date — the reminder window only times the reminder),
+ * dashed "+ Add a special day" that toggles to "Close".
  */
 export default function SpecialDaysScreen() {
   const t = useT();
@@ -96,7 +97,7 @@ export default function SpecialDaysScreen() {
               const soon = isWithinReminder(next, today, day.reminder_days_before);
               const span = reminderSpan(t, day.reminder_days_before);
               const remind = soon ? t('days.reminderSent', { span }) : t('days.reminderBefore', { span, when: whenText(t, today, next) });
-              const canPlan = givingOn && soon && day.labh_prompt_enabled && occ !== 'punyatithi' && member.isAdult;
+              const canPlan = canPlanLabh({ givingOn, isAdult: member.isAdult, occasion: occ, labhPromptEnabled: day.labh_prompt_enabled });
               return (
                 <View key={day.id} style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.row, paddingVertical: space.md, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: space.md }}>
                   <View style={{ width: 48, height: 52, borderRadius: radii.lg, backgroundColor: tint.bg, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">
@@ -115,19 +116,19 @@ export default function SpecialDaysScreen() {
                     <Txt variant="fine" color="faint">
                       {remind}
                     </Txt>
+                    {canPlan ? (
+                      <Pressable
+                        onPress={() => router.push(`/labh/${day.id}` as Href)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('days.planLabhLabel', { name })}
+                        style={({ pressed }) => ({ alignSelf: 'flex-start', marginTop: space.sm, minHeight: 44, paddingHorizontal: space.lg, borderRadius: 22, backgroundColor: colors.brown, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
+                        <Txt variant="caption" color="white" style={{ fontFamily: fonts.bodySemi }}>
+                          {t('days.planLabh')}
+                        </Txt>
+                      </Pressable>
+                    ) : null}
                   </View>
-                  {canPlan ? (
-                    <Pressable
-                      onPress={() => router.push(`/labh/${day.id}` as Href)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('days.planLabhLabel', { name })}
-                      style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: space.md, borderRadius: 18, backgroundColor: colors.brown, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
-                      <Txt variant="caption" color="white" style={{ fontFamily: fonts.bodySemi }}>
-                        {t('days.planLabh')}
-                      </Txt>
-                    </Pressable>
-                  ) : null}
-                  {member.isAdult && !canPlan ? <IconButton icon="trash-outline" label={t('days.removeLabel', { name })} color={colors.faint} iconSize={20} onPress={() => remove(day.id, name)} /> : null}
+                  {member.isAdult ? <IconButton icon="trash-outline" label={t('days.removeLabel', { name })} color={colors.faint} iconSize={20} onPress={() => remove(day.id, name)} /> : null}
                 </View>
               );
             })}
