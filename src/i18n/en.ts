@@ -711,6 +711,8 @@ export const en = {
   'photos.emptyAlbum': 'No photos in this album yet',
   'photos.emptyAlbumBody': 'Be the first to add yours — the event team reviews every photo before it appears.',
   'photos.openExternal': 'Open the full album',
+  'photos.onlineAlbum': 'The photos are in the online album',
+  'photos.onlineAlbumBody': "This event's photos are kept in the community's online album, not in the app yet. Open the full album to see them all.",
   'photos.share': 'Share',
   'photos.download': 'Download',
   'photos.save': 'Save',

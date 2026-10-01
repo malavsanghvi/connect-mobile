@@ -167,7 +167,7 @@ function AlbumBody({ data, onRetry }: { data: Data; onRetry: () => void }) {
       {error ? <Banner tone="error" message={error} /> : null}
       {data.urlError ? <Banner tone="error" message={data.urlError} action={{ label: t('common.retry'), onPress: onRetry }} /> : null}
       {visible.length === 0 ? (
-        <EmptyState icon="images-outline" title={t('photos.emptyAlbum')} body={t('photos.emptyAlbumBody')} action={data.album.external_url ? { label: t('photos.openExternal'), onPress: () => void WebBrowser.openBrowserAsync(data.album.external_url as string).catch((err: unknown) => setError(report(err, 'open the full album').userMessage)) } : undefined} />
+        <EmptyState icon="images-outline" title={t(data.album.external_url ? 'photos.onlineAlbum' : 'photos.emptyAlbum')} body={t(data.album.external_url ? 'photos.onlineAlbumBody' : 'photos.emptyAlbumBody')} action={data.album.external_url ? { label: t('photos.openExternal'), onPress: () => void WebBrowser.openBrowserAsync(data.album.external_url as string).catch((err: unknown) => setError(report(err, 'open the full album').userMessage)) } : undefined} />
       ) : (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
           {visible.map((p, i) => {
