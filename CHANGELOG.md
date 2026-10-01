@@ -14,6 +14,10 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.4.3 — 2026-10-01
+
+- Menu: **Calendar moves below Satvik Store**, so the menu reads My Donations, Pathshala Connect, RSVP, Satvik Store, Calendar.
+
 ## 1.4.2 — 2026-10-01
 
 - Menu: **My Donations, Pathshala Connect, RSVP, Satvik Store**, in that order (Calendar stays on top).
