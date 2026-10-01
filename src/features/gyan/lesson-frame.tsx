@@ -10,7 +10,8 @@ import { logError } from '@/lib/errors';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
-import type { ActivityExtras } from './activity';
+import { webLiveRegion } from './a11y';
+import { skippedEntries, type ActivityExtras } from './activity';
 import type { FrameInfo } from './step-types';
 
 /**
@@ -63,17 +64,43 @@ export function LessonFrame({ frame, answered, footer, children }: { frame: Fram
 export function useBrokenContentLog(broken: boolean, step: GyanStep, what: string): void {
   useEffect(() => {
     if (!broken) return;
-    let payload: string;
-    try {
-      payload = JSON.stringify(step.kind === 'quiz' ? step.quiz : step.activity) ?? 'null';
-    } catch {
-      payload = '(not serialisable)';
-    }
-    logError(`Gyan Path step ${step.id} (${step.kind}, "${step.title}") has ${what}`, payload.slice(0, 600));
+    logError(`${stepName(step)} has ${what}`, payloadText(step.kind === 'quiz' ? step.quiz : step.activity));
   }, [broken, step, what]);
 }
 
+/**
+ * Log the entries of a step that the lesson leaves out (a question, card,
+ * spot or line missing what it needs), by position and with their JSON, so
+ * the office can find and fix them; the member simply doesn't see them.
+ * Called once per step when a lesson opens.
+ */
+export function logSkippedContent(step: GyanStep): void {
+  const found = skippedEntries(step);
+  if (!found || found.skipped.length === 0) return;
+  const which = found.skipped.map((e) => `#${e.n}`).join(', ');
+  logError(`${stepName(step)} leaves out ${found.skipped.length} of its ${found.total} ${found.what} (${which}): each needs what its kind asks for`, payloadText(found.skipped.map((e) => e.raw)));
+}
+
+function stepName(step: GyanStep): string {
+  return `Gyan Path step ${step.id} (${step.kind}, "${step.title}")`;
+}
+
+/** The start of a payload as JSON, for a log line. */
+function payloadText(v: unknown): string {
+  try {
+    return (JSON.stringify(v) ?? 'null').slice(0, 600);
+  } catch {
+    return '(not serialisable)';
+  }
+}
+
 export type PrimaryTone = 'go' | 'check' | 'skip';
+
+/**
+ * A feedback line. `announced`: the step says it to VoiceOver and TalkBack
+ * itself (announce()), so its live region is only for browsers.
+ */
+export type Feedback = { text: string; ok: boolean; announced?: boolean };
 
 /** Footer: optional feedback line, the 3D primary button and an optional note or secondary link. */
 export function StepFooter({
@@ -86,7 +113,7 @@ export function StepFooter({
   note,
   secondary,
 }: {
-  feedback?: { text: string; ok: boolean } | null;
+  feedback?: Feedback | null;
   label: string;
   onPress: () => void;
   tone?: PrimaryTone;
@@ -101,7 +128,7 @@ export function StepFooter({
   const edge = off ? colors.checkGreyShadow : tone === 'check' ? colors.brown : tone === 'skip' ? colors.skipShadow : colors.greenDark;
   return (
     <VStack gap={space.md}>
-      {feedback ? <FeedbackNote text={feedback.text} ok={feedback.ok} /> : null}
+      {feedback ? <FeedbackNote text={feedback.text} ok={feedback.ok} announced={feedback.announced} /> : null}
       <Button3D label={busy ? t('learn.saving') : label} bg={bg} edge={edge} disabled={disabled} busy={busy} onPress={onPress} />
       {secondary ? (
         <Pressable onPress={secondary.onPress} accessibilityRole="button" style={({ pressed }) => ({ minHeight: touch.min, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
@@ -119,9 +146,9 @@ export function StepFooter({
   );
 }
 
-export function FeedbackNote({ text, ok }: { text: string; ok: boolean }) {
+export function FeedbackNote({ text, ok, announced }: Feedback) {
   return (
-    <View style={{ borderRadius: radii.row, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: ok ? colors.greenTint : colors.dangerTint }} accessibilityLiveRegion="polite">
+    <View style={{ borderRadius: radii.row, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: ok ? colors.greenTint : colors.dangerTint }} accessibilityLiveRegion={announced ? webLiveRegion : 'polite'}>
       <Txt variant="smallStrong" color={ok ? 'greenDark' : 'wrongInk'}>
         {text}
       </Txt>

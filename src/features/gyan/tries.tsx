@@ -9,7 +9,7 @@ import { useLoad } from '@/lib/use-load';
 import { useT } from '@/providers/settings';
 import { colors, radii, touch } from '@/theme';
 
-import { announceIos } from './a11y';
+import { announce, webLiveRegion } from './a11y';
 import { haptic } from './motion';
 import { attemptLine, counterLine, practiceCap, scoreStars, triesPay, type AttemptDetail, type AttemptResult, type Line } from './points';
 import type { StepContext } from './step-types';
@@ -55,8 +55,8 @@ export function usePracticeTries(ctx: StepContext) {
       // The line below already says the points, so the burst stays quiet for screen readers.
       if (r.pointsAwarded > 0) ctx.burst({ points: r.pointsAwarded, confetti: true, silent: true });
       haptic(pending.success ? 'complete' : 'wrong');
-      // TryResult shows the line in a live region (TalkBack, browsers); VoiceOver is told here.
-      announceIos(t(line.key, line.vars));
+      // VoiceOver and TalkBack are told here, after the try's own result; TryResult's line is a live region only on the web.
+      announce(t(line.key, line.vars), { queue: true });
     } catch (err) {
       const e = report(err, t('gyan.saveTryAction'));
       setState({ status: 'error', message: e.userMessage, code: e.code, pending });
@@ -134,7 +134,7 @@ export function TryResult({ tries }: { tries: ReturnType<typeof usePracticeTries
     return <Banner tone="error" message={s.message} action={action} />;
   }
   return (
-    <View style={{ backgroundColor: s.success ? colors.greenTint : colors.panel, borderRadius: radii.row, paddingVertical: 10, paddingHorizontal: 14 }} accessibilityLiveRegion="polite">
+    <View style={{ backgroundColor: s.success ? colors.greenTint : colors.panel, borderRadius: radii.row, paddingVertical: 10, paddingHorizontal: 14 }} accessibilityLiveRegion={webLiveRegion}>
       <Txt variant="smallStrong" color={s.success ? 'greenDark' : 'brownText'}>
         {t(s.line.key, s.line.vars)}
       </Txt>

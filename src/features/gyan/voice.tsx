@@ -9,7 +9,7 @@ import { logError, report } from '@/lib/errors';
 import { useT } from '@/providers/settings';
 import { colors, radii, space, touch } from '@/theme';
 
-import { announceIos } from './a11y';
+import { announce } from './a11y';
 import { voiceActivity, type MediaRef, type VoiceActivity, type VoiceVerse } from './activity';
 import { ExtrasBox, LessonFrame, StepFooter, StepTitle, useBrokenContentLog } from './lesson-frame';
 import { haptic, usePulse, useReduceMotion } from './motion';
@@ -146,12 +146,14 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
       const r = matchVerse(verses[phase], candidates, activity.passRatio);
       setChecks({ ...checks, [phase]: r });
       haptic(r.pass ? 'right' : 'wrong');
-      announceIos(r.pass ? t('gyan.versePass') : t('gyan.verseFix')); // the footer note is a live region elsewhere
+      announce(r.pass ? t('gyan.versePass') : t('gyan.verseFix')); // the footer note is a live region only on the web
       return;
     }
     const r = matchAll(verses, candidates, activity.passRatio);
     setAllCheck(r);
     setTriedAll(true);
+    // The verdict first: the try's points line follows once the server answers (or a failed save says so).
+    announce(r.overall.pass ? t('gyan.sayAllPass') : t('gyan.sayAllFix'));
     if (r.overall.pass) {
       setPassedAll(true);
       setBestScore(Math.max(bestScore, r.overall.score));
@@ -438,14 +440,14 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
   const footer =
     verse && verseIndex !== null ? (
       <StepFooter
-        feedback={check ? { text: check.pass ? t('gyan.versePass') : t('gyan.verseFix'), ok: check.pass } : null}
+        feedback={check ? { text: check.pass ? t('gyan.versePass') : t('gyan.verseFix'), ok: check.pass, announced: true } : null}
         label={t('gyan.nextVerse')}
         tone={check?.pass ? 'go' : 'skip'}
         onPress={() => goTo(verseIndex + 1 < verses.length ? verseIndex + 1 : 'all')}
       />
     ) : (
       <StepFooter
-        feedback={allCheck ? { text: allCheck.overall.pass ? t('gyan.sayAllPass') : t('gyan.sayAllFix'), ok: allCheck.overall.pass } : null}
+        feedback={allCheck ? { text: allCheck.overall.pass ? t('gyan.sayAllPass') : t('gyan.sayAllFix'), ok: allCheck.overall.pass, announced: true } : null}
         label={passedAll || triedAll ? t('learn.continue') : t('gyan.skipSpeaking')}
         tone={passedAll || triedAll ? 'go' : 'skip'}
         busy={ctx.frame.saving}

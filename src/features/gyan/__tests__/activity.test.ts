@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { activityExtras, hotspotActivity, imageRef, parseQuestions, readActivity, voiceActivity } from '../activity';
+import { activityExtras, hotspotActivity, imageRef, parseQuestions, readActivity, skippedEntries, voiceActivity } from '../activity';
 
 describe('imageRef', () => {
   it('reads bundled assets, URLs and storage keys', () => {
@@ -132,5 +132,24 @@ describe('parseQuestions', () => {
   it('adds a blank to a fill sentence that has none', () => {
     const [q] = parseQuestions([{ type: 'fill', sentence: 'Namo', answer: 'Siddhanam', options: ['Loe'] }]);
     expect(q).toMatchObject({ sentence: 'Namo ___' });
+  });
+});
+
+describe('skippedEntries', () => {
+  it('names the questions, cards, spots and lines a step leaves out, by position, with their JSON', () => {
+    const broken = { type: 'truefalse', statement: 'x', answer: 'maybe' };
+    expect(skippedEntries({ kind: 'quiz', activity: null, quiz: { questions: [{ question: 'Q?', options: ['a', 'b'], answer: 0 }, broken] } })).toEqual({
+      what: 'questions',
+      total: 2,
+      skipped: [{ n: 2, raw: broken }],
+    });
+    expect(skippedEntries({ kind: 'read', quiz: null, activity: { cards: [{ title: 'A' }, { emoji: 'x' }, 'text'] } })?.skipped.map((e) => e.n)).toEqual([2, 3]);
+    expect(skippedEntries({ kind: 'hotspot', quiz: null, activity: { spots: [{ x: 0.5, label: 'No y' }, { x: 0.5, y: 0.5, label: 'Ok' }] } })).toMatchObject({ what: 'spots', total: 2, skipped: [{ n: 1 }] });
+    expect(skippedEntries({ kind: 'voice', quiz: null, activity: { verses: [{ meaning: 'only a meaning' }] } })).toMatchObject({ what: 'lines', total: 1, skipped: [{ n: 1 }] });
+  });
+  it('skips nothing in good content, and has no list for other kinds', () => {
+    expect(skippedEntries({ kind: 'practice', quiz: null, activity: { cards: [{ body: 'Sit calmly' }] } })?.skipped).toEqual([]);
+    expect(skippedEntries({ kind: 'read', quiz: null, activity: null })).toEqual({ what: 'cards', total: 0, skipped: [] });
+    expect(skippedEntries({ kind: 'video', quiz: null, activity: null })).toBeNull();
   });
 });

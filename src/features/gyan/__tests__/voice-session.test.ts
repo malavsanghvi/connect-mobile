@@ -45,6 +45,30 @@ describe('errorAction', () => {
     s.stopRequested = true;
     expect(errorAction(s, 'no-speech')).toBe('fail');
   });
+  it('keeps the recitation when old Android is not ready again after a pause ("busy", "client")', () => {
+    const s = freshSession('all', true, 0);
+    addResult(s, ['namo arihantanam namo siddhanam'], true);
+    // The first start: a microphone that is really busy says so.
+    expect(errorAction(s, 'busy')).toBe('fail');
+    s.restarts = 1;
+    expect(errorAction(s, 'busy')).toBe('pause');
+    expect(errorAction(s, 'client')).toBe('pause');
+    expect(errorAction(s, 'network')).toBe('fail');
+    // After the tap to finish, the lines already heard are scored.
+    s.stopRequested = true;
+    expect(errorAction(s, 'busy')).toBe('evaluate');
+    expect(errorAction(s, 'client')).toBe('evaluate');
+  });
+  it('still says "busy" where listening goes through pauses, or when nothing was heard', () => {
+    const s = freshSession('all', false, 0);
+    s.restarts = 1;
+    addResult(s, ['namo arihantanam'], true);
+    expect(errorAction(s, 'busy')).toBe('fail');
+    const old = freshSession('all', true, 0);
+    old.restarts = 2;
+    old.stopRequested = true;
+    expect(errorAction(old, 'client')).toBe('fail');
+  });
 });
 
 describe('endAction', () => {

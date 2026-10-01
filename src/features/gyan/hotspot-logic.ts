@@ -27,17 +27,53 @@ export function tapPoint(nativeEvent: unknown): { x: number; y: number } | null 
   return x === null || y === null ? null : { x, y };
 }
 
+/** Spots whose heights differ by at most this (a fraction of the picture's height) are read as one row. */
+export const ROW_TOLERANCE = 0.02;
+
 /**
  * Spots in reading order on the picture (top to bottom, then left to right),
  * for screen readers and the list in practice: the tap order is the answer,
- * so it must not be the order they are read out in.
+ * so it must not be the order they are read out in. A row starts at its
+ * highest spot and takes every spot within ROW_TOLERANCE below it (the two
+ * shoulders, 0.505 and 0.51, are one row, read left then right).
  */
 export function spatialOrder<T extends { s: Pick<HotspotSpot, 'x' | 'y'> }>(entries: readonly T[]): T[] {
-  const band = (y: number) => Math.round(y * 50); // rows 2% of the height apart read as one row
-  return entries
-    .map((e, i) => ({ e, i }))
-    .sort((a, b) => band(a.e.s.y) - band(b.e.s.y) || a.e.s.x - b.e.s.x || a.i - b.i)
-    .map((x) => x.e);
+  const byY = entries.map((e, i) => ({ e, i })).sort((a, b) => a.e.s.y - b.e.s.y || a.i - b.i);
+  const rows: { e: T; i: number }[][] = [];
+  for (const x of byY) {
+    const row = rows[rows.length - 1];
+    if (row && x.e.s.y - row[0].e.s.y <= ROW_TOLERANCE) row.push(x);
+    else rows.push([x]);
+  }
+  return rows.flatMap((row) => row.sort((a, b) => a.e.s.x - b.e.s.x || a.i - b.i).map((x) => x.e));
+}
+
+/** How a spot is drawn: glowing (touch this one), touched already, waiting, or not shown yet. */
+export type SpotLook = 'glow' | 'done' | 'plain' | 'hidden';
+
+/** Learn: the spots before `at` are done, `at` glows, the rest are not shown yet. */
+export const learnLook =
+  (at: number) =>
+  (_s: HotspotSpot, i: number): SpotLook =>
+    i < at ? 'done' : i === at ? 'glow' : 'hidden';
+
+/** Practice: the spots touched in this try are done; after a wrong touch the right one glows. */
+export const practiceLook =
+  (p: PracticeState) =>
+  (s: HotspotSpot, i: number): SpotLook =>
+    i < p.next ? 'done' : p.hint === s.key ? 'glow' : 'plain';
+
+/**
+ * The spots a finger can still touch: shown and not touched yet. A touched
+ * spot never responds again, so it must not take a tap meant for its
+ * neighbour (on a narrow phone the forehead's tap circle overlaps the
+ * shikha's). In learn that is the glowing spot alone.
+ */
+export function tapTargets(spots: readonly HotspotSpot[], look: (s: HotspotSpot, i: number) => SpotLook): HotspotSpot[] {
+  return spots.filter((s, i) => {
+    const l = look(s, i);
+    return l === 'glow' || l === 'plain';
+  });
 }
 
 /** The spot under a tap (px within the drawn image), nearest centre first; null when the tap hit no spot. */

@@ -5,7 +5,7 @@ import { Txt } from '@/components/ui';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
 
-import { announce, announceIos } from './a11y';
+import { announce } from './a11y';
 import type { MatchQuestion } from './activity';
 import { ExplainBox, LessonFrame, StepFooter, StepTitle } from './lesson-frame';
 import { haptic, useReduceMotion, useShake } from './motion';
@@ -37,15 +37,15 @@ export function MatchView({ ctx, q, seed }: QuestionProps<MatchQuestion>) {
       setMatched(next);
       setNote(null);
       haptic(next.length === q.pairs.length ? 'right' : 'tap');
-      // The last pair: the footer's "All matched" note is a live region (TalkBack, browsers).
-      if (next.length === q.pairs.length) announceIos(slips ? t('gyan.matchDoneSlips') : t('gyan.matchDone'));
+      // The last pair: the footer's "All matched" note says it too (a live region only on the web).
+      if (next.length === q.pairs.length) announce(slips ? t('gyan.matchDoneSlips') : t('gyan.matchDone'));
       else announce(t('gyan.matchedLabel', { left: l, right: r }));
     } else {
       haptic('wrong');
       shake.shake();
       setSlips(slips + 1);
       setNote(t('gyan.matchWrong'));
-      announceIos(t('gyan.matchWrong')); // the footer note is a live region elsewhere
+      announce(t('gyan.matchWrong')); // the footer note is a live region only on the web
     }
     setLeft(null);
     setRight(null);
@@ -110,7 +110,7 @@ export function MatchView({ ctx, q, seed }: QuestionProps<MatchQuestion>) {
       answered={done}
       footer={
         <StepFooter
-          feedback={done ? { text: slips ? t('gyan.matchDoneSlips') : t('gyan.matchDone'), ok: true } : note ? { text: note, ok: false } : null}
+          feedback={done ? { text: slips ? t('gyan.matchDoneSlips') : t('gyan.matchDone'), ok: true, announced: true } : note ? { text: note, ok: false, announced: true } : null}
           label={t('learn.continue')}
           disabled={!done}
           busy={ctx.frame.saving}

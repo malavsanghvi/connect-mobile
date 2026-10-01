@@ -79,15 +79,20 @@ export function heardCandidates(s: Session): string[] {
 /**
  * An error from the recogniser:
  * - ignore: no session, or our own abort;
- * - pause: old Android paused between lines; keep listening;
- * - evaluate: "no speech" after words were already heard; score those;
+ * - pause: old Android paused between lines, or wasn't ready yet when it was
+ *   started again; keep listening (pauses in a row are counted, so it can't
+ *   go on for ever);
+ * - evaluate: "no speech", or a restart that wasn't ready, after words were
+ *   already heard; score those;
  * - fail: show the problem.
  */
 export function errorAction(s: Session, code: string): 'ignore' | 'pause' | 'evaluate' | 'fail' {
   if (!s.mode || code === 'aborted') return 'ignore';
   const quiet = code === 'no-speech' || code === 'speech-timeout';
-  if (quiet && s.restart && !s.stopRequested) return 'pause';
-  if (quiet && heardText(s)) return 'evaluate';
+  // Old Android started again straight after a pause often answers "busy" or "client": that is not the member's problem.
+  const notReady = s.restart && s.restarts > 0 && (code === 'busy' || code === 'client');
+  if ((quiet || notReady) && s.restart && !s.stopRequested) return 'pause';
+  if ((quiet || notReady) && heardText(s)) return 'evaluate';
   return 'fail';
 }
 

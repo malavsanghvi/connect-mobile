@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
@@ -7,6 +7,7 @@ import { EmptyState, Loaded } from '@/components/states';
 import { useInAppAudio } from '@/features/audio';
 import { Celebration, type RunResult } from '@/features/gyan/celebration';
 import { PointsBurst } from '@/features/gyan/confetti';
+import { logSkippedContent } from '@/features/gyan/lesson-frame';
 import { haptic } from '@/features/gyan/motion';
 import { quizStars } from '@/features/gyan/quiz-logic';
 import { lessonScreens, STEP_COMPONENTS, stepKindLabel, stepRenderer } from '@/features/gyan/registry';
@@ -82,6 +83,10 @@ function Lesson({ data, goal, level, content }: { data: GyanData; goal: GyanGoal
   const router = useRouter();
   const index = goal.levels.findIndex((l) => l.id === level.id);
   const levelAudio = level.steps.map((s) => content.find((c) => c.id === s.content_item_id)?.media_url).find((u): u is string => !!u) ?? null;
+  // Questions, cards, spots or lines that can't be shown are left out of the lesson; the log names them for the office.
+  useEffect(() => {
+    level.steps.forEach(logSkippedContent);
+  }, [level]);
 
   if (done) return <Celebration data={data} goal={goal} level={level} index={index} run={run} alreadyDone={alreadyDone} wasLevelDone={wasLevelDone} startedAt={startedAt} />;
 
@@ -112,7 +117,10 @@ function Lesson({ data, goal, level, content }: { data: GyanData; goal: GyanGoal
       let stars = result.kind === 'step' ? result.stars : quizStars(missed);
       const savedByTry = result.kind === 'step' && !!result.savedByTry;
       let firstTime = false;
-      if (!savedByTry) {
+      if (savedByTry) {
+        // The try's save kept the better of the stars already saved and this try's (greatest() on the server).
+        stars = Math.max(stars, data.progress.find((p) => p.person_id === me && p.step_id === step.id)?.stars ?? 0);
+      } else {
         setSaving(true);
         try {
           const saved = await completeStep(center.id, me, step.id, stars, result.kind === 'step' ? result.recordingPath : null);

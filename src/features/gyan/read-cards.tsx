@@ -9,7 +9,7 @@ import { colors, radii, space } from '@/theme';
 
 import { announceIos } from './a11y';
 import { readActivity, type ReadCard } from './activity';
-import { useActivityImage } from './images';
+import { useActivityImage, usePictureRetry } from './images';
 import { ExtrasBox, LessonFrame, StepFooter, StepTitle, useBrokenContentLog } from './lesson-frame';
 import { haptic, useReduceMotion } from './motion';
 import { BROKEN_STEP_STARS, stepActivity, type StepProps } from './step-types';
@@ -115,8 +115,7 @@ export function ReadCards({ ctx }: StepProps) {
 function CardView({ card }: { card: ReadCard }) {
   const t = useT();
   const img = useActivityImage(card.image, t('gyan.imageMissing'));
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const picture = usePictureRetry(img);
   return (
     <VStack gap={space.md} style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.xl, paddingVertical: 18, paddingHorizontal: 18, minHeight: 220 }}>
       {card.emoji ? (
@@ -124,21 +123,15 @@ function CardView({ card }: { card: ReadCard }) {
           {card.emoji}
         </Txt>
       ) : null}
-      {img?.status === 'ready' && failed ? (
-        <Banner
-          tone="error"
-          message={t('gyan.imageFailed')}
-          action={{
-            label: t('common.retry'),
-            onPress: () => {
-              setFailed(false);
-              setAttempt(attempt + 1);
-              img.retry?.(); // a storage picture gets a new link
-            },
-          }}
-        />
+      {img?.status === 'ready' && picture.failed ? (
+        // Retry gets a storage picture a new link first, then loads it again.
+        picture.renewing ? (
+          <ActivityIndicator color={colors.navy} />
+        ) : (
+          <Banner tone="error" message={t('gyan.imageFailed')} action={{ label: t('common.retry'), onPress: picture.retry }} />
+        )
       ) : img?.status === 'ready' ? (
-        <Image key={attempt} source={img.source} style={{ width: '100%', aspectRatio: img.aspect ?? 4 / 3, borderRadius: radii.lg }} contentFit="cover" accessibilityIgnoresInvertColors onError={() => setFailed(true)} />
+        <Image key={picture.attempt} source={img.source} style={{ width: '100%', aspectRatio: img.aspect ?? 4 / 3, borderRadius: radii.lg }} contentFit="cover" accessibilityIgnoresInvertColors onError={picture.onError} />
       ) : img?.status === 'loading' ? (
         <ActivityIndicator color={colors.navy} />
       ) : img?.status === 'error' ? (

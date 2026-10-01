@@ -6,10 +6,26 @@ import { Banner, Txt, VStack } from '@/components/ui';
 import { useT } from '@/providers/settings';
 import { colors, radii, space, touch as touchSize } from '@/theme';
 
-import { announce, announceIos } from './a11y';
+import { announce } from './a11y';
 import { hotspotActivity, type HotspotActivity, type HotspotSpot } from './activity';
-import { freshPractice, hitSpot, practiceNote, practiceScore, practiceSuccess, practiceTap, spatialOrder, spotBox, spotProgress, tapPoint, type PracticeState } from './hotspot-logic';
-import { useActivityImage, type ResolvedImage } from './images';
+import {
+  freshPractice,
+  hitSpot,
+  learnLook,
+  practiceLook,
+  practiceNote,
+  practiceScore,
+  practiceSuccess,
+  practiceTap,
+  spatialOrder,
+  spotBox,
+  spotProgress,
+  tapPoint,
+  tapTargets,
+  type PracticeState,
+  type SpotLook,
+} from './hotspot-logic';
+import { useActivityImage, usePictureRetry, type ResolvedImage } from './images';
 import { ExtrasBox, LessonFrame, StepFooter, StepTitle, useBrokenContentLog } from './lesson-frame';
 import { haptic, usePulse, useReduceMotion, useShake } from './motion';
 import { scoreStars } from './points';
@@ -18,8 +34,6 @@ import { TriesCounter, TryResult, usePracticeTries } from './tries';
 
 const DEFAULT_ASPECT = 3 / 4;
 const MAX_IMAGE_HEIGHT = 560;
-
-type SpotLook = 'glow' | 'done' | 'plain' | 'hidden';
 
 /** What the picture (or, without one, the list) needs from a mode. */
 type SpotsProps = {
@@ -65,9 +79,9 @@ function LearnMode({ ctx, activity }: StepProps & { activity: HotspotActivity })
     const next = spots[nextIndex];
     // Say what to do next (the card isn't a live region, so every screen reader is told).
     if (next) announce([progressText(nextIndex), next.label, next.say].filter(Boolean).join('. '));
-    else announceIos(t('gyan.learnedAll', { n: spots.length }));
+    else announce(t('gyan.learnedAll', { n: spots.length })); // the footer note then shows it (a live region only on the web)
   };
-  const look = (s: HotspotSpot, i: number): SpotLook => (i < at ? 'done' : i === at ? 'glow' : 'hidden');
+  const look = learnLook(at);
 
   return (
     <LessonFrame
@@ -75,7 +89,7 @@ function LearnMode({ ctx, activity }: StepProps & { activity: HotspotActivity })
       answered={learned}
       footer={
         <StepFooter
-          feedback={learned && spots.length > 0 ? { text: t('gyan.learnedAll', { n: spots.length }), ok: true } : null}
+          feedback={learned && spots.length > 0 ? { text: t('gyan.learnedAll', { n: spots.length }), ok: true, announced: true } : null}
           label={learned || spots.length === 0 ? t('learn.continue') : t('gyan.touchGlowing')}
           disabled={!learned && spots.length > 0}
           busy={ctx.frame.saving}
@@ -122,7 +136,7 @@ function PracticeMode({ ctx, activity }: StepProps & { activity: HotspotActivity
   const spots = activity.spots;
   const tries = usePracticeTries(ctx);
   const [practice, setPractice] = useState<PracticeState>(freshPractice);
-  const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
+  const [note, setNote] = useState<{ text: string; ok: boolean; announced: true } | null>(null);
   // Best score of a good try (at most max_slips wrong touches) in this lesson; null until there is one.
   const [bestGood, setBestGood] = useState<number | null>(null);
   const [lastFailed, setLastFailed] = useState(false);
@@ -132,8 +146,8 @@ function PracticeMode({ ctx, activity }: StepProps & { activity: HotspotActivity
   const canContinue = hadGood || spots.length === 0;
 
   const say = (text: string, ok: boolean) => {
-    setNote({ text, ok });
-    announceIos(text); // the note is a live region for TalkBack and browsers
+    setNote({ text, ok, announced: true });
+    announce(text); // VoiceOver and TalkBack are told here; the note is a live region only on the web
   };
 
   const touch = (s: HotspotSpot) => {
@@ -175,7 +189,7 @@ function PracticeMode({ ctx, activity }: StepProps & { activity: HotspotActivity
       stars: spots.length === 0 ? BROKEN_STEP_STARS : (tries.savedStars ?? scoreStars(bestGood ?? 0)),
       savedByTry: tries.savedSuccess,
     });
-  const look = (s: HotspotSpot, i: number): SpotLook => (i < practice.next ? 'done' : practice.hint === s.key ? 'glow' : 'plain');
+  const look = practiceLook(practice);
 
   // A try that just failed: practising again is the main action (Continue only after a good try).
   const practiseFirst = practice.done && lastFailed;
@@ -252,8 +266,7 @@ function ordered(activity: HotspotActivity, look: SpotsProps['look'], order: Spo
 function SpotPicture(props: SpotsProps) {
   const t = useT();
   const img = useActivityImage(props.activity.image, t('gyan.imageMissing'));
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const picture = usePictureRetry(img);
 
   if (!img) {
     return (
@@ -263,23 +276,20 @@ function SpotPicture(props: SpotsProps) {
       </VStack>
     );
   }
-  if (img.status === 'error' || failed) {
-    const retry =
-      img.status === 'error'
-        ? img.retry
-        : () => {
-            setFailed(false);
-            setAttempt(attempt + 1);
-            if (img.status === 'ready') img.retry?.(); // a storage picture gets a new link
-          };
+  if (img.status === 'error' || picture.failed) {
+    const retry = img.status === 'error' ? img.retry : picture.retry;
     return (
       <VStack gap={space.md}>
-        <Banner tone="error" message={img.status === 'error' ? img.message : t('gyan.imageFailed')} action={retry ? { label: t('common.retry'), onPress: retry } : undefined} />
+        {picture.renewing ? (
+          <ActivityIndicator color={colors.navy} />
+        ) : (
+          <Banner tone="error" message={img.status === 'error' ? img.message : t('gyan.imageFailed')} action={retry ? { label: t('common.retry'), onPress: retry } : undefined} />
+        )}
         <SpotList {...props} />
       </VStack>
     );
   }
-  return <PictureWithSpots {...props} img={img} attempt={attempt} onFailed={() => setFailed(true)} />;
+  return <PictureWithSpots {...props} img={img} attempt={picture.attempt} onFailed={picture.onError} />;
 }
 
 function PictureWithSpots({ activity, look, onTouch, labelFor, order, img, attempt, onFailed }: SpotsProps & { img: Exclude<ResolvedImage, { status: 'error' }>; attempt: number; onFailed: () => void }) {
@@ -294,7 +304,8 @@ function PictureWithSpots({ activity, look, onTouch, labelFor, order, img, attem
   const width = Math.min(box, MAX_IMAGE_HEIGHT * aspect);
   const height = width / aspect;
   const shown = ordered(activity, look, order);
-  const visible = shown.map((x) => x.s);
+  // Only spots that can still respond take a touch: a touched one would swallow a tap meant for its neighbour.
+  const targets = tapTargets(activity.spots, look);
 
   return (
     <View onLayout={(e: LayoutChangeEvent) => setBox(Math.round(e.nativeEvent.layout.width))} style={{ alignItems: 'center' }}>
@@ -355,11 +366,11 @@ function PictureWithSpots({ activity, look, onTouch, labelFor, order, img, attem
               </Pressable>
             );
           })}
-          {/* One touch layer over the whole picture: the spot whose centre is nearest the finger wins, even where tap circles overlap. */}
+          {/* One touch layer over the whole picture: of the spots still to touch, the one whose centre is nearest the finger wins, even where tap circles overlap. */}
           <Pressable
             onPress={(e) => {
               const p = tapPoint(e.nativeEvent);
-              const hit = p ? hitSpot(visible, p.x, p.y, width, height) : null;
+              const hit = p ? hitSpot(targets, p.x, p.y, width, height) : null;
               if (hit) onTouch(hit);
             }}
             focusable={false}

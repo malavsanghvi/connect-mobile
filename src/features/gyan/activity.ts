@@ -25,6 +25,10 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
+function list(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
 // ---------------------------------------------------------------------------
 // Images and recordings: "asset:<name>" (bundled with the app), an https URL,
 // or a key in the content storage bucket (connect-crm gyan_media_ref_ok).
@@ -69,16 +73,19 @@ export type ReadCard = { title: string | null; body: string; emoji: string | nul
 /** Read and practice steps: cards; a practice step may name its done button ("I sat calmly for 5 minutes"). */
 export type ReadActivity = ActivityExtras & { cards: ReadCard[]; confirmLabel: string | null };
 
+/** A card needs a title or a body. */
+function parseCard(c: unknown): ReadCard | null {
+  const co = obj(c);
+  const title = str(co.title);
+  const body = str(co.body_md) ?? str(co.body) ?? '';
+  return title || body ? { title, body, emoji: str(co.emoji), image: imageRef(co.image) } : null;
+}
+
 export function readActivity(raw: unknown): ReadActivity {
   const o = obj(raw);
-  const cards: ReadCard[] = [];
-  for (const c of Array.isArray(o.cards) ? o.cards : []) {
-    const co = obj(c);
-    const title = str(co.title);
-    const body = str(co.body_md) ?? str(co.body) ?? '';
-    if (!title && !body) continue;
-    cards.push({ title, body, emoji: str(co.emoji), image: imageRef(co.image) });
-  }
+  const cards = list(o.cards)
+    .map(parseCard)
+    .filter((c): c is ReadCard => c !== null);
   return { ...activityExtras(raw), cards, confirmLabel: str(o.confirm_label) };
 }
 
@@ -102,16 +109,23 @@ export type HotspotActivity = ActivityExtras & {
 export const DEFAULT_SPOT_RADIUS = 0.05;
 export const DEFAULT_MAX_SLIPS = 2;
 
+/** A spot needs x, y and a label. */
+function spotCore(s: unknown): { so: Obj; x: number; y: number; label: string } | null {
+  const so = obj(s);
+  const x = num(so.x);
+  const y = num(so.y);
+  const label = str(so.label);
+  return x === null || y === null || !label ? null : { so, x, y, label };
+}
+
 export function hotspotActivity(raw: unknown): HotspotActivity {
   const o = obj(raw);
   const spots: HotspotSpot[] = [];
   const seen = new Set<string>();
-  (Array.isArray(o.spots) ? o.spots : []).forEach((s, i) => {
-    const so = obj(s);
-    const x = num(so.x);
-    const y = num(so.y);
-    const label = str(so.label);
-    if (x === null || y === null || !label) return;
+  list(o.spots).forEach((s, i) => {
+    const core = spotCore(s);
+    if (!core) return;
+    const { so, x, y, label } = core;
     let key = str(so.key) ?? `spot-${i + 1}`;
     if (seen.has(key)) key = `${key}-${i + 1}`;
     seen.add(key);
@@ -152,16 +166,20 @@ export type VoiceActivity = ActivityExtras & { lang: string; mode: string; passR
 
 export const DEFAULT_PASS_RATIO = 0.7;
 
+/** A line needs its text or its transliteration. */
+function parseVerse(v: unknown): VoiceVerse | null {
+  const vo = obj(v);
+  const text = str(vo.text);
+  const translit = str(vo.translit);
+  if (!text && !translit) return null;
+  return { text: text ?? (translit as string), translit, meaning: str(vo.meaning), audio: imageRef(vo.audio) };
+}
+
 export function voiceActivity(raw: unknown): VoiceActivity {
   const o = obj(raw);
-  const verses: VoiceVerse[] = [];
-  for (const v of Array.isArray(o.verses) ? o.verses : []) {
-    const vo = obj(v);
-    const text = str(vo.text);
-    const translit = str(vo.translit);
-    if (!text && !translit) continue;
-    verses.push({ text: text ?? (translit as string), translit, meaning: str(vo.meaning), audio: imageRef(vo.audio) });
-  }
+  const verses = list(o.verses)
+    .map(parseVerse)
+    .filter((v): v is VoiceVerse => v !== null);
   const ratio = num(o.pass_ratio);
   return {
     ...activityExtras(raw),
@@ -236,8 +254,47 @@ function parseOne(q: unknown): Question | null {
   return question && options.length >= 2 && Number.isInteger(answer) && answer >= 0 && answer < options.length ? { type: 'choice', question: question.trim(), options, answer, explain } : null;
 }
 
-/** gyan_steps.quiz → questions. Accepts {questions:[...]} or a bare array; unknown or broken questions are skipped. */
+function questionList(raw: unknown): unknown[] {
+  return Array.isArray(raw) ? raw : list(obj(raw).questions);
+}
+
+/** gyan_steps.quiz → questions. Accepts {questions:[...]} or a bare array; unknown or broken questions are skipped (skippedEntries names them). */
 export function parseQuestions(raw: unknown): Question[] {
-  const list = Array.isArray(raw) ? raw : Array.isArray(obj(raw).questions) ? (obj(raw).questions as unknown[]) : [];
-  return list.map(parseOne).filter((q): q is Question => q !== null);
+  return questionList(raw)
+    .map(parseOne)
+    .filter((q): q is Question => q !== null);
+}
+
+// ---------------------------------------------------------------------------
+// What a step has but can't show, for the office's log
+// ---------------------------------------------------------------------------
+
+export type SkippedEntries = { what: 'questions' | 'cards' | 'spots' | 'lines'; total: number; skipped: { n: number; raw: unknown }[] };
+
+/**
+ * The authored entries of a step that the parsers above skip (a question,
+ * card, spot or line missing what it needs), by position (1 = the first) and
+ * with each one's JSON, so the log names exactly what to fix. Null for a kind
+ * of step without such a list.
+ */
+export function skippedEntries(step: { kind: string; quiz: unknown; activity: unknown }): SkippedEntries | null {
+  const find = (what: SkippedEntries['what'], entries: unknown[], ok: (e: unknown) => boolean): SkippedEntries => ({
+    what,
+    total: entries.length,
+    skipped: entries.map((raw, i) => ({ n: i + 1, raw })).filter((e) => !ok(e.raw)),
+  });
+  const a = obj(step.activity);
+  switch (step.kind) {
+    case 'quiz':
+      return find('questions', questionList(step.quiz), (q) => parseOne(q) !== null);
+    case 'read':
+    case 'practice':
+      return find('cards', list(a.cards), (c) => parseCard(c) !== null);
+    case 'hotspot':
+      return find('spots', list(a.spots), (s) => spotCore(s) !== null);
+    case 'voice':
+      return find('lines', list(a.verses), (v) => parseVerse(v) !== null);
+    default:
+      return null;
+  }
 }
