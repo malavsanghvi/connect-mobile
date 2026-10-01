@@ -401,9 +401,13 @@ export async function listSpecialDays(householdId: string): Promise<SpecialDay[]
   return must(await supabase.from('special_days').select('*').eq('household_id', householdId).order('calendar_date'), 'load special days');
 }
 
-export async function saveSpecialDay(row: TablesInsert<'special_days'>, id?: string): Promise<void> {
-  if (id) check(await supabase.from('special_days').update(row).eq('id', id), 'save this special day');
-  else check(await supabase.from('special_days').insert(row), 'save this special day');
+/** Adds a special day (or updates `id`) and returns its id, so a labh can be pledged for it straight away. */
+export async function saveSpecialDay(row: TablesInsert<'special_days'>, id?: string): Promise<string> {
+  if (id) {
+    check(await supabase.from('special_days').update(row).eq('id', id), 'save this special day');
+    return id;
+  }
+  return must(await supabase.from('special_days').insert(row).select('id').single(), 'save this special day').id;
 }
 
 export async function deleteSpecialDay(id: string): Promise<void> {
