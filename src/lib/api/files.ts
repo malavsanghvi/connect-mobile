@@ -8,7 +8,7 @@ import { supabase } from '../supabase';
  * (store_items.photo_path, statements.storage_path); a path may also start
  * with its bucket name or be a full URL.
  */
-export const BUCKETS = { storePhotos: 'store', statements: 'statements' } as const;
+export const BUCKETS = { storePhotos: 'store', statements: 'statements', content: 'content' } as const;
 
 const ONE_HOUR = 60 * 60;
 

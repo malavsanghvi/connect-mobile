@@ -143,7 +143,7 @@ export function TodayCard() {
   const { center, member } = useApp();
   const [collapsed, setCollapsed] = useState(false);
   const state = useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], "load today's timings");
-  // The darshan button opens the Library (content module).
+  // The darshan button opens My Jain Way › 3L › Look (content module).
   const libraryOn = useModule('content');
   const community = center?.short_name || center?.name || '';
   const family = member?.household?.display_name ?? null;
@@ -234,7 +234,7 @@ export function TodayCard() {
       )}
       {(darshan || aarti) && libraryOn ? (
         <Pressable
-          onPress={() => router.push({ pathname: '/jain-way', params: { tab: 'library' } })}
+          onPress={() => router.push({ pathname: '/jain-way', params: { tab: 'three_l', section: 'look' } })}
           accessibilityRole="button"
           style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.ground, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.md, opacity: pressed ? 0.8 : 1 })}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.live }} />

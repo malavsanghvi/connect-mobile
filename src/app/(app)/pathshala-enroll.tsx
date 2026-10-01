@@ -63,7 +63,7 @@ export default function PathshalaEnrollScreen() {
                   {t('enrollReq.sent', { name: sent })}
                 </Txt>
                 <Txt variant="body">{t('enrollReq.sentBody', { name: sent })}</Txt>
-                <Button label={t('common.done')} tone="green" onPress={() => (router.canGoBack() ? router.back() : router.replace('/jain-way?tab=learn'))} />
+                <Button label={t('common.done')} tone="green" onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } }))} />
               </Card>
             );
           }

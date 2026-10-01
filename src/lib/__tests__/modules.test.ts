@@ -20,8 +20,10 @@ import {
   MODULE_KEYS,
   parseModuleRows,
   pickPane,
+  resolveJainWayLink,
   ROUTE_MODULE,
   TAB_MODULES,
+  threeLSections,
   type ModuleMap,
 } from '../modules';
 
@@ -99,7 +101,7 @@ describe('tabs', () => {
     expect(isTabVisible(off('giving', 'bolis'), 'give')).toBe(false);
   });
   it('hides Jain Way only when all of its segments are off', () => {
-    expect(isTabVisible(off('jain_way', 'gyan_path', 'pathshala'), 'jain-way')).toBe(true); // Library still on
+    expect(isTabVisible(off('jain_way', 'gyan_path', 'pathshala'), 'jain-way')).toBe(true); // 3L still on (content)
     expect(isTabVisible(off('jain_way', 'gyan_path', 'pathshala', 'content'), 'jain-way')).toBe(false);
   });
   it('keeps Home and Family always', () => {
@@ -140,18 +142,36 @@ describe('segments', () => {
     expect(eventsPanes(off('calendar'))).toEqual(['upcoming', 'photos']);
     expect(eventsPanes(off('events', 'content'))).toEqual(['calendar']);
   });
-  it('Jain Way: Today/Saathi = jain_way, Learn = gyan_path or pathshala, Library = content', () => {
-    expect(jainWayPanes(ALL_ON, true)).toEqual(['today', 'learn', 'saathi', 'library']);
-    expect(jainWayPanes(off('jain_way'), true)).toEqual(['learn', 'library']);
-    expect(jainWayPanes(off('gyan_path'), true)).toEqual(['today', 'learn', 'saathi', 'library']);
-    expect(jainWayPanes(off('gyan_path', 'pathshala'), true)).toEqual(['today', 'saathi', 'library']);
-    expect(jainWayPanes(ALL_ON, false)).toEqual(['library']);
-    expect(jainWayPanes(off('content'), false)).toEqual([]);
+  it('Jain Way: Today/Saathi = jain_way, 3L = content, gyan_path or pathshala', () => {
+    expect(jainWayPanes(ALL_ON, true)).toEqual(['today', 'three_l', 'saathi']);
+    expect(jainWayPanes(off('jain_way'), true)).toEqual(['three_l']);
+    expect(jainWayPanes(off('content'), true)).toEqual(['today', 'three_l', 'saathi']);
+    expect(jainWayPanes(off('content', 'gyan_path'), true)).toEqual(['today', 'three_l', 'saathi']); // Pathshala still on
+    expect(jainWayPanes(off('content', 'gyan_path', 'pathshala'), true)).toEqual(['today', 'saathi']);
+    expect(jainWayPanes(ALL_ON, false)).toEqual(['three_l']);
+    expect(jainWayPanes(off('content'), false)).toEqual(['three_l']);
+    expect(jainWayPanes(off('content', 'gyan_path', 'pathshala'), false)).toEqual([]);
+  });
+  it('3L sections: Look and Listen = content, Learn always', () => {
+    expect(threeLSections(ALL_ON)).toEqual(['look', 'listen', 'learn']);
+    expect(threeLSections(off('content'))).toEqual(['learn']);
+    expect(threeLSections(off('gyan_path', 'pathshala'))).toEqual(['look', 'listen', 'learn']);
+  });
+  it('old Jain Way links still land in the right place', () => {
+    expect(resolveJainWayLink('learn', undefined)).toEqual({ tab: 'three_l', section: 'learn' });
+    expect(resolveJainWayLink('library', undefined)).toEqual({ tab: 'three_l', section: 'look' });
+    expect(resolveJainWayLink('Library', 'listen')).toEqual({ tab: 'three_l', section: 'look' });
+    expect(resolveJainWayLink('listen', undefined)).toEqual({ tab: 'three_l', section: 'listen' });
+    expect(resolveJainWayLink('3L', 'learn')).toEqual({ tab: 'three_l', section: 'learn' });
+    expect(resolveJainWayLink('three_l', 'look')).toEqual({ tab: 'three_l', section: 'look' });
+    expect(resolveJainWayLink('saathi', undefined)).toEqual({ tab: 'saathi', section: undefined });
+    expect(resolveJainWayLink(undefined, undefined)).toEqual({ tab: undefined, section: undefined });
+    expect(resolveJainWayLink('constructor', undefined)).toEqual({ tab: 'constructor', section: undefined });
   });
   it('pickPane falls back to a visible pane', () => {
-    expect(pickPane('learn', ['today', 'learn'] as const)).toBe('learn');
+    expect(pickPane('three_l', ['today', 'three_l'] as const)).toBe('three_l');
     expect(pickPane('calendar', ['upcoming', 'photos'] as const, 'upcoming')).toBe('upcoming');
-    expect(pickPane(undefined, ['learn', 'library'] as const, 'today')).toBe('learn');
+    expect(pickPane(undefined, ['three_l', 'saathi'] as const, 'today')).toBe('three_l');
     expect(pickPane('x', [] as string[])).toBeNull();
   });
 });
@@ -170,6 +190,9 @@ describe('blockingModule (deep links)', () => {
     expect(blockingModule(off('gyan_path'), 'gyan')).toBe('gyan_path');
     expect(blockingModule(off('comms'), 'guide/whatsapp')).toBe('comms');
     expect(blockingModule(off('niva'), '/niva')).toBe('niva');
+    for (const name of ['media/[kind]', 'media/[kind]/[id]', 'recipe/[id]', 'recipe/random', 'listen/playlist', 'listen/podcast-random']) {
+      expect(blockingModule(off('content'), name)).toBe('content');
+    }
   });
   it('blocks a module whose dependency is off', () => {
     expect(blockingModule(off('giving'), 'boli/[id]')).toBe('bolis');
