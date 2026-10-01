@@ -156,6 +156,11 @@ export const en = {
   'address.state': 'State',
   'address.zip': 'ZIP code',
   'address.zipInvalid': 'Enter a 5-digit ZIP code.',
+  'address.stateHint': 'Type the name or the 2-letter code, for example Texas or TX.',
+  'address.zipZone': 'Community zone',
+  'address.zipMismatch': 'ZIP code {zip} is in {expected}, but the state says {state}. Check both before you continue.',
+  'address.either': '{a} or {b}',
+  'address.suggestionsFailed': '{reason} You can still type your address.',
   'address.needLine1': 'Enter your street address, or skip this step.',
   'address.saved': 'Address saved',
 
