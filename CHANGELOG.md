@@ -14,6 +14,14 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.4.2 — 2026-10-01
+
+- Menu: **My Donations, Pathshala Connect, RSVP, Satvik Store**, in that order (Calendar stays on top).
+- Tapping **Events** (or any tab) on the bottom bar now opens it on its first pane, **Upcoming**; it used to reopen on Photos
+  after you had been there. Tapping the tab you are already on brings it back from Photos.
+- Events › Photos › an album whose photos are kept in an online album (a Google Photos link) no longer says "No photos in this
+  album yet / be the first to add yours": it says the photos are in the online album and offers **Open the full album**.
+
 ## 1.4.1 — 2026-10-01
 
 - Give › an opportunity › making it recurring is simpler: **one "Repeat this gift" switch** instead of the Give once / Make

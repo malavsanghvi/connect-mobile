@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { StringKey } from '@/i18n/en';
 import { isTabVisible } from '@/lib/modules';
+import { clearedPaneParams, hasPaneParams } from '@/lib/tab-params';
 import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, components, fonts } from '@/theme';
@@ -93,7 +94,10 @@ export function NavTabBar({ state, navigation }: BottomTabBarProps) {
         const route = state.routes.find((r) => r.name === tab);
         if (!route) return;
         const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-        if (route.name !== focusedName && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+        if (event.defaultPrevented) return;
+        // A tap starts the tab at its default pane (Events opens on Upcoming, not on the Photos it was last left on); tapping the
+        // tab you are already on brings it back from a pane such as Photos.
+        if (route.name !== focusedName || hasPaneParams(route.params)) navigation.navigate(route.name, clearedPaneParams());
       }}
     />
   );
