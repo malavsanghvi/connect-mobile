@@ -14,6 +14,13 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.5.3 — 2026-10-01
+
+- Home (web): the row of shortcuts under Today at {center} scrolls sideways with the mouse wheel and shows its scrollbar;
+  a mouse could not move it before. Phones swipe it as before.
+- Sign-up: when no family is found for your email or mobile number, the screen is titled "Let's set up your family"
+  instead of asking "Is this your family?" ("Finding your family" while it looks).
+
 ## 1.5.2 — 2026-10-01
 
 - Events › Photos: photos brought in from a Google Photos album (portal › Content › Photos › the album › Import photos from
