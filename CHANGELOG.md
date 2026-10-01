@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.2.0 — 2026-10-01
+
+- Family › Special days: "Plan labh" (the pledge options for the day) shows on every eligible day, not only in the
+  two weeks before it. The delete icon stays beside it.
+- Give: recurring is an option on each giving opportunity. Where the office has allowed it, the opportunity shows
+  "Give once / Make this recurring" with the frequencies the office permits. The separate "Recurring giving" card
+  is gone; "Your recurring gifts" (pause, change or stop) sits under Family pledges once you have one.
+- Editing a recurring gift no longer has its own list to give towards: what a gift is for does not change from there.
+
 ## 1.1.0 — 2026-09-30
 
 - RSVP: donation amounts for people added to an edited RSVP; cancelling a paid pledge asks whether to keep the

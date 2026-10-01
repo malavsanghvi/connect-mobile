@@ -2,11 +2,13 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   availabilityFraction,
+  editableFrequencies,
   endRule,
   fromAmountCents,
   giftsPerYear,
   isYearOpen,
   multiTotalCents,
+  opportunityFrequencies,
   opportunityKind,
   ordinal,
   parseOptions,
@@ -171,5 +173,39 @@ describe('saving steps', () => {
     expect(second).toEqual({ ok: true, done: 3 });
     expect(calls).toEqual(['a', 'b', 'b']);
     expect(progress).toEqual([1, 2, 3]);
+  });
+});
+
+describe('recurring opportunities', () => {
+  const opp = (o: Partial<{ kind: string; allow_recurring: boolean | null; recurring_frequencies: string[] | null }>) => ({ kind: 'amount', allow_recurring: true, recurring_frequencies: ['yearly', 'monthly'], ...o });
+
+  it('offers the office-allowed frequencies in display order', () => {
+    expect(opportunityFrequencies(opp({}))).toEqual(['monthly', 'yearly']);
+    expect(opportunityFrequencies(opp({ recurring_frequencies: ['quarterly', 'weekly', 'monthly', 'yearly'] }))).toEqual(['weekly', 'monthly', 'quarterly', 'yearly']);
+  });
+
+  it('offers nothing when recurring is off, no frequency is allowed, or it is a multi-pick', () => {
+    expect(opportunityFrequencies(opp({ allow_recurring: false }))).toEqual([]);
+    expect(opportunityFrequencies(opp({ allow_recurring: null }))).toEqual([]);
+    expect(opportunityFrequencies(opp({ recurring_frequencies: [] }))).toEqual([]);
+    expect(opportunityFrequencies(opp({ recurring_frequencies: null }))).toEqual([]);
+    expect(opportunityFrequencies(opp({ kind: 'multi' }))).toEqual([]);
+  });
+
+  it('never offers special_day for a shared opportunity', () => {
+    expect(opportunityFrequencies(opp({ recurring_frequencies: ['special_day', 'monthly'] }))).toEqual(['monthly']);
+  });
+
+  it('keeps an opportunity gift to what the opportunity allows, plus its current frequency', () => {
+    expect(editableFrequencies({ frequency: 'monthly', opportunity_id: 'o1' }, opp({}))).toEqual(['monthly', 'yearly']);
+    // The office later stopped offering weekly: an existing weekly gift still shows it, so editing never silently changes it.
+    expect(editableFrequencies({ frequency: 'weekly', opportunity_id: 'o1' }, opp({}))).toEqual(['weekly', 'monthly', 'yearly']);
+    // The opportunity is no longer visible to the member: only the gift's own frequency remains.
+    expect(editableFrequencies({ frequency: 'yearly', opportunity_id: 'o1' }, null)).toEqual(['yearly']);
+  });
+
+  it('keeps the original set for a gift that is not tied to an opportunity', () => {
+    expect(editableFrequencies({ frequency: 'monthly', opportunity_id: null }, null)).toEqual(['monthly', 'quarterly', 'yearly', 'special_day']);
+    expect(editableFrequencies({ frequency: 'weekly', opportunity_id: null }, null)).toEqual(['weekly', 'monthly', 'quarterly', 'yearly', 'special_day']);
   });
 });

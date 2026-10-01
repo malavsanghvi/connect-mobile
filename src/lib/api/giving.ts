@@ -176,17 +176,23 @@ export async function listPledges(householdId: string, names: Map<string, string
 
 export type RecurringGift = Tables<'recurring_gifts'> & { purpose: string };
 
+/** What a gift is towards: the opportunity it renews, else its campaign, else its fund. */
+function purposeOf(g: Pick<Tables<'recurring_gifts'>, 'opportunity_id' | 'campaign_id' | 'fund_id'>, names: { opportunities: Map<string, string>; campaigns: Map<string, string>; funds: Map<string, string> }): string {
+  return (g.opportunity_id && names.opportunities.get(g.opportunity_id)) || (g.campaign_id && names.campaigns.get(g.campaign_id)) || (g.fund_id && names.funds.get(g.fund_id)) || 'General fund';
+}
+
 export async function listRecurring(householdId: string): Promise<RecurringGift[]> {
   const gifts = must(await supabase.from('recurring_gifts').select('*').eq('household_id', householdId).order('created_at', { ascending: false }), 'load your recurring gifts');
+  const opportunityIds = [...new Set(gifts.map((g) => g.opportunity_id).filter((x): x is string => !!x))];
   const campaignIds = [...new Set(gifts.map((g) => g.campaign_id).filter((x): x is string => !!x))];
   const fundIds = [...new Set(gifts.map((g) => g.fund_id).filter((x): x is string => !!x))];
-  const [campaigns, funds] = await Promise.all([
+  const [opportunities, campaigns, funds] = await Promise.all([
+    opportunityIds.length ? supabase.from('opportunities').select('id, name').in('id', opportunityIds).then((r) => must(r, 'load your recurring gifts')) : Promise.resolve([]),
     campaignIds.length ? supabase.from('campaigns').select('id, name').in('id', campaignIds).then((r) => must(r, 'load your recurring gifts')) : Promise.resolve([]),
     fundIds.length ? supabase.from('funds').select('id, name').in('id', fundIds).then((r) => must(r, 'load your recurring gifts')) : Promise.resolve([]),
   ]);
-  const cName = new Map(campaigns.map((c) => [c.id, c.name]));
-  const fName = new Map(funds.map((f) => [f.id, f.name]));
-  return gifts.map((g) => ({ ...g, purpose: (g.campaign_id && cName.get(g.campaign_id)) || (g.fund_id && fName.get(g.fund_id)) || 'General fund' }));
+  const names = { opportunities: new Map(opportunities.map((o) => [o.id, o.name])), campaigns: new Map(campaigns.map((c) => [c.id, c.name])), funds: new Map(funds.map((f) => [f.id, f.name])) };
+  return gifts.map((g) => ({ ...g, purpose: purposeOf(g, names) }));
 }
 
 export async function setRecurringStatus(id: string, status: 'active' | 'paused'): Promise<void> {
@@ -222,32 +228,12 @@ export async function listOpportunitiesWithAvailability(centerId: string): Promi
 // Recurring gifts
 // ---------------------------------------------------------------------------
 
-export type GivingPurpose = { key: string; label: string; sub: string | null; fundId: string | null; campaignId: string | null };
-
-/**
- * What a recurring gift can go towards: the center's active funds, then its published campaigns.
- * A fund whose name exactly matches a published campaign's name (e.g. a fund and its dedicated
- * campaign both called "Dev Dravya") is left out of the bare-fund list — the campaign row already
- * covers it, and listing both showed the donor the same choice twice under an identical label.
- */
-export async function listGivingPurposes(centerId: string): Promise<GivingPurpose[]> {
-  const [fundsRes, campaignsRes] = await Promise.all([
-    supabase.from('funds').select('id, name').eq('center_id', centerId).eq('active', true).order('name'),
-    supabase.from('campaigns').select('id, name, description, fund_id').eq('center_id', centerId).eq('status', 'published').order('name'),
-  ]);
-  const funds = must(fundsRes, 'load what you can give towards');
-  const campaigns = must(campaignsRes, 'load what you can give towards');
-  const campaignLabels = new Set(campaigns.map((c) => c.name.trim().toLowerCase()));
-  return [
-    ...funds.filter((f) => !campaignLabels.has(f.name.trim().toLowerCase())).map((f) => ({ key: `fund:${f.id}`, label: f.name, sub: null, fundId: f.id, campaignId: null })),
-    ...campaigns.map((c) => ({ key: `campaign:${c.id}`, label: c.name, sub: c.description?.trim() || null, fundId: c.fund_id, campaignId: c.id })),
-  ];
-}
-
 /**
  * New recurring gift via app.create_recurring_gift (adults of the household).
  * It is stored waiting for a payment method and is never charged until the
- * payment worker attaches one.
+ * payment worker attaches one. With `opportunityId` it renews that opportunity:
+ * the database checks the opportunity allows recurring and the chosen frequency,
+ * and takes the campaign and fund from it.
  */
 export async function createRecurringGift(args: {
   householdId: string;
@@ -260,6 +246,7 @@ export async function createRecurringGift(args: {
   endCount: number | null;
   endOn: string | null;
   specialDayId?: string | null;
+  opportunityId?: string | null;
 }): Promise<string> {
   if (!Number.isInteger(args.amountCents) || args.amountCents <= 0) throw new AppError('Please choose an amount greater than $0.', 'invalid amount');
   return must(
@@ -275,6 +262,7 @@ export async function createRecurringGift(args: {
       p_end_count: (args.endCount ?? null) as number,
       p_end_on: (args.endOn ?? null) as string,
       p_special_day: (args.specialDayId ?? null) as string,
+      p_opportunity: (args.opportunityId ?? null) as string,
     }),
     'set up your recurring gift',
   );
@@ -287,18 +275,16 @@ export async function setRecurringMethod(id: string, method: PayMethodChoice): P
   check(await supabase.from('recurring_gifts').update({ method }).eq('id', id), 'save how you want to pay');
 }
 
-/** Edit an existing gift's purpose, amount, frequency and end rule (status is never changed here). */
+/** Edit an existing gift's amount, frequency, end rule and payment method. What it is towards and its status are never changed here. */
 export async function updateRecurringGift(
   id: string,
-  fields: { fundId: string | null; campaignId: string | null; amountCents: number; frequency: string; endKind: string; endCount: number | null; endOn: string | null; method: PayMethodChoice },
+  fields: { amountCents: number; frequency: string; endKind: string; endCount: number | null; endOn: string | null; method: PayMethodChoice },
 ): Promise<void> {
   if (!Number.isInteger(fields.amountCents) || fields.amountCents <= 0) throw new AppError('Please choose an amount greater than $0.', 'invalid amount');
   check(
     await supabase
       .from('recurring_gifts')
       .update({
-        fund_id: fields.fundId,
-        campaign_id: fields.campaignId,
         amount_cents: fields.amountCents,
         frequency: fields.frequency,
         end_kind: fields.endKind,
@@ -313,6 +299,25 @@ export async function updateRecurringGift(
 
 export async function getRecurringGift(id: string): Promise<Tables<'recurring_gifts'>> {
   return must(await supabase.from('recurring_gifts').select('*').eq('id', id).single(), 'load this recurring gift');
+}
+
+export type RecurringForEdit = { gift: Tables<'recurring_gifts'>; purpose: string; opportunity: Opportunity | null };
+
+/** One gift with what it is towards and, when it renews an opportunity, that opportunity's rules (null when it is no longer visible to the member). */
+export async function loadRecurringForEdit(id: string): Promise<RecurringForEdit> {
+  const gift = await getRecurringGift(id);
+  const [opportunities, campaigns, funds] = await Promise.all([
+    gift.opportunity_id ? supabase.from('opportunities').select('*').eq('id', gift.opportunity_id).limit(1).then((r) => must(r, 'load this recurring gift')) : Promise.resolve([] as Opportunity[]),
+    gift.campaign_id ? supabase.from('campaigns').select('id, name').eq('id', gift.campaign_id).limit(1).then((r) => must(r, 'load this recurring gift')) : Promise.resolve([] as { id: string; name: string }[]),
+    gift.fund_id ? supabase.from('funds').select('id, name').eq('id', gift.fund_id).limit(1).then((r) => must(r, 'load this recurring gift')) : Promise.resolve([] as { id: string; name: string }[]),
+  ]);
+  const opportunity = opportunities[0] ?? null;
+  const names = {
+    opportunities: new Map(opportunity ? [[opportunity.id, opportunity.name] as [string, string]] : []),
+    campaigns: new Map(campaigns.map((c) => [c.id, c.name] as [string, string])),
+    funds: new Map(funds.map((f) => [f.id, f.name] as [string, string])),
+  };
+  return { gift, purpose: purposeOf(gift, names), opportunity };
 }
 
 export { WAITING_STATUS };

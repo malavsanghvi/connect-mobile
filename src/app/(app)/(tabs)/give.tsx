@@ -3,8 +3,7 @@ import { View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Card, Chevron, Row, Txt, VStack } from '@/components/ui';
-import { RepeatGlyph } from '@/features/give/icons';
+import { Banner, Button, Card, Row, Txt, VStack } from '@/components/ui';
 import { AvailabilityBar, Heading, slotsText, TintTile } from '@/features/give/parts';
 import { availabilityFraction, fromAmountCents, opportunityKind, slotsLine } from '@/features/give/rules';
 import { startPayment } from '@/features/pay';
@@ -20,7 +19,7 @@ import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { fonts, radii, space } from '@/theme';
 
 /**
  * Give (prototype §2.8). Adults only — children see "Ask a parent". The bolis
@@ -158,23 +157,6 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
         );
       })}
 
-      <Card onPress={() => router.push('/recurring')} accessibilityLabel={`${t('give.recurring')}. ${t('give.recurringSub', { n: summary.recurringActive, amount: formatCents(summary.recurringYearlyCents) })}`}>
-        <Row gap={space.md}>
-          <View style={{ width: 44, height: 44, borderRadius: radii.lg, backgroundColor: colors.greenTint, alignItems: 'center', justifyContent: 'center' }}>
-            <RepeatGlyph color={colors.green} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Txt variant="body" style={{ fontFamily: fonts.bodySemi }}>
-              {t('give.recurring')}
-            </Txt>
-            <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-              {t('give.recurringSub', { n: summary.recurringActive, amount: formatCents(summary.recurringYearlyCents) })}
-            </Txt>
-          </View>
-          <Chevron />
-        </Row>
-      </Card>
-
       <Heading>{t('give.familyPledges')}</Heading>
       <Card style={{ gap: 10 }}>
         <Row gap={space.sm} align="stretch">
@@ -182,6 +164,16 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
           <TintTile tone="green" label={t('give.paidIn', { year: summary.year })} value={formatCents(summary.paidThisYearCents)} />
         </Row>
         <Button label={t('give.seeAllPledges')} tone="secondary" size="md" style={{ borderRadius: radii.pill }} onPress={() => router.push('/pledges')} />
+        {/* Recurring is an option on each opportunity, not a third list. Families that already have a gift keep a way to pause, change or stop it. */}
+        {summary.recurringTotal > 0 ? (
+          <Button
+            label={t('give.recurringLink', { n: summary.recurringActive, amount: formatCents(summary.recurringYearlyCents) })}
+            tone="secondary"
+            size="md"
+            style={{ borderRadius: radii.pill }}
+            onPress={() => router.push('/recurring')}
+          />
+        ) : null}
       </Card>
 
       {summary.openCents > 0 ? <Button label={t('give.payOpen', { amount: formatCents(summary.openCents) })} onPress={payOpen} /> : null}

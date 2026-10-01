@@ -122,7 +122,6 @@ export default function RecurringScreen() {
                   </View>
                 );
               })}
-              <Button label={t('recurring.setUp')} onPress={() => router.push('/recurring-setup')} />
             </VStack>
           );
         }}
