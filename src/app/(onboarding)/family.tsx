@@ -14,7 +14,7 @@ export default function FamilyStepScreen() {
   if (!member) return null;
   return (
     <OnboardingFrame
-      step={6}
+      step="family"
       title={t('familyStep.title')}
       subtitle={t('familyStep.subtitle')}
       onBack={() => router.back()}

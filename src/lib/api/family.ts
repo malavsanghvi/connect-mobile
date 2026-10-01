@@ -1,6 +1,7 @@
 import type { Enums, Tables, TablesInsert } from '../database.types';
 import type { MemberCustomField } from '@/features/custom-fields';
 
+import { normalizeCity, normalizeState, normalizeZip, type AddressSuggestion } from '../address';
 import { AppError, check, logError, maybe, must } from '../errors';
 import { formatDob, formatPhone, isValidEmail, parseDobInput, toE164 } from '../format';
 import { planEmailChanges, type EmailDraft } from '../emails';
@@ -195,16 +196,35 @@ export async function recordChannelOptins(args: { centerId: string; personId: st
 /** The household's documents-and-mail choice plus a consent record (adults only). */
 export type AddressDraft = { address_line1: string; address_line2: string; city: string; state_region: string; postal_code: string };
 
-/** An adult confirms or corrects the household's mailing address (households_adult_update). Blank optional parts are cleared. */
+/**
+ * An adult confirms or corrects the household's mailing address (households_adult_update). Blank optional parts are
+ * cleared; city, state and ZIP are stored normalized (title-cased city, 2-letter state, 5-digit ZIP or ZIP+4).
+ */
 export async function updateHouseholdAddress(householdId: string, a: AddressDraft): Promise<void> {
   const n = (v: string) => (v.trim() ? v.trim() : null);
   check(
     await supabase
       .from('households')
-      .update({ address_line1: n(a.address_line1), address_line2: n(a.address_line2), city: n(a.city), state_region: n(a.state_region)?.toUpperCase() ?? null, postal_code: n(a.postal_code) })
+      .update({
+        address_line1: n(a.address_line1),
+        address_line2: n(a.address_line2),
+        city: n(normalizeCity(a.city)),
+        state_region: n(normalizeState(a.state_region)),
+        postal_code: n(normalizeZip(a.postal_code)),
+      })
       .eq('id', householdId),
     'save your address',
   );
+}
+
+/**
+ * ZIP / city / state suggestions for the address form (app.address_suggestions, connect-crm 0561): places at least
+ * two of the community's households share, and its zones' ZIP codes first (no city or state).
+ */
+export async function loadAddressSuggestions(centerId: string): Promise<AddressSuggestion[]> {
+  const rows = must(await supabase.rpc('address_suggestions', { p_center: centerId }), 'load the address suggestions');
+  // Zone ZIP codes come back with no city or state, whatever the generated row type says.
+  return rows.map((r) => ({ postal_code: r.postal_code, city: r.city ?? null, state_region: r.state_region ?? null, households: r.households ?? 0, from_zone: !!r.from_zone }));
 }
 
 export async function saveDocumentsChoice(args: { centerId: string; userId: string; personId: string; householdId: string; physicalMail: boolean }): Promise<void> {
@@ -401,9 +421,13 @@ export async function listSpecialDays(householdId: string): Promise<SpecialDay[]
   return must(await supabase.from('special_days').select('*').eq('household_id', householdId).order('calendar_date'), 'load special days');
 }
 
-export async function saveSpecialDay(row: TablesInsert<'special_days'>, id?: string): Promise<void> {
-  if (id) check(await supabase.from('special_days').update(row).eq('id', id), 'save this special day');
-  else check(await supabase.from('special_days').insert(row), 'save this special day');
+/** Adds a special day (or updates `id`) and returns its id, so a labh can be pledged for it straight away. */
+export async function saveSpecialDay(row: TablesInsert<'special_days'>, id?: string): Promise<string> {
+  if (id) {
+    check(await supabase.from('special_days').update(row).eq('id', id), 'save this special day');
+    return id;
+  }
+  return must(await supabase.from('special_days').insert(row).select('id').single(), 'save this special day').id;
 }
 
 export async function deleteSpecialDay(id: string): Promise<void> {

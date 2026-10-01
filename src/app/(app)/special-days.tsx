@@ -6,7 +6,7 @@ import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
 import { Banner, IconButton, Txt, VStack } from '@/components/ui';
 import { canPlanLabh, listDisplayName, occasionOf, reminderSpan, whenText, yearsOn, type Occasion } from '@/features/special-days';
-import { AddSpecialDayForm } from '@/features/special-days-form';
+import { AddSpecialDayForm, PlanDaysQuestion } from '@/features/special-days-form';
 import { deleteSpecialDay, listSpecialDays, nextTithiDates } from '@/lib/api/family';
 import { report } from '@/lib/errors';
 import { formatDay, monthShortUpper, parseISODate, todayAt } from '@/lib/format';
@@ -32,7 +32,9 @@ const TINT: Record<Occasion | 'diksha', { bg: string; fg: string }> = {
  * Special days (Main.dc.html isDays): date tile, title, "Turns 10 · Tue, Oct 6",
  * reminder line in weeks, "Plan labh" on every eligible day (opens the labh
  * screen, whatever the date — the reminder window only times the reminder),
- * dashed "+ Add a special day" that toggles to "Close".
+ * dashed "+ Add a special day" that toggles to "Close". While the family has no
+ * days yet, an adult is asked first — "Would you like to plan any special
+ * days?" — and "Yes" opens the form (where a labh can be pledged for the day).
  */
 export default function SpecialDaysScreen() {
   const t = useT();
@@ -42,6 +44,7 @@ export default function SpecialDaysScreen() {
   const { invalidate } = useDataVersion();
   const { toast, confirm } = useFeedback();
   const [adding, setAdding] = useState(false);
+  const [notNow, setNotNow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const state = useLoad(
     async () => {
@@ -57,8 +60,10 @@ export default function SpecialDaysScreen() {
     'load special days',
   );
   if (!member) return null;
+  // No days yet: an adult is asked before the form (a failed or pending load shows the list state instead).
+  const askFirst = member.isAdult && !adding && !notNow && state.data?.length === 0;
 
-  const remove = async (id: string, name: string) => {
+  const remove =async (id: string, name: string) => {
     const ok = await confirm({ title: t('days.removeTitle'), body: t('days.removeBody', { name }), confirmLabel: t('common.delete'), tone: 'danger' });
     if (!ok) return;
     setError(null);
@@ -80,7 +85,7 @@ export default function SpecialDaysScreen() {
       <Loaded state={state}>
         {(rows) => (
           <VStack gap={space.md}>
-            {rows.length === 0 ? <EmptyState icon="gift-outline" title={t('days.none')} /> : null}
+            {rows.length === 0 && !askFirst ? <EmptyState icon="gift-outline" title={t('days.none')} /> : null}
             {rows.map(({ day, next, today }) => {
               const occ = occasionOf(day);
               const tint = TINT[occ];
@@ -136,7 +141,9 @@ export default function SpecialDaysScreen() {
           </VStack>
         )}
       </Loaded>
-      {member.isAdult ? (
+      {askFirst ? (
+        <PlanDaysQuestion question={t('days.ask')} onYes={() => setAdding(true)} onNotNow={() => setNotNow(true)} />
+      ) : member.isAdult ? (
         <>
           <Pressable
             onPress={() => setAdding(!adding)}

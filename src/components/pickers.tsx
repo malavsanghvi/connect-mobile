@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, View, type TextInputProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { comboListShown, filterCombo, type ComboOption } from '@/lib/combo';
 import { formatDob, monthName, parseDobInput, toISODate, weekdayOf } from '@/lib/format';
 import { useSettings } from '@/providers/settings';
 import { colors, fonts, radii, space, touch, type as typeScale } from '@/theme';
 
 import { StrokeIcon } from './stroke-icon';
-import { Button, Row, Txt } from './ui';
+import { Button, Row, TextField, Txt } from './ui';
 
 const fieldSizes = {
   sm: { h: touch.min, r: radii.md, font: typeScale.bodySmall, padX: 10 },
@@ -110,6 +111,106 @@ export function SelectField({
           ))}
         </ScrollView>
       </Sheet>
+    </View>
+  );
+}
+
+/**
+ * A type-ahead field: a `TextField` whose matching suggestions (lib/combo `filterCombo`) list under it while it has
+ * focus. Free text is always allowed — the list only helps — and `normalize` tidies what was typed when the field
+ * loses focus ("tex" → "TX"). Picking a suggestion calls `onPick` (default: put its value in the field). Pure JS, no
+ * native module. Screens keep taps on the list from closing the keyboard (`keyboardShouldPersistTaps="handled"`); on
+ * the web a row is picked as the press starts, before the field's blur.
+ */
+export function ComboField({
+  label,
+  value,
+  onChangeText,
+  options,
+  onPick,
+  normalize,
+  maxShown = 6,
+  ...field
+}: Omit<TextInputProps, 'value' | 'onChangeText' | 'onFocus' | 'onBlur'> & {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  options: readonly ComboOption[];
+  onPick?: (option: ComboOption) => void;
+  normalize?: (v: string) => string;
+  hint?: string;
+  error?: string | null;
+  size?: keyof typeof fieldSizes;
+  maxShown?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  /** The text as last typed or picked: a blur right after a pick (web) must not put the typed text back. */
+  const latest = useRef(value);
+  const closing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const matches = open ? filterCombo(options, value, maxShown) : [];
+  const shown = comboListShown(matches, value);
+
+  const change = (v: string) => {
+    latest.current = v;
+    setOpen(true);
+    onChangeText(v);
+  };
+  const pick = (o: ComboOption) => {
+    latest.current = o.value;
+    setOpen(false);
+    if (onPick) onPick(o);
+    else onChangeText(o.value);
+  };
+  const focus = () => {
+    if (closing.current) clearTimeout(closing.current);
+    latest.current = value;
+    setOpen(true);
+  };
+  const blur = () => {
+    const tidy = normalize ? normalize(latest.current) : latest.current;
+    if (tidy !== latest.current) {
+      latest.current = tidy;
+      onChangeText(tidy);
+    }
+    // A moment's grace so a press that blurred the field still lands on its row.
+    closing.current = setTimeout(() => setOpen(false), 200);
+  };
+
+  return (
+    <View style={{ gap: space.xs }}>
+      <TextField label={label} value={value} onChangeText={change} onFocus={focus} onBlur={blur} autoCorrect={false} {...field} />
+      {shown ? (
+        <View accessibilityLabel={label} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.card, overflow: 'hidden' }}>
+          {matches.map((o, i) => (
+            <Pressable
+              key={o.value}
+              onPressIn={Platform.OS === 'web' ? () => pick(o) : undefined}
+              onPress={() => pick(o)}
+              accessibilityRole="button"
+              accessibilityLabel={o.detail ? `${o.label}, ${o.detail}` : o.label}
+              style={({ pressed }) => ({
+                minHeight: touch.min,
+                paddingHorizontal: space.md,
+                paddingVertical: space.xs,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.sm,
+                borderTopWidth: i === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+                backgroundColor: pressed ? colors.navyTint : 'transparent',
+              })}>
+              <Txt variant="body" style={{ flexShrink: 0 }}>
+                {o.label}
+              </Txt>
+              {o.detail ? (
+                <Txt variant="meta" color="muted" numberOfLines={1} style={{ flex: 1, textAlign: 'right' }}>
+                  {o.detail}
+                </Txt>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

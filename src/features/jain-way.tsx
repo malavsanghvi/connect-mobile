@@ -438,14 +438,44 @@ export function activeGoal(g: GyanData, personId: string): { goal: GyanGoal; p: 
 // Saathi (prototype Main L662–697)
 // ---------------------------------------------------------------------------
 
-const STATUS_COLOR: Record<CircleStatus, string> = {
+/** A circle row's status: progress for a member who shares it, or why there is none to show. */
+type CircleRowStatus = CircleStatus | 'notSharing' | 'pending';
+
+const STATUS_COLOR: Record<CircleRowStatus, string> = {
   met: colors.green,
   completed: colors.green,
   onTrack: colors.navy,
   behind: colors.danger,
   encouraged: colors.purple,
   private: colors.faint,
+  notSharing: colors.faint,
+  pending: colors.brown,
 };
+
+/** One row of the family circle: avatar, name and status, a caption, and a progress bar only when there is progress to show. */
+function CircleRow({ name, color, status, statusLabel, line, pct }: { name: string; color: string; status: CircleRowStatus; statusLabel: string; line: string; pct: number | null }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} accessible accessibilityLabel={`${name}: ${statusLabel}. ${line}`}>
+      <InitialAvatar name={name} color={color} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Row style={{ justifyContent: 'space-between' }} gap={6}>
+          <Txt variant="smallStrong" style={{ flexShrink: 1 }}>
+            {name}
+          </Txt>
+          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: STATUS_COLOR[status] }}>{statusLabel}</Text>
+        </Row>
+        <Txt variant="caption" color="muted" numberOfLines={1} style={{ fontFamily: fonts.body }}>
+          {line}
+        </Txt>
+        {pct !== null ? (
+          <View style={{ marginTop: 4 }}>
+            <ProgressBar value={pct} color={STATUS_COLOR[status]} track={colors.divider} height={5} />
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
 
 export function SaathiPane() {
   const t = useT();
@@ -518,7 +548,7 @@ export function SaathiPane() {
                   const act = m.visible ? activeGoal(d.gyan, m.personId) : null;
                   const behindItem = behind.find((b) => b.person_id === m.personId) ?? null;
                   const completedGoal = d.feed.some((f) => f.kind === 'goal_completed' && f.person_id === m.personId);
-                  const status = circleStatus({ visible: m.visible, doneToday: m.doneToday, selected: m.selected, behind: behindItem, completedGoal });
+                  const status: CircleRowStatus = m.visibility === 'notSharing' ? 'notSharing' : circleStatus({ visible: m.visible, doneToday: m.doneToday, selected: m.selected, behind: behindItem, completedGoal });
                   const days = behindItem ? behindDays(behindItem.detail) : null;
                   const statusLabel = status === 'behind' ? (days ? t('saathi.status.behind', { n: days }) : t('saathi.status.behindUnknown')) : t(`saathi.status.${status}`);
                   const goalLine = act
@@ -528,28 +558,29 @@ export function SaathiPane() {
                     : null;
                   const daily = m.selected > 0 ? t('saathi.dailyLine', { done: m.doneToday, n: m.selected }) : t('saathi.noPractices');
                   const streakPart = m.streakDays > 0 ? t('saathi.streakPart', { days: m.streakDays }) : null;
-                  const line = !m.visible ? t('saathi.private') : goalLine ? [goalLine, m.selected > 0 ? daily : null].filter(Boolean).join(' · ') : [daily, streakPart].filter(Boolean).join(' · ');
-                  const pct = !m.visible ? 0 : act ? (act.p.levelsTotal ? act.p.levelsDone / act.p.levelsTotal : 0) : m.selected ? m.doneToday / m.selected : 0;
-                  return (
-                    <View key={m.personId} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} accessible accessibilityLabel={`${m.isMe ? t('saathi.you') : m.name}: ${statusLabel}. ${line}`}>
-                      <InitialAvatar name={m.name} color={MEMBER_COLORS[i % MEMBER_COLORS.length]} />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Row style={{ justifyContent: 'space-between' }} gap={6}>
-                          <Txt variant="smallStrong" style={{ flexShrink: 1 }}>
-                            {m.isMe ? t('saathi.you') : m.name}
-                          </Txt>
-                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: STATUS_COLOR[status] }}>{statusLabel}</Text>
-                        </Row>
-                        <Txt variant="caption" color="muted" numberOfLines={1} style={{ fontFamily: fonts.body }}>
-                          {line}
-                        </Txt>
-                        <View style={{ marginTop: 4 }}>
-                          <ProgressBar value={pct} color={STATUS_COLOR[status]} track={colors.divider} height={5} />
-                        </View>
-                      </View>
-                    </View>
-                  );
+                  const line =
+                    m.visibility === 'notSharing'
+                      ? t('saathi.notSharing')
+                      : !m.visible
+                        ? t('saathi.private')
+                        : goalLine
+                          ? [goalLine, m.selected > 0 ? daily : null].filter(Boolean).join(' · ')
+                          : [daily, streakPart].filter(Boolean).join(' · ');
+                  const pct = !m.visible ? null : act ? (act.p.levelsTotal ? act.p.levelsDone / act.p.levelsTotal : 0) : m.selected ? m.doneToday / m.selected : 0;
+                  return <CircleRow key={m.personId} name={m.isMe ? t('saathi.you') : m.name} color={MEMBER_COLORS[i % MEMBER_COLORS.length]} status={status} statusLabel={statusLabel} line={line} pct={pct} />;
                 })}
+                {/* Not in the family record yet: no progress and no anumodana until the membership team adds them. */}
+                {d.pending.map((p) => (
+                  <CircleRow
+                    key={p.requestId}
+                    name={p.name ?? t('familyStep.newMember')}
+                    color={colors.faint}
+                    status="pending"
+                    statusLabel={t('saathi.status.pending')}
+                    line={[p.relationship, t('saathi.pendingLine')].filter(Boolean).join(' · ')}
+                    pct={null}
+                  />
+                ))}
               </Card>
 
               {celebrate.map((c) => {

@@ -1,3 +1,4 @@
+import { ordinal } from '@/features/give/rules';
 import type { Translate } from '@/i18n';
 import type { SpecialDay } from '@/lib/api/family';
 import type { FamilyMember } from '@/lib/api/member';
@@ -30,6 +31,21 @@ export function canPlanLabh(args: { givingOn: boolean; isAdult: boolean; occasio
   return args.givingOn && args.isAdult && args.labhPromptEnabled && args.occasion !== 'punyatithi';
 }
 
+/**
+ * The labh options saving the "add a special day" form would pledge (app.commit_labh, one pledge each) and their
+ * total in cents: none unless the labh section is offered for the day as it now stands — picking options and then
+ * switching the occasion to a punyatithi pledges nothing.
+ */
+export function labhToPledge<T extends { id: string; amount_cents: number }>(options: readonly T[], picked: readonly string[], offered: boolean): { chosen: T[]; totalCents: number } {
+  const chosen = offered ? options.filter((o) => picked.includes(o.id)) : [];
+  return { chosen, totalCents: chosen.reduce((sum, o) => sum + o.amount_cents, 0) };
+}
+
+/** The dedication a labh pledge carries unless the family changes it: "In honor of Anya Shah's 10th birthday". */
+export function labhDedication(t: Translate, args: { kind: string; heading: string; fullName: string | null; age: number | null }): string {
+  return args.kind === 'birthday' && args.fullName && args.age ? t('labh.dedicationNth', { name: args.fullName, nth: ordinal(args.age) }) : t('labh.dedicationDay', { name: args.heading });
+}
+
 export function kindLabel(t: Translate, kind: string): string {
   switch (kind) {
     case 'birthday':
@@ -47,8 +63,8 @@ export function kindLabel(t: Translate, kind: string): string {
   }
 }
 
-/** "Anya's birthday", "Priya's birth tithi", or the label the family gave it. */
-export function listDisplayName(t: Translate, day: SpecialDay, members: FamilyMember[]): string {
+/** "Anya's birthday", "Priya's birth tithi", or the label the family gave it (a saved day, or one still in the form). */
+export function listDisplayName(t: Translate, day: Pick<SpecialDay, 'label' | 'person_id' | 'kind' | 'calendar_date' | 'tithi'>, members: FamilyMember[]): string {
   if (day.label?.trim()) return day.label.trim();
   const who = day.person_id ? members.find((m) => m.person.id === day.person_id) : null;
   const occ = occasionOf(day);
@@ -83,6 +99,15 @@ export function yearsOn(originalISO: string | null, next: string | null): number
   if (!o || !n || o.y < 1900) return null;
   const years = n.y - o.y;
   return years > 0 ? years : null;
+}
+
+/**
+ * A plain-English error sentence as the end of a longer one ("The day was saved, but … — {reason}."): its full stop
+ * dropped and, unless it starts with "I" or a name in capitals, its first letter lowered.
+ */
+export function asClause(sentence: string): string {
+  const s = sentence.trim().replace(/[.!\s]+$/, '');
+  return /^[A-Z][a-z]/.test(s) && !/^I\b/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
 /** Split "Kartak sud 12" into month and the rest (tithi). */

@@ -4,7 +4,6 @@ import { Loaded } from '@/components/states';
 import { Banner, Button, VStack } from '@/components/ui';
 import { GuideFootnote, useCommunity } from '@/features/guide-ui';
 import { OnboardingFrame } from '@/features/onboarding/frame';
-import { ONBOARDING_STEP_NUMBER } from '@/features/onboarding/steps';
 import { useWhatsAppGroups, WhatsAppGroupList, WhatsAppPhoneLine } from '@/features/whatsapp-groups';
 import { useApp } from '@/providers/app';
 import { useModule } from '@/providers/modules';
@@ -29,7 +28,7 @@ export default function WhatsAppStepScreen() {
   const next = () => router.push('/contact');
 
   return (
-    <OnboardingFrame step={ONBOARDING_STEP_NUMBER.whatsapp} title={t('waStep.title')} subtitle={t('guide.waIntro', { center: community })} onBack={() => router.back()} onSkip={next}>
+    <OnboardingFrame step="whatsapp" title={t('waStep.title')} subtitle={t('guide.waIntro', { center: community })} onBack={() => router.back()} onSkip={next}>
       <VStack gap={space.md}>
         {/* The number was entered on "About you"; changing it goes back there. */}
         <WhatsAppPhoneLine phone={phone} onChange={() => router.dismissTo('/about')} />

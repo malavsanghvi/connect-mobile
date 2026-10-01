@@ -7,7 +7,7 @@ import { splitRemembered } from '@/features/remembrance';
 import { isAdult, orgIdDisplay } from '../rules';
 import { supabase } from '../supabase';
 
-export type Center = Pick<Tables<'centers'>, 'id' | 'slug' | 'name' | 'short_name' | 'time_zone' | 'tradition' | 'branding' | 'feature_flags' | 'rules' | 'environment'>;
+export type Center = Pick<Tables<'centers'>, 'id' | 'slug' | 'name' | 'short_name' | 'state_region' | 'time_zone' | 'tradition' | 'branding' | 'feature_flags' | 'rules' | 'environment'>;
 export type Person = Tables<'people'>;
 export type Household = Tables<'households'>;
 export type HouseholdRole = Enums<'person_role_in_household'>;
@@ -45,7 +45,7 @@ const ROLE_ORDER: Record<HouseholdRole, number> = { primary: 0, spouse: 1, paren
 export async function loadCenter(slug: string): Promise<Center> {
   const res = await supabase
     .from('centers')
-    .select('id, slug, name, short_name, time_zone, tradition, branding, feature_flags, rules, environment')
+    .select('id, slug, name, short_name, state_region, time_zone, tradition, branding, feature_flags, rules, environment')
     .eq('slug', slug)
     .maybeSingle();
   const center = maybe(res, 'open your center');

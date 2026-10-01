@@ -335,23 +335,32 @@ export type LabhData = {
   tithi: { tithi: string; month_name: string } | null;
 };
 
-export async function loadLabh(centerId: string, dayId: string, nextDate: (day: Tables<'special_days'>) => Promise<string | null>): Promise<LabhData & { next: string | null }> {
-  const [dayRes, optionsRes] = await Promise.all([
-    supabase.from('special_days').select('*').eq('id', dayId).maybeSingle(),
-    supabase.from('labh_options').select('*').eq('center_id', centerId).eq('active', true).order('sort_order').order('name'),
-  ]);
-  const day = maybe(dayRes, 'load this special day');
-  if (!day) throw new AppError("We couldn't find this special day. It may have been removed.", `special day ${dayId} not visible`);
-  const options = must(optionsRes, 'load the labh options');
+/** The center's active labh options in display order, each with what it supports (its campaign, else its fund). */
+export async function loadLabhOptions(centerId: string): Promise<LabhOption[]> {
+  const options = must(await supabase.from('labh_options').select('*').eq('center_id', centerId).eq('active', true).order('sort_order').order('name'), 'load the labh options');
   const fundIds = [...new Set(options.map((o) => o.fund_id).filter((x): x is string => !!x))];
   const campaignIds = [...new Set(options.map((o) => o.campaign_id).filter((x): x is string => !!x))];
-  const [funds, campaigns, next] = await Promise.all([
+  const [funds, campaigns] = await Promise.all([
     fundIds.length ? supabase.from('funds').select('id, name').in('id', fundIds).then((r) => must(r, 'load the labh options')) : Promise.resolve([]),
     campaignIds.length ? supabase.from('campaigns').select('id, name').in('id', campaignIds).then((r) => must(r, 'load the labh options')) : Promise.resolve([]),
-    nextDate(day),
   ]);
   const fName = new Map(funds.map((f) => [f.id, f.name]));
   const cName = new Map(campaigns.map((c) => [c.id, c.name]));
+  return options.map((o) => ({ ...o, purpose: (o.campaign_id && cName.get(o.campaign_id)) || (o.fund_id && fName.get(o.fund_id)) || null }));
+}
+
+export async function loadLabh(centerId: string, dayId: string, nextDate: (day: Tables<'special_days'>) => Promise<string | null>): Promise<LabhData & { next: string | null }> {
+  const dayLoad = supabase
+    .from('special_days')
+    .select('*')
+    .eq('id', dayId)
+    .maybeSingle()
+    .then((res) => {
+      const found = maybe(res, 'load this special day');
+      if (!found) throw new AppError("We couldn't find this special day. It may have been removed.", `special day ${dayId} not visible`);
+      return found;
+    });
+  const [day, options, next] = await Promise.all([dayLoad, loadLabhOptions(centerId), dayLoad.then(nextDate)]);
   let tithi: LabhData['tithi'] = null;
   if (next) {
     const t = maybe(
@@ -360,12 +369,7 @@ export async function loadLabh(centerId: string, dayId: string, nextDate: (day: 
     );
     tithi = t ? { tithi: t.tithi, month_name: t.month_name } : null;
   }
-  return {
-    day,
-    next,
-    tithi,
-    options: options.map((o) => ({ ...o, purpose: (o.campaign_id && cName.get(o.campaign_id)) || (o.fund_id && fName.get(o.fund_id)) || null })),
-  };
+  return { day, next, tithi, options };
 }
 
 /** One open pledge per chosen option (+ a yearly gift each when repeating). Returns the pledge numbers. */
