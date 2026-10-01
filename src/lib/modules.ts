@@ -193,22 +193,60 @@ export function eventsPanes(map: ModuleMap): EventsPane[] {
   return EVENTS_PANES.filter((p) => isModuleOn(map, EVENTS_PANE_MODULE[p]));
 }
 
-/** My Jain Way segments. Learn holds Gyan Path + Pathshala (its audio lessons are Library content). */
+/**
+ * My Jain Way segments: Today · 3L · Saathi. 3L (Look, Listen, Learn) holds
+ * the media library, live darshan and pachchakhan (content), Gyan Path and
+ * Pathshala, so it shows while any of those is on.
+ */
 export const JAIN_WAY_PANE_MODULES = {
   today: ['jain_way'],
-  learn: ['gyan_path', 'pathshala'],
+  three_l: ['content', 'gyan_path', 'pathshala'],
   saathi: ['jain_way'],
-  library: ['content'],
 } as const satisfies Record<string, readonly ModuleKey[]>;
 export type JainWayPane = keyof typeof JAIN_WAY_PANE_MODULES;
-const JAIN_WAY_PANES: JainWayPane[] = ['today', 'learn', 'saathi', 'library'];
+const JAIN_WAY_PANES: JainWayPane[] = ['today', 'three_l', 'saathi'];
 
-/** Segments to show. Guests only ever see the Library. */
+/** Segments to show. Guests only ever see 3L (its public parts: live darshan, pachchakhan, the guide). */
 export function jainWayPanes(map: ModuleMap, signedIn: boolean): JainWayPane[] {
-  return JAIN_WAY_PANES.filter((p) => (signedIn || p === 'library') && anyModuleOn(map, JAIN_WAY_PANE_MODULES[p]));
+  return JAIN_WAY_PANES.filter((p) => (signedIn || p === 'three_l') && anyModuleOn(map, JAIN_WAY_PANE_MODULES[p]));
 }
 
-/** Parts of the Learn segment. */
+/** Sections of 3L. Look and Listen are Content; Learn (Gyan Path, Pathshala, the guide link) is always there. */
+export const THREE_L_SECTION_MODULES = {
+  look: ['content'],
+  listen: ['content'],
+  learn: null,
+} as const satisfies Record<string, readonly ModuleKey[] | null>;
+export type ThreeLSection = keyof typeof THREE_L_SECTION_MODULES;
+const THREE_L_SECTIONS: ThreeLSection[] = ['look', 'listen', 'learn'];
+
+export function threeLSections(map: ModuleMap): ThreeLSection[] {
+  return THREE_L_SECTIONS.filter((s) => anyModuleOn(map, THREE_L_SECTION_MODULES[s]));
+}
+
+/**
+ * Old `?tab=` values and section names used as a tab: Learn and Library
+ * (Home's "Watch live darshan") were segments before 3L. Links, bookmarks and
+ * notifications that still use them keep working.
+ */
+const JAIN_WAY_TAB_ALIASES: Record<string, { tab: JainWayPane; section?: ThreeLSection }> = {
+  learn: { tab: 'three_l', section: 'learn' },
+  library: { tab: 'three_l', section: 'look' },
+  look: { tab: 'three_l', section: 'look' },
+  listen: { tab: 'three_l', section: 'listen' },
+  '3l': { tab: 'three_l' },
+  'three-l': { tab: 'three_l' },
+};
+
+/** `/jain-way?tab=…&section=…` → the segment and 3L section asked for. */
+export function resolveJainWayLink(tab: string | undefined, section: string | undefined): { tab: string | undefined; section: string | undefined } {
+  const key = tab?.trim().toLowerCase();
+  const alias = key && Object.prototype.hasOwnProperty.call(JAIN_WAY_TAB_ALIASES, key) ? JAIN_WAY_TAB_ALIASES[key] : undefined;
+  if (!alias) return { tab, section };
+  return { tab: alias.tab, section: alias.section ?? section };
+}
+
+/** Parts of 3L › Learn and Listen. */
 export const LEARN_PART_MODULE = { gyan: 'gyan_path', pathshala: 'pathshala', lessons: 'content' } as const satisfies Record<string, ModuleKey>;
 
 /** Pick the requested pane when it is shown, else the first one that is (null when none is). */
@@ -273,6 +311,13 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   darshan: 'content',
   'album/[id]': 'content',
   'guide/[slug]': 'content',
+  // 3L media library: stavans, videos, podcasts, recipes, My playlist
+  'media/[kind]/index': 'content',
+  'media/[kind]/[id]': 'content',
+  'recipe/[id]': 'content',
+  'recipe/random': 'content',
+  'listen/playlist': 'content',
+  'listen/podcast-random': 'content',
   // surveys, Niva
   'survey/[id]': 'surveys',
   niva: 'niva',

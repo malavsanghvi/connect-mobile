@@ -1,6 +1,7 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
 
+import { claimAudioFocus, registerAudioOwner } from '@/lib/audio-focus';
 import { logError } from '@/lib/errors';
 
 /** "0:42" from seconds. */
@@ -22,9 +23,10 @@ export type InAppAudio = {
 };
 
 /**
- * One in-app audio player for a screen (recitations, audio lessons) via
+ * One in-app audio player for a screen (recitations, pachchakhan) via
  * expo-audio — no browser hand-off. Errors come back as `error` for the
- * screen to show in plain English; the detail is logged.
+ * screen to show in plain English; the detail is logged. Starting it pauses
+ * the app-wide player (src/lib/audio-focus.ts), and the other way round.
  */
 export function useInAppAudio(failMessage: string): InAppAudio {
   const player = useAudioPlayer(null, { updateInterval: 250 });
@@ -32,6 +34,13 @@ export function useInAppAudio(failMessage: string): InAppAudio {
   const [current, setCurrent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const modeSet = useRef(false);
+  const focusId = useRef<number | null>(null);
+
+  useEffect(() => {
+    const owner = registerAudioOwner(() => player.pause());
+    focusId.current = owner.id;
+    return owner.unregister;
+  }, [player]);
 
   useEffect(() => {
     if (status.error) logError(`playing audio ${current ?? ''}`, status.error);
@@ -50,9 +59,13 @@ export function useInAppAudio(failMessage: string): InAppAudio {
         modeSet.current = true;
         setAudioModeAsync({ playsInSilentMode: true }).catch((err: unknown) => logError('setting the audio mode (continuing)', err));
       }
+      if (current === id && status.playing) {
+        player.pause();
+        return;
+      }
+      if (focusId.current !== null) claimAudioFocus(focusId.current, (err) => logError('pausing the other player', err));
       if (current === id) {
-        if (status.playing) player.pause();
-        else player.play();
+        player.play();
         return;
       }
       player.replace({ uri: url });

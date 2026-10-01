@@ -46,7 +46,7 @@ export default function RegistrationsScreen() {
               name: t('guide.regPathshala'),
               sub: [facts.pathshala.name, facts.pathshala.membership_required ? t('guide.regMembershipRequired') : null].filter(Boolean).join(' · '),
               status: registrationStatus(facts.pathshala.registration_opens_at, facts.pathshala.registration_closes_at, now),
-              href: { pathname: '/jain-way', params: { tab: 'learn' } },
+              href: { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } },
             });
           }
           regs.push({

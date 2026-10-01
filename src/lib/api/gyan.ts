@@ -4,7 +4,7 @@ import { supabase } from '../supabase';
 
 import { isMissingBucket } from './photos';
 
-import { classSchedule, registrationOpen, type AttendanceMark, type DailyMinutes } from '../learning';
+import { classSchedule, continueGoalId, registrationOpen, type AttendanceMark, type DailyMinutes } from '../learning';
 
 import type { Center } from './member';
 
@@ -62,6 +62,36 @@ export function goalProgress(goal: GyanGoal, progress: GyanProgress[], personId:
   const stepsTotal = goal.levels.reduce((s, l) => s + l.steps.length, 0);
   const stepsDone = goal.levels.reduce((s, l) => s + l.steps.filter((st) => isStepDone(progress, personId, st.id)).length, 0);
   return { levelsDone, levelsTotal: goal.levels.length, stepsDone, stepsTotal, currentLevel: goal.levels[levelsDone] ?? null, complete: goal.levels.length > 0 && levelsDone >= goal.levels.length };
+}
+
+/** When the person last completed a step in each goal. */
+export function lastActivityByGoal(g: Pick<GyanData, 'goals' | 'progress'>, personId: string): Map<string, string> {
+  const last = new Map<string, string>();
+  for (const goal of g.goals) {
+    const stepIds = new Set(goal.levels.flatMap((l) => l.steps.map((s) => s.id)));
+    const latest = g.progress
+      .filter((pr) => pr.person_id === personId && pr.completed_at && stepIds.has(pr.step_id))
+      .map((pr) => pr.completed_at as string)
+      .sort()
+      .pop();
+    if (latest) last.set(goal.id, latest);
+  }
+  return last;
+}
+
+/**
+ * The level "continue" opens (3L › Learn hero, Home › Learn shortcut): the
+ * first unfinished level of the goal the person is working on (continueGoalId:
+ * most recently active unfinished goal, else the recommended one, else the
+ * first). Null when every goal is finished, the goal has no levels yet or
+ * there are no goals — the caller opens the goals screen (/gyan) instead.
+ */
+export function nextGyanLevel(g: Pick<GyanData, 'goals' | 'progress'>, personId: string): { goal: GyanGoal; level: GyanLevel } | null {
+  const id = continueGoalId(g.goals, lastActivityByGoal(g, personId), (goal) => goalProgress(goal, g.progress, personId).complete);
+  const goal = g.goals.find((x) => x.id === id);
+  if (!goal) return null;
+  const p = goalProgress(goal, g.progress, personId);
+  return p.complete || !p.currentLevel ? null : { goal, level: p.currentLevel };
 }
 
 /**
