@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
@@ -9,36 +8,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
 import { StrokeIcon } from '@/components/stroke-icon';
-import { Banner, Button, Pill, Txt, VStack } from '@/components/ui';
+import { Banner, Button, LinkText, Pill, Txt, VStack } from '@/components/ui';
 import { EventIcon } from '@/features/event-icons';
 import { stepIndex, tileColorIndex } from '@/features/event-rules';
-import { savePhotos, sharePhoto, shareText } from '@/features/media';
+import { savePhotos, sharePhoto } from '@/features/media';
 import { albumCountLabel, albumDateLabel, paletteFor } from '@/features/photos';
-import { getAlbum, isVideoPath, photoUrls, uploadPhoto, type AlbumDetail, type Photo } from '@/lib/api/photos';
-import { AppError, report } from '@/lib/errors';
+import { getAlbum, isVideoPath, photoUrls, type AlbumDetail } from '@/lib/api/photos';
+import { report } from '@/lib/errors';
+import { photoFileName, photoMimeType } from '@/lib/photo-files';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
-import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
 type Data = AlbumDetail & { urls: Record<string, string>; urlError: string | null };
-
-function fileNameFor(p: Photo, i: number): string {
-  const ext = /\.([a-z0-9]{2,5})(\?|$)/i.exec(p.storage_path)?.[1]?.toLowerCase() ?? 'jpg';
-  return `photo-${i + 1}.${ext}`;
-}
-
-function mimeFor(name: string): string {
-  const ext = name.split('.').pop() ?? 'jpg';
-  if (ext === 'png') return 'image/png';
-  if (ext === 'heic') return 'image/heic';
-  if (ext === 'webp') return 'image/webp';
-  if (ext === 'mp4' || ext === 'm4v') return 'video/mp4';
-  if (ext === 'mov') return 'video/quicktime';
-  return 'image/jpeg';
-}
 
 /** Photo album (prototype L992–1009) with the full-screen viewer (L1413–1428). */
 export default function AlbumScreen() {
@@ -66,82 +50,16 @@ export default function AlbumScreen() {
 
 function AlbumBody({ data, onRetry }: { data: Data; onRetry: () => void }) {
   const t = useT();
-  const { center, member } = useApp();
-  const { toast, confirm } = useFeedback();
-  const { invalidate } = useDataVersion();
+  const { center } = useApp();
   const [viewer, setViewer] = useState<number | null>(null);
-  const [busy, setBusy] = useState<'share' | 'download' | 'upload' | null>(null);
-  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pal = paletteFor(data.album.id);
   const tz = center?.time_zone ?? null;
   const date = albumDateLabel(data, tz);
   const count = albumCountLabel(t, data.photos, data.videos);
   const visible = data.items;
-
-  const doShare = async () => {
-    setBusy('share');
-    setError(null);
-    try {
-      await shareText(t('photos.shareAlbumText', { album: data.album.title, date, center: center?.short_name || center?.name || '' }), data.album.external_url);
-    } catch (err) {
-      setError(report(err, 'share this album').userMessage);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const doDownload = async () => {
-    if (data.album.external_url && visible.length === 0) {
-      try {
-        await WebBrowser.openBrowserAsync(data.album.external_url);
-      } catch (err) {
-        setError(report(err, 'open the full album').userMessage);
-      }
-      return;
-    }
-    setBusy('download');
-    setError(null);
-    try {
-      const items = visible
-        .filter((p) => p.status === 'approved' && data.urls[p.storage_path])
-        .map((p, i) => ({ url: data.urls[p.storage_path], fileName: fileNameFor(p, i) }));
-      if (items.length === 0) throw new AppError(t('photos.loadFailed'), 'no downloadable photos');
-      const n = await savePhotos(items);
-      toast(t('photos.downloadStarted', { n }));
-    } catch (err) {
-      setError(report(err, 'download this album').userMessage);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const doUpload = async () => {
-    if (!member || !center) return;
-    setError(null);
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) throw new AppError(t('photos.pickDenied'), `image picker permission ${perm.status}`);
-      const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 10, quality: 0.85 });
-      if (picked.canceled || picked.assets.length === 0) return;
-      // Unsure means "yes": photos with children are only shown to families who agreed.
-      const noChildren = await confirm({ title: t('photos.childrenQuestion'), body: t('photos.childrenBody'), confirmLabel: t('photos.childrenNo'), cancelLabel: t('photos.childrenYes'), tone: 'primary' });
-      setBusy('upload');
-      let done = 0;
-      for (const a of picked.assets) {
-        setProgress(t('photos.uploading', { n: done + 1, total: picked.assets.length }));
-        await uploadPhoto({ centerId: center.id, albumId: data.album.id, userId: member.userId, uri: a.uri, fileName: a.fileName, mimeType: a.mimeType, containsChildren: !noChildren });
-        done += 1;
-      }
-      invalidate();
-      toast(done === 1 ? t('photos.uploadedOne') : t('photos.uploaded', { n: done }));
-    } catch (err) {
-      setError(`${t('photos.uploadFailed')} ${report(err, 'add your photos').userMessage}`);
-      invalidate();
-    } finally {
-      setBusy(null);
-      setProgress(null);
-    }
+  const openOnline = () => {
+    if (data.album.external_url) WebBrowser.openBrowserAsync(data.album.external_url).catch((err: unknown) => setError(report(err, 'open the full album').userMessage));
   };
 
   return (
@@ -154,20 +72,11 @@ function AlbumBody({ data, onRetry }: { data: Data; onRetry: () => void }) {
           {`${date} · ${count}`}
         </Txt>
       </View>
-      <View style={{ flexDirection: 'row', gap: space.sm }}>
-        <AlbumAction label={t('photos.share')} onPress={doShare} busy={busy === 'share'} disabled={!!busy} />
-        <AlbumAction label={t('photos.download')} onPress={doDownload} busy={busy === 'download'} disabled={!!busy} />
-        <AlbumAction label={t('photos.addYours')} onPress={doUpload} busy={busy === 'upload'} disabled={!!busy || !member} filled />
-      </View>
-      {progress ? (
-        <Txt variant="meta" color="muted" accessibilityLiveRegion="polite">
-          {progress}
-        </Txt>
-      ) : null}
       {error ? <Banner tone="error" message={error} /> : null}
       {data.urlError ? <Banner tone="error" message={data.urlError} action={{ label: t('common.retry'), onPress: onRetry }} /> : null}
+      {data.album.external_url && visible.length > 0 ? <LinkText label={t('photos.openExternal')} onPress={openOnline} /> : null}
       {visible.length === 0 ? (
-        <EmptyState icon="images-outline" title={t(data.album.external_url ? 'photos.onlineAlbum' : 'photos.emptyAlbum')} body={t(data.album.external_url ? 'photos.onlineAlbumBody' : 'photos.emptyAlbumBody')} action={data.album.external_url ? { label: t('photos.openExternal'), onPress: () => void WebBrowser.openBrowserAsync(data.album.external_url as string).catch((err: unknown) => setError(report(err, 'open the full album').userMessage)) } : undefined} />
+        <EmptyState icon="images-outline" title={t(data.album.external_url ? 'photos.onlineAlbum' : 'photos.emptyAlbum')} body={t(data.album.external_url ? 'photos.onlineAlbumBody' : 'photos.emptyAlbumBody')} action={data.album.external_url ? { label: t('photos.openExternal'), onPress: openOnline } : undefined} />
       ) : (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
           {visible.map((p, i) => {
@@ -203,14 +112,6 @@ function AlbumBody({ data, onRetry }: { data: Data; onRetry: () => void }) {
   );
 }
 
-function AlbumAction({ label, onPress, busy, disabled, filled }: { label: string; onPress: () => void; busy?: boolean; disabled?: boolean; filled?: boolean }) {
-  return (
-    <View style={{ flex: 1 }}>
-      <Button label={label} onPress={onPress} busy={busy} disabled={disabled} tone={filled ? 'primary' : 'secondary'} size="sm" style={{ borderRadius: radii.card, paddingHorizontal: space.xs }} />
-    </View>
-  );
-}
-
 /** Full-screen dark viewer: close, "1 of 90", photo, ‹ Prev · Share · Save · Next ›. */
 function Viewer({ data, index, onIndex, onClose }: { data: Data; index: number; onIndex: (i: number) => void; onClose: () => void }) {
   const t = useT();
@@ -223,14 +124,14 @@ function Viewer({ data, index, onIndex, onClose }: { data: Data; index: number; 
   const uri = p ? data.urls[p.storage_path] : undefined;
   const video = p ? isVideoPath(p.storage_path) : false;
   const pal = paletteFor(data.album.id);
-  const name = p ? fileNameFor(p, index) : 'photo.jpg';
+  const name = p ? photoFileName(p.storage_path, index) : 'photo.jpg';
 
   const run = async (kind: 'share' | 'save') => {
     if (!uri) return setError(t('photos.loadFailed'));
     setBusy(kind);
     setError(null);
     try {
-      if (kind === 'share') await sharePhoto(uri, name, mimeFor(name));
+      if (kind === 'share') await sharePhoto(uri, name, photoMimeType(name));
       else {
         await savePhotos([{ url: uri, fileName: name }]);
         toast(t('photos.saved'));

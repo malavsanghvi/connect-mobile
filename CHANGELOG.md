@@ -14,6 +14,14 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.5.0 — 2026-10-01
+
+- **Saathi is now called Circle** (My Jain Way › Today · 3L · Circle, and the sign-in, notification and encouragement wording).
+- **Photo albums open straight away.** On Events › Photos, tapping an album card opens the album itself; an album whose
+  photos are in an online album (a Google Photos link) and none in the app opens that online album directly. **Share,
+  Download and Add** are on the card, so the extra album screen with the three buttons is gone (the album screen is just the
+  photos, with a link to the full online album when there is one). An online-only album says "Online album" instead of "0 photos".
+
 ## 1.4.3 — 2026-10-01
 
 - Menu: **Calendar moves below Satvik Store**, so the menu reads My Donations, Pathshala Connect, RSVP, Satvik Store, Calendar.
