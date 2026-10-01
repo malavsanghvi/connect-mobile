@@ -8,6 +8,7 @@ import { Banner, Txt } from '@/components/ui';
 import type { Translate } from '@/i18n';
 import { albumOpenTarget } from '@/lib/album-open';
 import { listAlbums, photoUrls, type AlbumSummary } from '@/lib/api/photos';
+import { sizedPhotoUrl } from '@/lib/photo-size';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
@@ -92,7 +93,7 @@ function AlbumCard({ a, urls, tz }: { a: AlbumSummary; urls: Record<string, stri
   const t = useT();
   const router = useRouter();
   const pal = paletteFor(a.album.id);
-  const [c1, c2, c3] = a.coverPaths.map((p) => urls[p]);
+  const [c1, c2, c3] = a.coverPaths.map((p) => sizedPhotoUrl(urls[p], 'thumb'));
   const date = albumDateLabel(a, tz);
   const online = albumOpenTarget(a) === 'online';
   const count = online ? t('photos.onlineCount') : albumCountLabel(t, a.photos, a.videos);

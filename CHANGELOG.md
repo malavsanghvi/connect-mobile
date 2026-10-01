@@ -14,6 +14,12 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.5.2 — 2026-10-01
+
+- Events › Photos: photos brought in from a Google Photos album (portal › Content › Photos › the album › Import photos from
+  Google Photos, then Approve all) show sharp: square tiles in the grid, a large picture in the viewer, a full-size copy when
+  you save or share one.
+
 ## 1.5.1 — 2026-10-01
 
 - Home: the guide card is now **My JSH** (your community's short name): WhatsApp groups, your zone, timings, volunteering,

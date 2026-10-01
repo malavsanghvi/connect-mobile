@@ -16,6 +16,7 @@ import { albumCountLabel, albumDateLabel, paletteFor } from '@/features/photos';
 import { getAlbum, isVideoPath, photoUrls, type AlbumDetail } from '@/lib/api/photos';
 import { report } from '@/lib/errors';
 import { photoFileName, photoMimeType } from '@/lib/photo-files';
+import { sizedPhotoUrl } from '@/lib/photo-size';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
@@ -80,7 +81,7 @@ function AlbumBody({ data, onRetry }: { data: Data; onRetry: () => void }) {
       ) : (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
           {visible.map((p, i) => {
-            const uri = data.urls[p.storage_path];
+            const uri = sizedPhotoUrl(data.urls[p.storage_path], 'thumb');
             const video = isVideoPath(p.storage_path);
             return (
               <Pressable
@@ -121,19 +122,20 @@ function Viewer({ data, index, onIndex, onClose }: { data: Data; index: number; 
   const [error, setError] = useState<string | null>(null);
   const total = data.items.length;
   const p = data.items[index];
-  const uri = p ? data.urls[p.storage_path] : undefined;
+  const uri = p ? sizedPhotoUrl(data.urls[p.storage_path], 'full') : undefined;
+  const saveUri = p ? sizedPhotoUrl(data.urls[p.storage_path], 'save') : undefined;
   const video = p ? isVideoPath(p.storage_path) : false;
   const pal = paletteFor(data.album.id);
   const name = p ? photoFileName(p.storage_path, index) : 'photo.jpg';
 
   const run = async (kind: 'share' | 'save') => {
-    if (!uri) return setError(t('photos.loadFailed'));
+    if (!saveUri) return setError(t('photos.loadFailed'));
     setBusy(kind);
     setError(null);
     try {
-      if (kind === 'share') await sharePhoto(uri, name, photoMimeType(name));
+      if (kind === 'share') await sharePhoto(saveUri, name, photoMimeType(name));
       else {
-        await savePhotos([{ url: uri, fileName: name }]);
+        await savePhotos([{ url: saveUri, fileName: name }]);
         toast(t('photos.saved'));
       }
     } catch (err) {
