@@ -54,6 +54,13 @@ How a release is made:
 - New native parts (speech recognition, text-to-speech, haptics) and the speech-recognition permission: **runtime 3**, so
   this release needs the new Android build; JavaScript updates then reach it over the air again.
 
+## 1.5.3 — 2026-10-01
+
+- Home (web): the row of shortcuts under Today at {center} scrolls sideways with the mouse wheel and shows its scrollbar;
+  a mouse could not move it before. Phones swipe it as before.
+- Sign-up: when no family is found for your email or mobile number, the screen is titled "Let's set up your family"
+  instead of asking "Is this your family?" ("Finding your family" while it looks).
+
 ## 1.5.2 — 2026-10-01
 
 - Events › Photos: photos brought in from a Google Photos album (portal › Content › Photos › the album › Import photos from

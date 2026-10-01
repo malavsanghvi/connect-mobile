@@ -131,6 +131,8 @@ export const en = {
 
   // Family match (step 2)
   'match.title': 'Is this your family?',
+  'match.titleLooking': 'Finding your family',
+  'match.titleNone': "Let's set up your family",
   'match.looking': 'Looking up your family…',
   'match.found': 'We matched {identity} to the {center} membership records.',
   'match.yourEmail': 'your email',

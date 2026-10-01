@@ -92,8 +92,11 @@ export default function FamilyMatchScreen() {
     </Card>
   );
 
+  // Only ask "Is this your family?" when there is a family to show; with no match the screen is about starting one.
+  const title = candidates.data == null ? t('match.titleLooking') : candidates.data.length === 0 ? t('match.titleNone') : t('match.title');
+
   return (
-    <OnboardingFrame step="match" title={t('match.title')} onBack={() => signOut().catch((err: unknown) => logError('signing out from family match', err))}>
+    <OnboardingFrame step="match" title={title} onBack={() => signOut().catch((err: unknown) => logError('signing out from family match', err))}>
       {error ? <Banner tone="error" message={error} /> : null}
       <Loaded state={candidates} loadingLabel={t('match.looking')}>
         {(rows) => {
