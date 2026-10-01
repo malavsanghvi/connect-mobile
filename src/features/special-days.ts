@@ -20,6 +20,16 @@ export function occasionOf(day: Pick<SpecialDay, 'kind' | 'calendar_date' | 'tit
   return 'other';
 }
 
+/**
+ * Whether a special day offers "Plan labh" (the pledge options for the day). It is offered on every
+ * eligible day, however far off: the reminder window only decides when the reminder is sent, and
+ * app.commit_labh takes no date check, so a family can plan ahead. Not offered for a punyatithi, for a
+ * day whose family switched the prompt off, to children, or when the giving module is off.
+ */
+export function canPlanLabh(args: { givingOn: boolean; isAdult: boolean; occasion: Occasion | 'diksha'; labhPromptEnabled: boolean }): boolean {
+  return args.givingOn && args.isAdult && args.labhPromptEnabled && args.occasion !== 'punyatithi';
+}
+
 export function kindLabel(t: Translate, kind: string): string {
   switch (kind) {
     case 'birthday':
