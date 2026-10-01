@@ -24,7 +24,7 @@ export default function RandomPodcastScreen() {
   const player = usePlayer();
   const { state, round, again } = useRandomPick(
     () => (center && member ? randomMedia(center.id, 'podcast') : Promise.resolve(null)),
-    getMediaItem,
+    (id) => (center ? getMediaItem(id, center.id) : Promise.resolve(null)),
     [center?.id ?? null, member?.person.id ?? null],
     'pick a podcast',
   );

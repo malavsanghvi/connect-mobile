@@ -15,9 +15,9 @@ import { useT } from '@/providers/settings';
 export default function RecipeScreen() {
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { member } = useApp();
+  const { center, member } = useApp();
   const { invalidate } = useDataVersion();
-  const state = useLoad(() => (member && id ? getMediaItem(id) : Promise.resolve(null as MediaItem | null)), [id, member?.person.id], 'load this recipe');
+  const state = useLoad(() => (member && center && id ? getMediaItem(id, center.id) : Promise.resolve(null as MediaItem | null)), [id, center?.id, member?.person.id], 'load this recipe');
   return (
     <Screen title={t('media.kind.recipe')} onRefresh={async () => invalidate()}>
       {member ? <Loaded state={state}>{(item) => (!item ? null : item.kind === 'recipe' ? <RecipeView item={item} /> : <MediaDetailView item={item} />)}</Loaded> : <MembersOnly />}

@@ -23,7 +23,7 @@ export default function RandomRecipeScreen() {
   const { center, member } = useApp();
   const { state, again } = useRandomPick(
     () => (center && member ? randomMedia(center.id, 'recipe', true) : Promise.resolve(null)),
-    getMediaItem,
+    (id) => (center ? getMediaItem(id, center.id) : Promise.resolve(null)),
     [center?.id ?? null, member?.person.id ?? null],
     'pick a recipe',
   );

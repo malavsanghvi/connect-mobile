@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
 import { addToPlaylist, removeFromPlaylist, toggleMediaLike } from '@/lib/api/media';
-import { report } from '@/lib/errors';
+import { AppError, logError, report } from '@/lib/errors';
 import type { MediaItem } from '@/lib/media-library';
+import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useMediaState } from '@/providers/media-state';
@@ -23,10 +24,12 @@ export type MediaActions = {
 /**
  * Heart and "add to My playlist" for one screen. The change shows at once
  * (shared with every other 3L screen), is undone if the server refuses, and
- * the failure is shown in plain English with a retry.
+ * the failure is shown in plain English with a retry. Likes and the playlist
+ * are kept per community, so every call names the current one.
  */
 export function useMediaActions(): MediaActions {
   const t = useT();
+  const { center } = useApp();
   const { toast } = useFeedback();
   const { invalidate } = useDataVersion();
   const state = useMediaState();
@@ -35,6 +38,13 @@ export function useMediaActions(): MediaActions {
 
   const mark = (id: string, on: boolean) => setBusy((prev) => ({ ...prev, [id]: on }));
 
+  const centerId = (): string => {
+    if (center) return center.id;
+    const err = new AppError('Your community has not loaded yet. Please try again in a moment.', 'media like / playlist change without a current center');
+    logError('change a like or your playlist', err);
+    throw err;
+  };
+
   const toggleLike = async (item: MediaItem) => {
     if (busy[item.id]) return;
     const before = state.likeOf(item).liked;
@@ -42,7 +52,7 @@ export function useMediaActions(): MediaActions {
     mark(item.id, true);
     setFailure(null);
     try {
-      state.setLiked(item.id, await toggleMediaLike(item.id));
+      state.setLiked(item.id, await toggleMediaLike(item.id, centerId()));
     } catch (err) {
       state.setLiked(item.id, before);
       setFailure({ message: report(err, 'save your like').userMessage, retry: () => void toggleLike(item) });
@@ -58,8 +68,8 @@ export function useMediaActions(): MediaActions {
     mark(item.id, true);
     setFailure(null);
     try {
-      if (before) await removeFromPlaylist(item.id);
-      else await addToPlaylist(item.id);
+      if (before) await removeFromPlaylist(item.id, centerId());
+      else await addToPlaylist(item.id, centerId());
       invalidate();
       toast(before ? t('media.removedToast', { title: item.title }) : t('media.addedToast', { title: item.title }), before ? 'info' : 'success');
     } catch (err) {

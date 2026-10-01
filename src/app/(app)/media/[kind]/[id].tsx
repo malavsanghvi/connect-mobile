@@ -15,9 +15,9 @@ import { useT } from '@/providers/settings';
 export default function MediaItemScreen() {
   const t = useT();
   const { id, kind } = useLocalSearchParams<{ id: string; kind: string }>();
-  const { member } = useApp();
+  const { center, member } = useApp();
   const { invalidate } = useDataVersion();
-  const state = useLoad(() => (member && id ? getMediaItem(id) : Promise.resolve(null as MediaItem | null)), [id, member?.person.id], 'load this item');
+  const state = useLoad(() => (member && center && id ? getMediaItem(id, center.id) : Promise.resolve(null as MediaItem | null)), [id, center?.id, member?.person.id], 'load this item');
   const shownKind = state.data?.kind ?? (isMediaKind(kind) ? kind : null);
   return (
     <Screen title={shownKind ? kindName(t, shownKind) : t('threeL.title')} onRefresh={async () => invalidate()}>

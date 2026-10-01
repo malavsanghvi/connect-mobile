@@ -9,7 +9,7 @@ import { useLoad, type LoadState } from '@/lib/use-load';
  */
 export function useRandomPick<T extends { id: string }>(
   pick: () => Promise<T | null>,
-  byId: (id: string) => Promise<T>,
+  byId: (id: string) => Promise<T | null>,
   deps: readonly unknown[],
   action: string,
 ): { state: LoadState<T | null>; round: number; again: () => void } {

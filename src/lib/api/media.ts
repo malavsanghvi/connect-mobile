@@ -45,16 +45,22 @@ export async function listMedia(centerId: string, kinds: readonly MediaKind[], o
   return parseMediaRows(unwrap(res, query ? `search the ${what}` : `load the ${what}`));
 }
 
+/*
+ * Item-level calls carry the current community (`p_center`): an item shared
+ * by the platform (center_id null) is liked and kept on a playlist per
+ * community, and its likes and "in my playlist" are read for this one.
+ */
+
 /** One item for its detail screen. */
-export async function getMediaItem(id: string): Promise<MediaItem> {
-  const [item] = parseMediaRows(unwrap(await supabase.rpc('media_item', { p_item: id }), 'load this item'));
+export async function getMediaItem(id: string, centerId: string): Promise<MediaItem> {
+  const [item] = parseMediaRows(unwrap(await supabase.rpc('media_item', { p_item: id, p_center: centerId }), 'load this item'));
   if (!item) throw new AppError("We couldn't find this item. It may have been removed from the library.", `media_item ${id}: no row`);
   return item;
 }
 
 /** Like or unlike; returns the new state (the server's answer, not a guess). */
-export async function toggleMediaLike(id: string): Promise<boolean> {
-  return unwrap(await supabase.rpc('toggle_media_like', { p_item: id }), 'save your like') === true;
+export async function toggleMediaLike(id: string, centerId: string): Promise<boolean> {
+  return unwrap(await supabase.rpc('toggle_media_like', { p_item: id, p_center: centerId }), 'save your like') === true;
 }
 
 /** My playlist, in the member's order. */
@@ -64,12 +70,12 @@ export async function loadMyPlaylist(centerId: string): Promise<MediaItem[]> {
 }
 
 /** Add to the end of My playlist (adding twice changes nothing). */
-export async function addToPlaylist(id: string): Promise<void> {
-  unwrap(await supabase.rpc('add_to_playlist', { p_item: id }), 'add this to your playlist');
+export async function addToPlaylist(id: string, centerId: string): Promise<void> {
+  unwrap(await supabase.rpc('add_to_playlist', { p_item: id, p_center: centerId }), 'add this to your playlist');
 }
 
-export async function removeFromPlaylist(id: string): Promise<void> {
-  unwrap(await supabase.rpc('remove_from_playlist', { p_item: id }), 'remove this from your playlist');
+export async function removeFromPlaylist(id: string, centerId: string): Promise<void> {
+  unwrap(await supabase.rpc('remove_from_playlist', { p_item: id, p_center: centerId }), 'remove this from your playlist');
 }
 
 /** Save My playlist in this order (every item id, first to last). */
