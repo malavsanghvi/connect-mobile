@@ -1,10 +1,12 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Banner, Txt, VStack } from '@/components/ui';
 import { GyanHeaderChips } from '@/features/gyan-header';
 import { Button3D } from '@/features/gyan-ui';
+import type { GyanStep } from '@/lib/api/gyan';
+import { logError } from '@/lib/errors';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
@@ -51,6 +53,24 @@ export function LessonFrame({ frame, answered, footer, children }: { frame: Fram
       </ScrollView>
     </Screen>
   );
+}
+
+/**
+ * Log, once, that a step's content can't be shown, with the start of its
+ * payload, so the office can find and fix it. The member sees a plain line
+ * on the step itself.
+ */
+export function useBrokenContentLog(broken: boolean, step: GyanStep, what: string): void {
+  useEffect(() => {
+    if (!broken) return;
+    let payload: string;
+    try {
+      payload = JSON.stringify(step.kind === 'quiz' ? step.quiz : step.activity) ?? 'null';
+    } catch {
+      payload = '(not serialisable)';
+    }
+    logError(`Gyan Path step ${step.id} (${step.kind}, "${step.title}") has ${what}`, payload.slice(0, 600));
+  }, [broken, step, what]);
 }
 
 export type PrimaryTone = 'go' | 'check' | 'skip';

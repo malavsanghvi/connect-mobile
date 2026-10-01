@@ -54,6 +54,13 @@ export type StepContext = {
 
 export type StepProps = { ctx: StepContext };
 
+/**
+ * Stars for a step whose content can't be shown (no questions, lines, spots
+ * or cards it can read): the step can still be finished, with 1 star, so a
+ * later fix to the content can raise it ("stars never go down").
+ */
+export const BROKEN_STEP_STARS = 1;
+
 /** gyan_steps.activity (connect-crm 0570): the payload for cards, hotspot and voice steps. */
 export function stepActivity(step: GyanStep): unknown {
   return step.activity ?? null;

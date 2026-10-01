@@ -4,6 +4,7 @@
  * __tests__/hotspot-logic.test.ts.
  */
 import type { HotspotSpot } from './activity';
+import type { Line } from './points';
 
 /** Smallest tap circle on screen (radius, px): 44px targets. */
 export const MIN_TAP_RADIUS = 22;
@@ -11,6 +12,32 @@ export const MIN_TAP_RADIUS = 22;
 /** On-screen centre and tap radius of a spot for an image drawn at width × height. */
 export function spotBox(spot: Pick<HotspotSpot, 'x' | 'y' | 'r'>, width: number, height: number): { cx: number; cy: number; radius: number } {
   return { cx: spot.x * width, cy: spot.y * height, radius: Math.max(MIN_TAP_RADIUS, spot.r * width) };
+}
+
+/**
+ * Where a tap landed inside the touch layer over the picture: `locationX/Y`
+ * on a phone, `offsetX/Y` of the click on the web (the layer has no children,
+ * so both are measured from its own corner). Null when the event has neither.
+ */
+export function tapPoint(nativeEvent: unknown): { x: number; y: number } | null {
+  const e = nativeEvent && typeof nativeEvent === 'object' ? (nativeEvent as Record<string, unknown>) : {};
+  const pick = (a: unknown, b: unknown) => (typeof a === 'number' && Number.isFinite(a) ? a : typeof b === 'number' && Number.isFinite(b) ? b : null);
+  const x = pick(e.locationX, e.offsetX);
+  const y = pick(e.locationY, e.offsetY);
+  return x === null || y === null ? null : { x, y };
+}
+
+/**
+ * Spots in reading order on the picture (top to bottom, then left to right),
+ * for screen readers and the list in practice: the tap order is the answer,
+ * so it must not be the order they are read out in.
+ */
+export function spatialOrder<T extends { s: Pick<HotspotSpot, 'x' | 'y'> }>(entries: readonly T[]): T[] {
+  const band = (y: number) => Math.round(y * 50); // rows 2% of the height apart read as one row
+  return entries
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => band(a.e.s.y) - band(b.e.s.y) || a.e.s.x - b.e.s.x || a.i - b.i)
+    .map((x) => x.e);
 }
 
 /** The spot under a tap (px within the drawn image), nearest centre first; null when the tap hit no spot. */
@@ -69,7 +96,15 @@ export function practiceScore(spotCount: number, slips: number): number {
   return Math.round((spotCount * 100) / (spotCount + Math.max(0, slips)));
 }
 
-/** A finished try counts (and earns practice points) with at most `maxSlips` wrong taps. */
+/** A finished try counts (completes the step, and earns practice points) with at most `maxSlips` wrong taps. */
 export function practiceSuccess(state: PracticeState, maxSlips: number): boolean {
   return state.done && state.slips <= maxSlips;
+}
+
+/** What to say when a try is finished: every touch in order, "1 wrong touch", or too many to go on. */
+export function practiceNote(slips: number, maxSlips: number): Line {
+  if (slips <= 0) return { key: 'gyan.tryClean' };
+  if (slips <= maxSlips) return slips === 1 ? { key: 'gyan.trySlip' } : { key: 'gyan.trySlips', vars: { n: slips } };
+  if (maxSlips <= 0) return slips === 1 ? { key: 'gyan.tryTooManyOne' } : { key: 'gyan.tryTooManyNone', vars: { n: slips } };
+  return { key: 'gyan.tryTooMany', vars: { n: slips, max: maxSlips } };
 }
