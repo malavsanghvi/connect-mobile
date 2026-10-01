@@ -18,20 +18,35 @@ How a release is made:
 
 - **Gyan Path lessons are interactive.** Each step has its own screen:
   - **Cards** to swipe through (read steps, and practice steps with their own done button, e.g. "I sat calmly for 5
-    minutes").
+    minutes"). The dots, "Card 2 of 3" and the Next button follow your swipe on the web too; with a screen reader only the
+    card on screen is read, and Next and Back say which card you are on. A card picture that can't load says so, with
+    Retry.
   - **Five quiz types:** pick one (a wrong first pick gets one more try, then the "why"), true or false, put in order
-    (tap to arrange), match the pairs (tap left, then right) and pick the missing word.
-  - **Learn Puja · Navang puja of Mahavir Swami:** a picture of the murti with glowing spots. *Learn* shows one touch at a
-    time with what to do and why ("Puja 3 of 9"); *Practice* asks for every touch in order — a wrong touch shakes and the
-    right spot glows. Practise as often as you like. For now the picture is a simple drawing; the photo from our derasar
-    replaces it without an app update.
+    (tap to arrange), match the pairs (tap left, then right) and pick the missing word. With a screen reader, match says
+    which column a word is in and what each tap did; in put in order a placed item stays in the list, greyed out, so the
+    focus doesn't jump away.
+  - **Learn Puja · Navang puja of Mahavir Swami:** the photo of the murti at our derasar (it replaces the drawing), with
+    glowing spots. *Learn* shows one touch at a time with what to do and why ("Puja 3 of 9"); *Practice* asks for every
+    touch in order — a wrong touch shakes and the right spot glows. Practise as often as you like, but **Continue comes
+    only after a good try** (no more wrong touches than the lesson allows, 2 unless it says otherwise); after a try with
+    more, Practise again is the main button. A touch goes to the spot nearest your finger, so on a small phone the shikha
+    and forehead spots no longer take each other's touches. If the picture can't be shown, the spots become a list of
+    buttons, so the step can still be done.
   - **Navkar Mantra out loud:** listen to each line (the phone reads it in Hindi, or in English letters when it has no
     Hindi voice), say it back while the phone listens, see the words to practise in red, then say it all. Listening uses
     the phone's own speech recognition and asks for the microphone first, in plain English; the app keeps only the score.
-- **Points for every activity.** "+10 points" when you finish a step for the first time, and each good practice try earns
-  more, up to 10 tries a day per activity ("+3 points · 4 of 10 today"; after that: "Today's practice points are done —
-  keep practising!"). Finishing a level shows its bonus and treasure points. Confetti and a small buzz on right, wrong and
-  complete (no confetti with Reduce Motion on).
+    **Say it all is fair:** the ways phones often write the words (ऐसो or ऐसे, सब, लोये, "5" for पंच) count as right, and
+    leaving out whole lines is not a pass. A pass earns stars by how much you said (up to 3); continuing without speaking,
+    or without a pass, is 1 star and still finishes the step (not every phone can listen). **Android 12 and below:** say
+    it all keeps listening through the pauses between lines until you tap the microphone to finish. On the **web**, a
+    blocked microphone says to allow it with the icon in the browser's address bar. If the phone stops answering while
+    listening, it stops by itself after a few seconds instead of staying on "Listening…".
+- **Points for every activity.** "+10 points" when you finish a step for the first time, and each good practice try (Navang
+  practice, Navkar say it all) earns more, up to 10 tries a day per activity ("+3 points · 4 of 10 today"; after that:
+  "Today's practice points are done — keep practising!"). When the community sets the daily limit to 0, tries earn no
+  points and there is no counter. A try sent again after a lost connection counts once. Finishing a level shows the points
+  it actually paid, with its bonus and treasure. Confetti and a small buzz on right, wrong and complete (no confetti or
+  bouncing with Reduce Motion on).
 - New native parts (speech recognition, text-to-speech, haptics) and the speech-recognition permission: **runtime 3**, so
   this release needs the new Android build; JavaScript updates then reach it over the air again.
 
