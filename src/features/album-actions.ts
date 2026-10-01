@@ -6,6 +6,7 @@ import { getAlbum, photoUrls, uploadPhoto, type AlbumSummary } from '@/lib/api/p
 import { onlineAlbumUrl } from '@/lib/album-open';
 import { AppError, report } from '@/lib/errors';
 import { photoFileName } from '@/lib/photo-files';
+import { sizedPhotoUrl } from '@/lib/photo-size';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
@@ -60,7 +61,7 @@ export function useAlbumActions(a: AlbumSummary, dateLabel: string) {
     try {
       const album = await getAlbum(a.album.id, member?.userId ?? null);
       const urls = await photoUrls(album.items.map((p) => p.storage_path));
-      const items = album.items.filter((p) => p.status === 'approved' && urls[p.storage_path]).map((p, i) => ({ url: urls[p.storage_path], fileName: photoFileName(p.storage_path, i) }));
+      const items = album.items.filter((p) => p.status === 'approved' && urls[p.storage_path]).map((p, i) => ({ url: sizedPhotoUrl(urls[p.storage_path], 'save') ?? urls[p.storage_path], fileName: photoFileName(p.storage_path, i) }));
       if (items.length === 0) throw new AppError(t('photos.loadFailed'), 'no downloadable photos');
       const n = await savePhotos(items);
       toast(t('photos.downloadStarted', { n }));
