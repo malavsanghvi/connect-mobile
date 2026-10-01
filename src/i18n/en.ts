@@ -304,6 +304,12 @@ export const en = {
   'prefs.adultsOnly': 'Documents and mail is chosen by an adult of the family.',
 
   // Done (step 6)
+  'preview.banner': 'Preview: nothing you enter here is saved or sent.',
+  'preview.exit': 'Exit preview',
+  'preview.notSaved': 'Preview only · nothing was saved',
+  'preview.notSent': 'Preview only · no request was sent',
+  'preview.doneNote': 'That was a preview. Nothing was saved or sent.',
+  'family.previewOnboarding': 'Preview onboarding (nothing is saved)',
   'planDays.title': "Your family's special days",
   'planDays.subtitle': 'Add birthdays, anniversaries and other days. We remind you ahead of each one, so you can plan a labh for the day.',
   'planDays.added': 'Added so far',

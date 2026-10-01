@@ -87,12 +87,12 @@ export function DocumentsChoice({ value, onChange, required }: { value: boolean 
  * channels (2×2 incl. Phone call), best time to call, app language,
  * "Interested in" (people.interests), and the required documents-and-mail choice.
  */
-export function ContactPrefsForm({ member, centerId, onSaved }: { member: Member; centerId: string; onSaved: (summary: ContactSummary) => void }) {
+export function ContactPrefsForm({ member, centerId, onSaved, preview = false }: { member: Member; centerId: string; onSaved: (summary: ContactSummary) => void; /** Preview of onboarding: nothing is saved and the app language is left alone. */ preview?: boolean }) {
   const state = useLoad(() => loadContactPrefs(centerId, member.person.id, member.household?.id ?? null), [centerId, member.person.id, member.household?.id], 'load contact preferences');
-  return <Loaded state={state}>{(data) => <Editor initial={data} member={member} centerId={centerId} onSaved={onSaved} />}</Loaded>;
+  return <Loaded state={state}>{(data) => <Editor initial={data} member={member} centerId={centerId} onSaved={onSaved} preview={preview} />}</Loaded>;
 }
 
-function Editor({ initial, member, centerId, onSaved }: { initial: ContactPrefs; member: Member; centerId: string; onSaved: (summary: ContactSummary) => void }) {
+function Editor({ initial, member, centerId, onSaved, preview }: { initial: ContactPrefs; member: Member; centerId: string; onSaved: (summary: ContactSummary) => void; preview: boolean }) {
   const { t, setLanguage } = useSettings();
   const { center } = useApp();
   const person = member.person;
@@ -110,6 +110,7 @@ function Editor({ initial, member, centerId, onSaved }: { initial: ContactPrefs;
 
   const submit = async () => {
     if (blocked) return;
+    if (preview) return onSaved({ channels, physicalMail: needsPaper ? paper : null });
     setBusy(true);
     setError(null);
     try {

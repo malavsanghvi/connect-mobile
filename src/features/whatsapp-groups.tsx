@@ -18,7 +18,7 @@ import { colors, fonts, radii, space, touch } from '@/theme';
  */
 export function useWhatsAppGroups() {
   const t = useT();
-  const { center, member } = useApp();
+  const { center, member, onboardingPreview } = useApp();
   const { toast } = useFeedback();
   const { invalidate } = useDataVersion();
   const [busy, setBusy] = useState<string | null>(null);
@@ -29,6 +29,8 @@ export function useWhatsAppGroups() {
 
   const request = async (groupId: string) => {
     if (!center || !member) return;
+    // Preview of onboarding: no request is sent to the admins.
+    if (onboardingPreview) return toast(t('preview.notSent'));
     setBusy(groupId);
     setError(null);
     try {

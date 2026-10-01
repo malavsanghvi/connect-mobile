@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { IconButton, LinkText, ProgressBar, Row, Txt } from '@/components/ui';
+import { Banner, IconButton, LinkText, ProgressBar, Row, Txt } from '@/components/ui';
+import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 import { colors, layout, space } from '@/theme';
 
@@ -27,6 +28,7 @@ export function OnboardingFrame({
   onSkip?: () => void;
 }) {
   const t = useT();
+  const { onboardingPreview, setOnboarding } = useApp();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}>
       {/* Onboarding.dc.html top bar: padding 16/20/8, back · "Step n of 6" · skip, 6px progress. */}
@@ -39,6 +41,7 @@ export function OnboardingFrame({
           {onSkip ? <LinkText label={t('onboarding.skip')} onPress={onSkip} /> : null}
         </Row>
         <ProgressBar value={step / ONBOARDING_STEPS} color={colors.navy} track={colors.track} label={t('onboarding.stepOf', { step, total: ONBOARDING_STEPS })} />
+        {onboardingPreview ? <Banner tone="info" message={t('preview.banner')} action={{ label: t('preview.exit'), onPress: () => setOnboarding(false) }} /> : null}
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: space.gutter, paddingTop: space.md, paddingBottom: space.xxl }}>

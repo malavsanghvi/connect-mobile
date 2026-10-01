@@ -10,7 +10,7 @@ import { useT } from '@/providers/settings';
 export default function ContactStepScreen() {
   const router = useRouter();
   const t = useT();
-  const { member, center } = useApp();
+  const { member, center, onboardingPreview } = useApp();
   if (!member || !center) return null;
   return (
     <OnboardingFrame
@@ -21,6 +21,7 @@ export default function ContactStepScreen() {
       <ContactPrefsForm
         member={member}
         centerId={center.id}
+        preview={onboardingPreview}
         onSaved={(summary) =>
           router.push({
             pathname: '/done',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { ONBOARDING_STEP_NUMBER, ONBOARDING_STEPS, stepAfterFamily } from '../onboarding/steps';
+import { modeAfterMemberLoad, ONBOARDING_STEP_NUMBER, ONBOARDING_STEPS, stepAfterFamily } from '../onboarding/steps';
 
 describe('onboarding steps', () => {
   it('sends an adult from "Your family" to special days, and a child straight to contact preferences', () => {
@@ -18,5 +18,10 @@ describe('onboarding steps', () => {
 
   it('shows the last step as "n of n"', () => {
     expect(ONBOARDING_STEPS).toBe(ONBOARDING_STEP_NUMBER.contact);
+  });
+
+  it('starts a real onboarding only for a login not yet linked to a person, and never carries a preview over', () => {
+    expect(modeAfterMemberLoad(false)).toBe('on');
+    expect(modeAfterMemberLoad(true)).toBe('off');
   });
 });

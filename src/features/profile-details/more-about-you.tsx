@@ -49,6 +49,7 @@ export function MoreAboutYou({
   isAdult,
   editable,
   variant,
+  preview = false,
   subjectName,
   submitLabel,
   onSaved,
@@ -57,6 +58,8 @@ export function MoreAboutYou({
   isAdult: boolean;
   editable: boolean;
   variant: 'onboarding' | 'profile';
+  /** Preview of onboarding: validate as usual, then carry on without saving anything. */
+  preview?: boolean;
   /** First name of the person when someone else is filling it in (a parent for a child), else omit. */
   subjectName?: string;
   submitLabel?: string;
@@ -84,7 +87,7 @@ export function MoreAboutYou({
     <Loaded state={state}>
       {(data) =>
         data ? (
-          <Editor person={person} isAdult={isAdult} editable={editable} variant={variant} subjectName={subjectName} submitLabel={submitLabel} onSaved={onSaved} row={data.row} options={data.options} groups={data.groups} mine={data.mine} />
+          <Editor person={person} isAdult={isAdult} editable={editable} variant={variant} preview={preview} subjectName={subjectName} submitLabel={submitLabel} onSaved={onSaved} row={data.row} options={data.options} groups={data.groups} mine={data.mine} />
         ) : null
       }
     </Loaded>
@@ -96,6 +99,7 @@ function Editor({
   isAdult,
   editable,
   variant,
+  preview,
   subjectName,
   submitLabel,
   onSaved,
@@ -108,6 +112,7 @@ function Editor({
   isAdult: boolean;
   editable: boolean;
   variant: 'onboarding' | 'profile';
+  preview: boolean;
   subjectName?: string;
   submitLabel?: string;
   onSaved?: () => void;
@@ -143,6 +148,7 @@ function Editor({
     const { value, errors: errs } = validateDetails(draft, { isAdult, today: member.today, dob: person.date_of_birth });
     setErrors(errs);
     if (Object.keys(errs).length) return;
+    if (preview) return onSaved?.();
     setBusy(true);
     setError(null);
     try {

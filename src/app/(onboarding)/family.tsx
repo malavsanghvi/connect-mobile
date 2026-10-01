@@ -10,7 +10,7 @@ import { useT } from '@/providers/settings';
 export default function FamilyStepScreen() {
   const router = useRouter();
   const t = useT();
-  const { member } = useApp();
+  const { member, onboardingPreview } = useApp();
   if (!member) return null;
   return (
     <OnboardingFrame
@@ -19,7 +19,7 @@ export default function FamilyStepScreen() {
       subtitle={t('familyStep.subtitle')}
       onBack={() => router.back()}
       onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>
-      <FamilyReview onContinue={() => router.push(stepAfterFamily(member.isAdult))} />
+      <FamilyReview readOnly={onboardingPreview} onContinue={() => router.push(stepAfterFamily(member.isAdult))} />
     </OnboardingFrame>
   );
 }

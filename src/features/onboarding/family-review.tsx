@@ -154,7 +154,7 @@ function AddMemberCard({ onClose }: { onClose: () => void }) {
  * member with Edit / Done, the dashed "+ Add family member", and requests
  * still waiting for the membership team (household_change_requests).
  */
-export function FamilyReview({ onContinue }: { onContinue?: () => void }) {
+export function FamilyReview({ onContinue, readOnly = false }: { onContinue?: () => void; /** Preview of onboarding: nobody can be edited or added, so nothing is saved or sent. */ readOnly?: boolean }) {
   const t = useT();
   const { member } = useApp();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -181,7 +181,7 @@ export function FamilyReview({ onContinue }: { onContinue?: () => void }) {
   return (
     <VStack gap={space.md}>
       {member.members.map((fm) => {
-        const canEdit = fm.person.id === member.person.id || member.isAdult;
+        const canEdit = !readOnly && (fm.person.id === member.person.id || member.isAdult);
         const age = ageOn(fm.person.date_of_birth, member.today);
         const summary = [roleLabel(t, fm.role), age != null ? String(age) : null, genderLabel(t, fm.person.gender), fm.isAdult ? fm.person.profession : null].filter(Boolean).join(' · ');
         const open = openId === fm.person.id;
@@ -227,7 +227,7 @@ export function FamilyReview({ onContinue }: { onContinue?: () => void }) {
       {pending.error ? <Banner tone="error" message={pending.error.userMessage} action={{ label: t('common.retry'), onPress: () => void pending.reload() }} /> : null}
       {adding ? (
         <AddMemberCard onClose={() => setAdding(false)} />
-      ) : member.isAdult && member.household ? (
+      ) : member.isAdult && member.household && !readOnly ? (
         <Pressable
           onPress={() => setAdding(true)}
           accessibilityRole="button"

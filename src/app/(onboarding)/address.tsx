@@ -16,7 +16,7 @@ import { space } from '@/theme';
 export default function AddressScreen() {
   const router = useRouter();
   const t = useT();
-  const { member, refreshMember } = useApp();
+  const { member, refreshMember, onboardingPreview } = useApp();
   const h = member?.household ?? null;
   const [draft, setDraft] = useState<AddressDraft>({
     address_line1: h?.address_line1 ?? '',
@@ -38,6 +38,8 @@ export default function AddressScreen() {
     if (draft.postal_code.trim() && !/^\d{5}(-\d{4})?$/.test(draft.postal_code.trim())) errs.postal_code = t('address.zipInvalid');
     setErrors(errs);
     if (Object.keys(errs).length) return;
+    // Preview: the same checks, then on without saving.
+    if (onboardingPreview) return router.push('/details');
     setBusy(true);
     setError(null);
     try {

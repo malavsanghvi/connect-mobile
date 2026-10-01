@@ -14,7 +14,7 @@ import { useT } from '@/providers/settings';
 export default function DetailsStepScreen() {
   const router = useRouter();
   const t = useT();
-  const { member, center } = useApp();
+  const { member, center, onboardingPreview } = useApp();
   if (!member || !center) return null;
   if (!member.isAdult) return <Redirect href="/family" />;
   return (
@@ -24,7 +24,7 @@ export default function DetailsStepScreen() {
       subtitle={t('details.subtitle', { center: center.short_name || center.name })}
       onBack={() => router.back()}
       onSkip={() => router.push('/family')}>
-      <MoreAboutYou person={member.person} isAdult editable variant="onboarding" onSaved={() => router.push('/family')} />
+      <MoreAboutYou person={member.person} isAdult editable variant="onboarding" preview={onboardingPreview} onSaved={() => router.push('/family')} />
     </OnboardingFrame>
   );
 }
