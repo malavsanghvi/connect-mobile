@@ -456,7 +456,7 @@ export const en = {
   'home.storeEyebrow': '{center} Satvik Store',
   'home.storeTitle': 'Fresh Jain mithai and namkeen, made to order',
   'home.storeBody': 'Order by Thursday for weekend pickup · gift packing available',
-  'home.guideTitle': 'New to {center}? Start here',
+  'home.guideTitle': 'My {center}',
   'home.guideBody': "WhatsApp groups, your zone, timings, volunteering, who's who",
   'home.guestTitle': 'Browsing as a guest',
   'home.guestBody': 'Sign in to RSVP, give, see your family and keep up your Jain Way.',

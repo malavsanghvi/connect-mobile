@@ -14,6 +14,12 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.5.1 — 2026-10-01
+
+- Home: the guide card is now **My JSH** (your community's short name): WhatsApp groups, your zone, timings, volunteering,
+  who's who. The same guide card is gone from 3L › Learn.
+- 3L › Learn: **Teach at Pathshala** is removed; it is under volunteering in My JSH.
+
 ## 1.5.0 — 2026-10-01
 
 - **Saathi is now called Circle** (My Jain Way › Today · 3L · Circle, and the sign-in, notification and encouragement wording).
