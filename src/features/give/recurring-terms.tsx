@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Chip, ChipGroup, Txt, VStack } from '@/components/ui';
+import { Chip, ChipGroup, LinkText, Segmented, Txt, VStack } from '@/components/ui';
 import { formatCents, formatLongDate } from '@/lib/format';
 import type { PayMethodChoice } from '@/lib/api/giving';
 import { useT } from '@/providers/settings';
@@ -21,6 +22,10 @@ export function Section({ children }: { children: string }) {
 /**
  * The terms of a recurring gift, shared by "Make this recurring" on an opportunity and by editing an
  * existing gift: how often, when it starts (new gifts only: pass `starts`), for how long, how to pay.
+ *
+ * `simple` (a new gift from an opportunity) asks only how often, in one row, and keeps the rest (start date, length,
+ * payment method) behind one "Change details" link: the defaults (soonest start, until I stop, card) are what most
+ * families want, and the summary under the form says them in a sentence. Editing an existing gift shows everything.
  */
 export function RecurringTerms({
   frequencies,
@@ -34,6 +39,7 @@ export function RecurringTerms({
   through,
   method,
   onMethod,
+  simple = false,
 }: {
   frequencies: Frequency[];
   frequency: Frequency;
@@ -46,8 +52,31 @@ export function RecurringTerms({
   through: number;
   method: PayMethodChoice;
   onMethod: (m: PayMethodChoice) => void;
+  simple?: boolean;
 }) {
   const t = useT();
+  const [more, setMore] = useState(false);
+  const frequencyLabel = (f: Frequency) => (f === 'special_day' ? t('rsetup.onSpecialDays') : freqLabel(t, f));
+
+  if (simple) {
+    return (
+      <VStack gap={space.sm}>
+        {frequencies.length > 1 ? (
+          <VStack gap={space.xs}>
+            <Section>{t('rsetup.howOften')}</Section>
+            <Segmented label={t('rsetup.howOften')} value={frequency} onChange={onFrequency} options={frequencies.map((f) => ({ value: f, label: frequencyLabel(f) }))} />
+          </VStack>
+        ) : null}
+        <LinkText label={more ? t('recurring.lessOptions') : t('recurring.moreOptions')} onPress={() => setMore((v) => !v)} />
+        {more ? (
+          <VStack gap={space.md}>
+            <StartLengthMethod starts={starts} start={start} onStart={onStart} end={end} onEnd={onEnd} through={through} method={method} onMethod={onMethod} />
+          </VStack>
+        ) : null}
+      </VStack>
+    );
+  }
+
   return (
     <VStack gap={space.md}>
       <Section>{t('rsetup.howOften')}</Section>
@@ -57,6 +86,34 @@ export function RecurringTerms({
         ))}
       </ChipGroup>
 
+      <StartLengthMethod starts={starts} start={start} onStart={onStart} end={end} onEnd={onEnd} through={through} method={method} onMethod={onMethod} />
+    </VStack>
+  );
+}
+
+/** When it starts (new gifts only), for how long, and how to pay: the details most families leave at their defaults. */
+function StartLengthMethod({
+  starts,
+  start,
+  onStart,
+  end,
+  onEnd,
+  through,
+  method,
+  onMethod,
+}: {
+  starts?: string[];
+  start?: string;
+  onStart?: (date: string) => void;
+  end: EndChoice;
+  onEnd: (e: EndChoice) => void;
+  through: number;
+  method: PayMethodChoice;
+  onMethod: (m: PayMethodChoice) => void;
+}) {
+  const t = useT();
+  return (
+    <>
       {starts && starts.length > 0 && onStart ? (
         <>
           <Section>{t('rsetup.starting')}</Section>
@@ -80,7 +137,7 @@ export function RecurringTerms({
         <Chip grid label={t('recurring.methodCard')} selected={method === 'card'} onPress={() => onMethod('card')} />
         <Chip grid label={t('recurring.methodAch')} selected={method === 'ach'} onPress={() => onMethod('ach')} />
       </ChipGroup>
-    </VStack>
+    </>
   );
 }
 

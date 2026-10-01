@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Card, Checkbox, Chip, ChipGroup, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Checkbox, Row, Toggle, Txt, VStack } from '@/components/ui';
 import { freqLabel } from '@/features/give/labels';
 import { AmountTile, AvailabilityBar, CheckRow, DollarField, slotsText, TileGrid } from '@/features/give/parts';
 import { RecurringSummary, RecurringTerms } from '@/features/give/recurring-terms';
@@ -301,15 +301,12 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
           ) : null}
 
           {frequencies.length > 0 ? (
-            <ChipGroup columns={2}>
-              <Chip grid label={t('opp.giveOnce')} selected={mode === 'once'} onPress={() => setMode('once')} />
-              <Chip grid label={t('opp.makeRecurring')} selected={mode === 'recurring'} onPress={() => setMode('recurring')} />
-            </ChipGroup>
+            <Toggle label={t('opp.repeatTitle')} sub={t('opp.repeatSub')} value={mode === 'recurring'} onChange={(on) => setMode(on ? 'recurring' : 'once')} />
           ) : null}
 
           {recurring ? (
             <>
-              <RecurringTerms frequencies={frequencies} frequency={frequency} onFrequency={setFrequency} starts={starts} start={start} onStart={setStart} end={end} onEnd={setEnd} through={throughYear(today)} method={method} onMethod={setMethod} />
+              <RecurringTerms simple frequencies={frequencies} frequency={frequency} onFrequency={setFrequency} starts={starts} start={start} onStart={setStart} end={end} onEnd={setEnd} through={throughYear(today)} method={method} onMethod={setMethod} />
               <RecurringSummary amountCents={amount} frequency={frequency} purpose={detail ? `${opp.name} · ${detail}` : opp.name} firstGift={start || null} end={end} through={throughYear(today)} waitingNote />
               {error ? <Banner tone="error" message={error} /> : null}
               <Button label={t('rsetup.start')} onPress={commitRecurring} disabled={!canAct} />
