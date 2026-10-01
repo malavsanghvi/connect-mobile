@@ -84,9 +84,16 @@ Changes to screens, text and logic (JavaScript, images) reach installed phones w
 Changes to native parts still need a new build: a new native library, a permission, the icon, the
 app name, or an Expo SDK upgrade.
 
-`runtimeVersion` in `app.json` is a fixed string (currently `"2"`). An update is only offered to installed
-builds with the same value. **Whenever you make a native change, bump it** (`"1"` to `"2"`) in the
+`runtimeVersion` in `app.json` is a fixed string (currently `"3"`). An update is only offered to installed
+builds with the same value. **Whenever you make a native change, bump it** (`"2"` to `"3"`) in the
 same commit, so an older installed app never receives JavaScript that needs native code it lacks.
+
+**Runtime 3 (v1.6.0) needs a new build.** It adds expo-speech-recognition (the Gyan Path voice practice
+listens on the phone), expo-speech (text-to-speech) and expo-haptics, with the speech-recognition and
+microphone permissions. Phones on a runtime 2 build keep running 1.5.x and get no further updates until
+the new APK is installed; after that, JavaScript updates reach them over the air again. A development
+build must be rebuilt too (`eas build --profile development`), or the lesson screen fails to load the
+speech-recognition module.
 (The automatic `fingerprint` policy was tried and rejected: EAS computes it on Linux and the
 CLI on your PC, and the two never match, which fails the build.)
 
@@ -204,7 +211,7 @@ changed. The app works around each one as noted.
 | 20 | No rotating member-QR token or Wallet pass function | QR = member number; Wallet buttons disabled "coming soon" |
 | 21 | Sign-out-everywhere / account deactivation needs a server-side session revoke | App sets `accounts.status` and signs out this device |
 | 22 | `zones` has no lead name / family count | Zone lead messaged through the zone inbox |
-| 23 | `eligibility_snapshots.reasons`, `gyan_steps.quiz` and `content_items.metadata` jsonb shapes are unspecified | Parsed defensively (strings or `{label, ok}`; `{questions:[{question, options, answer}]}`; `metadata.when` / `metadata.what`) |
+| 23 | `eligibility_snapshots.reasons` and `content_items.metadata` jsonb shapes are unspecified (`gyan_steps.quiz` and `gyan_steps.activity` are specified and checked by connect-crm 0570) | Parsed defensively (strings or `{label, ok}`; `metadata.when` / `metadata.what`); Gyan Path payloads in `src/features/gyan/activity.ts` |
 | 24 | Expertise tag vocabulary isn't center configuration | Prototype's nine tags in the profile screen |
 | 25 | ~~No storage bucket for Gyan Path recitations~~ — done in connect-crm 0172 | Uploads to bucket `recordings` at `{center}/{person}/{step}-{ts}.m4a`; the child, their parents and teachers can read; kept 90 days |
 | 26 | Niva has no answering backend (approved-content retrieval + model edge function) | Chat saves each question to `niva_conversations` as `unanswered` (portal "Unanswered questions") and says answers are coming; staff answers with `sources` render when present |

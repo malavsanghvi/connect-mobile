@@ -14,6 +14,27 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.0 — 2026-10-01 · needs a new build (runtime 3)
+
+- **Gyan Path lessons are interactive.** Each step has its own screen:
+  - **Cards** to swipe through (read steps, and practice steps with their own done button, e.g. "I sat calmly for 5
+    minutes").
+  - **Five quiz types:** pick one (a wrong first pick gets one more try, then the "why"), true or false, put in order
+    (tap to arrange), match the pairs (tap left, then right) and pick the missing word.
+  - **Learn Puja · Navang puja of Mahavir Swami:** a picture of the murti with glowing spots. *Learn* shows one touch at a
+    time with what to do and why ("Puja 3 of 9"); *Practice* asks for every touch in order — a wrong touch shakes and the
+    right spot glows. Practise as often as you like. For now the picture is a simple drawing; the photo from our derasar
+    replaces it without an app update.
+  - **Navkar Mantra out loud:** listen to each line (the phone reads it in Hindi, or in English letters when it has no
+    Hindi voice), say it back while the phone listens, see the words to practise in red, then say it all. Listening uses
+    the phone's own speech recognition and asks for the microphone first, in plain English; the app keeps only the score.
+- **Points for every activity.** "+10 points" when you finish a step for the first time, and each good practice try earns
+  more, up to 10 tries a day per activity ("+3 points · 4 of 10 today"; after that: "Today's practice points are done —
+  keep practising!"). Finishing a level shows its bonus and treasure points. Confetti and a small buzz on right, wrong and
+  complete (no confetti with Reduce Motion on).
+- New native parts (speech recognition, text-to-speech, haptics) and the speech-recognition permission: **runtime 3**, so
+  this release needs the new Android build; JavaScript updates then reach it over the air again.
+
 ## 1.5.2 — 2026-10-01
 
 - Events › Photos: photos brought in from a Google Photos album (portal › Content › Photos › the album › Import photos from
