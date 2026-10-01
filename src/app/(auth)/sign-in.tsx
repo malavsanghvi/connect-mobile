@@ -92,7 +92,7 @@ export default function SignInScreen() {
 
   // Onboarding.dc.html s1: one "Sign in" screen — address, code, resend, Verify, then the Face ID checkbox.
   return (
-    <OnboardingFrame step={1} title={t('signin.title')} onBack={() => router.back()}>
+    <OnboardingFrame step="signIn" title={t('signin.title')} onBack={() => router.back()}>
       {error ? <Banner tone="error" message={error} /> : null}
       <TextField
         size="lg"

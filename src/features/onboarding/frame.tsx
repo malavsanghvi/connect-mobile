@@ -4,12 +4,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Banner, IconButton, LinkText, ProgressBar, Row, Txt } from '@/components/ui';
 import { useApp } from '@/providers/app';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, layout, space } from '@/theme';
 
-import { ONBOARDING_STEPS } from './steps';
+import { onboardingProgress, type OnboardingStep } from './steps';
 
-/** Chrome for the onboarding steps: back, "Step n of N", optional skip, progress. */
+/**
+ * Chrome for the onboarding steps: back, optional skip, and a progress bar along the steps this person walks (a
+ * child's shorter path fills it in even steps too). No "Step n of N" text: the bar alone says how far along.
+ */
 export function OnboardingFrame({
   step,
   title,
@@ -19,7 +23,7 @@ export function OnboardingFrame({
   onBack,
   onSkip,
 }: {
-  step: number;
+  step: OnboardingStep;
   title: string;
   subtitle?: string;
   children: ReactNode;
@@ -28,19 +32,19 @@ export function OnboardingFrame({
   onSkip?: () => void;
 }) {
   const t = useT();
-  const { onboardingPreview, setOnboarding } = useApp();
+  const { member, onboardingPreview, setOnboarding } = useApp();
+  const commsOn = useModule('comms');
+  // Before the login is linked (sign-in, family match) nobody knows yet whether a child is signing up.
+  const progress = onboardingProgress(step, { isAdult: member ? member.isAdult : null, commsOn });
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}>
-      {/* Onboarding.dc.html top bar: padding 16/20/8, back · "Step n of 6" · skip, 6px progress. */}
+      {/* Onboarding.dc.html top bar: padding 16/20/8, back · skip, 6px progress (the "Step n of N" label is gone). */}
       <View style={{ paddingHorizontal: space.gutter, paddingTop: space.lg, paddingBottom: space.sm, gap: 10 }}>
-        <Row gap={space.md}>
+        <Row gap={space.md} style={{ justifyContent: 'space-between' }}>
           {onBack ? <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={onBack} /> : <View style={{ width: 44, height: 44 }} />}
-          <Txt variant="meta" color="muted" style={{ flex: 1 }}>
-            {t('onboarding.stepOf', { step, total: ONBOARDING_STEPS })}
-          </Txt>
           {onSkip ? <LinkText label={t('onboarding.skip')} onPress={onSkip} /> : null}
         </Row>
-        <ProgressBar value={step / ONBOARDING_STEPS} color={colors.navy} track={colors.track} label={t('onboarding.stepOf', { step, total: ONBOARDING_STEPS })} />
+        <ProgressBar value={progress} color={colors.navy} track={colors.track} label={t('onboarding.progress', { pct: Math.round(progress * 100) })} />
         {onboardingPreview ? <Banner tone="info" message={t('preview.banner')} action={{ label: t('preview.exit'), onPress: () => setOnboarding(false) }} /> : null}
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

@@ -22,7 +22,7 @@ export default function AboutScreen() {
   const emails = useLoad(() => (member ? listPersonEmails(member.person.id) : Promise.resolve([])), [member?.person.id], 'load your email addresses');
   if (!member) return null;
   return (
-    <OnboardingFrame step={3} title={t('about.title')} onBack={() => router.back()} onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>
+    <OnboardingFrame step="about" title={t('about.title')} onBack={() => router.back()} onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>
       <Loaded state={emails}>{(rows) => <AboutForm member={member} existing={rows} />}</Loaded>
     </OnboardingFrame>
   );

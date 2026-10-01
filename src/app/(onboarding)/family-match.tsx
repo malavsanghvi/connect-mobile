@@ -36,7 +36,7 @@ export default function FamilyMatchScreen() {
   if (member) {
     const tier = member.membership?.status === 'active' ? member.membership.tier : null;
     return (
-      <OnboardingFrame step={2} title={t('match.title')} onBack={() => setOnboarding(false)}>
+      <OnboardingFrame step="match" title={t('match.title')} onBack={() => setOnboarding(false)}>
         <VStack gap={space.lg}>
           <FamilyCard
             name={member.household?.display_name ?? ''}
@@ -93,7 +93,7 @@ export default function FamilyMatchScreen() {
   );
 
   return (
-    <OnboardingFrame step={2} title={t('match.title')} onBack={() => signOut().catch((err: unknown) => logError('signing out from family match', err))}>
+    <OnboardingFrame step="match" title={t('match.title')} onBack={() => signOut().catch((err: unknown) => logError('signing out from family match', err))}>
       {error ? <Banner tone="error" message={error} /> : null}
       <Loaded state={candidates} loadingLabel={t('match.looking')}>
         {(rows) => {

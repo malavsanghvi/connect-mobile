@@ -19,7 +19,7 @@ export default function DetailsStepScreen() {
   if (!member.isAdult) return <Redirect href="/family" />;
   return (
     <OnboardingFrame
-      step={5}
+      step="details"
       title={t('details.title')}
       subtitle={t('details.subtitle', { center: center.short_name || center.name })}
       onBack={() => router.back()}

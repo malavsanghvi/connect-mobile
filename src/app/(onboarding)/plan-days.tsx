@@ -4,7 +4,6 @@ import { View } from 'react-native';
 import { Loaded } from '@/components/states';
 import { Button, Card, Txt, VStack } from '@/components/ui';
 import { OnboardingFrame } from '@/features/onboarding/frame';
-import { ONBOARDING_STEP_NUMBER } from '@/features/onboarding/steps';
 import { listDisplayName } from '@/features/special-days';
 import { AddSpecialDayForm } from '@/features/special-days-form';
 import { listSpecialDays } from '@/lib/api/family';
@@ -33,7 +32,7 @@ export default function PlanDaysStepScreen() {
   const next = () => router.push('/whatsapp-groups');
 
   return (
-    <OnboardingFrame step={ONBOARDING_STEP_NUMBER.planDays} title={t('planDays.title')} subtitle={t('planDays.subtitle')} onBack={() => router.back()} onSkip={next}>
+    <OnboardingFrame step="planDays" title={t('planDays.title')} subtitle={t('planDays.subtitle')} onBack={() => router.back()} onSkip={next}>
       <VStack gap={space.md}>
         <Loaded state={state}>
           {(rows) =>

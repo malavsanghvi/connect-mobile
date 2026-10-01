@@ -106,7 +106,7 @@ export const en = {
   'welcome.email': 'Continue with email',
   'welcome.mobile': 'Continue with mobile number',
   'welcome.guest': 'Just visiting? Explore as a guest',
-  'onboarding.stepOf': 'Step {step} of {total}',
+  'onboarding.progress': 'Sign-up progress, {pct}%',
   'onboarding.skip': 'Skip for now',
   'signin.titleEmail': 'Sign in with email',
   'signin.titlePhone': 'Sign in with your mobile',
