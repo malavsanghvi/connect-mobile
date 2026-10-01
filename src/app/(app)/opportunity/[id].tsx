@@ -4,13 +4,15 @@ import { View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Card, Checkbox, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Checkbox, Chip, ChipGroup, Row, Txt, VStack } from '@/components/ui';
+import { freqLabel } from '@/features/give/labels';
 import { AmountTile, AvailabilityBar, CheckRow, DollarField, slotsText, TileGrid } from '@/features/give/parts';
-import { availabilityFraction, multiTotalCents, opportunityKind, parseOptions, presetAmounts, slotsLine, takenKeys, type Availability, type OpportunityOption } from '@/features/give/rules';
+import { RecurringSummary, RecurringTerms } from '@/features/give/recurring-terms';
+import { availabilityFraction, endRule, multiTotalCents, opportunityFrequencies, opportunityKind, parseOptions, presetAmounts, slotsLine, startDateChoices, takenKeys, throughYear, type Availability, type EndChoice, type Frequency, type OpportunityOption } from '@/features/give/rules';
 import { runSaving, startPayment, type SavingStep } from '@/features/pay';
-import { createPledge, getOpportunity, opportunityAvailability, pledgeSourceFor, type OpportunityWithCampaign } from '@/lib/api/giving';
+import { createPledge, createRecurringGift, getOpportunity, opportunityAvailability, pledgeSourceFor, setRecurringMethod, type OpportunityWithCampaign, type PayMethodChoice } from '@/lib/api/giving';
 import { AppError, report } from '@/lib/errors';
-import { formatCents, formatCentsCompact, parseAmountToCents } from '@/lib/format';
+import { formatCents, formatCentsCompact, formatLongDate, parseAmountToCents } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
@@ -56,6 +58,15 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
   const [other, setOther] = useState('');
   const [showName, setShowName] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // "Make this recurring": offered only when the office enabled it for this opportunity (and for a multi-pick never).
+  const frequencies = opportunityFrequencies(opp);
+  const today = member?.today ?? '';
+  const starts = startDateChoices(today);
+  const [mode, setMode] = useState<'once' | 'recurring'>('once');
+  const [frequency, setFrequency] = useState<Frequency>(frequencies.includes('monthly') ? 'monthly' : (frequencies[0] ?? 'monthly'));
+  const [start, setStart] = useState<string>(starts[0] ?? '');
+  const [end, setEnd] = useState<EndChoice>('until_stopped');
+  const [method, setMethod] = useState<PayMethodChoice>('card');
 
   const tier = kind === 'tier' ? (options.find((o) => o.key === tierKey) ?? null) : null;
   const otherCents = parseAmountToCents(other) ?? 0;
@@ -74,6 +85,7 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
     opp.status !== 'open' ||
     (kind === 'multi' ? options.length > 0 && options.every((o) => taken.has(o.key)) : opp.quantity_available != null && (availability[0]?.slotsTaken ?? opp.quantity_taken) >= opp.quantity_available);
   const canAct = amount > 0 && !belowMin && !soldOut;
+  const recurring = frequencies.length > 0 && mode === 'recurring';
   const line = slotsLine(kind, availability, (opp.campaign?.goal_cents ?? 0) > 0);
   const fraction = availabilityFraction(availability) ?? 0;
   const multiPicked: OpportunityOption[] = options.filter((o) => picked.includes(o.key) && !taken.has(o.key));
@@ -132,6 +144,50 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
       result: () => t(numbers.length > 1 ? 'opp.savedResultMany' : 'opp.savedResult', { pledge: numbers.filter(Boolean).join(', '), amount: formatCents(amount) }),
       cta: { label: t('opp.seePledges'), onPress: () => router.replace('/pledges') },
     }).catch((err: unknown) => setError(report(err, 'save your pledge').userMessage));
+  };
+
+  const commitRecurring = () => {
+    if (!member?.household) return;
+    if (!canAct) return setError(invalidMessage);
+    if (!start) return setError(t('opp.recurringNoStart'));
+    setError(null);
+    const household = member.household;
+    const rule = endRule(end, today);
+    const freqWord = freqLabel(t, frequency).toLowerCase();
+    const purpose = detail ? `${opp.name} · ${detail}` : opp.name;
+    let giftId = '';
+    runSaving({
+      title: t('rsetup.savingTitle'),
+      steps: [
+        {
+          label: t('rsetup.stepCreate', { freq: freqWord, amount: formatCents(amount), purpose }),
+          run: async () => {
+            giftId = await createRecurringGift({
+              householdId: household.id,
+              fundId: null,
+              campaignId: opp.campaign_id,
+              amountCents: amount,
+              frequency,
+              startsOn: start,
+              endKind: rule.kind,
+              endCount: rule.count,
+              endOn: rule.on,
+              opportunityId: opp.id,
+            });
+            invalidate();
+          },
+        },
+        {
+          label: t('rsetup.stepMethod', { method: method === 'ach' ? t('recurring.methodAch') : t('recurring.methodCard') }),
+          run: async () => {
+            await setRecurringMethod(giftId, method);
+            invalidate();
+          },
+        },
+      ],
+      result: () => t('rsetup.result', { amount: formatCents(amount), freq: freqWord, purpose, date: formatLongDate(start) }),
+      cta: { label: t('rsetup.seeRecurring'), onPress: () => router.replace('/recurring') },
+    }).catch((err: unknown) => setError(report(err, 'set up your recurring gift').userMessage));
   };
 
   const payNow = () => {
@@ -244,13 +300,34 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
             </Card>
           ) : null}
 
-          <Checkbox label={t('opp.showName')} checked={showName} onChange={setShowName} disabled={!opp.allow_anonymous} />
-          {error ? <Banner tone="error" message={error} /> : null}
-          <Button label={t('opp.commit', { amount: formatCents(amount) })} onPress={commit} disabled={!canAct} />
-          <Button label={t('opp.payNow', { amount: formatCents(amount) })} tone="outlineBlack" size="md" onPress={payNow} disabled={!canAct} />
-          <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
-            {t('opp.footnote')}
-          </Txt>
+          {frequencies.length > 0 ? (
+            <ChipGroup columns={2}>
+              <Chip grid label={t('opp.giveOnce')} selected={mode === 'once'} onPress={() => setMode('once')} />
+              <Chip grid label={t('opp.makeRecurring')} selected={mode === 'recurring'} onPress={() => setMode('recurring')} />
+            </ChipGroup>
+          ) : null}
+
+          {recurring ? (
+            <>
+              <RecurringTerms frequencies={frequencies} frequency={frequency} onFrequency={setFrequency} starts={starts} start={start} onStart={setStart} end={end} onEnd={setEnd} through={throughYear(today)} method={method} onMethod={setMethod} />
+              <RecurringSummary amountCents={amount} frequency={frequency} purpose={detail ? `${opp.name} · ${detail}` : opp.name} firstGift={start || null} end={end} through={throughYear(today)} waitingNote />
+              {error ? <Banner tone="error" message={error} /> : null}
+              <Button label={t('rsetup.start')} onPress={commitRecurring} disabled={!canAct} />
+              <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
+                {t('recurring.footer')}
+              </Txt>
+            </>
+          ) : (
+            <>
+              <Checkbox label={t('opp.showName')} checked={showName} onChange={setShowName} disabled={!opp.allow_anonymous} />
+              {error ? <Banner tone="error" message={error} /> : null}
+              <Button label={t('opp.commit', { amount: formatCents(amount) })} onPress={commit} disabled={!canAct} />
+              <Button label={t('opp.payNow', { amount: formatCents(amount) })} tone="outlineBlack" size="md" onPress={payNow} disabled={!canAct} />
+              <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
+                {t('opp.footnote')}
+              </Txt>
+            </>
+          )}
         </>
       )}
     </VStack>

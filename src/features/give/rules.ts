@@ -156,6 +156,33 @@ export function isYearOpen(year: number, groupYears: number[], filterYear: numbe
 
 export type Frequency = 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'special_day';
 
+const FREQUENCY_ORDER: Frequency[] = ['weekly', 'monthly', 'quarterly', 'yearly', 'special_day'];
+
+function inFrequencyOrder(list: string[]): Frequency[] {
+  return FREQUENCY_ORDER.filter((f) => list.includes(f));
+}
+
+/**
+ * How often a member may give an opportunity: the office's list (opportunities.recurring_frequencies), in
+ * display order. Empty when the opportunity is not recurring-enabled, and for a multi-pick (each item there
+ * is taken by one family, so it has nothing to repeat). `special_day` only exists for a labh on a family's
+ * own special day, never for a shared opportunity.
+ */
+export function opportunityFrequencies(o: { kind: string; allow_recurring: boolean | null; recurring_frequencies: string[] | null }): Frequency[] {
+  if (!o.allow_recurring || opportunityKind(o.kind) === 'multi') return [];
+  return inFrequencyOrder((o.recurring_frequencies ?? []).filter((f) => f !== 'special_day'));
+}
+
+/**
+ * Frequencies offered when editing an existing gift. A gift renewing an opportunity keeps to what that
+ * opportunity allows; any other gift (older fund gifts, a labh repeated yearly) keeps the original set. The
+ * gift's current frequency is always included, so editing never silently changes it.
+ */
+export function editableFrequencies(gift: { frequency: string; opportunity_id: string | null }, opportunity: { kind: string; allow_recurring: boolean | null; recurring_frequencies: string[] | null } | null): Frequency[] {
+  const base: string[] = gift.opportunity_id ? (opportunity ? opportunityFrequencies(opportunity) : []) : ['monthly', 'quarterly', 'yearly', 'special_day'];
+  return inFrequencyOrder([...base, gift.frequency]);
+}
+
 /** Gifts per year; `special_day` = the number of family special days (at least 1). */
 export function giftsPerYear(frequency: string, specialDayCount: number): number {
   switch (frequency) {
