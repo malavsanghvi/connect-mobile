@@ -1124,7 +1124,6 @@ export const en = {
   'gyan.sayItA11y': 'Say the line aloud',
   'gyan.listening': 'Listening… tap when you finish',
   'gyan.stopA11y': 'Stop listening',
-  'gyan.checking': 'Checking…',
   'gyan.tryAgain': 'Try again',
   'gyan.heard': 'We heard: “{text}”',
   'gyan.versePass': 'Well said!',
