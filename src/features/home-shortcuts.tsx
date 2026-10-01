@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, ScrollView, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/icon';
 import { Banner, Txt } from '@/components/ui';
 import { loadGyan, nextGyanLevel } from '@/lib/api/gyan';
 import { report } from '@/lib/errors';
 import { homeShortcuts, type HomeShortcut } from '@/lib/home-shortcuts';
+import { useWheelScrollsSideways } from '@/lib/wheel-sideways';
 import { useApp } from '@/providers/app';
 import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
@@ -40,6 +41,9 @@ export function HomeShortcuts() {
   const [busy, setBusy] = useState<HomeShortcut | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const keys = homeShortcuts(center?.rules, map);
+  const strip = useRef<ScrollView>(null);
+  const shown = !!center && !!member && keys.length > 0;
+  useWheelScrollsSideways(strip, shown);
   if (!center || !member || keys.length === 0) return null;
   const look = looks();
   const width = Math.round(76 * Math.min(scale, 1.3));
@@ -72,8 +76,10 @@ export function HomeShortcuts() {
   return (
     <View style={{ gap: space.sm }}>
       <ScrollView
+        ref={strip}
         horizontal
-        showsHorizontalScrollIndicator={false}
+        // On the web a mouse can't swipe: the wheel scrolls the strip sideways and the scrollbar shows there is more.
+        showsHorizontalScrollIndicator={Platform.OS === 'web'}
         accessibilityLabel={t('home.shortcuts')}
         style={{ flexGrow: 0, marginHorizontal: -space.gutter }}
         contentContainerStyle={{ gap: space.xs, paddingHorizontal: space.gutter - space.xs }}>
