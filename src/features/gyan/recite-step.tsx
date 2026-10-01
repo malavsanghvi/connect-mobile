@@ -126,8 +126,8 @@ export function ReciteStep({ ctx }: StepProps) {
                 height: 120,
                 borderRadius: 60,
                 backgroundColor: colors.saffron,
-                opacity: reduce ? 0.3 : pulse.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.5, 0, 0] }),
-                transform: reduce ? [] : [{ scale: pulse.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1.23, 1.23] }) }],
+                opacity: reduce !== false ? 0.3 : pulse.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.5, 0, 0] }),
+                transform: reduce !== false ? [] : [{ scale: pulse.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1.23, 1.23] }) }],
               }}
             />
           ) : null}

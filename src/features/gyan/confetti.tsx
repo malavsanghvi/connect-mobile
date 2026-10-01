@@ -7,19 +7,19 @@ import { colors, fonts, radii } from '@/theme';
 import { confettiPieces } from './celebrate';
 import { useReduceMotion } from './motion';
 
-/** A burst of confetti from the top centre (pure JS, Animated). Nothing at all with reduce-motion on. */
+/** A burst of confetti from the top centre (pure JS, Animated). Nothing at all with reduce-motion on (or before the setting is known). */
 export function Confetti({ seed, top = 120 }: { seed: number; top?: number }) {
   const reduce = useReduceMotion();
   const [progress] = useState(() => new Animated.Value(0));
   const [pieces] = useState(() => confettiPieces(seed));
   useEffect(() => {
-    if (reduce) return;
+    if (reduce !== false) return;
     progress.setValue(0);
     const anim = Animated.timing(progress, { toValue: 1, duration: 1500, easing: Easing.out(Easing.quad), useNativeDriver: true });
     anim.start();
     return () => anim.stop();
   }, [reduce, progress]);
-  if (reduce) return null;
+  if (reduce !== false) return null;
   const palette = [colors.gold, colors.saffron, colors.green, colors.navy, colors.flame];
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', left: 0, right: 0, top, alignItems: 'center' }}>
@@ -54,6 +54,8 @@ export function PointsBurst({ seed, label, confetti }: { seed: number; label: st
   const reduce = useReduceMotion();
   const [v] = useState(() => new Animated.Value(0));
   useEffect(() => {
+    // Wait until the reduce-motion setting is known, so the toast doesn't pop and then start over.
+    if (reduce === null) return;
     v.setValue(0);
     const anim = Animated.timing(v, { toValue: 1, duration: reduce ? 2200 : 1700, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     anim.start();
@@ -75,7 +77,7 @@ export function PointsBurst({ seed, label, confetti }: { seed: number; label: st
             paddingVertical: 10,
             paddingHorizontal: 22,
             opacity: v.interpolate({ inputRange: [0, 0.12, 0.75, 1], outputRange: [0, 1, 1, 0] }),
-            transform: reduce
+            transform: reduce !== false
               ? []
               : [
                   { scale: v.interpolate({ inputRange: [0, 0.15, 0.3, 1], outputRange: [0.6, 1.15, 1, 1] }) },

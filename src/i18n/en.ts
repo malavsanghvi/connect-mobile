@@ -1114,6 +1114,10 @@ export const en = {
   'gyan.tryCapped': "Today's practice points are done — keep practising!",
   'gyan.tryCounted': 'Well done · {n} of {cap} today',
   'gyan.tryNotCounted': 'Not counted this time · {n} of {cap} today',
+  'gyan.tryPointsOnly': '+{points} points',
+  'gyan.tryWellDone': 'Well done!',
+  'gyan.tryNotCountedOnly': 'Not counted this time. Have another go.',
+  'gyan.reloadLesson': 'Reload the lesson',
   'gyan.voiceIntro': 'Listen to each line, then say it yourself. Your phone listens and shows any words to practise.',
   'gyan.verseOf': 'Line {n} of {total}',
   'gyan.meaning': 'Meaning',
@@ -1158,6 +1162,7 @@ export const en = {
   'gyan.breakdownTreasure': 'Treasure +{n}',
   'gyan.breakdownPractice': 'Practice +{n}',
   'gyan.treasurePoints': 'Treasure unlocked: {reward} · +{points} bonus points',
+  'gyan.starsA11y': '{n} of 3 stars',
 
   // Saathi
   'saathi.intro': "Celebrate each other's progress and lend a hand when someone falls behind. Anumodana earns you {anumodana} points, support earns {support}.",

@@ -7,10 +7,10 @@ import { Banner, Button, Txt } from '@/components/ui';
 import { GyanHeaderChips } from '@/features/gyan-header';
 import { Button3D, StarGlyph } from '@/features/gyan-ui';
 import { loadPointsAndStreak } from '@/lib/api/jainway';
-import { requestSignoff, type GyanData, type GyanGoal, type GyanLevel } from '@/lib/api/gyan';
+import { loadLevelAwards, requestSignoff, type GyanData, type GyanGoal, type GyanLevel } from '@/lib/api/gyan';
 import { report } from '@/lib/errors';
 import { todayAt } from '@/lib/format';
-import { accuracyPercent, communityName, levelStars, pointsEarned } from '@/lib/learning';
+import { accuracyPercent, communityName, levelStars } from '@/lib/learning';
 import { streakDisplay } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -19,28 +19,54 @@ import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
 import { Confetti } from './confetti';
-import { haptic } from './motion';
-import { levelBonus } from './points';
-import { treasurePoints } from './step-types';
+import { haptic, useReduceMotion } from './motion';
+import { levelAwards } from './points';
 
 export type RunResult = { stars: Record<string, number>; correct: number; questions: number; practicePoints: number };
 
-/** Level complete (GyanPath.dc.html §3.5): stars, points with the level bonus and treasure, streak, accuracy. */
-export function Celebration({ data, goal, level, index, run, alreadyDone, wasLevelDone }: { data: GyanData; goal: GyanGoal; level: GyanLevel; index: number; run: RunResult; alreadyDone: Set<string>; wasLevelDone: boolean }) {
+/** Ledger rows a little older than the lesson's start still count, in case the phone's clock runs ahead of the server's. */
+const CLOCK_SKEW_MS = 10 * 60 * 1000;
+
+/**
+ * Level complete (GyanPath.dc.html §3.5): stars, points with the level bonus
+ * and treasure, streak, accuracy. The points are what the server paid during
+ * the lesson (the ledger for the step, level and treasure points; the try
+ * answers for practice), never the phone's own sum.
+ */
+export function Celebration({
+  data,
+  goal,
+  level,
+  index,
+  run,
+  alreadyDone,
+  wasLevelDone,
+  startedAt,
+}: {
+  data: GyanData;
+  goal: GyanGoal;
+  level: GyanLevel;
+  index: number;
+  run: RunResult;
+  alreadyDone: Set<string>;
+  wasLevelDone: boolean;
+  startedAt: number;
+}) {
   const t = useT();
   const router = useRouter();
+  const reduce = useReduceMotion();
   const { center, member } = useApp();
   const { invalidate } = useDataVersion();
   const community = communityName(center);
   const me = member?.person.id ?? '';
   const standing = useLoad(() => (center && member ? loadPointsAndStreak(center, member.person.id) : Promise.resolve(null)), [center?.id, member?.person.id], 'load your streak');
+  const paid = useLoad(() => loadLevelAwards(me, level, new Date(startedAt - CLOCK_SKEW_MS).toISOString()), [me, level.id, startedAt], 'load the points from this level');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requested, setRequested] = useState(false);
   const stars = levelStars(level.steps.map((s) => run.stars[s.id] ?? data.progress.find((p) => p.person_id === me && p.step_id === s.id)?.stars ?? 0));
-  const steps = pointsEarned(level.steps, alreadyDone);
-  const bonus = levelBonus({ points: level.points, requires_teacher_signoff: level.requires_teacher_signoff, treasure_points: treasurePoints(level) }, wasLevelDone);
-  const earned = steps + bonus.bonus + bonus.treasure + run.practicePoints;
+  const awards = paid.data ? levelAwards(paid.data, { stepIds: level.steps.map((s) => s.id), levelId: level.id, alreadyDone, wasLevelDone }) : null;
+  const earned = awards ? awards.steps + awards.bonus + awards.treasure + run.practicePoints : null;
   const streak = standing.data && center ? streakDisplay(standing.data.streak, todayAt(center.time_zone)).days : null;
   const next = goal.levels[index + 1] ?? null;
   const isFinal = !next;
@@ -49,11 +75,21 @@ export function Celebration({ data, goal, level, index, run, alreadyDone, wasLev
   const [pop] = useState(() => new Animated.Value(0.6));
   const [seed] = useState(() => level.id.length * 7919 + index);
   useEffect(() => {
-    Animated.spring(pop, { toValue: 1, useNativeDriver: true, friction: 5 }).start();
     haptic('complete');
-  }, [pop]);
+  }, []);
   useEffect(() => {
-    if (earned > 0) AccessibilityInfo.announceForAccessibility(t('gyan.plusPointsSaid', { n: earned }));
+    // A bouncy pop for the stars, or none with Reduce Motion (wait until the setting is known).
+    if (reduce === null) return;
+    if (reduce) {
+      pop.setValue(1);
+      return;
+    }
+    const anim = Animated.spring(pop, { toValue: 1, useNativeDriver: true, friction: 5 });
+    anim.start();
+    return () => anim.stop();
+  }, [pop, reduce]);
+  useEffect(() => {
+    if (earned) AccessibilityInfo.announceForAccessibility(t('gyan.plusPointsSaid', { n: earned }));
   }, [earned, t]);
 
   const askSignoff = async () => {
@@ -81,12 +117,14 @@ export function Celebration({ data, goal, level, index, run, alreadyDone, wasLev
       </Txt>
     </View>
   );
-  const parts = [
-    steps > 0 ? t('gyan.breakdownSteps', { n: steps }) : null,
-    bonus.bonus > 0 ? t('gyan.breakdownBonus', { n: bonus.bonus }) : null,
-    bonus.treasure > 0 ? t('gyan.breakdownTreasure', { n: bonus.treasure }) : null,
-    run.practicePoints > 0 ? t('gyan.breakdownPractice', { n: run.practicePoints }) : null,
-  ].filter((x): x is string => !!x);
+  const parts = awards
+    ? [
+        awards.steps > 0 ? t('gyan.breakdownSteps', { n: awards.steps }) : null,
+        awards.bonus > 0 ? t('gyan.breakdownBonus', { n: awards.bonus }) : null,
+        awards.treasure > 0 ? t('gyan.breakdownTreasure', { n: awards.treasure }) : null,
+        run.practicePoints > 0 ? t('gyan.breakdownPractice', { n: run.practicePoints }) : null,
+      ].filter((x): x is string => !!x)
+    : [];
 
   return (
     <Screen title={goal.name} tabBar={false} niva={false} scroll={false} headerRight={<GyanHeaderChips />} contentStyle={{ flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 }}>
@@ -98,16 +136,21 @@ export function Celebration({ data, goal, level, index, run, alreadyDone, wasLev
           <Txt variant="hero" color="white" center accessibilityRole="header">
             {level.name}
           </Txt>
-          <Animated.View style={{ flexDirection: 'row', gap: 10, paddingVertical: 8, transform: [{ scale: pop }] }} accessible accessibilityLabel={`${stars} / 3 ★`}>
+          <Animated.View style={{ flexDirection: 'row', gap: 10, paddingVertical: 8, transform: [{ scale: pop }] }} accessible accessibilityLabel={t('gyan.starsA11y', { n: stars })}>
             {[0, 1, 2].map((k) => (
               <StarGlyph key={k} size={64} color={k < stars ? colors.gold : colors.starOff} />
             ))}
           </Animated.View>
           <View style={{ flexDirection: 'row', gap: space.sm, alignSelf: 'stretch' }}>
-            {stat(`+${earned}`, t('learn.donePoints', { center: community }), colors.gold)}
+            {stat(earned !== null ? `+${earned}` : paid.error ? '–' : '…', t('learn.donePoints', { center: community }), colors.gold)}
             {stat(streak === null ? '–' : String(streak), t('learn.doneStreak'), colors.flame)}
             {stat(`${accuracyPercent(run.correct, run.questions)}%`, t('learn.doneAccuracy'), colors.onNavyGreen)}
           </View>
+          {paid.error ? (
+            <View style={{ alignSelf: 'stretch' }}>
+              <Banner tone="error" message={paid.error.userMessage} action={{ label: t('common.retry'), onPress: () => void paid.reload() }} />
+            </View>
+          ) : null}
           {parts.length > 1 ? (
             <Txt variant="caption" color="onNavy" center>
               {parts.join(' · ')}
@@ -126,7 +169,7 @@ export function Celebration({ data, goal, level, index, run, alreadyDone, wasLev
           {level.treasure && !wasLevelDone ? (
             <View style={{ alignSelf: 'stretch', backgroundColor: colors.gold, borderRadius: radii.row, paddingVertical: 12, paddingHorizontal: 14 }}>
               <Txt variant="smallStrong" color="treasureInk" style={{ fontFamily: fonts.bodyBold }}>
-                {bonus.treasure > 0 ? t('gyan.treasurePoints', { reward: level.treasure, points: bonus.treasure }) : t('learn.treasureUnlocked', { reward: level.treasure })}
+                {awards && awards.treasure > 0 ? t('gyan.treasurePoints', { reward: level.treasure, points: awards.treasure }) : t('learn.treasureUnlocked', { reward: level.treasure })}
               </Txt>
             </View>
           ) : null}
@@ -164,7 +207,7 @@ export function Celebration({ data, goal, level, index, run, alreadyDone, wasLev
             </Txt>
           </Pressable>
         </ScrollView>
-        {earned > 0 || !wasLevelDone ? <Confetti seed={seed} top={90} /> : null}
+        {(earned ?? 0) > 0 || !wasLevelDone ? <Confetti seed={seed} top={90} /> : null}
       </View>
     </Screen>
   );

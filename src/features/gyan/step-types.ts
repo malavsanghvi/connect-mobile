@@ -23,7 +23,8 @@ export type FrameInfo = {
  */
 export type StepResult = { kind: 'question'; firstTry: boolean } | { kind: 'step'; stars: number; recordingPath?: string | null; savedByTry?: boolean };
 
-export type Burst = { points: number | null; confetti: boolean; message?: string };
+/** "+N points" over the lesson. `silent`: the caller announces its own line for screen readers (a practice try). */
+export type Burst = { points: number | null; confetti: boolean; message?: string; silent?: boolean };
 
 export type StepContext = {
   centerId: string;
@@ -47,6 +48,8 @@ export type StepContext = {
   burst: (b: Burst) => void;
   /** Practice points the server paid during this run (for the celebration). */
   addPracticePoints: (n: number) => void;
+  /** Load the lesson again from the server (a step was removed meanwhile). */
+  reloadLesson: () => void;
 };
 
 export type StepProps = { ctx: StepContext };
@@ -54,9 +57,4 @@ export type StepProps = { ctx: StepContext };
 /** gyan_steps.activity (connect-crm 0570): the payload for cards, hotspot and voice steps. */
 export function stepActivity(step: GyanStep): unknown {
   return step.activity ?? null;
-}
-
-/** gyan_levels.treasure_points: paid once with the level. */
-export function treasurePoints(level: GyanLevel): number {
-  return level.treasure_points > 0 ? level.treasure_points : 0;
 }

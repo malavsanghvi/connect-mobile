@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { AccessibilityInfo, View } from 'react-native';
 
@@ -20,6 +20,13 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useSettings } from '@/providers/settings';
+
+let reloads = 0;
+/** A new value each time, so "Reload the lesson" always opens a fresh copy of the screen. */
+function nextReloadNonce(): string {
+  reloads += 1;
+  return String(reloads);
+}
 
 /** Gyan Path lesson (GyanPath.dc.html L98–164): one step at a time, then the level-complete celebration. */
 export default function GyanLevelScreen() {
@@ -69,11 +76,14 @@ function Lesson({ data, goal, level, content }: { data: GyanData; goal: GyanGoal
   const [burst, setBurst] = useState<(Burst & { id: number }) | null>(null);
   const [alreadyDone] = useState(() => new Set(level.steps.filter((s) => isStepDone(data.progress, me, s.id)).map((s) => s.id)));
   const [wasLevelDone] = useState(() => isLevelDone(level, data.progress, me));
+  // When the lesson started, for the celebration's tally of what the server paid since.
+  const [startedAt] = useState(() => Date.now());
   const audio = useInAppAudio(t('learn.audioFailed'));
+  const router = useRouter();
   const index = goal.levels.findIndex((l) => l.id === level.id);
   const levelAudio = level.steps.map((s) => content.find((c) => c.id === s.content_item_id)?.media_url).find((u): u is string => !!u) ?? null;
 
-  if (done) return <Celebration data={data} goal={goal} level={level} index={index} run={run} alreadyDone={alreadyDone} wasLevelDone={wasLevelDone} />;
+  if (done) return <Celebration data={data} goal={goal} level={level} index={index} run={run} alreadyDone={alreadyDone} wasLevelDone={wasLevelDone} startedAt={startedAt} />;
 
   if (screens.length === 0 || !center) {
     return (
@@ -87,7 +97,7 @@ function Lesson({ data, goal, level, content }: { data: GyanData; goal: GyanGoal
   const step = s.step;
   const showBurst = (b: Burst) => {
     setBurst({ ...b, id: (burst?.id ?? 0) + 1 });
-    if (b.points) AccessibilityInfo.announceForAccessibility(t('gyan.plusPointsSaid', { n: b.points }));
+    if (b.points && !b.silent) AccessibilityInfo.announceForAccessibility(t('gyan.plusPointsSaid', { n: b.points }));
   };
 
   const finish = async (result: StepResult) => {
@@ -99,12 +109,15 @@ function Lesson({ data, goal, level, content }: { data: GyanData; goal: GyanGoal
       setRun((r) => ({ ...r, correct: r.correct + (result.firstTry ? 1 : 0), questions: r.questions + 1 }));
     }
     if (s.lastOfStep) {
-      const stars = result.kind === 'step' ? result.stars : quizStars(missed);
+      let stars = result.kind === 'step' ? result.stars : quizStars(missed);
       const savedByTry = result.kind === 'step' && !!result.savedByTry;
+      let firstTime = false;
       if (!savedByTry) {
         setSaving(true);
         try {
-          await completeStep(center.id, me, step.id, stars, data.progress, result.kind === 'step' ? result.recordingPath : null);
+          const saved = await completeStep(center.id, me, step.id, stars, result.kind === 'step' ? result.recordingPath : null);
+          stars = saved.stars;
+          firstTime = saved.firstTime;
         } catch (err) {
           setSaveError(report(err, 'save your progress').userMessage);
           // Undo this question's count; the Continue button retries the save.
@@ -118,9 +131,10 @@ function Lesson({ data, goal, level, content }: { data: GyanData; goal: GyanGoal
       setRun((r) => ({ ...r, stars: { ...r.stars, [step.id]: stars } }));
       setMissedInStep(0);
       const last = i + 1 >= screens.length;
-      // First completion pays the step's points once (the server's trigger); a practice try already showed its own.
-      if (!savedByTry && !alreadyDone.has(step.id) && step.points > 0 && !last) showBurst({ points: step.points, confetti: false });
-      haptic(last ? 'complete' : 'right');
+      // The first completion pays the step's points once (the server's trigger); a practice try already showed its own.
+      if (firstTime && step.points > 0 && !last) showBurst({ points: step.points, confetti: false });
+      // On the last step the celebration gives the "complete" buzz.
+      if (!last) haptic('right');
     } else {
       setMissedInStep(missed);
     }
@@ -150,6 +164,8 @@ function Lesson({ data, goal, level, content }: { data: GyanData; goal: GyanGoal
     finish: (r) => void finish(r),
     burst: showBurst,
     addPracticePoints: (n) => setRun((r) => ({ ...r, practicePoints: r.practicePoints + n })),
+    // A fresh copy of the screen loads the lesson again (the step may have been removed meanwhile).
+    reloadLesson: () => router.replace({ pathname: '/gyan/[goalId]/level/[levelId]', params: { goalId: goal.id, levelId: level.id, reload: nextReloadNonce() } }),
   };
   const Step = STEP_COMPONENTS[stepRenderer(step)];
 

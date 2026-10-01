@@ -366,8 +366,8 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
                   height: 104,
                   borderRadius: 52,
                   backgroundColor: colors.saffron,
-                  opacity: reduce ? 0.3 : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
-                  transform: reduce ? [] : [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
+                  opacity: reduce !== false ? 0.3 : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
+                  transform: reduce !== false ? [] : [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
                 }}
               />
             ) : null}

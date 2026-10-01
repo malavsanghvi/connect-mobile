@@ -254,8 +254,8 @@ function SpotImage({ activity, look, onTouch, labelFor }: { activity: HotspotAct
                       height: radius * 2,
                       borderRadius: radius,
                       backgroundColor: colors.gold,
-                      opacity: reduce ? 0.45 : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 0] }),
-                      transform: reduce ? [] : [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.35] }) }],
+                      opacity: reduce !== false ? 0.45 : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 0] }),
+                      transform: reduce !== false ? [] : [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.35] }) }],
                     }}
                   />
                 ) : null}
