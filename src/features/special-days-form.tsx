@@ -23,7 +23,7 @@ function FieldLabel({ children }: { children: string }) {
  * The "add a special day" form (whose, occasion, remember by, date or tithi, reminder). Shared by Family › Special
  * days and the onboarding step, so both save through the same path. `onDone` runs after a successful save.
  */
-export function AddSpecialDayForm({ onDone }: { onDone: () => void }) {
+export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => void; /** Preview of onboarding: check the form as usual but save nothing. */ preview?: boolean }) {
   const t = useT();
   const { member, center } = useApp();
   const { invalidate } = useDataVersion();
@@ -61,6 +61,10 @@ export function AddSpecialDayForm({ onDone }: { onDone: () => void }) {
       if (!tithiParts) return setError(t('days.tithiRequired'));
     }
     if (!who && !label.trim()) return setError(t('days.labelRequired'));
+    if (preview) {
+      toast(t('preview.notSaved'));
+      return onDone();
+    }
     setBusy(true);
     try {
       const kind = occasion === 'birth_tithi' ? 'birthday' : occasion;

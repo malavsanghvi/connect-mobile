@@ -29,7 +29,7 @@ import { colors, fonts, radii, space } from '@/theme';
 export default function FamilyScreen() {
   const t = useT();
   const router = useRouter();
-  const { member, center, setGuest, orgMemberLabel, orgHouseholdLabel, signOut, setOnboarding } = useApp();
+  const { member, center, setGuest, orgMemberLabel, orgHouseholdLabel, signOut, setOnboarding, sandbox, startOnboardingPreview } = useApp();
   const { invalidate } = useDataVersion();
   const { confirm } = useFeedback();
   const membershipOn = useModule('membership');
@@ -178,6 +178,14 @@ export default function FamilyScreen() {
           <Pressable onPress={() => setOnboarding(true)} accessibilityRole="button" style={{ paddingVertical: 14 }}>
             <Txt variant="smallStrong" color="navy">
               {t('family.updateFamily')}
+            </Txt>
+          </Pressable>
+        ) : null}
+        {/* Sandbox only: walk through the onboarding screens without saving or sending anything. */}
+        {member.isAdult && sandbox ? (
+          <Pressable onPress={startOnboardingPreview} accessibilityRole="button" style={{ paddingVertical: 14 }}>
+            <Txt variant="smallStrong" color="navy">
+              {t('family.previewOnboarding')}
             </Txt>
           </Pressable>
         ) : null}

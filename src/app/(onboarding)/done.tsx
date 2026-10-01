@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
 import { FullScreen } from '@/components/full-screen';
-import { Button, Card, Txt } from '@/components/ui';
+import { Banner, Button, Card, Txt } from '@/components/ui';
 import { type StringKey } from '@/i18n';
 import { isContactChannel } from '@/lib/api/family';
 import { readBiometricOptIn } from '@/lib/biometrics';
@@ -15,7 +15,7 @@ import { colors, fonts, space } from '@/theme';
 /** Onboarding final screen (Onboarding.dc.html s6): centred ✓, summary card, "Go to home" ends onboarding. */
 export default function DoneScreen() {
   const t = useT();
-  const { member, setOnboarding } = useApp();
+  const { member, setOnboarding, onboardingPreview } = useApp();
   const params = useLocalSearchParams<{ skipped?: string; channels?: string; paper?: string }>();
   const [bio, setBio] = useState(false);
 
@@ -51,6 +51,11 @@ export default function DoneScreen() {
         <Txt variant="body" color="ink2" center>
           {skipped ? t('done.skippedLine') : t('done.thanksLine')}
         </Txt>
+        {onboardingPreview ? (
+          <View style={{ alignSelf: 'stretch' }}>
+            <Banner tone="info" message={t('preview.doneNote')} />
+          </View>
+        ) : null}
         <Card style={{ alignSelf: 'stretch', gap: 6 }}>
           {lines.map((l) => (
             <Txt key={l} variant="small">

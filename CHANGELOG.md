@@ -22,6 +22,9 @@ How a release is made:
   admin adds the number). Both are optional and skippable. The WhatsApp step is passed over when Communications is
   off or the community has no active group, and children go straight to contact preferences. Both screens are
   still available afterwards (Family › Special days, welcome guide › WhatsApp groups).
+- Family tab (sandbox communities only): **Preview onboarding (nothing is saved)** walks an adult through every
+  onboarding screen with each save and request skipped, a banner on each step and an "Exit preview" link.
+  "Update family profile (onboarding)" is unchanged and still saves.
 
 ## 1.2.0 — 2026-10-01
 

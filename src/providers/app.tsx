@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { pendingSteps, type LegalStepDoc } from '@/features/legal-step';
 import { loadLegalSteps } from '@/lib/api/legal';
 import { loadCenter, loadMember, orgIdentifierRules, type Center, type Member } from '@/lib/api/member';
+import { modeAfterMemberLoad, type OnboardingMode } from '@/features/onboarding/steps';
 import { brandPalette, communityToOpen, isCommunityChoice, openedPath, type CommunityChoice } from '@/lib/community';
 import { env, isConfigured } from '@/lib/env';
 import { AppError, logError, report } from '@/lib/errors';
@@ -45,9 +46,14 @@ export type AppContextValue = {
   memberError: AppError | null;
   /** Re-read the member, household and family (after linking or edits). */
   refreshMember: () => Promise<Member | null>;
-  /** True while the onboarding steps are in progress. */
+  /** True while the onboarding steps are in progress (a real run or a preview). */
   onboarding: boolean;
+  /** true = a real run (saves); false = back to the app. Ends a preview too. */
   setOnboarding: (on: boolean) => void;
+  /** The onboarding screens are a preview: every save and request is skipped. */
+  onboardingPreview: boolean;
+  /** Walk through the onboarding screens without saving or sending anything (sandbox communities only). */
+  startOnboardingPreview: () => void;
   /**
    * The community's documents this member must accept or answer before continuing (#20): the
    * first sign-in, and again for a newly published version. Empty when nothing is due; null
@@ -74,7 +80,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [guest, setGuest] = useState(false);
   const [memberResult, setMemberResult] = useState<Loaded<Member | null> | null>(null);
-  const [onboarding, setOnboarding] = useState(false);
+  // One state for both flags, so a preview can never outlive the onboarding it belongs to.
+  const [onboardingMode, setOnboardingMode] = useState<OnboardingMode>('off');
   // The community chosen on this device (undefined while it is being read).
   const [saved, setSaved] = useState<CommunityChoice | null | undefined>(undefined);
   const [choosingCommunity, setChoosingCommunity] = useState(false);
@@ -169,7 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       logError('remembering the chosen community on this device', err);
     }
     setMemberResult(null);
-    setOnboarding(false);
+    setOnboardingMode('off');
     setGuest(false);
     setSaved(choice);
     setChoosingCommunity(false);
@@ -194,7 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         setMemberResult({ key: memberKey, value });
         // A new login starts onboarding only when it isn't linked to a person yet.
-        setOnboarding(!value);
+        setOnboardingMode(modeAfterMemberLoad(!!value));
       })
       .catch((err: unknown) => active && setMemberResult({ key: memberKey, error: report(err, 'load your family') }));
     return () => {
@@ -240,7 +247,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signOut();
     if (error) throw report(error, 'sign out');
     setMemberResult(null);
-    setOnboarding(false);
+    setOnboardingMode('off');
   };
 
   const currentMember = session && memberResult?.key === memberKey ? memberResult : null;
@@ -266,8 +273,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     memberLoading: !!session && !!center && !currentMember,
     memberError: currentMember?.error ?? null,
     refreshMember,
-    onboarding,
-    setOnboarding,
+    onboarding: onboardingMode !== 'off',
+    setOnboarding: (on) => setOnboardingMode(on ? 'on' : 'off'),
+    onboardingPreview: onboardingMode === 'preview',
+    startOnboardingPreview: () => setOnboardingMode('preview'),
     legalPending: linkedPerson ? (currentLegal ? (currentLegal.value ?? null) : null) : [],
     legalError: currentLegal?.error ?? null,
     retryLegal: () => setLegalNonce((n) => n + 1),

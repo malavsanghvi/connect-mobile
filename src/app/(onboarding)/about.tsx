@@ -31,7 +31,7 @@ export default function AboutScreen() {
 function AboutForm({ member, existing }: { member: Member; existing: Tables<'person_emails'>[] }) {
   const router = useRouter();
   const t = useT();
-  const { center, refreshMember } = useApp();
+  const { center, refreshMember, onboardingPreview } = useApp();
   const [draft, setDraft] = useState(() => draftFromPerson(member.person));
   const [extras, setExtras] = useState<EmailDraft[]>(() => existing.filter((e) => e.label !== 'primary').map((e) => ({ id: e.id, email: e.email, label: e.label === 'work' ? 'work' : 'other' })));
   const [errors, setErrors] = useState<ProfileErrors>({});
@@ -43,6 +43,8 @@ function AboutForm({ member, existing }: { member: Member; existing: Tables<'per
     const { update, errors: errs } = profileToUpdate(draft, member.isAdult);
     setErrors(errs);
     if (Object.keys(errs).length) return;
+    // Preview: the same checks, then on to the next step without saving anything.
+    if (onboardingPreview) return router.push(member.isAdult ? '/address' : '/family');
     setBusy(true);
     setError(null);
     try {

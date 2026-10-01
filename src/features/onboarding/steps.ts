@@ -21,3 +21,18 @@ export type OnboardingRoute = '/plan-days' | '/whatsapp-groups' | '/contact';
 export function stepAfterFamily(isAdult: boolean): OnboardingRoute {
   return isAdult ? '/plan-days' : '/contact';
 }
+
+/**
+ * How the onboarding screens are running: 'off' (the app), 'on' (a real run, which saves) or 'preview' (the same
+ * screens with every save and request skipped, started by hand from the Family tab in a sandbox community).
+ */
+export type OnboardingMode = 'off' | 'on' | 'preview';
+
+/**
+ * The mode when a login's member record has loaded: a login not yet linked to a person onboards for real, a linked
+ * one does not. Never 'preview', so a preview left behind (signing out, switching community) cannot carry over
+ * into a real new member's first sign-in.
+ */
+export function modeAfterMemberLoad(linked: boolean): OnboardingMode {
+  return linked ? 'off' : 'on';
+}

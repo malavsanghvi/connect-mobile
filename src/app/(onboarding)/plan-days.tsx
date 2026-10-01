@@ -23,7 +23,7 @@ import { fonts, space } from '@/theme';
 export default function PlanDaysStepScreen() {
   const router = useRouter();
   const t = useT();
-  const { member, center } = useApp();
+  const { member, center, onboardingPreview } = useApp();
   const householdId = member?.household?.id ?? null;
   const state = useLoad(() => (householdId ? listSpecialDays(householdId) : Promise.resolve([])), [householdId], 'load your special days');
   if (!member || !center) return null;
@@ -60,7 +60,7 @@ export default function PlanDaysStepScreen() {
           }
         </Loaded>
         {/* A new key after each save clears the form for the next day. */}
-        <AddSpecialDayForm key={days.length} onDone={() => undefined} />
+        <AddSpecialDayForm key={days.length} preview={onboardingPreview} onDone={() => undefined} />
         <Button label={t('common.continue')} tone={days.length ? 'primary' : 'secondary'} onPress={next} />
         <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
           {t('planDays.later')}
