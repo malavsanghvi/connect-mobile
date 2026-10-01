@@ -14,6 +14,14 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.4.1 — 2026-10-01
+
+- Give › an opportunity › making it recurring is simpler: **one "Repeat this gift" switch** instead of the Give once / Make
+  this recurring pair, then just **how often** in a single row (Weekly, Monthly, ... as the office allows). A sentence under
+  it says what will happen ("$21 monthly for ... · first gift Oct 15, 2026 · until I stop · about $252 a year"). The start
+  date, how long and card or bank are behind one **Change start date, length or payment method** link, with the usual
+  defaults (soonest start, until I stop, card). Editing a gift you already have is unchanged.
+
 ## 1.4.0 — 2026-10-01
 
 - **3L — Look, Listen, Learn** replaces the Learn and Library tabs of My Jain Way (Today · 3L · Saathi). Look: live darshan,
