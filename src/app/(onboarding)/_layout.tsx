@@ -12,6 +12,8 @@ export default function OnboardingLayout() {
       <Stack.Screen name="address" />
       <Stack.Screen name="details" />
       <Stack.Screen name="family" />
+      <Stack.Screen name="plan-days" />
+      <Stack.Screen name="whatsapp-groups" />
       <Stack.Screen name="contact" />
       <Stack.Screen name="done" />
     </Stack>
