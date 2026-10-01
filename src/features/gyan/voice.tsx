@@ -1,28 +1,35 @@
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent, type ExpoSpeechRecognitionErrorCode } from 'expo-speech-recognition';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Linking, Platform, Pressable, View } from 'react-native';
+import { Animated, Linking, Platform, Pressable, View } from 'react-native';
 
 import { Banner, Button, Row, Txt, VStack } from '@/components/ui';
 import { MicGlyph, PlayGlyph } from '@/features/gyan-ui';
-import { logError } from '@/lib/errors';
+import { BUCKETS, signedUrl } from '@/lib/api/files';
+import { logError, report } from '@/lib/errors';
 import { useT } from '@/providers/settings';
 import { colors, radii, space, touch } from '@/theme';
 
-import { voiceActivity, type VoiceActivity, type VoiceVerse } from './activity';
-import { ExtrasBox, LessonFrame, StepFooter, StepTitle } from './lesson-frame';
+import { announceIos } from './a11y';
+import { voiceActivity, type MediaRef, type VoiceActivity, type VoiceVerse } from './activity';
+import { ExtrasBox, LessonFrame, StepFooter, StepTitle, useBrokenContentLog } from './lesson-frame';
 import { haptic, usePulse, useReduceMotion } from './motion';
 import { scoreStars } from './points';
 import { speakVerse, stopSpeaking } from './speech';
-import { stepActivity, type StepProps } from './step-types';
+import { BROKEN_STEP_STARS, stepActivity, type StepProps } from './step-types';
 import { TriesCounter, TryResult, usePracticeTries } from './tries';
-import { displayWords, matchAll, matchVerse, type VerseCheck } from './voice-match';
+import { displayWords, matchAll, matchVerse, type VerseCheck, type VerseText } from './voice-match';
+import { addResult, continuousSupported, endAction, errorAction, freshSession, heardCandidates, heardText, type Mode, type Session } from './voice-session';
 
-type Mode = 'verse' | 'all';
 type Phase = number | 'all';
-type Problem = { text: string; action?: 'english' | 'settings' };
-type Session = { mode: Mode | null; finals: string[]; lastAlts: string[]; interim: string; errored: boolean };
+type Problem = { text: string; action?: 'english' | 'settings' | 'replay' };
+/** The parts of the recogniser's events this screen reads. */
+type ResultEvent = { isFinal: boolean; results: { transcript: string }[] };
+type ErrorEvent = { error: ExpoSpeechRecognitionErrorCode; message: string };
 
-const freshSession = (mode: Mode | null): Session => ({ mode, finals: [], lastAlts: [], interim: '', errored: false });
+/** After Stop, how long to wait for the recogniser to finish before aborting it (some Android recognisers hang). */
+const STOP_GRACE_MS = 3000;
+/** After an abort, how long to wait for its "end" before finishing here. */
+const ABORT_GRACE_MS = 1500;
 
 function recognitionAvailable(): boolean {
   try {
@@ -42,9 +49,10 @@ function recognitionAvailable(): boolean {
 export function VoiceStep({ ctx }: StepProps) {
   const t = useT();
   const activity = voiceActivity(stepActivity(ctx.step));
+  useBrokenContentLog(activity.verses.length === 0, ctx.step, 'no lines it can show');
   if (activity.verses.length === 0) {
     return (
-      <LessonFrame frame={ctx.frame} answered footer={<StepFooter label={t('learn.continue')} busy={ctx.frame.saving} onPress={() => ctx.finish({ kind: 'step', stars: 3 })} />}>
+      <LessonFrame frame={ctx.frame} answered footer={<StepFooter label={t('learn.continue')} busy={ctx.frame.saving} onPress={() => ctx.finish({ kind: 'step', stars: BROKEN_STEP_STARS })} />}>
         <StepTitle>{ctx.step.title || ctx.level.name}</StepTitle>
         <Txt variant="small" color="muted">
           {t('gyan.versesMissing')}
@@ -68,33 +76,50 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
   const [problem, setProblem] = useState<Problem | null>(null);
   const [lang, setLang] = useState(activity.lang);
   const [speaking, setSpeaking] = useState(false);
-  const [asking, setAsking] = useState<Mode | null>(null);
+  const [asking, setAsking] = useState(false);
   const [passedAll, setPassedAll] = useState(false);
   const [bestScore, setBestScore] = useState(0);
   const [triedAll, setTriedAll] = useState(false);
+  // A new number after a recording fails, so Retry loads it again instead of resuming the failed one.
+  const [playTry, setPlayTry] = useState(0);
   const [available] = useState(recognitionAvailable);
   const session = useRef<Session>(freshSession(null));
+  const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signedAudio = useRef(new Map<string, string>());
   const pulse = usePulse(listening !== null, reduce);
+
+  const clearStopTimer = () => {
+    if (stopTimer.current) clearTimeout(stopTimer.current);
+    stopTimer.current = null;
+  };
 
   useEffect(
     () => () => {
+      if (stopTimer.current) clearTimeout(stopTimer.current);
       try {
         if (session.current.mode) ExpoSpeechRecognitionModule.abort();
       } catch (err) {
         logError('stopping speech recognition on leaving', err);
       }
+      session.current = freshSession(null);
       stopSpeaking();
     },
     [],
   );
 
+  const micOff = (): Problem =>
+    Platform.OS === 'web'
+      ? { text: t('gyan.micBlockedWeb') } // a browser has no settings screen to open
+      : { text: Platform.OS === 'android' ? t('gyan.micNotAllowedAndroid') : t('gyan.micNotAllowed'), action: 'settings' };
+  const noSpeech = (): Problem => ({ text: Platform.OS === 'android' ? t('gyan.noSpeechAndroid') : t('gyan.noSpeech') });
+
   const problemFor = (code: ExpoSpeechRecognitionErrorCode): Problem => {
     switch (code) {
       case 'no-speech':
       case 'speech-timeout':
-        return { text: t('gyan.noSpeech') };
+        return noSpeech();
       case 'not-allowed':
-        return { text: t('gyan.micNotAllowed'), action: 'settings' };
+        return micOff();
       case 'service-not-allowed':
         return { text: Platform.OS === 'web' ? t('gyan.listenWeb') : t('gyan.listenUnavailable') };
       case 'language-not-supported':
@@ -112,18 +137,16 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
   };
 
   const evaluate = (mode: Mode, s: Session) => {
-    const said = [...s.finals, s.interim].join(' ').trim();
-    if (!said) {
-      setProblem({ text: t('gyan.noSpeech') });
+    const candidates = heardCandidates(s);
+    if (candidates.length === 0) {
+      setProblem(noSpeech());
       return;
     }
-    const before = s.finals.slice(0, -1).join(' ');
-    const candidates = s.lastAlts.length > 1 ? s.lastAlts.map((a) => `${before} ${a}`.trim()) : [said];
     if (mode === 'verse' && typeof phase === 'number') {
       const r = matchVerse(verses[phase], candidates, activity.passRatio);
       setChecks({ ...checks, [phase]: r });
       haptic(r.pass ? 'right' : 'wrong');
-      AccessibilityInfo.announceForAccessibility(r.pass ? t('gyan.versePass') : t('gyan.verseFix'));
+      announceIos(r.pass ? t('gyan.versePass') : t('gyan.verseFix')); // the footer note is a live region elsewhere
       return;
     }
     const r = matchAll(verses, candidates, activity.passRatio);
@@ -136,60 +159,130 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
     void tries.record({ success: r.overall.pass, score: r.overall.score, detail: { mode: 'say_all', found: r.overall.found, total: r.overall.total, lang } });
   };
 
-  useSpeechRecognitionEvent('result', (e) => {
+  /** The session is over: score what was heard, unless an error was already shown. */
+  const finishSession = (s: Session) => {
+    const mode = s.mode;
+    s.mode = null;
+    clearStopTimer();
+    setListening(null);
+    if (!mode || s.errored) return;
+    if (s.forced && !heardText(s)) {
+      setProblem({ text: t('gyan.listenFailed') });
+      return;
+    }
+    evaluate(mode, s);
+  };
+
+  /** Stop got no answer: abort, and finish here if even the abort brings no "end". */
+  const forceEnd = () => {
     const s = session.current;
     if (!s.mode) return;
-    const alts = e.results.map((r) => r.transcript).filter((x) => !!x && !!x.trim());
-    if (e.isFinal) {
-      s.finals.push(alts[0] ?? '');
-      s.lastAlts = alts;
-      s.interim = '';
-    } else s.interim = alts[0] ?? '';
-    setHeard([...s.finals, s.interim].join(' ').trim());
+    s.forced = true;
+    clearStopTimer();
+    try {
+      ExpoSpeechRecognitionModule.abort();
+    } catch (err) {
+      logError('aborting speech recognition after stop got no answer', err);
+    }
+    stopTimer.current = setTimeout(() => latest.current.finishIfOpen(s), ABORT_GRACE_MS);
+  };
+
+  // Timers call the newest handlers (their state is current), not the ones from when they were set.
+  const latest = useRef({ forceEnd, finishIfOpen: (s: Session) => void s });
+  useEffect(() => {
+    latest.current = {
+      forceEnd,
+      finishIfOpen: (s: Session) => {
+        if (session.current === s && s.mode) finishSession(s);
+      },
+    };
   });
-  useSpeechRecognitionEvent('error', (e) => {
+
+  const startRecognizer = (mode: Mode, restart: boolean): boolean => {
+    const lines = mode === 'all' ? verses : typeof phase === 'number' ? [verses[phase]] : [];
+    const hints = [...new Set(lines.flatMap((v) => [...displayWords(v.text), ...(v.translit ? displayWords(v.translit) : [])]))].slice(0, 100);
+    try {
+      ExpoSpeechRecognitionModule.start({ lang, interimResults: true, continuous: mode === 'all' && !restart, maxAlternatives: 3, contextualStrings: hints, iosTaskHint: 'dictation', addsPunctuation: false });
+      return true;
+    } catch (err) {
+      logError('starting speech recognition', err);
+      return false;
+    }
+  };
+
+  useSpeechRecognitionEvent('result', (e: ResultEvent) => {
     const s = session.current;
-    if (!s.mode || e.error === 'aborted') return;
+    if (!s.mode) return;
+    addResult(
+      s,
+      e.results.map((r) => r.transcript).filter((x) => !!x && !!x.trim()),
+      e.isFinal,
+    );
+    setHeard(heardText(s));
+  });
+  useSpeechRecognitionEvent('error', (e: ErrorEvent) => {
+    const s = session.current;
+    const action = errorAction(s, e.error);
+    if (action === 'ignore' || action === 'evaluate') return; // "evaluate": the end scores what was heard
+    if (action === 'pause') {
+      s.quiet += 1;
+      return;
+    }
     s.errored = true;
     if (e.error !== 'no-speech' && e.error !== 'speech-timeout') logError(`speech recognition (${lang})`, `${e.error}: ${e.message}`);
     setProblem(problemFor(e.error));
   });
   useSpeechRecognitionEvent('end', () => {
     const s = session.current;
-    const mode = s.mode;
-    s.mode = null;
-    setListening(null);
-    if (mode && !s.errored) evaluate(mode, s);
+    const next = endAction(s, Date.now());
+    if (next === 'ignore') return;
+    if (next === 'restart' && s.mode) {
+      // Old Android stopped at a pause: listen on, keeping what was heard.
+      s.restarts += 1;
+      if (startRecognizer(s.mode, true)) return;
+    }
+    finishSession(s);
   });
 
   const start = (mode: Mode) => {
     stopSpeaking();
     ctx.audio.stop();
     setSpeaking(false);
-    session.current = freshSession(mode);
+    clearStopTimer();
+    const restart = mode === 'all' && !continuousSupported(Platform.OS, Platform.Version);
+    session.current = freshSession(mode, restart, Date.now());
     setHeard('');
-    const lines = mode === 'all' ? verses : typeof phase === 'number' ? [verses[phase]] : [];
-    const hints = [...new Set(lines.flatMap((v) => [...displayWords(v.text), ...(v.translit ? displayWords(v.translit) : [])]))].slice(0, 100);
-    try {
-      ExpoSpeechRecognitionModule.start({ lang, interimResults: true, continuous: mode === 'all', maxAlternatives: 3, contextualStrings: hints, iosTaskHint: 'dictation', addsPunctuation: false });
-      setListening(mode);
-    } catch (err) {
-      logError('starting speech recognition', err);
+    if (!startRecognizer(mode, restart)) {
       session.current = freshSession(null);
       setProblem({ text: t('gyan.listenFailed') });
+      return;
     }
+    setListening(mode);
+  };
+
+  /** The member tapped to finish: let the recogniser end; a second tap, or no answer, aborts it. */
+  const requestStop = () => {
+    const s = session.current;
+    if (!s.mode) return;
+    if (s.stopRequested) {
+      forceEnd();
+      return;
+    }
+    s.stopRequested = true;
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch (err) {
+      logError('stopping speech recognition', err);
+      forceEnd();
+      return;
+    }
+    clearStopTimer();
+    stopTimer.current = setTimeout(() => latest.current.forceEnd(), STOP_GRACE_MS);
   };
 
   const listen = async (mode: Mode) => {
     if (listening) {
-      try {
-        ExpoSpeechRecognitionModule.stop();
-      } catch (err) {
-        logError('stopping speech recognition', err);
-        session.current = freshSession(null);
-        setListening(null);
-        setProblem({ text: t('gyan.listenFailed') });
-      }
+      requestStop();
       return;
     }
     setProblem(null);
@@ -201,8 +294,8 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
       try {
         const perm = await ExpoSpeechRecognitionModule.getPermissionsAsync();
         if (!perm.granted) {
-          if (perm.canAskAgain) setAsking(mode);
-          else setProblem({ text: t('gyan.micNotAllowed'), action: 'settings' });
+          if (perm.canAskAgain) setAsking(true);
+          else setProblem(micOff());
           return;
         }
       } catch (err) {
@@ -215,13 +308,14 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
   };
 
   const allowAndStart = async () => {
-    const mode = asking;
-    setAsking(null);
-    if (!mode) return;
+    setAsking(false);
+    // The phase now, not when the card opened.
+    const mode: Mode = phase === 'all' ? 'all' : 'verse';
     try {
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!perm.granted) {
-        setProblem({ text: t('gyan.micNotAllowed'), action: perm.canAskAgain ? undefined : 'settings' });
+        // Still allowed to ask: the next tap on the microphone asks again.
+        setProblem(perm.canAskAgain ? { text: t('gyan.micAskAgain') } : micOff());
         return;
       }
     } catch (err) {
@@ -232,28 +326,75 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
     start(mode);
   };
 
-  const play = (which: Phase) => {
-    setProblem(null);
-    const verse = typeof which === 'number' ? verses[which] : null;
-    if (verse?.audio) {
-      ctx.audio.toggle(`${ctx.step.id}:${which}`, verse.audio);
-      return;
+  const openSettings = async () => {
+    try {
+      await Linking.openSettings();
+    } catch (err) {
+      logError('opening settings', err);
+      setProblem({ text: t('gyan.openSettingsFailed') });
     }
-    if (speaking) {
-      stopSpeaking();
-      setSpeaking(false);
-      return;
-    }
+  };
+
+  const audioId = (which: Phase, n: number) => `${ctx.step.id}:${which}:${n}`;
+
+  const speak = (text: VerseText) => {
     ctx.audio.stop();
     setSpeaking(true);
-    const text = verse ?? { text: verses.map((v) => v.text).join(' । '), translit: verses.every((v) => v.translit) ? verses.map((v) => v.translit).join(', ') : null };
     void speakVerse(text, activity.lang, (ok) => {
       setSpeaking(false);
       if (!ok) setProblem({ text: t('gyan.speakFailed') });
     });
   };
 
+  /** A verse's own recording: a URL, or a content-bucket key signed for an hour. */
+  const playRecording = async (which: number, ref: Exclude<MediaRef, { kind: 'asset' }>, n: number) => {
+    let url = ref.kind === 'url' ? ref.url : (signedAudio.current.get(ref.key) ?? null);
+    if (!url && ref.kind === 'storage') {
+      try {
+        url = await signedUrl(ref.key, BUCKETS.content, 'load the recording');
+        signedAudio.current.set(ref.key, url);
+      } catch (err) {
+        setProblem({ text: report(err, 'load the recording').userMessage, action: 'replay' });
+        return;
+      }
+    }
+    if (!url) return;
+    stopSpeaking();
+    setSpeaking(false);
+    ctx.audio.toggle(audioId(which, n), url);
+  };
+
+  const play = (which: Phase, n = playTry) => {
+    setProblem(null);
+    const verse = typeof which === 'number' ? verses[which] : null;
+    if (verse && typeof which === 'number' && verse.audio) {
+      if (verse.audio.kind !== 'asset') {
+        void playRecording(which, verse.audio, n);
+        return;
+      }
+      // No recordings are bundled with the app yet: the phone reads the line, and says so.
+      logError(`Gyan Path step ${ctx.step.id}: verse recording "${verse.audio.name}" is not bundled (reading it aloud instead)`, verse.audio);
+      setProblem({ text: t('gyan.recordingMissing') });
+    }
+    if (speaking) {
+      stopSpeaking();
+      setSpeaking(false);
+      return;
+    }
+    speak(verse ?? { text: verses.map((v) => v.text).join(' । '), translit: verses.every((v) => v.translit) ? verses.map((v) => v.translit).join(', ') : null });
+  };
+
+  /** Try a failed recording again from the start (a new player item, and a new link for a stored one). */
+  const replay = () => {
+    const verse = typeof phase === 'number' ? verses[phase] : null;
+    if (verse?.audio?.kind === 'storage') signedAudio.current.delete(verse.audio.key);
+    const n = playTry + 1;
+    setPlayTry(n);
+    play(phase, n);
+  };
+
   const goTo = (next: Phase) => {
+    clearStopTimer();
     if (listening) {
       try {
         ExpoSpeechRecognitionModule.abort();
@@ -266,17 +407,31 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
     stopSpeaking();
     ctx.audio.stop();
     setSpeaking(false);
+    setAsking(false);
     setProblem(null);
     setHeard('');
     setPhase(next);
   };
 
-  const fixAction = problem?.action === 'english' ? { label: t('gyan.useEnglish'), onPress: () => { setLang('en-IN'); setProblem(null); } } : problem?.action === 'settings' ? { label: t('gyan.openSettings'), onPress: () => void Linking.openSettings().catch((err: unknown) => logError('opening settings', err)) } : undefined;
+  const fixAction =
+    problem?.action === 'english'
+      ? {
+          label: t('gyan.useEnglish'),
+          onPress: () => {
+            setLang('en-IN');
+            setProblem(null);
+          },
+        }
+      : problem?.action === 'settings'
+        ? { label: t('gyan.openSettings'), onPress: () => void openSettings() }
+        : problem?.action === 'replay'
+          ? { label: t('common.retry'), onPress: replay }
+          : undefined;
 
   const verseIndex = typeof phase === 'number' ? phase : null;
   const verse = verseIndex !== null ? verses[verseIndex] : null;
   const check = verseIndex !== null ? checks[verseIndex] : null;
-  const playingId = verseIndex !== null ? `${ctx.step.id}:${verseIndex}` : null;
+  const playingId = verseIndex !== null ? audioId(verseIndex, playTry) : null;
   const audioPlaying = !!playingId && ctx.audio.current === playingId && ctx.audio.playing;
   const listenLabel = speaking || audioPlaying ? t('gyan.speaking') : check || allCheck ? t('gyan.listenAgain') : t('gyan.listen');
 
@@ -296,7 +451,8 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
         busy={ctx.frame.saving}
         disabled={tries.saving || !!listening}
         note={passedAll ? null : t('gyan.skipSpeakingNote')}
-        onPress={() => ctx.finish({ kind: 'step', stars: tries.savedStars ?? (passedAll ? scoreStars(bestScore) : 2), savedByTry: tries.savedSuccess })}
+        // A pass scores by its score; skipping (a phone that can't listen) or not passing is 1 star, still with the step's first-time points.
+        onPress={() => ctx.finish({ kind: 'step', stars: tries.savedStars ?? (passedAll ? scoreStars(bestScore) : 1), savedByTry: tries.savedSuccess })}
         secondary={verses.length && !listening ? { label: t('gyan.prevCard'), onPress: () => goTo(verses.length - 1) } : null}
       />
     );
@@ -342,6 +498,7 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
           </Txt>
         </Pressable>
       </Row>
+      {ctx.audio.error ? <Banner tone="error" message={ctx.audio.error} action={{ label: t('common.retry'), onPress: replay }} /> : null}
 
       {asking ? (
         <VStack gap={space.sm} style={{ backgroundColor: colors.navyTint, borderRadius: radii.row, padding: 14 }}>
@@ -352,7 +509,7 @@ function VoicePractice({ ctx, activity }: StepProps & { activity: VoiceActivity 
             {t('gyan.micWhy')}
           </Txt>
           <Button label={t('gyan.allowMic')} size="md" onPress={() => void allowAndStart()} />
-          <Button label={t('common.cancel')} tone="ghost" size="sm" onPress={() => setAsking(null)} />
+          <Button label={t('common.cancel')} tone="ghost" size="sm" onPress={() => setAsking(false)} />
         </VStack>
       ) : (
         <View style={{ alignItems: 'center', gap: space.sm }}>

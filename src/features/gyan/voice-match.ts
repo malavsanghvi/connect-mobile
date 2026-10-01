@@ -5,16 +5,29 @@
  * How it works
  * 1. Everything becomes the same rough sound spelling ("key"): Devanagari (and
  *    Gujarati, which has the same layout) is transliterated to plain Roman
- *    letters; Roman text loses its diacritics (ā → a, ṇ → n, ś → s).
+ *    letters; Roman text loses its diacritics (ā → a, ṇ → n, ś → s); a digit
+ *    is read as its Hindi word (5 → panch).
  * 2. Keys drop the differences that recognisers and spellings disagree on:
  *    long vowels (aa → a, ee → i), doubled consonants (vv → v), aspiration
- *    (dh → d, bh → b), w/v, and a nasal before a consonant or at the end
- *    (anusvara: arihantanam, अरिहंताणं and arihantanan all agree).
+ *    (dh → d, bh → b), w/v and b/v (सब and Savva), ai/e and au/o (ऐसो and
+ *    Eso), a y between vowels after i, e, o or u (लोये and Loe), and a nasal
+ *    before a consonant or at the end (anusvara: arihantanam, अरिहंताणं and
+ *    arihantanan all agree).
  * 3. Each expected word is looked for, in order, inside what was heard with
  *    the spaces removed (so "namo arihantanam" heard as one word, or split in
  *    two, still counts), allowing a few letter edits (Levenshtein distance)
- *    for its length. Words not found are the ones to practise.
+ *    for its length. A short word (3 letters or fewer) must appear exactly,
+ *    or be a whole heard word one letter away (ऐसे for Eso, सर्व for Savva),
+ *    so one edit can't match any two letters inside a longer word. Words not
+ *    found are the ones to practise.
  * 4. The verse passes when the share of words found reaches pass_ratio.
+ *    Saying it all also needs at least half of every line, so leaving out
+ *    whole lines is never a pass.
+ *
+ * The recogniser is given the expected words as hints (contextualStrings),
+ * which helps a child's unclear but correct reading come back right; the
+ * price is that it also nudges a mispronounced word towards the right
+ * spelling, so this check is about remembering the words, not accent.
  */
 
 // ---------------------------------------------------------------------------
@@ -60,7 +73,14 @@ function isIndic(ch: string): boolean {
 
 /** Devanagari (or Gujarati) → plain Roman letters with the inherent "a". Other characters pass through. */
 export function transliterate(text: string): string {
-  const chars = Array.from(text).map(toDevanagari);
+  let decomposed = text;
+  try {
+    // Precomposed nukta letters (क़ … य़, U+0958–U+095F) become the base letter plus the nukta.
+    decomposed = text.normalize('NFD');
+  } catch {
+    // Without normalize() the precomposed letters are rare enough to read as a pause.
+  }
+  const chars = Array.from(decomposed).map(toDevanagari);
   let out = '';
   let i = 0;
   while (i < chars.length) {
@@ -121,10 +141,14 @@ export function soundKey(word: string): string {
   let w = stripMarks(transliterate(word).toLowerCase()).replace(/[^a-z]/g, '');
   w = w.replace(/ee/g, 'i').replace(/oo/g, 'u');
   w = w.replace(/w/g, 'v').replace(/z/g, 'j').replace(/q/g, 'k').replace(/x/g, 'ks').replace(/f/g, 'p');
+  w = w.replace(/b/g, 'v'); // सब and Savva, सव्व written सब्ब
   // Aspiration (also sh → s, ch → c); twice, so "chh" (छ) becomes "c" as well.
   w = w.replace(/([bcdgjklmnprstvy])h/g, '$1').replace(/([bcdgjklmnprstvy])h/g, '$1');
   w = w.replace(/[mn](?=[bcdgjklpqrstvyz]|$)/g, 'n'); // nasal before a consonant or at the end (anusvara)
   w = w.replace(/(.)\1+/g, '$1'); // long vowels and doubled consonants
+  w = w.replace(/ai/g, 'e').replace(/au/g, 'o'); // ऐसो and Eso; हवइ and Havai alike
+  w = w.replace(/([eiou])y(?=[aeiou])/g, '$1'); // a y between vowels: लोये and Loe
+  w = w.replace(/(.)\1+/g, '$1');
   if (w.length > 2) w = w.replace(/([aeiou])h$/, '$1'); // a final breath (visarga): "namoh" → "namo"
   if (w.length > 3 && w.endsWith('a')) w = w.slice(0, -1); // a final short "a" is often dropped
   return w;
@@ -133,6 +157,18 @@ export function soundKey(word: string): string {
 /** The words of a line as written (for display), split on spaces. */
 export function displayWords(text: string): string[] {
   return text.split(/\s+/).filter(Boolean);
+}
+
+/** Digits as Hindi number words: recognisers often write पंच as "5". */
+const DIGIT_WORDS = ['shunya', 'ek', 'do', 'tin', 'char', 'panch', 'chhah', 'saat', 'aath', 'nau'];
+
+/** "एसो 5 नमुक्कारो" → "एसो  panch  नमुक्कारो" (ASCII, Devanagari and Gujarati digits). */
+export function spellDigits(text: string): string {
+  return text.replace(/[0-9\u0966-\u096F\u0AE6-\u0AEF]/g, (d) => {
+    const c = d.charCodeAt(0);
+    const n = c <= 0x39 ? c - 0x30 : c <= 0x096f ? c - 0x0966 : c - 0x0ae6;
+    return ` ${DIGIT_WORDS[n]} `;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -153,14 +189,20 @@ export function levenshtein(a: string, b: string): number {
   return prev[b.length];
 }
 
+/** Keys this short are matched exactly inside the stream, or as a whole heard word one letter away. */
+export const SHORT_KEY = 3;
+
 /**
- * Letter edits allowed for a key of this length: none up to 3 letters (a
- * short word with one edit would match almost anything), one for 4–6, then
- * about one in three.
+ * Letter edits allowed for a key of this length anywhere in the stream: none
+ * up to 3 letters (a short word with one edit would match almost any two
+ * letters), one for 4–6, then about one in three.
  */
 export function allowedEdits(length: number): number {
-  return length <= 3 ? 0 : length <= 6 ? 1 : Math.floor(length * 0.3);
+  return length <= SHORT_KEY ? 0 : length <= 6 ? 1 : Math.floor(length * 0.3);
 }
+
+/** Saying it all: every line needs at least this share of its words. */
+export const LINE_FLOOR = 0.5;
 
 /**
  * Best approximate occurrence of `pattern` inside text[from, to) (Sellers'
@@ -186,7 +228,14 @@ export type VerseCheck = { words: WordCheck[]; found: number; total: number; rat
 type Expected = { word: string; keys: string[] };
 
 function check(expected: Expected[], heard: string, passRatio: number): VerseCheck {
-  const stream = displayWords(heard).map(soundKey).join('');
+  const tokens = displayWords(spellDigits(heard)).map(soundKey).filter(Boolean);
+  const starts: number[] = [];
+  let at = 0;
+  for (const k of tokens) {
+    starts.push(at);
+    at += k.length;
+  }
+  const stream = tokens.join('');
   let cursor = 0;
   let pending = 0;
   const words: WordCheck[] = [];
@@ -204,6 +253,17 @@ function check(expected: Expected[], heard: string, passRatio: number): VerseChe
       const windowEnd = cursor + pending + key.length * 2 + 6;
       const r = findApprox(key, stream, cursor, windowEnd);
       if (r.distance <= allowedEdits(key.length) && (!hit || r.end < hit.end)) hit = { end: r.end };
+      if (key.length > SHORT_KEY) continue;
+      // A short word may be one letter off when it is a whole word the phone heard.
+      for (let i = 0; i < tokens.length; i++) {
+        const start = starts[i];
+        const end = start + tokens[i].length;
+        if (start < cursor || start >= windowEnd) continue;
+        if (levenshtein(key, tokens[i]) <= 1 && (!hit || end < hit.end)) {
+          hit = { end };
+          break;
+        }
+      }
     }
     if (hit) {
       found += 1;
@@ -248,7 +308,12 @@ export function matchVerse(verse: VerseText, heard: readonly string[], passRatio
   return best as VerseCheck;
 }
 
-/** "Say it all": the verses one after another; results come back per verse for highlighting. */
+/**
+ * "Say it all": the verses one after another; results come back per verse for
+ * highlighting. It passes when the share of all words reaches pass_ratio and
+ * every line has at least half its words (LINE_FLOOR), so two lines left out
+ * of the Navkar are not "You said it all".
+ */
 export function matchAll(verses: readonly VerseText[], heard: readonly string[], passRatio: number): { verses: VerseCheck[]; overall: VerseCheck } {
   const perVerse = verses.map(expectedWords);
   const flat = perVerse.flat();
@@ -268,5 +333,6 @@ export function matchAll(verses: readonly VerseText[], heard: readonly string[],
     const ratio = total ? found / total : 0;
     return { words, found, total, ratio, score: Math.round(ratio * 100), pass: total > 0 && ratio >= passRatio - 1e-9 };
   });
-  return { verses: split, overall };
+  const everyLine = split.every((v) => v.total === 0 || v.ratio >= LINE_FLOOR - 1e-9);
+  return { verses: split, overall: { ...overall, pass: overall.pass && everyLine } };
 }

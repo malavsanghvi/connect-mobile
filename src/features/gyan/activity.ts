@@ -26,11 +26,13 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Images: "asset:<name>" (bundled with the app), an https URL, or a key in the
-// content storage bucket.
+// Images and recordings: "asset:<name>" (bundled with the app), an https URL,
+// or a key in the content storage bucket (connect-crm gyan_media_ref_ok).
 // ---------------------------------------------------------------------------
 
 export type ImageRef = { kind: 'asset'; name: string } | { kind: 'url'; url: string } | { kind: 'storage'; key: string };
+/** A verse recording is named the same three ways. */
+export type MediaRef = ImageRef;
 
 export function imageRef(raw: unknown): ImageRef | null {
   const s = str(raw);
@@ -145,7 +147,7 @@ export function hotspotActivity(raw: unknown): HotspotActivity {
 // Voice: listen → repeat each verse → say it all
 // ---------------------------------------------------------------------------
 
-export type VoiceVerse = { text: string; translit: string | null; meaning: string | null; audio: string | null };
+export type VoiceVerse = { text: string; translit: string | null; meaning: string | null; audio: MediaRef | null };
 export type VoiceActivity = ActivityExtras & { lang: string; mode: string; passRatio: number; verses: VoiceVerse[] };
 
 export const DEFAULT_PASS_RATIO = 0.7;
@@ -158,8 +160,7 @@ export function voiceActivity(raw: unknown): VoiceActivity {
     const text = str(vo.text);
     const translit = str(vo.translit);
     if (!text && !translit) continue;
-    const audio = str(vo.audio);
-    verses.push({ text: text ?? (translit as string), translit, meaning: str(vo.meaning), audio: audio && /^https?:\/\//i.test(audio) ? audio : null });
+    verses.push({ text: text ?? (translit as string), translit, meaning: str(vo.meaning), audio: imageRef(vo.audio) });
   }
   const ratio = num(o.pass_ratio);
   return {

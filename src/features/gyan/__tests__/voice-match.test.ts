@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { allowedEdits, expectedWords, findApprox, levenshtein, matchAll, matchVerse, soundKey, transliterate } from '../voice-match';
+import { allowedEdits, expectedWords, findApprox, levenshtein, matchAll, matchVerse, soundKey, spellDigits, transliterate } from '../voice-match';
 
 const NAVKAR = [
   { text: 'णमो अरिहंताणं', translit: 'Namo Arihantanam' },
@@ -134,6 +134,70 @@ describe('matchAll', () => {
     expect(r.verses[4].pass).toBe(true);
     expect(r.overall.found).toBe(10);
     expect(r.overall.total).toBe(12);
+    expect(r.overall.pass).toBe(true);
+  });
+});
+
+const NAVKAR9 = [
+  ...NAVKAR,
+  { text: 'एसो पंच नमुक्कारो', translit: 'Eso Panch Namukkaro' },
+  { text: 'सव्वपावप्पणासणो', translit: 'Savva Pavappanasano' },
+  { text: 'मंगलाणं च सव्वेसिं', translit: 'Mangalanam cha Savvesim' },
+  { text: 'पढमं हवइ मंगलं', translit: 'Padhamam Havai Mangalam' },
+];
+
+describe('common Hindi recogniser spellings (pass ratio 0.66, as in the content pack)', () => {
+  const ok = (verse: number, heard: string) => matchVerse(NAVKAR9[verse], [heard], 0.66);
+  it('accepts ऐसो and ऐसे for Eso, and a 5 for पंच', () => {
+    expect(ok(5, 'ऐसो पंच नमुक्कारो').score).toBe(100);
+    expect(ok(5, 'ऐसे पंच नमस्कारो').score).toBe(100);
+    expect(ok(5, 'एसो 5 नमुक्कारो').score).toBe(100);
+    expect(spellDigits('एसो 5 ५ ૫')).toBe('एसो  panch   panch   panch ');
+  });
+  it('accepts सब and सर्व for Savva (the single-line step)', () => {
+    expect(ok(6, 'सब पाप प्रणाशनो').pass).toBe(true);
+    expect(ok(6, 'सर्व पाप प्रणाशनो').pass).toBe(true);
+    expect(ok(6, 'सब कुछ').pass).toBe(false);
+  });
+  it('accepts लोये and सब in the fifth line', () => {
+    expect(ok(4, 'नमो लोये सब साहूणं').score).toBe(100);
+    expect(soundKey('लोये')).toBe(soundKey('Loe'));
+  });
+  it('lets a three-word line miss one short word (a dropped च)', () => {
+    const r = ok(7, 'मंगलाणं सव्वेसिं');
+    expect(r.words.map((w) => w.ok)).toEqual([true, false, true]);
+    expect(r.pass).toBe(true);
+  });
+  it('still needs a short word to be a whole word one letter away, not two letters inside another', () => {
+    expect(ok(4, 'नमो लोए साहूणं').words.map((w) => w.ok)).toEqual([true, true, false, true]);
+    expect(ok(0, 'hello how are you').pass).toBe(false);
+  });
+});
+
+describe('precomposed nukta letters', () => {
+  it('keeps the consonant (ढ़ written as one character)', () => {
+    expect(transliterate('प\u095Dमं')).toBe('padhamam');
+    expect(soundKey('प\u095Dमं')).toBe(soundKey('Padhamam'));
+  });
+});
+
+describe('matchAll needs every line', () => {
+  const lines1to7 = 'नमो अरिहंताणं नमो सिद्धाणं नमो आयरियाणं नमो उवज्झायाणं नमो लोए सव्वसाहूणं एसो पंच नमुक्कारो सव्वपावप्पणासणो';
+  it('fails when the last two lines are left out, even with 17 of 23 words', () => {
+    const r = matchAll(NAVKAR9, [lines1to7], 0.66);
+    expect(r.overall.found).toBe(17);
+    expect(r.overall.total).toBe(23);
+    expect(r.verses.map((v) => v.pass)).toEqual([true, true, true, true, true, true, true, false, false]);
+    expect(r.overall.pass).toBe(false);
+  });
+  it('passes the whole Navkar, also with common Hindi spellings', () => {
+    expect(matchAll(NAVKAR9, [`${lines1to7} मंगलाणं च सव्वेसिं पढमं हवइ मंगलं`], 0.66).overall.score).toBe(100);
+    const hindi = 'नमो अरिहंताणं नमो सिद्धाणं नमो आयरियाणं नमो उवज्झायाणं नमो लोये सब साहूणं ऐसो पंच नमुक्कारो सब पाप प्रणाशनो मंगलाणं च सव्वेसिं पढमं हवइ मंगलं';
+    expect(matchAll(NAVKAR9, [hindi], 0.66).overall.score).toBe(100);
+  });
+  it('allows one slip in a line (the two-line step without च)', () => {
+    const r = matchAll(NAVKAR9.slice(7), ['मंगलाणं सव्वेसिं पढमं हवइ मंगलं'], 0.66);
+    expect(r.overall.found).toBe(5);
     expect(r.overall.pass).toBe(true);
   });
 });

@@ -81,9 +81,13 @@ describe('voiceActivity', () => {
     expect(a.lang).toBe('hi-IN');
     expect(a.passRatio).toBe(0.8);
     expect(a.verses).toEqual([
-      { text: 'णमो अरिहंताणं', translit: 'Namo Arihantanam', meaning: 'I bow', audio: 'https://x.test/1.mp3' },
+      { text: 'णमो अरिहंताणं', translit: 'Namo Arihantanam', meaning: 'I bow', audio: { kind: 'url', url: 'https://x.test/1.mp3' } },
       { text: 'Namo Siddhanam', translit: 'Namo Siddhanam', meaning: null, audio: null },
     ]);
+  });
+  it('reads verse recordings as a bundled asset, a URL or a content-bucket key', () => {
+    const a = voiceActivity({ verses: [{ text: 'a', audio: 'asset:navkar-1' }, { text: 'b', audio: 'gyan/navkar/2.m4a' }, { text: 'c', audio: '  ' }] });
+    expect(a.verses.map((v) => v.audio)).toEqual([{ kind: 'asset', name: 'navkar-1' }, { kind: 'storage', key: 'gyan/navkar/2.m4a' }, null]);
   });
   it('falls back to Hindi and 0.7', () => {
     const a = voiceActivity({ pass_ratio: 7 });
