@@ -149,11 +149,11 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
             </View>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: space.sm }}>
               <View style={{ gap: 2 }}>
-                {on('calendar') ? <Item glyph="calendar-dots" tint="brown" iconColor={colors.brown} title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} /> : null}
                 {member?.isAdult && on('donations') ? <Item glyph="heart" tint="brown" title={t('drawer.donations')} sub={t('drawer.donationsSub')} onPress={() => go('/pledges')} /> : null}
                 {member && on('pathshala') ? <Item glyph="book" tint="navy" title={t('drawer.pathshala')} sub={t('drawer.pathshalaSub')} onPress={() => go({ pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } })} /> : null}
                 {on('rsvp') ? <Item glyph="calendar-check" tint="navy" title={t('drawer.rsvp')} sub={t('drawer.rsvpSub')} onPress={() => go('/events')} /> : null}
                 {on('store') ? <Item glyph="bag" tint="green" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} /> : null}
+                {on('calendar') ? <Item glyph="calendar-dots" tint="brown" iconColor={colors.brown} title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} /> : null}
               </View>
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 10, marginVertical: 10 }} />
               <View style={{ gap: 2 }}>
