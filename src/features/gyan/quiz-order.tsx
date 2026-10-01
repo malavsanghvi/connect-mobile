@@ -5,6 +5,7 @@ import { Txt, VStack } from '@/components/ui';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
 
+import { announce } from './a11y';
 import type { OrderQuestion } from './activity';
 import { ExplainBox, LessonFrame, StepFooter, StepTitle } from './lesson-frame';
 import { haptic, useReduceMotion, useShake } from './motion';
@@ -13,7 +14,11 @@ import { orderMistakes, shuffled, triesAllowed } from './quiz-logic';
 
 type Phase = 'answering' | 'retry' | 'right' | 'shown';
 
-/** Order: tap the items into place (tap a placed one to take it back), then Check; one retry. */
+/**
+ * Order: tap the items into place (tap a placed one to take it back), then
+ * Check; one retry. A placed item stays in the pool, greyed out, so a screen
+ * reader's focus stays where it was; each move is said aloud.
+ */
 export function OrderView({ ctx, q, seed }: QuestionProps<OrderQuestion>) {
   const t = useT();
   const reduce = useReduceMotion();
@@ -25,16 +30,19 @@ export function OrderView({ ctx, q, seed }: QuestionProps<OrderQuestion>) {
   const [phase, setPhase] = useState<Phase>('answering');
   const resolved = phase === 'right' || phase === 'shown';
   const shown = phase === 'shown' ? q.items : placed;
-  const remaining = pool.filter((x) => !placed.includes(x));
 
   const place = (item: string) => {
+    if (placed.includes(item)) return;
     haptic('tap');
-    setPlaced([...placed, item]);
+    const next = [...placed, item];
+    setPlaced(next);
+    announce([t('gyan.orderPlacedSaid', { item, n: next.length }), next.length === q.items.length ? t('gyan.orderReady') : null].filter(Boolean).join(' '));
   };
   const takeBack = (item: string) => {
     haptic('tap');
     setPlaced(placed.filter((x) => x !== item));
     setWrong(wrong.filter((x) => x !== item));
+    announce(t('gyan.orderTakenBack', { item }));
   };
   const check = () => {
     const bad = orderMistakes(q.items, placed);
@@ -124,19 +132,37 @@ export function OrderView({ ctx, q, seed }: QuestionProps<OrderQuestion>) {
           })}
         </VStack>
       </Animated.View>
-      {!resolved && remaining.length ? (
+      {!resolved ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-          {remaining.map((item) => (
-            <Pressable
-              key={item}
-              onPress={() => place(item)}
-              accessibilityRole="button"
-              style={({ pressed }) => ({ minHeight: 48, justifyContent: 'center', borderRadius: radii.pill, borderWidth: 1.5, borderColor: colors.saffron, backgroundColor: pressed ? colors.brownTint : colors.card, paddingHorizontal: 16, paddingVertical: 8 })}>
-              <Txt variant="smallStrong" color="brown">
-                {item}
-              </Txt>
-            </Pressable>
-          ))}
+          {pool.map((item) => {
+            const at = placed.indexOf(item);
+            const isPlaced = at >= 0;
+            return (
+              <Pressable
+                key={item}
+                disabled={isPlaced}
+                onPress={() => place(item)}
+                accessibilityRole="button"
+                accessibilityLabel={isPlaced ? t('gyan.orderChipPlaced', { item, n: at + 1 }) : item}
+                accessibilityHint={isPlaced ? undefined : t('gyan.orderChipHint', { n: placed.length + 1 })}
+                accessibilityState={{ disabled: isPlaced }}
+                style={({ pressed }) => ({
+                  minHeight: 48,
+                  justifyContent: 'center',
+                  borderRadius: radii.pill,
+                  borderWidth: 1.5,
+                  borderStyle: isPlaced ? 'dashed' : 'solid',
+                  borderColor: isPlaced ? colors.borderInput : colors.saffron,
+                  backgroundColor: isPlaced ? colors.panel : pressed ? colors.brownTint : colors.card,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                })}>
+                <Txt variant="smallStrong" color={isPlaced ? 'muted' : 'brown'}>
+                  {item}
+                </Txt>
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
       {resolved ? <ExplainBox text={q.explain} /> : null}

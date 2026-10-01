@@ -5,13 +5,18 @@ import { Txt } from '@/components/ui';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
 
+import { announce, announceIos } from './a11y';
 import type { MatchQuestion } from './activity';
 import { ExplainBox, LessonFrame, StepFooter, StepTitle } from './lesson-frame';
 import { haptic, useReduceMotion, useShake } from './motion';
 import type { QuestionProps } from './quiz-choice';
 import { isPair, shuffled } from './quiz-logic';
 
-/** Match: tap a word on the left, then its partner on the right (either order works). Wrong pairs shake and come apart. */
+/**
+ * Match: tap a word on the left, then its partner on the right (either order
+ * works). Wrong pairs shake and come apart. A screen reader hears which column
+ * a word is in, that a partner comes next, and what a pick or a pair did.
+ */
 export function MatchView({ ctx, q, seed }: QuestionProps<MatchQuestion>) {
   const t = useT();
   const reduce = useReduceMotion();
@@ -32,28 +37,43 @@ export function MatchView({ ctx, q, seed }: QuestionProps<MatchQuestion>) {
       setMatched(next);
       setNote(null);
       haptic(next.length === q.pairs.length ? 'right' : 'tap');
+      // The last pair: the footer's "All matched" note is a live region (TalkBack, browsers).
+      if (next.length === q.pairs.length) announceIos(slips ? t('gyan.matchDoneSlips') : t('gyan.matchDone'));
+      else announce(t('gyan.matchedLabel', { left: l, right: r }));
     } else {
       haptic('wrong');
       shake.shake();
       setSlips(slips + 1);
       setNote(t('gyan.matchWrong'));
+      announceIos(t('gyan.matchWrong')); // the footer note is a live region elsewhere
     }
     setLeft(null);
     setRight(null);
   };
   const pickLeft = (l: string) => {
     if (right) tryPair(l, right);
-    else setLeft(left === l ? null : l);
+    else {
+      const picked = left === l ? null : l;
+      setLeft(picked);
+      if (picked) announce(t('gyan.matchPickedLeft', { word: picked }));
+    }
   };
   const pickRight = (r: string) => {
     if (left) tryPair(left, r);
-    else setRight(right === r ? null : r);
+    else {
+      const picked = right === r ? null : r;
+      setRight(picked);
+      if (picked) announce(t('gyan.matchPickedRight', { word: picked }));
+    }
   };
 
   const cell = (label: string, side: 'left' | 'right') => {
     const isMatched = side === 'left' ? matched.includes(label) : matchedRights.includes(label);
     const selected = side === 'left' ? left === label : right === label;
     const partner = side === 'left' ? q.pairs.find((p) => p[0] === label)?.[1] : q.pairs.find((p) => p[1] === label)?.[0];
+    // A word picked on the other side: this one would pair with it.
+    const other = side === 'left' ? right : left;
+    const hint = isMatched || done || selected ? undefined : other ? t('gyan.matchPairHint', { word: other }) : side === 'left' ? t('gyan.matchLeftHint') : t('gyan.matchRightHint');
     return (
       <Pressable
         key={`${side}:${label}`}
@@ -61,7 +81,12 @@ export function MatchView({ ctx, q, seed }: QuestionProps<MatchQuestion>) {
         onPress={() => (side === 'left' ? pickLeft(label) : pickRight(label))}
         accessibilityRole="button"
         accessibilityState={{ selected, disabled: isMatched || done }}
-        accessibilityLabel={isMatched && partner ? t('gyan.matchedLabel', side === 'left' ? { left: label, right: partner } : { left: partner, right: label }) : label}
+        accessibilityLabel={
+          isMatched && partner
+            ? t('gyan.matchedLabel', side === 'left' ? { left: label, right: partner } : { left: partner, right: label })
+            : t(side === 'left' ? 'gyan.matchLeftA11y' : 'gyan.matchRightA11y', { word: label })
+        }
+        accessibilityHint={hint}
         style={{
           minHeight: 56,
           justifyContent: 'center',
