@@ -14,6 +14,46 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.0 — 2026-10-01 · needs a new build (runtime 3)
+
+- **Gyan Path lessons are interactive.** Each step has its own screen:
+  - **Cards** to swipe through (read steps, and practice steps with their own done button, e.g. "I sat calmly for 5
+    minutes"). The dots, "Card 2 of 3" and the Next button follow your swipe on the web too; with a screen reader only the
+    card on screen is read, and Next and Back say which card you are on. A card picture that can't load says so, with
+    Retry (a picture from the community's own library gets a fresh link first, so one tap is enough).
+  - **Five quiz types:** pick one (a wrong first pick gets one more try, then the "why"), true or false, put in order
+    (tap to arrange), match the pairs (tap left, then right) and pick the missing word. With a screen reader, match says
+    which column a word is in and what each tap did; in put in order a placed item stays in the list, greyed out, so the
+    focus doesn't jump away.
+  - **Learn Puja · Navang puja of Mahavir Swami:** the photo of the murti at our derasar (it replaces the drawing), with
+    glowing spots. *Learn* shows one touch at a time with what to do and why ("Puja 3 of 9"); *Practice* asks for every
+    touch in order — a wrong touch shakes and the right spot glows. Practise as often as you like, but **Continue comes
+    only after a good try** (no more wrong touches than the lesson allows, 2 unless it says otherwise); after a try with
+    more, Practise again is the main button. A touch goes to the nearest spot still to be touched, so on a small phone
+    the shikha you just touched no longer takes a touch meant for the forehead (in Learn and in Practice). With a screen
+    reader, Practice reads the spots row by row, left to right, not in the answer order. If the picture can't be shown,
+    the spots become a list of buttons, so the step can still be done.
+  - **Screen readers** (VoiceOver and TalkBack) hear each result as it appears: a line or say it all, a practice try's
+    points, the Navang notes and the match-the-pairs notes.
+  - **Navkar Mantra out loud:** listen to each line (the phone reads it in Hindi, or in English letters when it has no
+    Hindi voice), say it back while the phone listens, see the words to practise in red, then say it all. Listening uses
+    the phone's own speech recognition and asks for the microphone first, in plain English; the app keeps only the score.
+    **Say it all is fair:** the ways phones often write the words (ऐसो or ऐसे, सब, लोये, "5" for पंच) count as right, and
+    leaving out whole lines is not a pass. A pass earns stars by how much you said (up to 3); continuing without speaking,
+    or without a pass, is 1 star and still finishes the step (not every phone can listen). **Android 12 and below:** say
+    it all keeps listening through the pauses between lines until you tap the microphone to finish, and a phone that is
+    briefly busy between lines keeps what it already heard. On the **web**, a blocked microphone says to allow it with
+    the icon in the browser's address bar. If the phone doesn't stop when you tap the microphone to finish, it stops by
+    itself a few seconds later instead of staying on "Listening…".
+- **Points for every activity.** "+10 points" when you finish a step for the first time, and each good practice try (Navang
+  practice, Navkar say it all) earns more, up to 10 tries a day per activity ("+3 points · 4 of 10 today"; after that:
+  "Today's practice points are done — keep practising!"). When the community sets the daily limit to 0, tries earn no
+  points and there is no counter. A try sent again after a lost connection counts once. Finishing a level shows the points
+  it actually paid, with its bonus and treasure, and never fewer stars for a step than you already had. Confetti and a
+  small buzz on right, wrong and complete (no confetti or bouncing with Reduce Motion on).
+- New native parts (speech recognition, text-to-speech, haptics) and the speech-recognition permission: **runtime 3**, so
+  this release needs the new Android build; JavaScript updates then reach it over the air again.
+
 ## 1.5.3 — 2026-10-01
 
 - Home (web): the row of shortcuts under Today at {center} scrolls sideways with the mouse wheel and shows its scrollbar;

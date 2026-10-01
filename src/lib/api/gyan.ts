@@ -1,10 +1,12 @@
+import { attemptDetail, parseAttemptResult, type AttemptDetail, type AttemptResult, type LedgerRow } from '@/features/gyan/points';
+
 import type { Tables } from '../database.types';
-import { AppError, check, must } from '../errors';
+import { AppError, check, logError, maybe, must, report } from '../errors';
 import { supabase } from '../supabase';
 
 import { isMissingBucket } from './photos';
 
-import { classSchedule, continueGoalId, registrationOpen, type AttendanceMark, type DailyMinutes } from '../learning';
+import { classSchedule, continueGoalId, registrationOpen, todayAtMinutes, type AttendanceMark, type DailyMinutes } from '../learning';
 
 import type { Center } from './member';
 
@@ -96,11 +98,15 @@ export function nextGyanLevel(g: Pick<GyanData, 'goals' | 'progress'>, personId:
 
 /**
  * Mark a step complete for yourself (RLS: gyan_progress_own requires person = me).
- * Stars never go down on a replay.
+ * The saved row is read first, not the copy taken when the lesson opened: a
+ * practice try may have saved the step since (app.record_gyan_attempt), and
+ * stars never go down and the first completion time is kept (the server
+ * keeps both too). Returns the stars now saved and whether this was the
+ * step's first completion, which is when the server pays its points.
  */
-export async function completeStep(centerId: string, personId: string, stepId: string, stars: number, existing: GyanProgress[], recordingPath?: string | null): Promise<void> {
-  const prev = existing.find((p) => p.person_id === personId && p.step_id === stepId);
-  const best = Math.max(prev?.stars ?? 0, Math.max(0, Math.min(3, stars)));
+export async function completeStep(centerId: string, personId: string, stepId: string, stars: number, recordingPath?: string | null): Promise<{ stars: number; firstTime: boolean }> {
+  const prev = maybe(await supabase.from('gyan_progress').select('stars, completed_at').eq('person_id', personId).eq('step_id', stepId).maybeSingle(), 'save your progress');
+  const best = Math.max(prev?.stars ?? 0, Math.max(0, Math.min(3, Math.round(stars))));
   check(
     await supabase.from('gyan_progress').upsert(
       {
@@ -115,6 +121,21 @@ export async function completeStep(centerId: string, personId: string, stepId: s
       { onConflict: 'person_id,step_id' },
     ),
     'save your progress',
+  );
+  return { stars: best, firstTime: !prev?.completed_at };
+}
+
+/**
+ * Points paid for a level's steps, its bonus and its treasure since `since`
+ * (an ISO time a little before the lesson started), for the celebration: it
+ * shows what the server paid, not what the phone expects (RLS points_own:
+ * your own ledger rows).
+ */
+export async function loadLevelAwards(personId: string, level: Pick<GyanLevel, 'id' | 'steps'>, since: string): Promise<LedgerRow[]> {
+  const refIds = [level.id, ...level.steps.map((s) => s.id)];
+  return must(
+    await supabase.from('points_ledger').select('points, reason, ref_id').eq('person_id', personId).in('reason', ['level', 'gyan_treasure']).in('ref_id', refIds).gte('occurred_at', since).limit(500),
+    'load the points from this level',
   );
 }
 
@@ -164,27 +185,53 @@ export async function uploadRecitation(opts: { centerId: string; personId: strin
   return path;
 }
 
+/**
+ * SQLSTATEs whose messages record_gyan_attempt writes for people: the step or
+ * community was not found (P0002: "…reload the lesson"), a bad value (22023),
+ * not a member, or another community's lesson (42501).
+ */
+const ATTEMPT_OWN_MESSAGES = new Set(['P0002', '22023', '42501']);
+
+/**
+ * One practice try (Navang puja, voice): app.record_gyan_attempt records it
+ * and pays the step's repeat points for a success, up to the community's
+ * daily cap. `tryId` is made once per try and sent again when that same try
+ * is retried after a lost answer; the server then returns its first answer
+ * (`replayed`) and pays nothing twice. Returns what the server awarded.
+ */
+export async function recordGyanAttempt(args: { centerId: string; stepId: string; tryId: string; success: boolean; score: number | null; detail: AttemptDetail }): Promise<AttemptResult> {
+  const res = await supabase.rpc('record_gyan_attempt', {
+    p_center: args.centerId,
+    p_step: args.stepId,
+    p_success: args.success,
+    ...(args.score === null ? {} : { p_score: Math.max(0, Math.min(100, Math.round(args.score))) }),
+    p_detail: attemptDetail(args.detail, args.tryId),
+  });
+  const err = res.error;
+  if (err?.code && ATTEMPT_OWN_MESSAGES.has(err.code) && err.message && !/permission denied|row-level security/i.test(err.message)) {
+    const e = new AppError(/[.!?]$/.test(err.message) ? err.message : `${err.message}.`, `record_gyan_attempt: ${err.message} | code=${err.code}`, err.code);
+    logError('save your practice try', e);
+    throw e;
+  }
+  return parseAttemptResult(must(res, 'save your practice try'));
+}
+
+/**
+ * Successful practice tries of a step since the community's midnight, for the
+ * "3 of 10 today" counter (RLS: your own gyan_attempts rows).
+ */
+export async function loadTriesToday(personId: string, stepId: string, timeZone: string | null): Promise<number> {
+  const since = todayAtMinutes(0, new Date(), timeZone).toISOString();
+  const res = await supabase.from('gyan_attempts').select('id', { count: 'exact', head: true }).eq('person_id', personId).eq('step_id', stepId).eq('success', true).gte('created_at', since);
+  if (res.error) throw report(res.error, 'load your practice tries for today');
+  return res.count ?? 0;
+}
+
 export async function requestSignoff(centerId: string, personId: string, levelId: string): Promise<void> {
   check(await supabase.from('gyan_signoffs').insert({ center_id: centerId, person_id: personId, level_id: levelId, status: 'requested' }), 'request a teacher sign-off');
 }
 
-export type Quiz = { question: string; options: string[]; answer: number }[];
-
-/** gyan_steps.quiz jsonb → questions. Accepts {questions:[...]} or a bare array; answer by index or text. */
-export function parseQuiz(raw: unknown): Quiz {
-  const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' && Array.isArray((raw as { questions?: unknown }).questions) ? (raw as { questions: unknown[] }).questions : [];
-  const out: Quiz = [];
-  for (const q of list) {
-    if (!q || typeof q !== 'object') continue;
-    const o = q as Record<string, unknown>;
-    const question = [o.question, o.q, o.text, o.label].find((v) => typeof v === 'string') as string | undefined;
-    const options = Array.isArray(o.options) ? o.options.filter((x): x is string => typeof x === 'string') : [];
-    let answer = typeof o.answer === 'number' ? o.answer : typeof o.answer_index === 'number' ? o.answer_index : typeof o.correct === 'number' ? o.correct : -1;
-    if (answer < 0 && typeof o.answer === 'string') answer = options.indexOf(o.answer);
-    if (question && options.length >= 2 && answer >= 0 && answer < options.length) out.push({ question, options, answer });
-  }
-  return out;
-}
+// gyan_steps.quiz is parsed by parseQuestions (src/features/gyan/activity.ts): choice, truefalse, order, match, fill.
 
 export type ProgressReport = Pick<
   Tables<'pathshala_progress_reports'>,

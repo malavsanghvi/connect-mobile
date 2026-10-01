@@ -138,6 +138,8 @@ export const colors = {
   starOff: '#3A4B80',
   treasureInk: '#3A2A06',
   wrongInk: '#8C1D18',
+  /** Navang puja practice: an untouched spot on the murti picture. */
+  spotFill: 'rgba(255,255,255,0.7)',
 } as const;
 
 export type ColorName = keyof typeof colors;

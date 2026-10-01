@@ -2,7 +2,7 @@
   "expo": {
     "name": "Community Connect",
     "slug": "connect-mobile",
-    "version": "1.5.3",
+    "version": "1.6.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": ["connect", "communityconnect"],
@@ -30,7 +30,7 @@
       "backgroundColor": "#FBF7F0",
       "themeColor": "#1B2C5C"
     },
-    "runtimeVersion": "2",
+    "runtimeVersion": "3",
     "updates": {
       "url": "https://u.expo.dev/d61c6e7c-7999-4c49-aa39-bef5baf1fea7"
     },
@@ -58,6 +58,7 @@
         "expo-camera",
         {
           "cameraPermission": "Allow Community Connect to use the camera to scan event tickets when you volunteer at check-in.",
+          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
           "recordAudioAndroid": false
         }
       ],
@@ -92,8 +93,16 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher.",
+          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
           "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
+          "speechRecognitionPermission": "Allow Community Connect to turn what you say into text, so it can check your Navkar Mantra and sutra practice. The app keeps only your score, not your voice.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox", "com.google.android.as"]
         }
       ]
     ],

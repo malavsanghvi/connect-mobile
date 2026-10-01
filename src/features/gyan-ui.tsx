@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 
 import { Txt } from '@/components/ui';
 import { useSettings } from '@/providers/settings';
@@ -29,6 +29,15 @@ export function PlayGlyph({ size, color = colors.navy, paused }: { size: number;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no">
       <Path d={paused ? 'M7 5h4v14H7zM13 5h4v14h-4z' : 'M8 5v14l11-7z'} fill={color} />
+    </Svg>
+  );
+}
+
+export function MicGlyph({ size = 46, color = colors.white }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden importantForAccessibility="no">
+      <Rect x={9} y={2} width={6} height={12} rx={3} />
+      <Path d="M5 11a7 7 0 0 0 14 0M12 18v4" />
     </Svg>
   );
 }
