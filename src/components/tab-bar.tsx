@@ -9,6 +9,7 @@ import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, components, fonts } from '@/theme';
 
+import { MiniPlayer } from './mini-player';
 import { StrokeIcon, type StrokeIconName } from './stroke-icon';
 
 /** Route names of the five tabs in `(app)/(tabs)`, in prototype order. */
@@ -32,7 +33,8 @@ function isTab(name: string | undefined): name is TabName {
  * border, five columns, 22px outline icons (stroke 1.8, same icon in both
  * states), labels 12/600, navy active / faint idle. Tabs whose modules the
  * community switched off are left out (Give and Jain Way disappear when none
- * of their sections is on).
+ * of their sections is on). The 3L mini player sits on top of it while
+ * something is playing.
  */
 export function TabBarView({ active, onSelect }: { active: TabName | null; onSelect: (tab: TabName) => void }) {
   const insets = useSafeAreaInsets();
@@ -42,38 +44,41 @@ export function TabBarView({ active, onSelect }: { active: TabName | null; onSel
   const labelScale = Math.min(scale, 1.15);
   const spec = components.tabBar;
   return (
-    <View
-      accessibilityRole="tablist"
-      style={{
-        flexDirection: 'row',
-        backgroundColor: colors.card,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        height: spec.height + insets.bottom,
-        paddingBottom: spec.padBottom + insets.bottom,
-        paddingLeft: insets.left,
-        paddingRight: insets.right,
-      }}>
-      {tabs.map((tab) => {
-        const meta = TAB_META[tab];
-        const focused = tab === active;
-        const tint = focused ? colors.navy : colors.faint;
-        const label = t(meta.label);
-        return (
-          <Pressable
-            key={tab}
-            onPress={() => onSelect(tab)}
-            accessibilityRole="tab"
-            accessibilityLabel={label}
-            accessibilityState={{ selected: focused }}
-            style={({ pressed }) => ({ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spec.gap, opacity: pressed ? 0.7 : 1 })}>
-            <StrokeIcon name={meta.icon} size={spec.iconSize} color={tint} strokeWidth={spec.iconStroke} />
-            <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemi, fontSize: spec.labelSize * labelScale, lineHeight: 16 * labelScale, color: tint }}>
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
+    <View>
+      <MiniPlayer />
+      <View
+        accessibilityRole="tablist"
+        style={{
+          flexDirection: 'row',
+          backgroundColor: colors.card,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          height: spec.height + insets.bottom,
+          paddingBottom: spec.padBottom + insets.bottom,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        }}>
+        {tabs.map((tab) => {
+          const meta = TAB_META[tab];
+          const focused = tab === active;
+          const tint = focused ? colors.navy : colors.faint;
+          const label = t(meta.label);
+          return (
+            <Pressable
+              key={tab}
+              onPress={() => onSelect(tab)}
+              accessibilityRole="tab"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: focused }}
+              style={({ pressed }) => ({ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spec.gap, opacity: pressed ? 0.7 : 1 })}>
+              <StrokeIcon name={meta.icon} size={spec.iconSize} color={tint} strokeWidth={spec.iconStroke} />
+              <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemi, fontSize: spec.labelSize * labelScale, lineHeight: 16 * labelScale, color: tint }}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }

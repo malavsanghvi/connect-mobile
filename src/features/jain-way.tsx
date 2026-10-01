@@ -1,15 +1,13 @@
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Icon } from '@/components/icon';
-import { EmptyState, ErrorState, Loaded, LoadingState } from '@/components/states';
-import { Banner, Button, Card, Chevron, Divider, ProgressBar, Row, Txt, VStack } from '@/components/ui';
-import { goalProgress, loadGyan, loadPathshala, type GoalProgress, type GyanData, type GyanGoal } from '@/lib/api/gyan';
+import { EmptyState, ErrorState, Loaded } from '@/components/states';
+import { Banner, Card, ProgressBar, Row, Txt, VStack } from '@/components/ui';
+import { goalProgress, lastActivityByGoal, loadGyan, type GoalProgress, type GyanData, type GyanGoal } from '@/lib/api/gyan';
 import { loadToday } from '@/lib/api/home';
 import {
   addPractice,
-  listContent,
   loadJainWayToday,
   loadSaathi,
   loadSaathiFeed,
@@ -18,19 +16,16 @@ import {
   removePractice,
   sendAnumodana,
   unlogPractice,
-  type ContentItem,
   type Practice,
   type Standing,
 } from '@/lib/api/jainway';
 import { logError, report } from '@/lib/errors';
-import { formatDay, formatTimeOfDay, weekdayOf } from '@/lib/format';
+import { formatDay, weekdayOf } from '@/lib/format';
 import {
-  attendanceSummary,
   behindDays,
   categoryLabel,
   circleStatus,
   communityName,
-  continueGoalId,
   pointRules,
   practiceTiming,
   relativeWhen,
@@ -45,17 +40,14 @@ import {
 import { cancelLocalReminder, scheduleDailyLocalReminder } from '@/lib/push';
 import { streakDisplay, streakLabel, tithiLabel } from '@/lib/rules';
 import { readPref, writePref } from '@/lib/storage';
-import { LEARN_PART_MODULE } from '@/lib/modules';
 import { useLoad, type LoadState } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
-import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
-import { clock, useInAppAudio } from './audio';
-import { FlameGlyph, InitialAvatar, MEMBER_COLORS, PlayGlyph } from './gyan-ui';
+import { FlameGlyph, InitialAvatar, MEMBER_COLORS } from './gyan-ui';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const REMINDER_PREF = 'practiceReminders';
@@ -67,10 +59,6 @@ function timingLabel(tm: PracticeTiming, t: T): string {
   if (tm.kind === 'before') return t('jw.beforeTime', { time: tm.label });
   if (tm.kind === 'anytime') return t('jw.anytime');
   return tm.label;
-}
-
-function meta(item: ContentItem): Record<string, unknown> {
-  return item.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata) ? (item.metadata as Record<string, unknown>) : {};
 }
 
 // ---------------------------------------------------------------------------
@@ -432,23 +420,9 @@ function StandingCard({ state }: { state: LoadState<Standing[]> }) {
 }
 
 // ---------------------------------------------------------------------------
-// Learn (prototype Main L636–659)
+// Gyan Path progress (Saathi circle, Gyan Path goals). The Learn and Library
+// panes became 3L · Look, Listen, Learn (src/features/three-l/).
 // ---------------------------------------------------------------------------
-
-/** When the person last completed a step in each goal. */
-function lastActivityByGoal(g: GyanData, personId: string): Map<string, string> {
-  const last = new Map<string, string>();
-  for (const goal of g.goals) {
-    const stepIds = new Set(goal.levels.flatMap((l) => l.steps.map((s) => s.id)));
-    const latest = g.progress
-      .filter((pr) => pr.person_id === personId && pr.completed_at && stepIds.has(pr.step_id))
-      .map((pr) => pr.completed_at as string)
-      .sort()
-      .pop();
-    if (latest) last.set(goal.id, latest);
-  }
-  return last;
-}
 
 /** The goal a person is working on now (most recent step), else their latest finished one. */
 export function activeGoal(g: GyanData, personId: string): { goal: GyanGoal; p: GoalProgress } | null {
@@ -458,216 +432,6 @@ export function activeGoal(g: GyanData, personId: string): { goal: GyanGoal; p: 
     .map((goal) => ({ goal, p: goalProgress(goal, g.progress, personId) }))
     .sort((a, b) => (last.get(b.goal.id) ?? '').localeCompare(last.get(a.goal.id) ?? ''));
   return started.find((x) => !x.p.complete) ?? started[0] ?? null;
-}
-
-export function LearnPane() {
-  const t = useT();
-  const router = useRouter();
-  const { center, member } = useApp();
-  // Gyan Path, Pathshala and the audio lessons (Library content) are separate modules.
-  const { isOn } = useModules();
-  const gyanOn = isOn(LEARN_PART_MODULE.gyan);
-  const pathshalaOn = isOn(LEARN_PART_MODULE.pathshala);
-  const lessonsOn = isOn(LEARN_PART_MODULE.lessons);
-  const gyan = useLoad(
-    () => (!gyanOn ? Promise.resolve(null) : center && member ? loadGyan(center, [member.person.id]) : Promise.reject(new Error('no center'))),
-    [center?.id, member?.person.id, gyanOn],
-    'load Gyan Path',
-  );
-  const pathshala = useLoad(() => (pathshalaOn && member?.household ? loadPathshala(member.household.id) : Promise.resolve([])), [member?.household?.id, pathshalaOn], 'load Pathshala');
-  const lessons = useLoad(() => (lessonsOn && center ? listContent(center.id, 'audio_lesson') : Promise.resolve([])), [center?.id, lessonsOn], 'load lessons');
-  const audio = useInAppAudio(t('learn.audioFailed'));
-  const minutes = member?.person.gyan_daily_minutes ?? null;
-
-  return (
-    <VStack gap={14}>
-      <Loaded state={gyan}>
-        {(g) => {
-          if (!member || !g) return null;
-          if (g.goals.length === 0) return <EmptyState icon="school-outline" title={t('learn.noGoals')} body={t('learn.noGoalsBody')} />;
-          const id = continueGoalId(g.goals, lastActivityByGoal(g, member.person.id), (goal) => goalProgress(goal, g.progress, member.person.id).complete);
-          const goal = g.goals.find((x) => x.id === id) ?? g.goals[0];
-          const p = goalProgress(goal, g.progress, member.person.id);
-          const levelNo = Math.min(p.levelsDone + 1, Math.max(p.levelsTotal, 1));
-          const eyebrow = p.complete ? t('learn.heroEyebrowDone') : t('learn.heroEyebrow', { level: levelNo, n: p.levelsTotal });
-          const title = p.currentLevel ? `${goal.name} · ${p.currentLevel.name}` : goal.name;
-          const sub = p.stepsDone === 0 ? t('learn.heroStart') : minutes ? t('learn.heroContinue', { min: minutes }) : t('learn.heroContinueNoGoal');
-          return (
-            <Pressable
-              onPress={() => router.push('/gyan')}
-              accessibilityRole="button"
-              accessibilityLabel={`${eyebrow}. ${title}. ${sub}`}
-              style={({ pressed }) => ({ backgroundColor: colors.navy, borderRadius: radii.xxl, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.92 : 1 })}>
-              <View style={{ backgroundColor: colors.brown, borderRadius: 18, paddingBottom: 4 }}>
-                <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: colors.badge, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, color: colors.white }}>{String(levelNo)}</Text>
-                </View>
-              </View>
-              <View style={{ flex: 1, gap: 1 }}>
-                <Txt variant="eyebrow" color="gold">
-                  {eyebrow}
-                </Txt>
-                <Txt variant="headline" color="white" style={{ fontSize: 18, lineHeight: 24 }}>
-                  {title}
-                </Txt>
-                <Txt variant="caption" color="onNavy" style={{ fontFamily: fonts.body }}>
-                  {sub}
-                </Txt>
-              </View>
-              <Text style={{ fontSize: 22, color: colors.onNavy }}>{'›'}</Text>
-            </Pressable>
-          );
-        }}
-      </Loaded>
-
-      {pathshalaOn ? <Txt variant="section">{t('learn.pathshala')}</Txt> : null}
-      {pathshalaOn ? (
-        <Loaded state={pathshala}>
-          {(rows) =>
-            rows.length === 0 ? (
-              <EmptyState
-                icon="school-outline"
-                title={t('learn.noEnrollments')}
-                body={t('learn.noEnrollmentsBody')}
-                action={member?.isAdult ? { label: t('enrollReq.cta'), onPress: () => router.push('/pathshala-enroll') } : undefined}
-              />
-            ) : (
-              <Card>
-                {rows.map((r, i) => {
-                  const student = member?.members.find((m) => m.person.id === r.student_person_id);
-                  const name = student?.person.preferred_name || student?.person.first_name || '';
-                  const level = r.levelName ?? r.className ?? r.termName ?? '';
-                  const enrolled = r.status === 'placed' || r.status === 'active';
-                  const pending = r.status === 'requested' || r.status === 'waitlisted';
-                  const canScan = !!student && enrolled && (student.person.id === member?.person.id || !!member?.isAdult);
-                  const statusLabel = t(`enroll.${r.status}` as 'enroll.requested');
-                  return (
-                    <View key={r.id} style={{ gap: 6 }}>
-                      {i > 0 ? <Divider /> : null}
-                      {pending ? (
-                        <Text style={{ fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted }}>
-                          {`${[name, level, statusLabel].filter(Boolean).join(' · ')} · `}
-                          <Text onPress={() => router.push('/pathshala-enroll')} accessibilityRole="link" style={{ color: colors.navy, textDecorationLine: 'underline' }}>
-                            {t('learn.completeEnrollment')}
-                          </Text>
-                        </Text>
-                      ) : (
-                        <>
-                          <Row style={{ justifyContent: 'space-between' }}>
-                            <Txt variant="bodyStrong" style={{ flex: 1 }}>
-                              {[name, level].filter(Boolean).join(' · ')}
-                            </Txt>
-                            <Txt variant="meta" color={enrolled || r.status === 'completed' ? 'green' : 'muted'} style={{ fontFamily: fonts.bodySemi }}>
-                              {statusLabel}
-                            </Txt>
-                          </Row>
-                          {enrolled ? (
-                            <Txt variant="meta" color="muted">
-                              {[r.schedule, t('learn.attendanceByQr')].filter(Boolean).join(' · ')}
-                            </Txt>
-                        ) : null}
-                        {(() => {
-                          const a = attendanceSummary(r.attendance);
-                          return a.last ? (
-                            <Txt variant="meta" color="ink2">
-                              {[
-                                t('learn.lastClass', { date: formatDay(a.last.held_on), status: t(`attendStatus.${a.last.status}` as 'attendStatus.present') }),
-                                t('learn.attended', { n: a.attended, total: a.total }),
-                              ].join(' · ')}
-                            </Txt>
-                          ) : null;
-                        })()}
-                        {r.reports[0] ? (
-                          <Txt variant="meta" color="ink2">
-                            {[
-                              t('learn.report', { period: r.reports[0].period }),
-                              t('learn.reportAttendance', { present: r.reports[0].attendance_present + r.reports[0].attendance_late, total: r.reports[0].attendance_total }),
-                              r.reports[0].teacher_comments,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </Txt>
-                        ) : null}
-                      </>
-                    )}
-                    {canScan ? (
-                      <Button
-                        label={t('learn.scanAttendance')}
-                        tone="secondary"
-                        size="sm"
-                        icon="qr-code-outline"
-                        fill={false}
-                        onPress={() => router.push({ pathname: '/pathshala-scan', params: { person: r.student_person_id } })}
-                      />
-                    ) : null}
-                  </View>
-                );
-              })}
-            </Card>
-          )
-        }
-      </Loaded>
-      ) : null}
-
-      {pathshalaOn && member?.isAdult ? (
-        <Row style={{ flexWrap: 'wrap' }}>
-          {(pathshala.data?.length ?? 0) > 0 ? (
-            <Button label={t('enrollReq.cta')} tone="secondary" size="sm" icon="school-outline" fill={false} onPress={() => router.push('/pathshala-enroll')} />
-          ) : null}
-          <Button label={t('teach.cta')} tone="secondary" size="sm" icon="people-outline" fill={false} onPress={() => router.push('/pathshala-teach')} />
-        </Row>
-      ) : null}
-
-      {lessonsOn ? <Txt variant="section">{t('learn.listen')}</Txt> : null}
-      {audio.error ? <Banner tone="error" message={audio.error} /> : null}
-      {lessonsOn ? (
-        <Loaded state={lessons}>
-          {(items) =>
-            items.length === 0 ? (
-              <Txt variant="small" color="muted">
-                {t('learn.noLessons')}
-              </Txt>
-            ) : (
-              <VStack gap={space.sm}>
-                {items.map((c) => {
-                  const m = meta(c);
-                  const mins = typeof m.minutes === 'number' ? `${m.minutes} min` : typeof m.duration === 'string' ? m.duration : null;
-                  const sub = [typeof m.course === 'string' ? m.course : null, mins].filter(Boolean).join(' · ');
-                  const isCurrent = audio.current === c.id;
-                  const playing = isCurrent && audio.playing;
-                  const url = c.media_url;
-                  return (
-                    <Pressable
-                      key={c.id}
-                      disabled={!url}
-                      onPress={() => {
-                        if (url) audio.toggle(c.id, url);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ disabled: !url, selected: playing }}
-                      accessibilityLabel={[c.title, sub, !url ? t('learn.lessonNoAudio') : null].filter(Boolean).join('. ')}
-                      style={({ pressed }) => ({ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.row, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.85 : 1 })}>
-                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center' }}>
-                        <PlayGlyph size={18} paused={playing} color={url ? colors.navy : colors.faint} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Txt variant="body" style={{ fontFamily: fonts.bodyMedium }}>
-                          {c.title}
-                        </Txt>
-                        <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-                          {!url ? t('learn.lessonNoAudio') : isCurrent && (audio.playing || audio.position > 0) ? t('learn.playing', { time: clock(audio.position) }) : sub}
-                        </Txt>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </VStack>
-            )
-          }
-        </Loaded>
-      ) : null}
-    </VStack>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -928,124 +692,6 @@ export function SaathiPane() {
           );
         }}
       </Loaded>
-    </VStack>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Library (prototype Main L700–720)
-// ---------------------------------------------------------------------------
-
-export function LibraryPane() {
-  const t = useT();
-  const router = useRouter();
-  const { center } = useApp();
-  const community = communityName(center);
-  const pach = useLoad(() => (center ? listContent(center.id, 'pachchakhan') : Promise.resolve([])), [center?.id], 'load the pachchakhan library');
-  const today = useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], 'load live darshan');
-  const darshan = today.data?.darshan ?? null;
-  const aarti = today.data?.timings?.aarti ? formatTimeOfDay(today.data.timings.aarti) : null;
-  const [openError, setOpenError] = useState<string | null>(null);
-
-  // The full-screen player (src/app/(app)/darshan.tsx): embedded on the web, the in-app browser on a phone.
-  const openDarshan = () => {
-    if (!darshan) return;
-    setOpenError(null);
-    try {
-      router.push('/darshan');
-    } catch (err) {
-      setOpenError(report(err, 'open the live darshan').userMessage);
-    }
-  };
-
-  return (
-    <VStack gap={14}>
-      <Txt variant="small" color="ink2" style={{ lineHeight: 21 }}>
-        {t('library.intro', { center: community })}
-      </Txt>
-      {today.error && !today.data ? (
-        <ErrorState error={today.error} onRetry={() => void today.reload()} />
-      ) : today.loading && !today.data ? (
-        <LoadingState />
-      ) : (
-        <View style={{ height: 196, borderRadius: radii.xxl, backgroundColor: colors.videoTile, alignItems: 'center', justifyContent: 'center' }}>
-          {darshan ? (
-            <>
-              <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: colors.live, borderRadius: radii.sm, paddingVertical: 3, paddingHorizontal: 8 }}>
-                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: colors.white }}>{t('library.live').toUpperCase()}</Text>
-              </View>
-              <Text style={{ position: 'absolute', bottom: 12, left: 14, right: 14, fontFamily: fonts.body, fontSize: 13, color: colors.frame }} numberOfLines={1}>
-                {aarti ? t('library.darshanCaption', { title: darshan.title, time: aarti }) : darshan.title}
-              </Text>
-              <Pressable
-                onPress={openDarshan}
-                accessibilityRole="button"
-                accessibilityLabel={t('library.darshanPlay')}
-                style={({ pressed }) => ({ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.ground, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
-                <PlayGlyph size={26} />
-              </Pressable>
-            </>
-          ) : (
-            <View style={{ alignItems: 'center', gap: 4, paddingHorizontal: space.lg }} accessible>
-              <Text style={{ fontFamily: fonts.bodySemi, fontSize: 15, color: colors.frame }}>{t('library.darshanOffline')}</Text>
-              {aarti ? <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.lockMeta }}>{t('library.darshanOfflineSub', { time: aarti })}</Text> : null}
-            </View>
-          )}
-        </View>
-      )}
-      {openError ? <Banner tone="error" message={openError} /> : null}
-      <Txt variant="section">{t('library.pachchakhan')}</Txt>
-      <Loaded state={pach}>
-        {(items) =>
-          items.length === 0 ? (
-            <EmptyState icon="book-outline" title={t('library.none')} />
-          ) : (
-            <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.xl, paddingVertical: 2, paddingHorizontal: 16 }}>
-              {items.map((c, i) => {
-                const when = typeof meta(c).when === 'string' ? (meta(c).when as string) : null;
-                return (
-                  <Pressable
-                    key={c.id}
-                    onPress={() => router.push({ pathname: '/pachchakhan/[id]', params: { id: c.id } })}
-                    accessibilityRole="button"
-                    accessibilityLabel={when ? `${c.title}. ${when}` : c.title}
-                    style={({ pressed }) => ({ minHeight: touch.row, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: i < items.length - 1 ? 1 : 0, borderBottomColor: colors.divider, opacity: pressed ? 0.7 : 1 })}>
-                    <View style={{ flex: 1 }}>
-                      <Txt variant="body" style={{ fontFamily: fonts.bodyMedium }}>
-                        {c.title}
-                      </Txt>
-                      {when ? (
-                        <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-                          {when}
-                        </Txt>
-                      ) : null}
-                    </View>
-                    <Chevron />
-                  </Pressable>
-                );
-              })}
-            </View>
-          )
-        }
-      </Loaded>
-      <Pressable
-        onPress={() => router.push('/guide')}
-        accessibilityRole="button"
-        accessibilityLabel={`${t('library.guide', { center: community })}. ${t('library.guideSub')}`}
-        style={({ pressed }) => ({ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.xxl, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: pressed ? 0.85 : 1 })}>
-        <View style={{ width: 44, height: 44, borderRadius: radii.card, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 18, color: colors.navy }}>i</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt variant="body" style={{ fontFamily: fonts.bodySemi }}>
-            {t('library.guide', { center: community })}
-          </Txt>
-          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-            {t('library.guideSub')}
-          </Txt>
-        </View>
-        <Chevron />
-      </Pressable>
     </VStack>
   );
 }

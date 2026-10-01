@@ -504,7 +504,18 @@ export function ChipGroup({ children, columns }: { children: ReactNode; columns?
   );
 }
 
-export function Segmented<T extends string>({ options, value, onChange, label }: { options: { value: T; label: string; badge?: boolean }[]; value: T; onChange: (v: T) => void; label: string }) {
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  /** `accessibilityLabel`: what a screen reader says when the short label would not (e.g. "3L"). */
+  options: { value: T; label: string; badge?: boolean; accessibilityLabel?: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  label: string;
+}) {
   return (
     <View accessibilityRole="tablist" accessibilityLabel={label} style={{ flexDirection: 'row', backgroundColor: colors.panel, borderRadius: radii.card, padding: 4, gap: 4 }}>
       {options.map((o) => {
@@ -515,7 +526,7 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            accessibilityLabel={o.badge ? `${o.label}, new activity` : o.label}
+            accessibilityLabel={o.badge ? `${o.accessibilityLabel ?? o.label}, new activity` : (o.accessibilityLabel ?? o.label)}
             style={{ flex: 1, minHeight: touch.min, borderRadius: radii.md, backgroundColor: selected ? colors.card : 'transparent', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 }}>
             <Txt variant="smallStrong" color={selected ? 'navy' : 'muted'}>
               {o.label}
