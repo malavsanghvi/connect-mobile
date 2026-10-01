@@ -3,8 +3,10 @@ import { check, maybe, must } from '../errors';
 import { addDays, todayAt, zonedParts } from '../format';
 import type { FeedItem, FeedKind } from '../learning';
 import type { StreakRow } from '../rules';
+import { circleVisibility, pendingCircleMembers, sharesWithFamily, type CircleVisibility, type PendingCircleMember } from '../saathi';
 import { supabase } from '../supabase';
 
+import { listOpenHouseholdRequests } from './family';
 import type { Center, Member } from './member';
 
 export type Practice = Tables<'practices'>;
@@ -98,35 +100,57 @@ export async function removePractice(personId: string, practiceId: string): Prom
 // Saathi
 // ---------------------------------------------------------------------------
 
-export type CircleMember = { personId: string; name: string; isMe: boolean; visible: boolean; streakDays: number; doneToday: number; selected: number };
+export type CircleMember = {
+  personId: string;
+  name: string;
+  isMe: boolean;
+  /** 'notSharing': the member turned family sharing off (saathi_settings); 'private': a child sees only their own. */
+  visibility: CircleVisibility;
+  visible: boolean;
+  streakDays: number;
+  doneToday: number;
+  selected: number;
+};
 export type AnumodanaRow = Tables<'anumodana'> & { fromName: string; toName: string };
 
-export async function loadSaathi(center: Center, member: Member): Promise<{ circle: CircleMember[]; received: AnumodanaRow[]; sent: AnumodanaRow[] }> {
+/**
+ * The family circle: every living household member, then everyone an open "add family member" request names
+ * (waiting for the membership team), plus the anumodana sent and received.
+ */
+export async function loadSaathi(
+  center: Center,
+  member: Member,
+): Promise<{ circle: CircleMember[]; pending: PendingCircleMember[]; received: AnumodanaRow[]; sent: AnumodanaRow[] }> {
   const today = todayAt(center.time_zone);
   const ids = member.members.map((m) => m.person.id);
-  const [streaksRes, logsRes, selRes, anuRes] = await Promise.all([
+  const [streaksRes, logsRes, selRes, anuRes, settingsRes, requests] = await Promise.all([
     supabase.from('streaks').select('person_id, current_days, last_logged_on').in('person_id', ids),
     supabase.from('practice_logs').select('person_id, practice_id').in('person_id', ids).eq('logged_on', today),
     supabase.from('practice_selections').select('person_id, practice_id').in('person_id', ids),
     supabase.from('anumodana').select('*').or(`from_person_id.eq.${member.person.id},to_person_id.eq.${member.person.id}`).order('created_at', { ascending: false }).limit(40),
+    supabase.from('saathi_settings').select('person_id, opted_in, share_with_family').in('person_id', ids),
+    member.household ? listOpenHouseholdRequests(member.household.id) : Promise.resolve([]),
   ]);
   const streaks = must(streaksRes, 'load your family circle');
   const logs = must(logsRes, 'load your family circle');
   const sels = must(selRes, 'load your family circle');
   const anu = must(anuRes, 'load anumodana');
+  const settings = must(settingsRes, 'load your family circle');
   const name = new Map(member.members.map((m) => [m.person.id, m.person.preferred_name || m.person.first_name]));
 
   const circle = member.members.map((m) => {
     const s = streaks.find((r) => r.person_id === m.person.id);
     const selected = sels.filter((r) => r.person_id === m.person.id).length;
-    // RLS shows other members' practice data only to adults of the household.
-    const visible = m.person.id === member.person.id || member.isAdult;
+    const isMe = m.person.id === member.person.id;
+    // RLS shows other members' practice data only to adults of the household; a member can also stop sharing it.
+    const visibility = circleVisibility({ isMe, viewerIsAdult: member.isAdult, sharing: sharesWithFamily(m.person.id, settings) });
     const alive = s?.last_logged_on && (s.last_logged_on === today || s.last_logged_on === addDays(today, -1));
     return {
       personId: m.person.id,
       name: name.get(m.person.id) ?? '',
-      isMe: m.person.id === member.person.id,
-      visible,
+      isMe,
+      visibility,
+      visible: visibility === 'visible',
       streakDays: alive ? (s?.current_days ?? 0) : 0,
       doneToday: logs.filter((r) => r.person_id === m.person.id).length,
       selected,
@@ -135,6 +159,7 @@ export async function loadSaathi(center: Center, member: Member): Promise<{ circ
   const withNames = anu.map((a) => ({ ...a, fromName: name.get(a.from_person_id) ?? '', toName: name.get(a.to_person_id) ?? '' }));
   return {
     circle,
+    pending: pendingCircleMembers(requests),
     received: withNames.filter((a) => a.to_person_id === member.person.id),
     sent: withNames.filter((a) => a.from_person_id === member.person.id),
   };
