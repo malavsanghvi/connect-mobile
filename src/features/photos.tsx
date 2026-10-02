@@ -7,7 +7,7 @@ import { EmptyState, Loaded } from '@/components/states';
 import { Banner, Txt } from '@/components/ui';
 import type { Translate } from '@/i18n';
 import { albumOpenTarget } from '@/lib/album-open';
-import { listAlbums, photoUrls, type AlbumSummary } from '@/lib/api/photos';
+import { listAlbumPreviews, listAlbums, photoUrls, type AlbumPreview, type AlbumSummary } from '@/lib/api/photos';
 import { sizedPhotoUrl } from '@/lib/photo-size';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -39,6 +39,19 @@ export async function loadAlbumsWithCovers(centerId: string): Promise<AlbumsData
   const albums = await listAlbums(centerId);
   try {
     const urls = await photoUrls(albums.flatMap((a) => a.coverPaths));
+    return { albums, urls, urlError: null };
+  } catch (err) {
+    return { albums, urls: {}, urlError: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export type AlbumPreviewsData = { albums: AlbumPreview[]; urls: Record<string, string>; urlError: string | null };
+
+/** The newest `limit` albums with the signed link of each one's cover (Home's Photos rail); a storage failure keeps the tiles (without pictures) and says so. */
+export async function loadAlbumPreviewsWithCovers(centerId: string, limit: number): Promise<AlbumPreviewsData> {
+  const albums = await listAlbumPreviews(centerId, limit);
+  try {
+    const urls = await photoUrls(albums.flatMap((a) => (a.coverPath ? [a.coverPath] : [])));
     return { albums, urls, urlError: null };
   } catch (err) {
     return { albums, urls: {}, urlError: err instanceof Error ? err.message : String(err) };

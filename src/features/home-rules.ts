@@ -1,13 +1,12 @@
 /**
- * Pure rules behind the Home cards (src/features/home.tsx, home-giving.tsx):
- * what goes in "Up next", which special day the Plan card offers, and the
- * slides of the rotating Giving card. Unit-tested in
+ * Pure rules behind the Home cards (src/features/home.tsx): what goes in
+ * "Up next" and which special day the Plan card offers (the rails' tiles are
+ * built in home-rail-items.ts). Unit-tested in
  * src/features/__tests__/home-rules.test.ts.
  */
 import { isWithinReminder } from '@/lib/rules';
 
 import { specialDayDismissKey } from './event-rules';
-import { fromAmountCents } from './give/rules';
 
 // ---------------------------------------------------------------------------
 // Up next
@@ -83,44 +82,4 @@ export function reminderSpecialDay<D extends HomeSpecialDayFields>(rows: readonl
  */
 export function nextSpecialDay<D extends HomeSpecialDayFields>(rows: readonly DayNext<D>[], hidden: readonly string[], excludeId?: string | null): { day: D; next: string } | null {
   return homeSpecialDays(rows, hidden).find((r) => r.day.id !== excludeId) ?? null;
-}
-
-// ---------------------------------------------------------------------------
-// Giving
-// ---------------------------------------------------------------------------
-
-/** The fields of an open opportunity (with its published campaign) a slide is built from. */
-export type GivingOpportunity = {
-  id: string;
-  name: string;
-  kind: string;
-  options: unknown;
-  amount_cents: number | null;
-  min_amount_cents: number | null;
-  campaign: { name: string } | null;
-};
-
-export type GivingSlide = {
-  /** Stable key: the opportunity. */
-  key: string;
-  /** The opportunity "View and sponsor" opens: always the one the slide names. */
-  opportunityId: string;
-  title: string;
-  campaignName: string | null;
-  /** The Give list's "From $X" amount (cents), null for any amount. */
-  fromCents: number | null;
-};
-
-/**
- * One slide per open opportunity, in the portal's order, for the rotating
- * Giving card. Each slide names one opportunity and opens that same one, so
- * every open opportunity can be reached from Home (a campaign's Gold and
- * Silver levels are two slides, not one ladder that opens only the first).
- * The amount is the one the Give list shows (fromAmountCents).
- */
-export function givingSlides(opps: readonly GivingOpportunity[]): GivingSlide[] {
-  return opps.map((opp) => {
-    const from = fromAmountCents(opp);
-    return { key: `opportunity:${opp.id}`, opportunityId: opp.id, title: opp.name, campaignName: opp.campaign?.name ?? null, fromCents: typeof from === 'number' && from > 0 ? from : null };
-  });
 }

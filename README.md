@@ -153,10 +153,18 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   exactly as issued (leading zeros kept), labelled from
   `centers.rules.identifiers.org_member_label` / `org_household_label`.
 - **Modules** (`src/lib/modules.ts`): the community can switch modules off
-  (`app.my_modules`). Tabs, Home cards, drawer entries, Give / Events / Jain Way
+  (`app.my_modules`). Tabs, Home cards and rails, drawer entries, Give / Events / Jain Way
   segments and guide sections of a switched-off module are hidden, and a deep link to
   one shows "{module} isn't offered by {center} right now". If `app.my_modules` is
   missing or fails, everything is shown and the reason is logged once.
+- **Home** (`src/app/(app)/(tabs)/index.tsx`): Today, alerts, Up next and Plan a special
+  day on top, then **rails** (`src/features/home-rails.tsx`): rows of large tiles that
+  scroll sideways — Continue learning, Upcoming events, Listen, Give, Photos, Fully Jain
+  recipes — each with its "See all". Which rails show is pure and unit-tested
+  (`src/lib/home-rails.ts`): the community's modules, its Home shortcuts
+  (`centers.rules.home.shortcuts`; each shortcut brings its rail) and, for a guest, only
+  the public events. A rail loads only as it nears the screen, shows its own plain-English
+  error with Try again, and is left out when it has nothing to show.
 - **Traceability** (`src/lib/request-context.ts`): every PostgREST request sends
   `x-client-app` (`member`, or `kiosk` while the volunteer board is in kiosk mode), a
   fresh `x-request-id` and `x-client-screen` (the current route). Writes the member

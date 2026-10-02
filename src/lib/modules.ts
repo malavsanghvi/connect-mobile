@@ -128,10 +128,13 @@ export function isTabVisible(map: ModuleMap, tab: TabRoute): boolean {
 }
 
 /**
- * Home cards (src/features/home.tsx). null = always shown. `specialDay`
- * covers Up next's special-day row and the "Plan a special day" card: special
- * days are a Family feature, so they show with Pledges & donations off too,
- * offering "See special days" instead of a labh (a labh is a pledge).
+ * Home cards (src/features/home.tsx) and rails (src/features/home-rails.tsx).
+ * null = always shown. `specialDay` covers Up next's special-day row and the
+ * "Plan a special day" card: special days are a Family feature, so they show
+ * with Pledges & donations off too, offering "See special days" instead of a
+ * labh (a labh is a pledge). `giving` is the Give rail; the `rail…` keys are
+ * the other rails (which of them a community shows also follows its Home
+ * shortcuts, see src/lib/home-rails.ts).
  */
 export const HOME_CARD_MODULE = {
   today: null,
@@ -145,6 +148,11 @@ export const HOME_CARD_MODULE = {
   giving: 'giving',
   nextEvent: 'events',
   guide: null,
+  railLearning: 'gyan_path',
+  railEvents: 'events',
+  railListen: 'content',
+  railPhotos: 'content',
+  railRecipes: 'content',
 } as const satisfies Record<string, ModuleKey | null>;
 
 export type HomeCard = keyof typeof HOME_CARD_MODULE;

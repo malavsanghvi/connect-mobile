@@ -36,11 +36,11 @@ import { nextSpecialDay, reminderSpecialDay, upNextItems, type DayNext, type UpN
 import { PujaEntry } from './puja/puja-entry';
 
 /*
- * Home cards (layout B, owner 2026-10-02; the order is set in
- * src/app/(app)/(tabs)/index.tsx): deactivated → Today → shortcuts grid →
- * alerts → Up next (confirm, lunch, next event, special day) → Giving
- * (rotating, home-giving.tsx) → Plan a special day → My Jain Way → Feedback →
- * "My {center}" guide → guest sign-in.
+ * Home cards (Netflix-style Home, owner 2026-10-02; the order is set in
+ * src/app/(app)/(tabs)/index.tsx): deactivated → Today → alerts → Up next
+ * (confirm, lunch, next event, special day) → Plan a special day → the rails
+ * (home-rails.tsx) → My Jain Way → Feedback → "My {center}" guide → guest
+ * sign-in.
  */
 
 function SectionLoading() {
