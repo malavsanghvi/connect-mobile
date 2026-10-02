@@ -56,6 +56,20 @@ export function flyerLinkTarget(state: { signedIn: boolean; linked: boolean; onb
   return { guest: false, href: event };
 }
 
+const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/**
+ * The community a flyer link names (`/e/<id>?c=<web name>`, the community's slug), or null when it
+ * names none or something that isn't a web name. Case and spaces are ignored; a repeated `c` uses
+ * the first.
+ */
+export function flyerLinkCommunity(raw: unknown): string | null {
+  const v: unknown = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof v !== 'string') return null;
+  const slug = v.trim().toLowerCase();
+  return SLUG.test(slug) ? slug : null;
+}
+
 /** Signed flyer links last an hour (files.ts); Share and Save sign again after 50 minutes so the link can't expire mid-download. */
 export const FLYER_RESIGN_AFTER_MS = 50 * 60 * 1000;
 

@@ -11,6 +11,7 @@ import { EventFlyer } from '@/features/event-flyer';
 import { bandFor, peopleLabel, tierSingular } from '@/features/events';
 import { roleLabel } from '@/features/labels';
 import { startPayment } from '@/features/pay';
+import { returnToEventAfterSignIn } from '@/features/return-to-event';
 import { commitmentOptions, findEvent, getHouseholdRsvp, getPledgeById, listAttendees, raiseRsvpCommitment, rsvpBlockReason, submitRsvp, type Attendee, type EventRow, type GoingPerson, type Rsvp } from '@/lib/api/events';
 import type { FamilyMember, Member } from '@/lib/api/member';
 import type { Tables } from '@/lib/database.types';
@@ -58,16 +59,16 @@ export default function EventScreen() {
       {sync ? (
         <SyncView sync={sync} eventId={id} onBack={() => setSync(null)} />
       ) : (
-        <Loaded state={state}>{(d) => (d ? <EventBody data={d} member={member} tz={center?.time_zone ?? null} onSync={setSync} /> : <EventUnavailable member={member} />)}</Loaded>
+        <Loaded state={state}>{(d) => (d ? <EventBody data={d} member={member} tz={center?.time_zone ?? null} onSync={setSync} /> : <EventUnavailable eventId={id} member={member} />)}</Loaded>
       )}
     </Screen>
   );
 }
 
-/** The event can't be shown: for a guest it is probably members-only (sign in); for a member it is gone. Never a raw database error. */
-function EventUnavailable({ member }: { member: Member | null }) {
+/** The event can't be shown: for a guest it is probably members-only (sign in, then back here); for a member it is gone. Never a raw database error. */
+function EventUnavailable({ eventId, member }: { eventId: string; member: Member | null }) {
   const t = useT();
-  const { setGuest } = useApp();
+  const { setGuest, center } = useApp();
   if (member) return <Banner tone="info" message={t('events.unavailable')} />;
   return (
     <Card tone="panel">
@@ -77,7 +78,14 @@ function EventUnavailable({ member }: { member: Member | null }) {
       <Txt variant="small" color="ink2">
         {t('events.membersOnlyBody')}
       </Txt>
-      <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
+      <Button
+        label={t('common.signIn')}
+        onPress={() => {
+          returnToEventAfterSignIn(eventId, center?.id);
+          setGuest(false);
+        }}
+        size="md"
+      />
     </Card>
   );
 }
@@ -129,7 +137,14 @@ function EventBody({ data, member, tz, onSync }: { data: Loaded_; member: Member
       {!member ? (
         <Card tone="panel">
           <Txt variant="small">{t('events.signInToRsvp')}</Txt>
-          <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
+          <Button
+            label={t('common.signIn')}
+            onPress={() => {
+              returnToEventAfterSignIn(event.id, event.center_id);
+              setGuest(false);
+            }}
+            size="md"
+          />
         </Card>
       ) : !member.isAdult ? (
         <LockedState onBack={() => router.replace('/')} />

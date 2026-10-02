@@ -93,23 +93,35 @@ async function fetchBlob(url: string): Promise<Blob> {
   }
 }
 
+/**
+ * Web only: download a photo before its Share button is tapped, for shareWebPhoto. A browser opens
+ * the share sheet only for a few seconds after a tap, so a slow download at tap time can be refused.
+ * Null on a phone (it shares a downloaded file instead) or in a browser that can't share at all.
+ */
+export async function prefetchPhotoForShare(url: string): Promise<Blob | null> {
+  if (Platform.OS !== 'web' || !webNavigator()?.share) return null;
+  return fetchBlob(url);
+}
+
+/** Web: hand a downloaded photo (prefetchPhotoForShare) to the browser's share sheet. */
+export async function shareWebPhoto(blob: Blob, fileName: string, mimeType: string): Promise<void> {
+  const nav = webNavigator();
+  const FileCtor = (globalThis as { File?: new (parts: Blob[], name: string, opts: { type: string }) => unknown }).File;
+  const file = FileCtor ? new FileCtor([blob], fileName, { type: mimeType }) : null;
+  if (file && nav?.share && nav.canShare?.({ files: [file] })) {
+    try {
+      await nav.share({ files: [file] });
+    } catch (err) {
+      if (!isAbort(err)) throw new AppError("Sharing didn't work in this browser.", err instanceof Error ? err.message : String(err));
+    }
+    return;
+  }
+  throw new AppError("This browser can't share photos. Use Save instead, then share the downloaded file.", 'navigator.share(files) unavailable');
+}
+
 /** Share one photo as a file (so it can go to WhatsApp, Messages, AirDrop…). */
 export async function sharePhoto(url: string, fileName: string, mimeType: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    const nav = webNavigator();
-    const blob = await fetchBlob(url);
-    const FileCtor = (globalThis as { File?: new (parts: Blob[], name: string, opts: { type: string }) => unknown }).File;
-    const file = FileCtor ? new FileCtor([blob], fileName, { type: mimeType }) : null;
-    if (file && nav?.share && nav.canShare?.({ files: [file] })) {
-      try {
-        await nav.share({ files: [file] });
-      } catch (err) {
-        if (!isAbort(err)) throw new AppError("Sharing didn't work in this browser.", err instanceof Error ? err.message : String(err));
-      }
-      return;
-    }
-    throw new AppError("This browser can't share photos. Use Save instead, then share the downloaded file.", 'navigator.share(files) unavailable');
-  }
+  if (Platform.OS === 'web') return shareWebPhoto(await fetchBlob(url), fileName, mimeType);
   if (!(await Sharing.isAvailableAsync())) throw new AppError("This device can't share files.", 'expo-sharing unavailable');
   const file = await downloadToCache(url, fileName);
   await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: fileName });

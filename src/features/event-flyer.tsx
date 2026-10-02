@@ -1,14 +1,14 @@
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StrokeIcon } from '@/components/stroke-icon';
 import { Banner, Button, Card, Row, Txt } from '@/components/ui';
-import { savePhotos, sharePhoto } from '@/features/media';
+import { prefetchPhotoForShare, savePhotos, sharePhoto, shareWebPhoto } from '@/features/media';
 import type { EventRow } from '@/lib/api/events';
 import { eventFlyerUrl } from '@/lib/api/flyers';
-import { report } from '@/lib/errors';
+import { logError, report } from '@/lib/errors';
 import { flyerFileName, flyerMimeType, isExpiredLinkError, needsResign } from '@/lib/flyer';
 import { useLoad } from '@/lib/use-load';
 import { useFeedback } from '@/providers/feedback';
@@ -19,7 +19,7 @@ import { colors, radii, space } from '@/theme';
 type Signed = { url: string; signedAt: number };
 type Kind = 'share' | 'save';
 type ActionError = { kind: Kind; message: string };
-type FlyerActions = { busy: Kind | null; error: ActionError | null; run: (kind: Kind) => Promise<void>; clearError: () => void };
+type FlyerActions = { busy: Kind | null; error: ActionError | null; run: (kind: Kind) => Promise<void>; clearError: () => void; prefetch: (url: string) => void };
 
 /** Width ÷ height until the image says otherwise (the portal's "post" size). */
 const DEFAULT_RATIO = 4 / 5;
@@ -79,7 +79,10 @@ function FlyerCard({ path, eventName }: { path: string; eventName: string }) {
               contentFit="contain"
               transition={150}
               accessibilityIgnoresInvertColors
-              onLoad={(e) => setRatio(e.source.width > 0 && e.source.height > 0 ? e.source.width / e.source.height : DEFAULT_RATIO)}
+              onLoad={(e) => {
+                setRatio(e.source.width > 0 && e.source.height > 0 ? e.source.width / e.source.height : DEFAULT_RATIO);
+                actions.prefetch(url);
+              }}
               onError={(e) => setImageError({ url, message: report(new Error(e.error), 'load the flyer').userMessage })}
             />
             {ratio === null ? (
@@ -106,7 +109,9 @@ function FlyerCard({ path, eventName }: { path: string; eventName: string }) {
 
 /**
  * Share and Save with a fresh link: one older than 50 minutes is signed again first, and a download
- * that Storage refuses (HTTP 400/403, an expired token) is signed again and retried once.
+ * that Storage refuses (HTTP 400/403, an expired token) is signed again and retried once. On the web
+ * the flyer is downloaded once it shows, so Share opens the browser's share sheet straight after the
+ * tap (a browser refuses it a few seconds after the tap, which a download on slow data can take).
  */
 function useFlyerActions(path: string, eventName: string, signed: Signed | null): FlyerActions {
   const t = useT();
@@ -114,6 +119,7 @@ function useFlyerActions(path: string, eventName: string, signed: Signed | null)
   const [busy, setBusy] = useState<Kind | null>(null);
   const [error, setError] = useState<ActionError | null>(null);
   const [fresh, setFresh] = useState<Signed | null>(null);
+  const shareFile = useRef<{ blob: Blob | null; started: boolean }>({ blob: null, started: false });
   const fileName = flyerFileName(eventName, path);
   const mime = flyerMimeType(fileName);
 
@@ -126,6 +132,20 @@ function useFlyerActions(path: string, eventName: string, signed: Signed | null)
     const newest = signed && fresh ? (fresh.signedAt > signed.signedAt ? fresh : signed) : (fresh ?? signed);
     return newest && !needsResign(newest.signedAt, Date.now()) ? newest.url : resign();
   };
+  // The flyer behind a path never changes (a new design is a new path), so one download serves every Share.
+  const prefetch = (url: string) => {
+    const s = shareFile.current;
+    if (s.blob || s.started) return;
+    s.started = true;
+    prefetchPhotoForShare(url)
+      .then((blob) => {
+        s.blob = blob;
+      })
+      .catch((err: unknown) => logError('downloading the flyer ahead of Share (Share downloads it when tapped instead)', err))
+      .finally(() => {
+        s.started = false;
+      });
+  };
   const attempt = async (kind: Kind, url: string) => {
     if (kind === 'share') await sharePhoto(url, fileName, mime);
     else await savePhotos([{ url, fileName }]);
@@ -136,12 +156,17 @@ function useFlyerActions(path: string, eventName: string, signed: Signed | null)
     setBusy(kind);
     setError(null);
     try {
-      const url = await currentUrl();
-      try {
-        await attempt(kind, url);
-      } catch (err) {
-        if (!isExpiredLinkError(err)) throw err;
-        await attempt(kind, await resign());
+      const ready = kind === 'share' ? shareFile.current.blob : null;
+      if (ready) {
+        await shareWebPhoto(ready, fileName, mime);
+      } else {
+        const url = await currentUrl();
+        try {
+          await attempt(kind, url);
+        } catch (err) {
+          if (!isExpiredLinkError(err)) throw err;
+          await attempt(kind, await resign());
+        }
       }
       if (kind === 'save') toast(t('events.flyer.saved'));
     } catch (err) {
@@ -151,7 +176,7 @@ function useFlyerActions(path: string, eventName: string, signed: Signed | null)
     }
   };
 
-  return { busy, error, run, clearError: () => setError(null) };
+  return { busy, error, run, clearError: () => setError(null), prefetch };
 }
 
 function ActionErrorBanner({ actions }: { actions: FlyerActions }) {

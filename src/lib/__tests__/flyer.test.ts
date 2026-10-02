@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { FLYER_RESIGN_AFTER_MS, flyerFileName, flyerLinkTarget, flyerMimeType, isExpiredLinkError, isUuid, needsResign } from '../flyer';
+import { FLYER_RESIGN_AFTER_MS, flyerFileName, flyerLinkCommunity, flyerLinkTarget, flyerMimeType, isExpiredLinkError, isUuid, needsResign } from '../flyer';
 
 const ID = '6f1c2b9e-3d4a-4b8c-9e0f-1a2b3c4d5e6f';
 
@@ -78,6 +78,23 @@ describe('flyerLinkTarget', () => {
     expect(flyerLinkTarget(out, `${ID}/../x`)).toEqual({ guest: false, href: '/welcome' });
     expect(flyerLinkTarget({ ...out, guest: true }, 'abc')).toEqual({ guest: false, href: '/' });
     expect(flyerLinkTarget({ signedIn: true, linked: false, onboarding: false }, 'abc')).toEqual({ guest: false, href: '/family-match' });
+  });
+});
+
+describe('flyerLinkCommunity', () => {
+  it("reads the community's web name from ?c=", () => {
+    expect(flyerLinkCommunity('jsh-houston')).toBe('jsh-houston');
+    expect(flyerLinkCommunity('  JSH-Houston ')).toBe('jsh-houston');
+    expect(flyerLinkCommunity(['jsh', 'other'])).toBe('jsh');
+  });
+  it('ignores a missing or malformed name', () => {
+    expect(flyerLinkCommunity(undefined)).toBeNull();
+    expect(flyerLinkCommunity('')).toBeNull();
+    expect(flyerLinkCommunity('-jsh')).toBeNull();
+    expect(flyerLinkCommunity('jsh/../x')).toBeNull();
+    expect(flyerLinkCommunity('a'.repeat(64))).toBeNull();
+    expect(flyerLinkCommunity([])).toBeNull();
+    expect(flyerLinkCommunity(7)).toBeNull();
   });
 });
 

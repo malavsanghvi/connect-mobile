@@ -50,3 +50,17 @@ export async function communityBySlug(slug: string): Promise<CommunityResult | n
   if (!row) return null;
   return { slug: String(row.slug), name: row.name, shortName: row.short_name, place: place(null, row.state_region), sandbox: row.environment === 'sandbox' };
 }
+
+/**
+ * The community with this id, read the same way (public read of centers: active or onboarding,
+ * sandboxes included). Used for the community an event belongs to (a flyer's QR link). Null when
+ * there is no such open community.
+ */
+export async function communityById(id: string): Promise<CommunityResult | null> {
+  const row = maybe(
+    await supabase.from('centers').select('slug, name, short_name, state_region, environment').eq('id', id).maybeSingle(),
+    "find the event's community",
+  );
+  if (!row) return null;
+  return { slug: String(row.slug), name: row.name, shortName: row.short_name, place: place(null, row.state_region), sandbox: row.environment === 'sandbox' };
+}
