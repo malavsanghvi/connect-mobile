@@ -20,6 +20,7 @@ import { Txt } from '@/components/ui';
 import { FindCommunityScreen } from '@/features/community/find-community';
 import { LegalStepScreen } from '@/features/onboarding/legal-step';
 import { PayHost } from '@/features/pay';
+import { ReopenEventLink } from '@/features/return-to-event';
 import { logError } from '@/lib/errors';
 import { setClientScreen } from '@/lib/request-context';
 import { AppProvider, useApp } from '@/providers/app';
@@ -152,7 +153,10 @@ function RootNavigator() {
           <Stack.Screen name="(app)" />
         </Stack.Protected>
         <Stack.Screen name="join/[code]" />
+        <Stack.Screen name="e/[id]" />
       </Stack>
+      {/* A flyer's QR link that switched community opens again once the navigator is back. */}
+      <ReopenEventLink />
       {/* The legal step (#20) covers the app until the member's answers are recorded; the
           navigation underneath keeps its place, so onboarding continues where it was. */}
       {signedIn && linked ? <LegalGate /> : null}
