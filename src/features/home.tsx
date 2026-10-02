@@ -30,6 +30,7 @@ import { useConfirmPopup } from './confirm-popup';
 import { EventIcon } from './event-icons';
 import { confirmSchedule, pronounFor, relativeDay, shortWhen, specialDayDismissKey, specialDayLead, tierLadder, turnsAge } from './event-rules';
 import { peopleLabel } from './events';
+import { PujaEntry } from './puja/puja-entry';
 
 /*
  * Home cards, in prototype order (Main.dc.html L43–139): deactivated → Today →
@@ -242,6 +243,7 @@ export function TodayCard() {
           </Txt>
         </Pressable>
       ) : null}
+      <PujaEntry />
     </Card>
   );
 }
