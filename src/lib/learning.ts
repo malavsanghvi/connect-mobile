@@ -306,21 +306,62 @@ export function isDailyMinutes(v: unknown): v is DailyMinutes {
 // Niva
 // ---------------------------------------------------------------------------
 
-/** niva_conversations.sources jsonb → "JSH website · About JSH", or null. */
-export function formatSources(raw: unknown): string | null {
+/** One source Niva cited: its title, and the web page it came from when there is one. */
+export type NivaSource = { title: string; url?: string };
+
+function firstText(...values: unknown[]): string {
+  const v = values.find((x) => typeof x === 'string' && x.trim());
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/** Only a plain web address opens: anything else (javascript:, tel:, an app's own scheme, junk) is not a link. */
+function webUrl(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const url = raw.trim();
+  return /^https?:\/\/[^\s/?#]+[^\s]*$/i.test(url) ? url : undefined;
+}
+
+/**
+ * niva_conversations.sources jsonb → the sources to show, each once, in the
+ * order Niva cited them. The worker stores [{content_item_id, title, url?}]
+ * (url only for a source imported from a web page); older rows hold plain
+ * strings or {label | name | source}. A copy is a repeat when its title
+ * matches and its web address matches or is missing: it keeps the first
+ * place, and fills in the address when the first copy had none. Two pages
+ * with the same title but different addresses (imported pages often share
+ * one, like "Membership") are both kept, so each links to its own page.
+ */
+export function parseSources(raw: unknown): NivaSource[] {
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  const names = list
-    .map((s) => {
-      if (typeof s === 'string') return s.trim();
-      if (s && typeof s === 'object') {
-        const o = s as Record<string, unknown>;
-        const v = [o.title, o.label, o.name, o.source].find((x) => typeof x === 'string' && x.trim());
-        return typeof v === 'string' ? v.trim() : '';
-      }
-      return '';
-    })
-    .filter(Boolean);
-  return names.length ? [...new Set(names)].join(' · ') : null;
+  const out: NivaSource[] = [];
+  const at = new Map<string, number[]>();
+  for (const s of list) {
+    let title = '';
+    let url: string | undefined;
+    if (typeof s === 'string') title = s.trim();
+    else if (s && typeof s === 'object') {
+      const o = s as Record<string, unknown>;
+      title = firstText(o.title, o.label, o.name, o.source);
+      url = webUrl(o.url) ?? webUrl(o.source_url);
+    }
+    if (!title) continue;
+    const seen = at.get(title) ?? [];
+    if (seen.length && (!url || seen.some((i) => out[i].url === url))) continue;
+    const bare = url ? seen.find((i) => !out[i].url) : undefined;
+    if (bare !== undefined) {
+      out[bare] = { title, url };
+      continue;
+    }
+    at.set(title, [...seen, out.length]);
+    out.push(url ? { title, url } : { title });
+  }
+  return out;
+}
+
+/** niva_conversations.sources jsonb → "JSH website · About JSH" (each title once), or null. */
+export function formatSources(raw: unknown): string | null {
+  const names = [...new Set(parseSources(raw).map((s) => s.title))];
+  return names.length ? names.join(' · ') : null;
 }
 
 export function normaliseQuestion(q: string): string {

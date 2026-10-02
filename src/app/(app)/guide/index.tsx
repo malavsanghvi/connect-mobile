@@ -14,7 +14,7 @@ import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
-type Section = 'whatsapp' | 'timings' | 'zones' | 'volunteer' | 'membership' | 'registrations' | 'admin' | 'links' | 'ask';
+type Section = 'whatsapp' | 'timings' | 'zones' | 'volunteer' | 'membership' | 'registrations' | 'admin' | 'links' | 'niva' | 'ask';
 
 const HREF: Record<Section, Href> = {
   whatsapp: '/guide/whatsapp',
@@ -25,6 +25,7 @@ const HREF: Record<Section, Href> = {
   registrations: '/guide/registrations',
   admin: '/guide/admin',
   links: '/guide/links',
+  niva: '/niva',
   ask: '/guide/ask',
 };
 
@@ -37,6 +38,7 @@ const TILES: { key: string; section: Section; mark: string; tint: Tint }[] = [
   { key: 'registrations', section: 'registrations', mark: 'RG', tint: 'navy' },
   { key: 'admin', section: 'admin', mark: 'AD', tint: 'navy' },
   { key: 'links', section: 'links', mark: 'WB', tint: 'green' },
+  { key: 'niva', section: 'niva', mark: 'NV', tint: 'navy' },
   { key: 'ask', section: 'ask', mark: '?', tint: 'brown' },
 ];
 
@@ -44,10 +46,11 @@ const STEP_SECTION: Record<keyof FirstSteps, Section> = { whatsapp: 'whatsapp', 
 
 /**
  * "New to {center}" hub (Welcome.dc.html): navy hero with the first-steps
- * progress, the 5-step checklist, the 9 Explore tiles, then any extra pages
- * the center wrote (guide_sections). Open to guests. Steps and tiles of
+ * progress, the 5-step checklist, the 9 Explore tiles plus Ask Niva (just
+ * before Ask a question, so a quick answer is offered first), then any extra
+ * pages the center wrote (guide_sections). Open to guests. Steps and tiles of
  * switched-off modules (WhatsApp/ask: comms, volunteer: volunteers,
- * membership, extra pages: content) are left out.
+ * membership, Ask Niva: niva, extra pages: content) are left out.
  */
 export default function GuideHubScreen() {
   const { t, language } = useSettings();

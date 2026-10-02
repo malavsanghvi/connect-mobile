@@ -126,6 +126,18 @@ describe('Home, drawer and guide', () => {
     for (const e of ['calendar', 'pathshala', 'donations', 'store', 'rsvp', 'dashboard', 'volunteer'] as const) expect(isDrawerEntryVisible(m, e)).toBe(false);
     expect(isDrawerEntryVisible(m, 'guide')).toBe(true);
     expect(isDrawerEntryVisible(m, 'settings')).toBe(true);
+    expect(isDrawerEntryVisible(m, 'niva')).toBe(true);
+  });
+  it('shows Ask Niva in the drawer and the guide only while Niva (and Content, which it needs) is on', () => {
+    expect(isDrawerEntryVisible(ALL_ON, 'niva')).toBe(true);
+    expect(isGuideSectionVisible(ALL_ON, 'niva')).toBe(true);
+    for (const m of [off('niva'), off('content')]) {
+      expect(isDrawerEntryVisible(m, 'niva')).toBe(false);
+      expect(isGuideSectionVisible(m, 'niva')).toBe(false);
+    }
+    // Ask a question is comms: switching it off leaves Ask Niva, and the other way round.
+    expect(isGuideSectionVisible(off('comms'), 'niva')).toBe(true);
+    expect(isGuideSectionVisible(off('niva'), 'ask')).toBe(true);
   });
   it('maps guide sections (WhatsApp is comms)', () => {
     expect(isGuideSectionVisible(off('comms'), 'whatsapp')).toBe(false);

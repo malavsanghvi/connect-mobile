@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.3 — 2026-10-02
+
+- **Ask Niva from more places.** An **Ask Niva** tile on the Guide ("Quick answers, with sources"), an **Ask Niva** item in
+  the menu, and a "Try asking Niva first" link at the top of Guide › Ask a question. They show only while the
+  community has Niva switched on.
+- **Niva's sources are links.** A source that came from the community's website opens in the in-app browser. If it can't
+  open, the reason shows under the sources and tapping again retries.
+- Questions staff ask in the portal's Niva test box no longer appear in their own Niva history in the app.
+
 ## 1.6.2 — 2026-10-02
 
 - **Event flyers.** An event with a flyer shows it on its screen, under the title. Tap it for a full-screen view.
