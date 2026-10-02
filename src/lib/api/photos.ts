@@ -1,3 +1,4 @@
+import { albumLeadsSomewhere } from '../album-open';
 import type { Tables } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
 import { supabase } from '../supabase';
@@ -85,16 +86,24 @@ export type AlbumPreview = {
 /** How many of an album's first photos are read to find its cover and whether it has any. */
 const PREVIEW_PHOTOS = 8;
 
+/** Rounds of reading photos at most: when the newest albums have nothing to open, the next ones are looked at (so at most this many times `limit` albums). */
+const PREVIEW_ROUNDS = 3;
+
 /**
- * The newest `limit` albums for Home's Photos rail, in the Photos grid's order.
- * Unlike listAlbums it does not read every approved photo of every album (up to
- * 10,000 rows): once the newest albums are known, one small request per album
- * reads its first photos, in parallel, so a Home that reloads after every write
- * stays light.
+ * The newest `limit` albums that lead somewhere, for Home's Photos rail, in the
+ * Photos grid's order. Unlike listAlbums it does not read every approved photo
+ * of every album (up to 10,000 rows): once the albums are in order, one small
+ * request per album reads its first photos, in parallel, so a Home that
+ * reloads after every write stays light. An album with nothing to open (no
+ * photo here and no online album: staff often make one for an event before its
+ * photos arrive, and it sorts first while the event is still to come) is passed
+ * over and the next newest takes its place in a further round, so a few empty
+ * albums at the top never leave the rail short, or hide it altogether.
  */
 export async function listAlbumPreviews(centerId: string, limit: number): Promise<AlbumPreview[]> {
+  const want = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
   const albums = must(await supabase.from('photo_albums').select('*').eq('center_id', centerId).in('visibility', ['public', 'members']).order('created_at', { ascending: false }).limit(200), 'load photo albums');
-  if (albums.length === 0) return [];
+  if (albums.length === 0 || want === 0) return [];
   const eventIds = [...new Set(albums.map((a) => a.event_id).filter((x): x is string => !!x))];
   const events = eventIds.length ? must(await supabase.from('events').select('id, name, starts_at, ends_at').in('id', eventIds), 'load the events for photo albums') : [];
   const byEvent = new Map(events.map((e) => [e.id, e]));
@@ -103,18 +112,25 @@ export async function listAlbumPreviews(centerId: string, limit: number): Promis
       const ev = album.event_id ? (byEvent.get(album.event_id) ?? null) : null;
       return { album, event: ev ? { name: ev.name, starts_at: ev.starts_at, ends_at: ev.ends_at } : null };
     }),
-  ).slice(0, Math.max(0, limit));
-  const firstPhotos = await Promise.all(
-    newest.map(async ({ album }) =>
-      must(await supabase.from('photos').select('storage_path').eq('album_id', album.id).eq('status', 'approved').order('created_at', { ascending: true }).limit(PREVIEW_PHOTOS), 'load photo albums'),
-    ),
   );
-  return newest.map(({ album, event }, i) => ({
-    album,
-    event,
-    hasMedia: firstPhotos[i].length > 0,
-    coverPath: firstPhotos[i].find((p) => !isVideoPath(p.storage_path))?.storage_path ?? null,
-  }));
+  const previews: AlbumPreview[] = [];
+  let next = 0;
+  for (let round = 0; round < PREVIEW_ROUNDS && next < newest.length && previews.length < want; round += 1) {
+    // Only as many albums as are still needed: usually the first round fills the rail and that is all.
+    const batch = newest.slice(next, next + (want - previews.length));
+    next += batch.length;
+    const firstPhotos = await Promise.all(
+      batch.map(async ({ album }) =>
+        must(await supabase.from('photos').select('storage_path').eq('album_id', album.id).eq('status', 'approved').order('created_at', { ascending: true }).limit(PREVIEW_PHOTOS), 'load photo albums'),
+      ),
+    );
+    batch.forEach(({ album, event }, i) => {
+      const hasMedia = firstPhotos[i].length > 0;
+      if (!albumLeadsSomewhere({ album, photos: hasMedia ? 1 : 0, videos: 0 })) return;
+      previews.push({ album, event, hasMedia, coverPath: firstPhotos[i].find((p) => !isVideoPath(p.storage_path))?.storage_path ?? null });
+    });
+  }
+  return previews;
 }
 
 export type AlbumDetail = AlbumSummary & { items: Photo[] };

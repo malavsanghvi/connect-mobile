@@ -3,7 +3,8 @@
  * React, no Supabase; unit-tested in src/features/__tests__/home-rail-items.test.ts).
  * Which rails show and how big their tiles are: src/lib/home-rails.ts.
  */
-import { onlineAlbumUrl } from '@/lib/album-open';
+import { albumLeadsSomewhere, onlineAlbumUrl } from '@/lib/album-open';
+import { needsResign } from '@/lib/flyer';
 import { onlyFullyJain, type MediaItem } from '@/lib/media-library';
 
 import { albumDate } from './event-rules';
@@ -146,6 +147,26 @@ export function eventTiles(events: readonly EventTileFields[], now: Date, limit 
     }));
 }
 
+/** A signed flyer link and when it was signed (ms since 1970). */
+export type SignedFlyer = { url: string; signedAt: number };
+
+/**
+ * The flyers that need a signed link now: those with none kept, or one too old
+ * to rely on (flyer.ts needsResign). The flyer behind a path never changes, so a
+ * link that is still fresh is kept rather than signed again: a new token makes
+ * a browser download the whole image again on every reload of the rail
+ * (expo-image's cacheKey only works on a phone). Each path once.
+ */
+export function flyersToSign(tiles: readonly Pick<EventTile, 'flyerPath'>[], kept: ReadonlyMap<string, SignedFlyer>, now: number): string[] {
+  const paths = new Set<string>();
+  for (const { flyerPath } of tiles) {
+    if (!flyerPath) continue;
+    const link = kept.get(flyerPath);
+    if (!link || needsResign(link.signedAt, now)) paths.add(flyerPath);
+  }
+  return [...paths];
+}
+
 /** What the family's RSVP says on an event's poster. */
 export type EventMark = 'going' | 'waitlisted' | null;
 
@@ -187,6 +208,19 @@ export function listenTiles(playlist: readonly MediaItem[], library: readonly Me
   for (const item of playlist) if (item.kind !== 'recipe') add(item, 'playlist');
   for (const item of library) if (item.kind === 'stavan' || item.kind === 'podcast') add(item, 'library');
   return out;
+}
+
+/**
+ * What a tap on a Listen tile plays, from that tile on: for a playlist tile the
+ * whole of My playlist (as Play all there does), for the others the stavans and
+ * podcasts that are not on it. These come from the full lists the rail loaded,
+ * not from its tiles: the rail has room for twelve, and a tap must not leave
+ * the player stopping after them. (The tile's own item is always in it.)
+ */
+export function listenQueue(queue: ListenTile['queue'], playlist: readonly MediaItem[], library: readonly MediaItem[]): MediaItem[] {
+  if (queue === 'playlist') return playlist.filter((item) => item.kind !== 'recipe');
+  const onPlaylist = new Set(playlist.map((item) => item.id));
+  return library.filter((item) => (item.kind === 'stavan' || item.kind === 'podcast') && !onPlaylist.has(item.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -268,15 +302,15 @@ export type PhotoTile = {
  */
 export function photoTiles(albums: readonly AlbumPreviewFields[], tz: string | null, limit = PHOTO_TILES): PhotoTile[] {
   return albums
-    .map((a) => ({ a, onlineUrl: onlineAlbumUrl({ album: a.album, photos: a.hasMedia ? 1 : 0, videos: 0 }) }))
-    .filter(({ a, onlineUrl }) => a.hasMedia || onlineUrl !== null)
+    .map((a) => ({ a, like: { album: a.album, photos: a.hasMedia ? 1 : 0, videos: 0 } }))
+    .filter(({ like }) => albumLeadsSomewhere(like))
     .slice(0, Math.max(0, limit))
-    .map(({ a, onlineUrl }) => ({
+    .map(({ a, like }) => ({
       key: `album:${a.album.id}`,
       albumId: a.album.id,
       title: a.album.title,
       coverPath: a.coverPath,
-      onlineUrl,
+      onlineUrl: onlineAlbumUrl(like),
       date: albumDate(a.event?.starts_at, a.event?.ends_at, a.album.created_at, tz),
     }));
 }

@@ -15,8 +15,9 @@ import { listOpportunities } from '@/lib/api/giving';
 import { goalProgress, lastActivityByGoal, loadGyan } from '@/lib/api/gyan';
 import { listMedia, loadMyPlaylist, mediaPictures } from '@/lib/api/media';
 import { logError, report, type AppError } from '@/lib/errors';
+import { needsResign } from '@/lib/flyer';
 import { formatCents, formatCentsCompact, formatDateTime, monthShortUpper, parseISODate, zonedParts } from '@/lib/format';
-import { homeRails, keyTarget, pageTarget, RAIL_PRELOAD, railEdges, railGeometry, railTileSize, revealRails, TILE_GAP, type HomeRail, type TileShape, type TileSize } from '@/lib/home-rails';
+import { homeRails, keyTarget, pageTarget, RAIL_PRELOAD, railEdges, railGeometry, railTileSize, railTop, revealRails, TILE_GAP, tileCutOff, type HomeRail, type TileShape, type TileSize } from '@/lib/home-rails';
 import { goalMark } from '@/lib/learning';
 import { playbackOf, type MediaItem } from '@/lib/media-library';
 import { sizedPhotoUrl } from '@/lib/photo-size';
@@ -34,8 +35,10 @@ import { bandFor } from './events';
 import {
   eventMark,
   eventTiles,
+  flyersToSign,
   giveTiles,
   learningTiles,
+  listenQueue,
   listenTiles,
   opensTickets,
   PHOTO_TILES,
@@ -47,6 +50,7 @@ import {
   type LearningTile,
   type ListenTile,
   type PhotoTile,
+  type SignedFlyer,
 } from './home-rail-items';
 import { loadAlbumPreviewsWithCovers, paletteFor } from './photos';
 
@@ -62,9 +66,10 @@ import { loadAlbumPreviewsWithCovers, paletteFor } from './photos';
  *   of the screen, with the next tile peeking in; a swipe comes to rest on a
  *   tile (snapToInterval on phones, CSS scroll snap on the web). No
  *   scrollbar shows on the web.
- * - Web: ‹ › buttons appear while the mouse is over the rail or the keyboard
- *   is in it and move it a screenful; the arrow keys (and Home / End) move
- *   from tile to tile; Tab goes through the tiles.
+ * - Web: ‹ › buttons appear while the mouse is over the rail (not a finger on
+ *   a touch screen) or the keyboard is in it, and move it a screenful; the
+ *   arrow keys (and Home / End) move from tile to tile; Tab goes through the
+ *   tiles, and brings a tile it reaches that is cut off into view.
  * - Screen readers: the rail's title is a heading; its tiles are a labelled
  *   list (web) of buttons, each read with its details (and "3 of 8" on a
  *   phone, where there is no list to say it).
@@ -230,8 +235,11 @@ function Rail<T>({ title, shape, captionLines, loading, onSeeAll, items, error, 
   const count = items?.length ?? 0;
 
   const onRootLayout = (e: LayoutChangeEvent) => {
-    onPlace(e.nativeEvent.layout.y);
-    const w = Math.round(e.nativeEvent.layout.width);
+    const { y, width, height } = e.nativeEvent.layout;
+    // The web reports a screen that another one covers as 0 x 0: that is no position, and passing it on would reveal (and load) every rail.
+    const top = railTop({ y, width, height });
+    if (top !== null) onPlace(top);
+    const w = Math.round(width);
     if (w > 0 && w !== measured) setMeasured(w);
   };
 
@@ -242,26 +250,47 @@ function Rail<T>({ title, shape, captionLines, loading, onSeeAll, items, error, 
   };
   const scrollToTile = (i: number) => scroller.current?.scrollTo({ x: Math.max(0, i) * size.interval, animated: reduceMotion === false });
   const page = (step: -1 | 1) => scrollToTile(pageTarget(metrics.current.x, size.interval, step * size.whole, count));
+  // A tile cut off at either side comes to the left edge.
+  const bringIn = (i: number) => {
+    const { x, view } = metrics.current;
+    if (tileCutOff(i, x, view, size, bleed)) scrollToTile(i);
+  };
+  const tileAt = (target: unknown) => tiles.current.findIndex((node) => !!(node as unknown as DomNode | null)?.contains?.(target));
   const focusTile = (i: number) => {
     (tiles.current[i] as unknown as DomNode | null)?.firstElementChild?.focus?.({ preventScroll: true });
-    // A tile cut off at either side comes to the left edge.
-    const { x, view } = metrics.current;
-    const left = i * size.interval;
-    if (left < x || bleed + left + size.width > x + view) scrollToTile(i);
+    bringIn(i);
   };
   const onKeyDown = (e: { key: string; target?: unknown; preventDefault: () => void }) => {
-    const at = tiles.current.findIndex((node) => !!(node as unknown as DomNode | null)?.contains?.(e.target));
-    const target = keyTarget(e.key, Math.max(0, at), count);
+    const target = keyTarget(e.key, Math.max(0, tileAt(e.target)), count);
     if (target === null) return;
     e.preventDefault();
     focusTile(target);
+  };
+  // Tab (not the arrow keys, which move the rail themselves) can put the focus on a tile that is only partly in view: the
+  // browser's own scroll can lose to the scroll snapping, so bring it in here. For keyboard focus only: a mouse click on a
+  // tile that peeks in must not move it from under the pointer.
+  const onListFocus = (e: { target?: unknown }) => {
+    if (!focusVisible(e)) return;
+    const at = tileAt(e.target);
+    if (at >= 0) bringIn(at);
   };
   const onWrapperBlur = (e: { relatedTarget?: unknown }) => {
     const root = wrapper.current as unknown as DomNode | null;
     if (!e.relatedTarget || !root?.contains?.(e.relatedTarget)) setFocusWithin(false);
   };
-  const wrapperWeb = (isWeb ? { onPointerEnter: () => setHover(true), onPointerLeave: () => setHover(false), onFocus: () => setFocusWithin(true), onBlur: onWrapperBlur } : null) as unknown as ViewProps | null;
-  const listWeb = (isWeb ? { role: 'list', 'aria-label': title, onKeyDown } : null) as unknown as ViewProps | null;
+  // The ‹ › buttons are for the mouse and the keyboard, not a finger (a touch screen swipes; the arrows would only flash over the
+  // poster under it), and a mouse click on a button (which keeps the focus) is not the keyboard being in the rail.
+  const wrapperWeb = (isWeb
+    ? {
+        onPointerEnter: (e: { pointerType?: string }) => {
+          if (e.pointerType !== 'touch') setHover(true);
+        },
+        onPointerLeave: () => setHover(false),
+        onFocus: (e: unknown) => setFocusWithin(focusVisible(e)),
+        onBlur: onWrapperBlur,
+      }
+    : null) as unknown as ViewProps | null;
+  const listWeb = (isWeb ? { role: 'list', 'aria-label': title, onKeyDown, onFocus: onListFocus } : null) as unknown as ViewProps | null;
   // Only the web needs to know how far the rail has moved (for the ‹ › buttons).
   const scrollWeb = isWeb
     ? {
@@ -283,7 +312,8 @@ function Rail<T>({ title, shape, captionLines, loading, onSeeAll, items, error, 
 
   if (items !== undefined && items.length === 0 && !error) return null;
 
-  const chevronTop = 4 + (size.height ?? 120) / 2 - 20;
+  // The buttons sit at the middle of the pictures (the words under them do not count); a card tile is all words, so the middle of the row.
+  const chevronTop = size.height === null ? null : 4 + size.height / 2 - 20;
   const showChevrons = isWeb && (hover || focusWithin) && count > 1;
 
   return (
@@ -353,8 +383,9 @@ function RailHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => void 
   );
 }
 
-/** Web: the ‹ › button over one end of the rail. For the mouse; the keyboard has the arrow keys and screen readers the list itself. */
-function RailChevron({ side, top, label, onPress }: { side: 'left' | 'right'; top: number; label: string; onPress: () => void }) {
+/** Web: the ‹ › button over one end of the rail (`top`: its distance from the top of the rail; null centres it on the row). For the mouse; the keyboard has the arrow keys and screen readers the list itself. */
+function RailChevron({ side, top, label, onPress }: { side: 'left' | 'right'; top: number | null; label: string; onPress: () => void }) {
+  const vertical: ViewStyle = top === null ? { top: '50%', marginTop: -20 } : { top };
   return (
     <Pressable
       onPress={onPress}
@@ -362,7 +393,8 @@ function RailChevron({ side, top, label, onPress }: { side: 'left' | 'right'; to
       // Hidden from assistive technology, so also out of the Tab order (an element cannot be both focusable and hidden).
       {...webProps({ 'aria-hidden': true, tabIndex: -1 })}
       style={({ pressed }) => [
-        { position: 'absolute', top, width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borderInput, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 0.96 },
+        { position: 'absolute', width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borderInput, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 0.96 },
+        vertical,
         side === 'left' ? { left: 6 } : { right: 6 },
         shadows.strip,
       ]}>
@@ -577,21 +609,32 @@ type EventsData = {
   flyerError: string | null;
 };
 
-/** The events' flyers, signed in one request. A failure is returned, not thrown: the events show with their designed posters and the rail says so. */
+/** The flyers' signed links, kept while they are fresh (flyersToSign): the rail reloads after every write, and a new link means a browser downloads every flyer again. */
+const keptFlyerLinks = new Map<string, SignedFlyer>();
+
+/**
+ * The events' flyers, signed in one request (those whose link is not still fresh). A failure is returned, not thrown:
+ * the events show with their designed posters (or the flyers whose link is still good) and the rail says so.
+ */
 async function signFlyers(tiles: readonly EventTile[]): Promise<{ urls: Record<string, string>; error: string | null }> {
-  const paths = tiles.map((x) => x.flyerPath).filter((p): p is string => !!p);
-  if (paths.length === 0) return { urls: {}, error: null };
-  try {
-    const signed = await signedUrls(paths, BUCKETS.content, 'load the event flyers');
-    const urls: Record<string, string> = {};
-    for (const x of tiles) {
-      const url = x.flyerPath ? signed.get(x.flyerPath) : undefined;
-      if (url) urls[x.eventId] = url;
+  let error: string | null = null;
+  const toSign = flyersToSign(tiles, keptFlyerLinks, Date.now());
+  if (toSign.length > 0) {
+    try {
+      const signed = await signedUrls(toSign, BUCKETS.content, 'load the event flyers');
+      const signedAt = Date.now();
+      signed.forEach((url, path) => keptFlyerLinks.set(path, { url, signedAt }));
+    } catch (err) {
+      error = report(err, 'load the event flyers').userMessage;
     }
-    return { urls, error: null };
-  } catch (err) {
-    return { urls: {}, error: report(err, 'load the event flyers').userMessage };
   }
+  const urls: Record<string, string> = {};
+  const now = Date.now();
+  for (const x of tiles) {
+    const link = x.flyerPath ? keptFlyerLinks.get(x.flyerPath) : undefined;
+    if (link && !needsResign(link.signedAt, now)) urls[x.eventId] = link.url;
+  }
+  return { urls, error };
 }
 
 /** The family's RSVPs to these events, by event; a failure is returned, not thrown. */
@@ -762,6 +805,12 @@ async function withPictures<T>(tiles: T[], itemOf: (tile: T) => MediaItem): Prom
   }
 }
 
+type ListenData = PicturesData<ListenTile> & {
+  /** All of My playlist and all the stavans and podcasts loaded: what a tap queues (the tiles are only the first few of them). */
+  playlist: MediaItem[];
+  library: MediaItem[];
+};
+
 function ListenRail({ shown, onPlace }: RailSlot) {
   const t = useT();
   const router = useRouter();
@@ -771,23 +820,23 @@ function ListenRail({ shown, onPlace }: RailSlot) {
   const [watched, setWatched] = useState<MediaItem | null>(null);
   const state = useRailLoad(
     shown,
-    async (): Promise<PicturesData<ListenTile>> => {
-      if (!center) return { tiles: [], pictures: {}, pictureError: null };
+    async (): Promise<ListenData> => {
+      if (!center) return { tiles: [], pictures: {}, pictureError: null, playlist: [], library: [] };
       const [playlist, library] = await Promise.all([loadMyPlaylist(center.id), listMedia(center.id, ['stavan', 'podcast'], { sort: 'recent', limit: 30 })]);
-      return withPictures(listenTiles(playlist, library), (x) => x.item);
+      return { ...(await withPictures(listenTiles(playlist, library), (x) => x.item)), playlist, library };
     },
     [center?.id, member?.person.id],
     'load stavans and podcasts',
   );
   const d = state.data;
 
-  // Play it in the app's player (from this tile on through its queue) and open the item's screen, which is the player.
+  // Play it in the app's player (from this tile on, carrying on through the whole of its list: listenQueue) and open the item's screen, which is the player.
   const play = (tile: ListenTile) => {
     const item = tile.item;
     const how = playbackOf(item);
     if (how === 'audio') {
       if (player.current?.id !== item.id || player.error) {
-        const queue = (d?.tiles ?? []).filter((x) => x.queue === tile.queue).map((x) => toQueueItem(t, x.item));
+        const queue = listenQueue(tile.queue, d?.playlist ?? [], d?.library ?? []).map((x) => toQueueItem(t, x));
         player.playQueue(queue, item.id);
       }
       openItem(router, item);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { GUEST_RAILS, HOME_RAILS, homeRails, keyTarget, pageTarget, RAIL_CARD, RAIL_PRELOAD, RAIL_SHORTCUTS, railEdges, railGeometry, railTileSize, revealRails, TILE_GAP, TILE_SHAPES, type HomeRail } from '../home-rails';
+import { GUEST_RAILS, HOME_RAILS, homeRails, keyTarget, pageTarget, RAIL_CARD, RAIL_PRELOAD, RAIL_SHORTCUTS, railEdges, railGeometry, railTileSize, railTop, revealRails, TILE_GAP, TILE_SHAPES, tileCutOff, type HomeRail } from '../home-rails';
 import { HOME_SHORTCUT_KEYS } from '../home-shortcuts';
 import { ALL_ON, HOME_CARD_MODULE, MODULE_KEYS, type ModuleMap } from '../modules';
 
@@ -195,6 +195,70 @@ describe('pageTarget, keyTarget and railEdges (the ‹ › buttons and arrow key
     expect(railEdges(0, 300, 300)).toEqual({ prev: false, next: false });
     expect(railEdges(0, 0, 900)).toEqual({ prev: false, next: false });
     expect(railEdges(Number.NaN, 300, 900)).toEqual({ prev: false, next: true });
+  });
+});
+
+describe('tileCutOff (a tile the keyboard reached that must be brought into view)', () => {
+  // A 390 px phone: tiles 150 wide, 12 apart, the row starting 20 px in.
+  const tile = { width: 150, interval: 162 };
+  const cut = (index: number, scrollX: number, view = 390) => tileCutOff(index, scrollX, view, tile, 20);
+
+  it('is false for the tiles that are wholly in view', () => {
+    expect(cut(0, 0)).toBe(false);
+    expect(cut(1, 0)).toBe(false);
+    // Scrolled one tile on: the second and third are in view.
+    expect(cut(1, 162)).toBe(false);
+    expect(cut(2, 162)).toBe(false);
+  });
+  it('is true for a tile the right edge cuts off (the third and later ones from the start)', () => {
+    expect(cut(2, 0)).toBe(true);
+    expect(cut(3, 0)).toBe(true);
+    expect(cut(3, 162)).toBe(true);
+  });
+  it('is true for a tile the rail has been scrolled past', () => {
+    expect(cut(0, 162)).toBe(true);
+    expect(cut(0, 20)).toBe(true);
+  });
+  it('ignores a hair of difference, as a sub-pixel scroll position leaves', () => {
+    expect(cut(1, 163)).toBe(false);
+    expect(cut(1, 165)).toBe(true);
+    expect(cut(1, 161.4)).toBe(false);
+  });
+  it('knows nothing is cut off before the rail has a width, or for an index it cannot place', () => {
+    expect(cut(5, 0, 0)).toBe(false);
+    expect(cut(5, 0, Number.NaN)).toBe(false);
+    expect(cut(Number.NaN, 0)).toBe(false);
+    // A scroll position that cannot be read counts as the start; a negative index as the first tile.
+    expect(cut(0, Number.NaN)).toBe(false);
+    expect(cut(-3, 0)).toBe(false);
+  });
+});
+
+describe('railTop (where a rail is, or that its layout is no position)', () => {
+  it('is the top of a rail that has a box', () => {
+    expect(railTop({ y: 640, width: 350, height: 210 })).toBe(640);
+    // A rail at the very top of Home is at 0, which is a position.
+    expect(railTop({ y: 0, width: 350, height: 210 })).toBe(0);
+  });
+  it('is null for the 0 x 0 the web reports for a screen that another one covers', () => {
+    expect(railTop({ y: 0, width: 0, height: 0 })).toBeNull();
+    expect(railTop({ y: 640, width: 0, height: 210 })).toBeNull();
+    expect(railTop({ y: 640, width: 350, height: 0 })).toBeNull();
+    expect(railTop({ y: Number.NaN, width: 350, height: 210 })).toBeNull();
+  });
+  it('keeps a hidden Home from loading every rail: 0 x 0 taken as "at the top" would reveal them all', () => {
+    const hidden = { y: 0, width: 0, height: 0 };
+    const reveal = (place: (layout: typeof hidden) => number | null) => {
+      const tops: Partial<Record<HomeRail, number>> = {};
+      for (const rail of HOME_RAILS) {
+        const top = place(hidden);
+        if (top !== null) tops[rail] = top;
+      }
+      // Home's own cards fill the screen, so only rails near its top would load.
+      return revealRails(tops, [], 700, 350);
+    };
+    expect(reveal((l) => l.y)).toEqual([...HOME_RAILS]);
+    expect(reveal(railTop)).toEqual([]);
   });
 });
 

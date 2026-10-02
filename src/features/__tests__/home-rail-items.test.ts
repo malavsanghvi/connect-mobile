@@ -1,12 +1,15 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { FLYER_RESIGN_AFTER_MS } from '@/lib/flyer';
 import { parseMediaRow, type MediaItem } from '@/lib/media-library';
 
 import {
   eventMark,
   eventTiles,
+  flyersToSign,
   giveTiles,
   learningTiles,
+  listenQueue,
   listenTiles,
   opensTickets,
   PHOTO_TILES,
@@ -143,7 +146,31 @@ describe('eventMark and opensTickets (what the family’s RSVP does to a poster)
   });
 });
 
-const media = (id: string, kind: MediaItem['kind'], metadata: Record<string, unknown> = {}): MediaItem => {
+describe('flyersToSign (the rail keeps a flyer link while it is fresh)', () => {
+  const NOW = 50_000_000;
+  const tile = (flyerPath: string | null) => ({ flyerPath });
+
+  it('signs every flyer when no link is kept, leaving out events with no flyer', () => {
+    expect(flyersToSign([tile('c1/a.png'), tile(null), tile('c1/b.png')], new Map(), NOW)).toEqual(['c1/a.png', 'c1/b.png']);
+    expect(flyersToSign([tile(null)], new Map(), NOW)).toEqual([]);
+    expect(flyersToSign([], new Map(), NOW)).toEqual([]);
+  });
+  it('keeps a link that is still fresh, so a reload does not make a browser download the flyer again', () => {
+    const kept = new Map([['c1/a.png', { url: 'https://files.example/a?token=1', signedAt: NOW - 10 * 60 * 1000 }]]);
+    expect(flyersToSign([tile('c1/a.png'), tile('c1/b.png')], kept, NOW)).toEqual(['c1/b.png']);
+  });
+  it('signs a flyer again once its link is too old to rely on (the same 50 minutes as the flyer screen)', () => {
+    const at = (age: number) => new Map([['c1/a.png', { url: 'u', signedAt: NOW - age }]]);
+    expect(flyersToSign([tile('c1/a.png')], at(FLYER_RESIGN_AFTER_MS - 1), NOW)).toEqual([]);
+    expect(flyersToSign([tile('c1/a.png')], at(FLYER_RESIGN_AFTER_MS), NOW)).toEqual(['c1/a.png']);
+    expect(flyersToSign([tile('c1/a.png')], new Map([['c1/a.png', { url: 'u', signedAt: Number.NaN }]]), NOW)).toEqual(['c1/a.png']);
+  });
+  it('names each path once, whatever the number of events that share it', () => {
+    expect(flyersToSign([tile('c1/a.png'), tile('c1/a.png')], new Map(), NOW)).toEqual(['c1/a.png']);
+  });
+});
+
+const media =(id: string, kind: MediaItem['kind'], metadata: Record<string, unknown> = {}): MediaItem => {
   const parsed = parseMediaRow({ id, kind, title: `${kind} ${id}`, metadata, like_count: 0 });
   if (!parsed) throw new Error('bad fixture');
   return parsed;
@@ -168,6 +195,47 @@ describe('listenTiles (Listen)', () => {
   it('shows at most the limit', () => {
     const lib = Array.from({ length: 30 }, (_, i) => media(`s${i}`, 'stavan'));
     expect(listenTiles([media('p', 'podcast')], lib, 5).map((x) => x.item.id)).toEqual(['p', 's0', 's1', 's2', 's3']);
+  });
+});
+
+describe('listenQueue (what a tap on a Listen tile plays)', () => {
+  // A long playlist (every fifth item a video) and a library that repeats one of its items.
+  const playlist = Array.from({ length: 20 }, (_, i) => media(`pl${i + 1}`, i % 5 === 4 ? 'video' : 'stavan'));
+  const library = [media('pl2', 'stavan'), ...Array.from({ length: 25 }, (_, i) => media(`s${i + 1}`, i % 2 ? 'podcast' : 'stavan'))];
+
+  it('carries a playlist tile on through the whole of My playlist, not just the tiles the rail has room for', () => {
+    const tiles = listenTiles(playlist, library);
+    expect(tiles).toHaveLength(RAIL_LIMIT);
+    expect(tiles.every((x) => x.queue === 'playlist')).toBe(true);
+    const queue = listenQueue('playlist', playlist, library);
+    // All 20 in the member's order: videos stay in (the player skips them), as in Play all on the playlist screen.
+    expect(queue.map((x) => x.id)).toEqual(playlist.map((x) => x.id));
+    expect(queue.length).toBeGreaterThan(tiles.length);
+  });
+  it('carries a library tile on through the stavans and podcasts that are not on the playlist', () => {
+    const queue = listenQueue('library', playlist, library);
+    expect(queue.map((x) => x.id)).not.toContain('pl2');
+    expect(queue).toHaveLength(25);
+    expect(queue.slice(0, 3).map((x) => x.id)).toEqual(['s1', 's2', 's3']);
+  });
+  it('leaves recipes out of the playlist queue, as the tiles do', () => {
+    expect(listenQueue('playlist', [media('s1', 'stavan'), media('r1', 'recipe'), media('s2', 'stavan')], []).map((x) => x.id)).toEqual(['s1', 's2']);
+  });
+  it('always has the tapped tile in its queue, so the player starts on that tile', () => {
+    const cases: { playlist: MediaItem[]; library: MediaItem[]; limit: number }[] = [
+      { playlist, library, limit: RAIL_LIMIT },
+      { playlist: [], library, limit: 5 },
+      { playlist: playlist.slice(0, 2), library, limit: 5 },
+    ];
+    for (const c of cases) {
+      for (const tile of listenTiles(c.playlist, c.library, c.limit)) {
+        expect(listenQueue(tile.queue, c.playlist, c.library).map((x) => x.id)).toContain(tile.item.id);
+      }
+    }
+  });
+  it('is empty when there is nothing to play', () => {
+    expect(listenQueue('playlist', [], [])).toEqual([]);
+    expect(listenQueue('library', [], [])).toEqual([]);
   });
 });
 

@@ -13,9 +13,11 @@
  *   rail starts and ends on the screen (railGeometry): large enough to read
  *   on a phone, with the next tile peeking in at the right edge;
  * - where the ‹ › buttons and the arrow keys take the rail (pageTarget,
- *   keyTarget, railEdges);
- * - which rails are near enough to the screen to load (revealRails), so a
- *   rail loads only when the member scrolls towards it.
+ *   keyTarget, railEdges), and whether a tile the keyboard reached is cut off
+ *   (tileCutOff);
+ * - which rails are near enough to the screen to load (revealRails, with
+ *   railTop for where a rail is), so a rail loads only when the member
+ *   scrolls towards it.
  *
  * The rails themselves are drawn in src/features/home-rails.tsx; their tiles
  * are built from the data in src/features/home-rail-items.ts.
@@ -216,6 +218,23 @@ export function railEdges(scrollX: number, viewWidth: number, contentWidth: numb
   return { prev: x > slack, next: viewWidth > 0 && x + viewWidth < contentWidth - slack };
 }
 
+/**
+ * Whether tile `index` is cut off by an edge of the rail, so it should be
+ * brought to the left edge when the keyboard puts the focus on it: the rail
+ * has been scrolled past the tile's resting place, or the tile ends beyond the
+ * right edge (`bleed` is the padding the row starts with). The browser's own
+ * scroll-into-view can lose to the scroll snapping, so Tab can land on a tile
+ * that is half out of view and the rail has to bring it in itself. False until
+ * the rail has a width (nothing is known to be cut off), and for a hair's
+ * difference (`slack` px: sub-pixel scroll positions).
+ */
+export function tileCutOff(index: number, scrollX: number, viewWidth: number, tile: Pick<TileSize, 'width' | 'interval'>, bleed: number, slack = 2): boolean {
+  if (!(viewWidth > 0) || !Number.isFinite(index)) return false;
+  const x = Number.isFinite(scrollX) ? scrollX : 0;
+  const left = Math.max(0, index) * tile.interval;
+  return left < x - slack || bleed + left + tile.width > x + viewWidth + slack;
+}
+
 // ---------------------------------------------------------------------------
 // Lazy loading
 // ---------------------------------------------------------------------------
@@ -227,6 +246,18 @@ export function railEdges(scrollX: number, viewWidth: number, contentWidth: numb
  * never competing with rails the member may never reach.
  */
 export const RAIL_PRELOAD = 0.5;
+
+/**
+ * Where a rail really is on Home: the top of its box (px down Home's content),
+ * or null when its layout is not a position at all. The web hides a screen
+ * that another one covers (display: none) and then reports every view on it as
+ * 0 × 0 at 0, 0; taken as a position, that would put every rail at the top of
+ * Home and load them all (revealRails) while the member is on another screen.
+ */
+export function railTop(layout: { y: number; width: number; height: number }): number | null {
+  const { y, width, height } = layout;
+  return Number.isFinite(y) && width > 0 && height > 0 ? y : null;
+}
 
 /**
  * The rails that may load now: those already loading, plus every rail whose
