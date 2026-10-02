@@ -348,7 +348,7 @@ function PictureWithSpots({ activity, look, onTouch, labelFor, order, img, attem
                       width: radius * 2,
                       height: radius * 2,
                       borderRadius: radius,
-                      backgroundColor: colors.gold,
+                      backgroundColor: colors.chandan,
                       opacity: reduce !== false ? 0.45 : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 0] }),
                       transform: reduce !== false ? [] : [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.35] }) }],
                     }}
@@ -359,9 +359,11 @@ function PictureWithSpots({ activity, look, onTouch, labelFor, order, img, attem
                     width: dot,
                     height: dot,
                     borderRadius: dot / 2,
+                    // Only chandan: a ring where puja is still to be done, a glowing dot for the place to touch now,
+                    // and a solid chandan dot (like a tilak applied) once it is touched.
                     borderWidth: l === 'plain' ? 2 : 3,
-                    borderColor: l === 'glow' ? colors.saffron : l === 'done' ? colors.white : colors.saffron,
-                    backgroundColor: l === 'glow' ? colors.gold : l === 'done' ? colors.green : colors.spotFill,
+                    borderColor: colors.chandanDeep,
+                    backgroundColor: l === 'plain' ? colors.spotFill : colors.chandan,
                   }}
                 />
               </Pressable>
@@ -417,12 +419,12 @@ function SpotList({ activity, look, onTouch, labelFor, order }: SpotsProps) {
               gap: 12,
               borderRadius: radii.row,
               borderWidth: 2,
-              borderColor: l === 'glow' ? colors.saffron : l === 'done' ? colors.green : colors.borderInput,
-              backgroundColor: l === 'glow' ? colors.celebrateBg : l === 'done' ? colors.greenTint : pressed ? colors.panel : colors.card,
+              borderColor: l === 'plain' ? colors.borderInput : colors.chandanDeep,
+              backgroundColor: l === 'plain' ? (pressed ? colors.panel : colors.card) : colors.chandanTint,
               paddingVertical: 8,
               paddingHorizontal: 12,
             })}>
-            <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: l === 'done' ? colors.white : colors.saffron, backgroundColor: l === 'glow' ? colors.gold : l === 'done' ? colors.green : colors.spotFill }} />
+            <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.chandanDeep, backgroundColor: l === 'plain' ? colors.spotFill : colors.chandan }} />
             <Txt variant="smallStrong" color="ink" style={{ flexShrink: 1 }}>
               {s.label}
             </Txt>
