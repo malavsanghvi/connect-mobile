@@ -128,6 +128,15 @@ export const en = {
   'signin.useBiometric': 'Use {method} next time',
   'signin.differentEmail': 'Use a different email',
   'signin.differentPhone': 'Use a different number',
+  'signin.havePassword': 'Have a password? Sign in with it',
+  'signin.passwordTitle': 'Sign in with a password',
+  'signin.passwordIntro': 'For accounts that were given a password, such as a demo account. Members sign in with a code instead.',
+  'signin.passwordLabel': 'Password',
+  'signin.passwordSubmit': 'Sign in',
+  'signin.passwordMissing': 'Enter the password.',
+  'signin.passwordWrong': "That email and password don't match. If you don't have a password, sign in with a code instead.",
+  'signin.passwordUnconfirmed': "This account hasn't been confirmed yet. Ask the Community Connect team to confirm it, or sign in with a code.",
+  'signin.useCodeInstead': 'Sign in with a code instead',
 
   // Family match (step 2)
   'match.title': 'Is this your family?',

@@ -14,6 +14,13 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.7 — 2026-10-02
+
+- **Sign in with a password**, for the demo account that testers and app reviewers use. Under "Send code" on the email
+  sign-in screen, **Have a password? Sign in with it** opens an email and password form. Members still sign in with a
+  code and have no password, so this opens nothing for them. A wrong pair says plainly that they don't match, and offers
+  **Sign in with a code instead**.
+
 ## 1.6.6 — 2026-10-02
 
 - **A new Home.** In order:
