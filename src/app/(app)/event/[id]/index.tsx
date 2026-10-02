@@ -7,10 +7,12 @@ import { CenterMark } from '@/components/brand';
 import { Screen } from '@/components/screen';
 import { Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Card, IconButton, LinkText, Pill, Row, Segmented, TextField, Toggle, Txt, VStack } from '@/components/ui';
+import { EventFlyer } from '@/features/event-flyer';
 import { bandFor, peopleLabel, tierSingular } from '@/features/events';
 import { roleLabel } from '@/features/labels';
 import { startPayment } from '@/features/pay';
-import { commitmentOptions, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, raiseRsvpCommitment, rsvpBlockReason, submitRsvp, type Attendee, type EventRow, type GoingPerson, type Rsvp } from '@/lib/api/events';
+import { returnToEventAfterSignIn } from '@/features/return-to-event';
+import { commitmentOptions, findEvent, getHouseholdRsvp, getPledgeById, listAttendees, raiseRsvpCommitment, rsvpBlockReason, submitRsvp, type Attendee, type EventRow, type GoingPerson, type Rsvp } from '@/lib/api/events';
 import type { FamilyMember, Member } from '@/lib/api/member';
 import type { Tables } from '@/lib/database.types';
 import { report } from '@/lib/errors';
@@ -40,8 +42,10 @@ export default function EventScreen() {
   const { member, center } = useApp();
   const [sync, setSync] = useState<Sync | null>(null);
   const state = useLoad(
-    async (): Promise<Loaded_> => {
-      const event = await getEvent(id);
+    async (): Promise<Loaded_ | null> => {
+      // null: no such event, or one this visitor can't see (a guest opening a members-only event from a flyer's QR link).
+      const event = await findEvent(id);
+      if (!event) return null;
       const rsvp = member?.household ? await getHouseholdRsvp(id, member.household.id) : null;
       const [attendees, pledge] = await Promise.all([rsvp ? listAttendees(rsvp.id) : Promise.resolve([]), rsvp?.commitment_pledge_id && member?.isAdult ? getPledgeById(rsvp.commitment_pledge_id) : Promise.resolve(null)]);
       return { event, rsvp, attendees, pledge, now: new Date() };
@@ -55,9 +59,34 @@ export default function EventScreen() {
       {sync ? (
         <SyncView sync={sync} eventId={id} onBack={() => setSync(null)} />
       ) : (
-        <Loaded state={state}>{(d) => <EventBody data={d} member={member} tz={center?.time_zone ?? null} onSync={setSync} />}</Loaded>
+        <Loaded state={state}>{(d) => (d ? <EventBody data={d} member={member} tz={center?.time_zone ?? null} onSync={setSync} /> : <EventUnavailable eventId={id} member={member} />)}</Loaded>
       )}
     </Screen>
+  );
+}
+
+/** The event can't be shown: for a guest it is probably members-only (sign in, then back here); for a member it is gone. Never a raw database error. */
+function EventUnavailable({ eventId, member }: { eventId: string; member: Member | null }) {
+  const t = useT();
+  const { setGuest, center } = useApp();
+  if (member) return <Banner tone="info" message={t('events.unavailable')} />;
+  return (
+    <Card tone="panel">
+      <Txt variant="section" accessibilityRole="header">
+        {t('events.membersOnlyTitle')}
+      </Txt>
+      <Txt variant="small" color="ink2">
+        {t('events.membersOnlyBody')}
+      </Txt>
+      <Button
+        label={t('common.signIn')}
+        onPress={() => {
+          returnToEventAfterSignIn(eventId, center?.id);
+          setGuest(false);
+        }}
+        size="md"
+      />
+    </Card>
   );
 }
 
@@ -85,6 +114,7 @@ function EventBody({ data, member, tz, onSync }: { data: Loaded_; member: Member
           {event.name}
         </Txt>
       </View>
+      <EventFlyer event={event} />
       <View>
         <Txt variant="small" color="ink2">
           {[formatDate(event.starts_at, tz), formatTimeRange(event.starts_at, event.ends_at, tz)].filter(Boolean).join(' · ')}
@@ -107,7 +137,14 @@ function EventBody({ data, member, tz, onSync }: { data: Loaded_; member: Member
       {!member ? (
         <Card tone="panel">
           <Txt variant="small">{t('events.signInToRsvp')}</Txt>
-          <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
+          <Button
+            label={t('common.signIn')}
+            onPress={() => {
+              returnToEventAfterSignIn(event.id, event.center_id);
+              setGuest(false);
+            }}
+            size="md"
+          />
         </Card>
       ) : !member.isAdult ? (
         <LockedState onBack={() => router.replace('/')} />

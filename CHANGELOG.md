@@ -14,6 +14,17 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.2 — 2026-10-02
+
+- **Event flyers.** An event with a flyer shows it on its screen, under the title. Tap it for a full-screen view.
+  **Share** sends it to WhatsApp, Messages and other apps; **Save** puts it in your photos, or downloads it on the web.
+  If the flyer can't load, the card says so in plain English with **Try again**.
+- Guests who aren't signed in see the flyer of events open to guests or the public. Members-only events keep their
+  flyer private.
+- The QR code on a printed or shared flyer opens that event in the app, in its own community. If you're in another
+  community, the app asks before switching, then brings you back to the event. After you sign in, you also return to
+  the event.
+
 ## 1.6.1 — 2026-10-01
 
 - **Niva shows the answer when it arrives.** After you ask, Niva says "Looking that up for you…" (with a spinner) and
