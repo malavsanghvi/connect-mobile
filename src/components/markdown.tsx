@@ -7,8 +7,10 @@ import { Txt } from './ui';
 /**
  * Minimal, safe rendering of center-authored Markdown (headings, bullets,
  * paragraphs). Links are shown as "text (url)"; no HTML is interpreted.
+ * `selectable` lets the reader copy the text (Niva's answers: an address,
+ * a phone number, timings).
  */
-export function Markdownish({ source }: { source: string }) {
+export function Markdownish({ source, selectable }: { source: string; selectable?: boolean }) {
   const blocks = source.replace(/\r\n/g, '\n').split(/\n{2,}/);
   const clean = (s: string) => s.replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/\[(.+?)\]\((.+?)\)/g, '$1 ($2)').replace(/`(.+?)`/g, '$1');
   return (
@@ -19,7 +21,7 @@ export function Markdownish({ source }: { source: string }) {
         const heading = /^(#{1,6})\s+(.*)$/.exec(lines[0]);
         if (heading && lines.length === 1) {
           return (
-            <Txt key={i} variant={heading[1].length <= 2 ? 'headline' : 'section'} color="navy" accessibilityRole="header">
+            <Txt key={i} variant={heading[1].length <= 2 ? 'headline' : 'section'} color="navy" accessibilityRole="header" selectable={selectable}>
               {clean(heading[2])}
             </Txt>
           );
@@ -28,7 +30,7 @@ export function Markdownish({ source }: { source: string }) {
           return (
             <View key={i} style={{ gap: 4 }}>
               {lines.map((l, j) => (
-                <Txt key={j} variant="body" color="ink2">
+                <Txt key={j} variant="body" color="ink2" selectable={selectable}>
                   {`•  ${clean(l.replace(/^\s*([-*•]|\d+\.)\s+/, ''))}`}
                 </Txt>
               ))}
@@ -36,7 +38,7 @@ export function Markdownish({ source }: { source: string }) {
           );
         }
         return (
-          <Txt key={i} variant="body" color="ink2">
+          <Txt key={i} variant="body" color="ink2" selectable={selectable}>
             {clean(lines.map((l) => l.replace(/^#{1,6}\s+/, '')).join(' '))}
           </Txt>
         );

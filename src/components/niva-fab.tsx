@@ -10,6 +10,11 @@ import { colors, components, fonts, radii, shadows, space } from '@/theme';
 import { StrokeIcon } from './stroke-icon';
 import { Txt } from './ui';
 
+/**
+ * Suggested questions: only ones the community's approved content can answer
+ * (derasar timings, address and parking, membership). Niva never sees a
+ * member's own records, so nothing personal ("Am I eligible to vote?").
+ */
 const QUESTIONS: StringKey[] = ['niva.fabQ1', 'niva.fabQ2', 'niva.fabQ3'];
 
 function FabButton({ label, a11y, onPress }: { label: string; a11y: string; onPress: () => void }) {

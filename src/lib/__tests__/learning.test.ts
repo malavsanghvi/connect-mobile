@@ -13,6 +13,17 @@ import {
   continueGoalId,
   currentChapter,
   formatSources,
+  isNivaRowItem,
+  mergeNivaRows,
+  NIVA_REPEAT_MS,
+  NIVA_WAIT_MS,
+  nivaIsRepeat,
+  nivaPhase,
+  nivaShortQuestion,
+  nivaShouldPoll,
+  nivaSpoken,
+  nivaWaitEnds,
+  type NivaLocal,
   goalMark,
   levelStars,
   mapLayout,
@@ -203,6 +214,143 @@ describe('niva', () => {
     expect(formatSources(['JSH website', { title: 'About JSH' }, 'JSH website'])).toBe('JSH website · About JSH');
     expect(formatSources([])).toBeNull();
     expect(formatSources(null)).toBeNull();
+  });
+
+  type Row = { id: string; question: string; answer: string | null; created_at: string; unanswered?: boolean; answer_status?: string };
+  const T0 = Date.parse('2026-10-01T15:00:00Z');
+  const row = (over: Partial<Row> = {}): Row => ({ id: 'q1', question: 'What are the derasar timings?', answer: null, created_at: new Date(T0).toISOString(), unanswered: true, ...over });
+
+  it('an answer wins over unanswered, and over any status', () => {
+    expect(nivaPhase(row({ answer: 'Open 7:30 AM to 8:30 PM.', unanswered: true }), { now: T0, startedAt: T0 })).toBe('answered');
+    expect(nivaPhase(row({ answer: 'Open 7:30 AM.', answer_status: 'no_source' }), { now: T0 + 5 * 60_000 })).toBe('answered');
+    expect(nivaPhase(row({ answer: '   ' }), { now: T0, startedAt: T0 })).toBe('looking');
+  });
+
+  it('is looking inside the wait, and no_answer at the end of it and after', () => {
+    expect(nivaPhase(row(), { now: T0, startedAt: T0 })).toBe('looking');
+    expect(nivaPhase(row(), { now: T0 + NIVA_WAIT_MS - 1, startedAt: T0 })).toBe('looking');
+    expect(nivaPhase(row(), { now: T0 + NIVA_WAIT_MS, startedAt: T0 })).toBe('no_answer');
+    expect(nivaPhase(row(), { now: T0 + 10 * NIVA_WAIT_MS, startedAt: T0 })).toBe('no_answer');
+  });
+
+  it('a past question already older than the wait is no_answer at once, without polling', () => {
+    const old = { key: 'q1', question: 'x', row: row(), startedAt: null, seenAt: T0 + 5 * 60_000 };
+    expect(nivaPhase(old.row, { now: old.seenAt, seenAt: old.seenAt })).toBe('no_answer');
+    expect(nivaShouldPoll([old], old.seenAt)).toBe(false);
+    // …and a past one still inside its wait keeps looking until created_at + the wait.
+    const recent = { ...old, seenAt: T0 + 30_000 };
+    expect(nivaPhase(recent.row, { now: recent.seenAt, seenAt: recent.seenAt })).toBe('looking');
+    expect(nivaWaitEnds(recent.row, { seenAt: recent.seenAt })).toBe(T0 + NIVA_WAIT_MS);
+    expect(nivaShouldPoll([recent], recent.seenAt)).toBe(true);
+  });
+
+  it('a created_at in the future (device clock behind) still ends at startedAt + the wait', () => {
+    const ahead = row({ created_at: new Date(T0 + 60 * 60_000).toISOString() });
+    expect(nivaWaitEnds(ahead, { startedAt: T0 })).toBe(T0 + NIVA_WAIT_MS);
+    expect(nivaPhase(ahead, { now: T0 + NIVA_WAIT_MS, startedAt: T0 })).toBe('no_answer');
+    // From history: never longer than the wait after the row was loaded.
+    expect(nivaWaitEnds(ahead, { seenAt: T0 })).toBe(T0 + NIVA_WAIT_MS);
+    // A device clock that is ahead does not shorten the wait for a question asked here.
+    const behind = row({ created_at: new Date(T0 - 60 * 60_000).toISOString() });
+    expect(nivaPhase(behind, { now: T0 + 1000, startedAt: T0 })).toBe('looking');
+  });
+
+  it('answer_status short-circuits the wait when the database has it', () => {
+    for (const s of ['no_source', 'unsure', 'refused', 'failed']) {
+      expect(nivaPhase(row({ answer_status: s }), { now: T0, startedAt: T0 })).toBe('no_answer');
+    }
+    for (const s of ['pending', 'paused', 'answered']) {
+      expect(nivaPhase(row({ answer_status: s }), { now: T0, startedAt: T0 })).toBe('looking');
+      expect(nivaPhase(row({ answer_status: s }), { now: T0 + NIVA_WAIT_MS, startedAt: T0 })).toBe('no_answer');
+    }
+  });
+
+  it('says check_failed only after the wait, when the last check failed', () => {
+    expect(nivaPhase(row(), { now: T0 + 1000, startedAt: T0, lastCheckFailed: true })).toBe('looking');
+    expect(nivaPhase(row(), { now: T0 + NIVA_WAIT_MS, startedAt: T0, lastCheckFailed: true })).toBe('check_failed');
+    expect(nivaPhase(row({ answer: 'Yes.' }), { now: T0 + NIVA_WAIT_MS, startedAt: T0, lastCheckFailed: true })).toBe('answered');
+    expect(nivaPhase(row({ answer_status: 'no_source' }), { now: T0 + NIVA_WAIT_MS, startedAt: T0, lastCheckFailed: true })).toBe('no_answer');
+  });
+
+  it('polls only while a saved question is being looked up', () => {
+    const saving: NivaLocal<Row> = { key: 'k0', question: 'Hi', status: 'saving' };
+    const asked: NivaLocal<Row> = { key: 'k1', question: 'x', row: row(), startedAt: T0 };
+    const items = mergeNivaRows<Row>([], [saving, asked]);
+    expect(nivaShouldPoll(items, T0 + 1000)).toBe(true);
+    expect(nivaShouldPoll(items, T0 + NIVA_WAIT_MS)).toBe(false);
+    expect(nivaShouldPoll(mergeNivaRows<Row>([], [saving]), T0)).toBe(false);
+    expect(nivaShouldPoll(mergeNivaRows<Row>([], [{ ...asked, row: row({ answer: 'Yes.' }) }]), T0)).toBe(false);
+  });
+
+  it('merges history, questions asked here and checked copies, each question once and in order', () => {
+    const a = row({ id: 'a', question: 'A', created_at: new Date(T0 - 3000).toISOString() });
+    const b = row({ id: 'b', question: 'B', created_at: new Date(T0 - 2000).toISOString() });
+    const c = row({ id: 'c', question: 'C', created_at: new Date(T0).toISOString() });
+    const locals: NivaLocal<Row>[] = [
+      { key: 'kc', question: 'C', row: c, startedAt: T0 },
+      { key: 'kd', question: 'D', status: 'failed', error: 'offline' },
+    ];
+    // Before a reload: history a, b; then the question asked here, then the failed one.
+    const before = mergeNivaRows([a, b], locals);
+    expect(before.map((i) => i.question)).toEqual(['A', 'B', 'C', 'D']);
+    // After a reload the history also has c (and a duplicate a): still one of each, c keeps its key and wait.
+    const after = mergeNivaRows([a, a, b, c], locals, { seenAt: T0 + 500 });
+    expect(after.map((i) => i.key)).toEqual(['a', 'b', 'kc', 'kd']);
+    const kc = after[2];
+    expect(isNivaRowItem(kc) && kc.startedAt).toBe(T0);
+    expect(isNivaRowItem(kc) && kc.seenAt).toBeNull();
+    const ka = after[0];
+    expect(isNivaRowItem(ka) && ka.seenAt).toBe(T0 + 500);
+    // A checked copy with the answer replaces the stored one; a later copy without an answer never hides it.
+    const answered = { ...c, answer: 'Open 7:30 AM.', unanswered: false };
+    const withFresh = mergeNivaRows([a, b, c], locals, { fresh: { c: answered } });
+    expect(isNivaRowItem(withFresh[2]) && withFresh[2].row.answer).toBe('Open 7:30 AM.');
+    const historyAnswered = mergeNivaRows([a, b, answered], locals, { fresh: { c } });
+    expect(isNivaRowItem(historyAnswered[2]) && historyAnswered[2].row.answer).toBe('Open 7:30 AM.');
+  });
+
+  it('keeps the questions asked here in the order they were asked after a reload, a failed one included', () => {
+    const a = row({ id: 'a', question: 'A', created_at: new Date(T0 - 3000).toISOString() });
+    const c = row({ id: 'c', question: 'C', created_at: new Date(T0).toISOString() });
+    // D failed to save first, then C was asked and saved.
+    const locals: NivaLocal<Row>[] = [
+      { key: 'kd', question: 'D', status: 'failed', error: 'offline' },
+      { key: 'kc', question: 'C', row: c, startedAt: T0 },
+    ];
+    expect(mergeNivaRows([a], locals).map((i) => i.key)).toEqual(['a', 'kd', 'kc']);
+    // The reload brings c back: D stays before C, and C keeps its key and its device-side wait.
+    const reloaded = mergeNivaRows([a, c], locals, { seenAt: T0 + 500 });
+    expect(reloaded.map((i) => i.key)).toEqual(['a', 'kd', 'kc']);
+    const kc = reloaded[2];
+    expect(isNivaRowItem(kc) && kc.startedAt).toBe(T0);
+    expect(isNivaRowItem(kc) && kc.seenAt).toBeNull();
+    // The reloaded copy is used when it is newer (here: it now has the answer).
+    const answeredLater = { ...c, answer: 'Open 7:30 AM.' };
+    const withAnswer = mergeNivaRows([a, answeredLater], locals);
+    expect(isNivaRowItem(withAnswer[2]) && withAnswer[2].row.answer).toBe('Open 7:30 AM.');
+  });
+
+  it('turns an answer into plain words for a screen reader, and shortens a long question for a label', () => {
+    expect(nivaSpoken('## Timings\n\n- **Morning:** 7:30 AM\n- Evening: 8:30 PM\n\nSee [the guide](https://example.org/guide).')).toBe('Timings Morning: 7:30 AM Evening: 8:30 PM See the guide.');
+    expect(nivaShortQuestion('  What are the   derasar timings?  ')).toBe('What are the derasar timings?');
+    const long = nivaShortQuestion('x'.repeat(1000));
+    expect(long).toHaveLength(81);
+    expect(long.endsWith('…')).toBe(true);
+  });
+
+  it('ignores the same question sent again within a few seconds', () => {
+    const last = { question: 'What are the derasar timings?', at: T0 };
+    expect(nivaIsRepeat(null, 'What are the derasar timings?', T0)).toBe(false);
+    expect(nivaIsRepeat(last, '  what are the  derasar timings? ', T0 + 2000)).toBe(true);
+    expect(nivaIsRepeat(last, 'What are the derasar timings?', T0 + NIVA_REPEAT_MS)).toBe(false);
+    expect(nivaIsRepeat(last, 'Where can I park?', T0 + 1000)).toBe(false);
+  });
+
+  it('suggests only questions approved content can answer', () => {
+    const suggested = (['niva.fabQ1', 'niva.fabQ2', 'niva.fabQ3', 'niva.q4', 'niva.q5'] as StringKey[]).map(t);
+    expect(suggested.some((s) => /eligible|vote/i.test(s))).toBe(false);
+    expect(suggested.some((s) => /today|this weekend/i.test(s))).toBe(false);
+    expect(en['niva.unable']).toBe('Currently we are unable to answer your question. Please leave your contact details and we would try to connect as soon as possible.');
   });
 });
 

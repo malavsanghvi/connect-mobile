@@ -83,6 +83,13 @@ export function toAppError(err: unknown, action: string): AppError {
     return new AppError("We can't send text messages right now. Please sign in with your email instead.", detail, code);
   }
   // Postgres / PostgREST
+  // An insufficient_privilege refusal raised by one of our own RPCs is a sentence written for people
+  // (connect-crm app.niva_ask: "You are not a member of this community."; app.assert_module_enabled:
+  // "The Niva module is switched off for this community."). Postgres' own ("permission denied for
+  // table …", "new row violates row-level security policy …") stay generic below.
+  if (code === '42501' && /^[A-Z].*[.!?]$/.test(message.trim()) && !/row-level security|permission denied/i.test(message)) {
+    return new AppError(message.trim(), detail, code);
+  }
   if (code === '42501' || lower.includes('row-level security') || lower.includes('permission denied')) {
     return new AppError(`You don't have permission to ${action}. If you think this is a mistake, please contact the office.`, detail, code);
   }

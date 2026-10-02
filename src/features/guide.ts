@@ -142,6 +142,19 @@ export function replyWithin(hours: number | null | undefined): 'day' | 'days' | 
   return hours <= 24 ? 'day' : 'days';
 }
 
+/** Longest question Ask a question takes from a link (the same cap as a Niva question). */
+export const ASK_PREFILL_MAX = 1000;
+
+/**
+ * The question carried into Ask a question as ?q=… (Niva's "Send to the
+ * team"): trimmed and capped at ASK_PREFILL_MAX characters. A repeated
+ * parameter (an array) or an empty value starts the box empty.
+ */
+export function askPrefill(param: unknown): string {
+  if (typeof param !== 'string') return '';
+  return param.trim().slice(0, ASK_PREFILL_MAX).trim();
+}
+
 /** A short, stable reference from the thread id, e.g. "Q-3F2A1C". */
 export function questionRef(threadId: string): string {
   return `Q-${threadId.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
