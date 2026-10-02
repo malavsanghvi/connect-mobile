@@ -3,14 +3,6 @@ import { AppError, logError, report } from '../errors';
 import { isMissingRpcError } from '../modules';
 import { supabase } from '../supabase';
 
-/**
- * `app.feature_access_for_me(p_center uuid)` (connect-crm 0586) is not in the generated database types yet,
- * so it is called through this one narrow cast. Once the portal's pull request is merged and its
- * `database.types.ts` is copied here, call `supabase.rpc('feature_access_for_me', { p_center })` instead
- * and delete this type and the cast.
- */
-type UntypedRpc = { rpc: (fn: 'feature_access_for_me', args: { p_center: string }) => PromiseLike<{ data: unknown; error: unknown }> };
-
 /** The portal's answer, or `missing`: it does not have the function yet (an older portal), so the rules from before apply. */
 export type AccessAnswer = { kind: 'answered'; snapshot: AccessSnapshot } | { kind: 'missing' };
 
@@ -25,7 +17,7 @@ let loggedMissing = false;
  * not a failure: it is `missing`, logged once.
  */
 export async function loadAccess(centerId: string): Promise<AccessAnswer> {
-  const res = await (supabase as unknown as UntypedRpc).rpc('feature_access_for_me', { p_center: centerId });
+  const res = await supabase.rpc('feature_access_for_me', { p_center: centerId });
   if (res.error) {
     if (isMissingRpcError(res.error)) {
       if (!loggedMissing) {
