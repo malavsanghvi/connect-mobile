@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StrokeIcon } from '@/components/stroke-icon';
@@ -8,7 +8,7 @@ import { Banner, Button, Card, Row, Txt } from '@/components/ui';
 import { prefetchPhotoForShare, savePhotos, sharePhoto, shareWebPhoto } from '@/features/media';
 import type { EventRow } from '@/lib/api/events';
 import { eventFlyerUrl } from '@/lib/api/flyers';
-import { logError, report } from '@/lib/errors';
+import { logError, report, type AppError } from '@/lib/errors';
 import { flyerFileName, flyerMimeType, isExpiredLinkError, needsResign } from '@/lib/flyer';
 import { useLoad } from '@/lib/use-load';
 import { useFeedback } from '@/providers/feedback';
@@ -19,7 +19,7 @@ import { colors, radii, space } from '@/theme';
 type Signed = { url: string; signedAt: number };
 type Kind = 'share' | 'save';
 type ActionError = { kind: Kind; message: string };
-type FlyerActions = { busy: Kind | null; error: ActionError | null; run: (kind: Kind) => Promise<void>; clearError: () => void; prefetch: (url: string) => void };
+type FlyerActions = { busy: Kind | null; error: ActionError | null; run: (kind: Kind) => Promise<void>; clearError: () => void; prefetch: () => void };
 
 /** Width ÷ height until the image says otherwise (the portal's "post" size). */
 const DEFAULT_RATIO = 4 / 5;
@@ -38,7 +38,7 @@ export function EventFlyer({ event }: { event: Pick<EventRow, 'flyer_path' | 'na
 
 function FlyerCard({ path, eventName }: { path: string; eventName: string }) {
   const t = useT();
-  const signed = useLoad(async (): Promise<Signed> => ({ url: await eventFlyerUrl(path), signedAt: Date.now() }), [path], 'load the flyer');
+  const signed = useSignedFlyer(path);
   const actions = useFlyerActions(path, eventName, signed.data ?? null);
   const [ratio, setRatio] = useState<number | null>(null);
   const [imageError, setImageError] = useState<{ url: string; message: string } | null>(null);
@@ -56,6 +56,8 @@ function FlyerCard({ path, eventName }: { path: string; eventName: string }) {
   };
   const open = (on: boolean) => {
     actions.clearError();
+    // Opening the flyer full screen is the moment Share is likely: get the web share file ready.
+    if (on) actions.prefetch();
     setViewer(on);
   };
 
@@ -81,7 +83,6 @@ function FlyerCard({ path, eventName }: { path: string; eventName: string }) {
               accessibilityIgnoresInvertColors
               onLoad={(e) => {
                 setRatio(e.source.width > 0 && e.source.height > 0 ? e.source.width / e.source.height : DEFAULT_RATIO);
-                actions.prefetch(url);
               }}
               onError={(e) => setImageError({ url, message: report(new Error(e.error), 'load the flyer').userMessage })}
             />
@@ -108,10 +109,38 @@ function FlyerCard({ path, eventName }: { path: string; eventName: string }) {
 }
 
 /**
+ * The flyer's signed link. useLoad loads again after any write in the app (an RSVP on this same
+ * screen too), but the flyer behind a path never changes, so a link that is still fresh is kept:
+ * a new token would make a browser download the whole image again (expo-image's cacheKey only
+ * works on a phone). Retry always signs a new link.
+ */
+function useSignedFlyer(path: string): { data: Signed | undefined; error: AppError | null; reload: () => Promise<void> } {
+  const kept = useRef<Signed | null>(null);
+  const signed = useLoad(
+    async (): Promise<Signed> => {
+      const k = kept.current;
+      if (k && !needsResign(k.signedAt, Date.now())) return k;
+      const next = { url: await eventFlyerUrl(path), signedAt: Date.now() };
+      kept.current = next;
+      return next;
+    },
+    [path],
+    'load the flyer',
+  );
+  const reload = () => {
+    kept.current = null;
+    return signed.reload();
+  };
+  return { data: signed.data, error: signed.error, reload };
+}
+
+/**
  * Share and Save with a fresh link: one older than 50 minutes is signed again first, and a download
  * that Storage refuses (HTTP 400/403, an expired token) is signed again and retried once. On the web
- * the flyer is downloaded once it shows, so Share opens the browser's share sheet straight after the
- * tap (a browser refuses it a few seconds after the tap, which a download on slow data can take).
+ * Share needs the file itself, downloaded once per flyer: it starts when the full-screen viewer
+ * opens (prefetch), not each time the flyer shows, so a visitor who only looks downloads it once.
+ * A browser opens the share sheet only for a few seconds after the tap; when a download on slow
+ * data takes longer, Retry shares the file that has arrived straight away.
  */
 function useFlyerActions(path: string, eventName: string, signed: Signed | null): FlyerActions {
   const t = useT();
@@ -119,7 +148,8 @@ function useFlyerActions(path: string, eventName: string, signed: Signed | null)
   const [busy, setBusy] = useState<Kind | null>(null);
   const [error, setError] = useState<ActionError | null>(null);
   const [fresh, setFresh] = useState<Signed | null>(null);
-  const shareFile = useRef<{ blob: Blob | null; started: boolean }>({ blob: null, started: false });
+  // Web: the flyer file for the browser's share sheet (null: this browser can't share files).
+  const shareFile = useRef<{ blob: Blob | null; pending: Promise<Blob | null> | null }>({ blob: null, pending: null });
   const fileName = flyerFileName(eventName, path);
   const mime = flyerMimeType(fileName);
 
@@ -128,27 +158,38 @@ function useFlyerActions(path: string, eventName: string, signed: Signed | null)
     setFresh(next);
     return next.url;
   };
+  const newest = (): Signed | null => (signed && fresh ? (fresh.signedAt > signed.signedAt ? fresh : signed) : (fresh ?? signed));
   const currentUrl = async (): Promise<string> => {
-    const newest = signed && fresh ? (fresh.signedAt > signed.signedAt ? fresh : signed) : (fresh ?? signed);
-    return newest && !needsResign(newest.signedAt, Date.now()) ? newest.url : resign();
+    const n = newest();
+    return n && !needsResign(n.signedAt, Date.now()) ? n.url : resign();
   };
-  // The flyer behind a path never changes (a new design is a new path), so one download serves every Share.
-  const prefetch = (url: string) => {
+  // The flyer behind a path never changes (a new design is a new path), so one download serves every
+  // Share. A download already on its way is shared; a failed one is forgotten, so the next starts again.
+  const webFile = (url: string): Promise<Blob | null> => {
     const s = shareFile.current;
-    if (s.blob || s.started) return;
-    s.started = true;
-    prefetchPhotoForShare(url)
-      .then((blob) => {
+    if (s.blob) return Promise.resolve(s.blob);
+    s.pending ??= prefetchPhotoForShare(url).then(
+      (blob) => {
         s.blob = blob;
-      })
-      .catch((err: unknown) => logError('downloading the flyer ahead of Share (Share downloads it when tapped instead)', err))
-      .finally(() => {
-        s.started = false;
-      });
+        s.pending = null;
+        return blob;
+      },
+      (err: unknown) => {
+        s.pending = null;
+        throw err;
+      },
+    );
+    return s.pending;
+  };
+  const prefetch = () => {
+    const n = newest();
+    if (Platform.OS !== 'web' || !n || needsResign(n.signedAt, Date.now())) return;
+    webFile(n.url).catch((err: unknown) => logError('downloading the flyer ahead of Share (Share downloads it when tapped instead)', err));
   };
   const attempt = async (kind: Kind, url: string) => {
-    if (kind === 'share') await sharePhoto(url, fileName, mime);
-    else await savePhotos([{ url, fileName }]);
+    if (kind === 'save') await savePhotos([{ url, fileName }]);
+    else if (Platform.OS === 'web') await shareWebPhoto(await webFile(url), fileName, mime);
+    else await sharePhoto(url, fileName, mime);
   };
 
   const run = async (kind: Kind) => {

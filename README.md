@@ -196,11 +196,14 @@ The QR code on a flyer opens `https://<member web app>/e/<event id>`, optionally
 `?c=<community web name>` (`src/app/e/[id].tsx`, outside the route guards like `join/[code]`).
 The event opens in its own community: the one the link names, otherwise the event's own when the
 visitor can read it (`eventLinkCommunity` in `src/lib/api/flyers.ts`). When that isn't the
-community open here, a signed-out visitor just switches to it and a signed-in account is asked
-first, like a join link. Then a signed-out visitor browses the event as a guest (a members-only
+community open here, the visitor is asked first, like a join link ("Open {community}", with the
+sandbox note for a sandbox), since the choice is remembered on the device. Switching restarts the
+navigator on its first screen, so `ReopenEventLink` (root layout) opens the link again once the
+new community is open. Then a signed-out visitor browses the event as a guest (a members-only
 event says "This event is for members" with Sign in, and after signing in the member lands back
-on the event: `src/features/return-to-event.tsx`); a signed-in account goes through family
-matching, onboarding and the legal step as usual (`flyerLinkTarget` in `src/lib/flyer.ts`).
+on the event); a signed-in account goes through family matching, onboarding and the legal step as
+usual (`flyerLinkTarget` in `src/lib/flyer.ts`). Both returns are in
+`src/features/return-to-event.tsx`.
 
 The QR opens the web app, also on a phone with the app installed: the app declares no iOS
 associated domains or Android app links yet (a native release).

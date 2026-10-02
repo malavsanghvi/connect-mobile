@@ -70,6 +70,11 @@ export function flyerLinkCommunity(raw: unknown): string | null {
   return SLUG.test(slug) ? slug : null;
 }
 
+/** The flyer link of an event in a community, as the app opens it: (id, "jsh") → "/e/<id>?c=jsh" (the id lower-cased). */
+export function flyerLinkPath(eventId: string, slug: string): `/e/${string}` {
+  return `/e/${eventId.toLowerCase()}?c=${encodeURIComponent(slug)}`;
+}
+
 /** Signed flyer links last an hour (files.ts); Share and Save sign again after 50 minutes so the link can't expire mid-download. */
 export const FLYER_RESIGN_AFTER_MS = 50 * 60 * 1000;
 

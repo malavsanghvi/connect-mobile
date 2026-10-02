@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { FullScreen, FullScreenLoading } from '@/components/full-screen';
 import { Banner, Button, Card, LinkText, Txt } from '@/components/ui';
+import { reopenEventLinkAfterSwitch } from '@/features/return-to-event';
 import type { CommunityResult } from '@/lib/api/community';
 import { eventLinkCommunity } from '@/lib/api/flyers';
 import { report, type AppError } from '@/lib/errors';
@@ -15,9 +16,10 @@ import { useT } from '@/providers/settings';
  * The QR code on an event flyer (https://<member web app>/e/<event id>, optionally ?c=<community
  * web name>). Outside the route guards, like join/[code].
  *
- * The event opens in its own community: when that is not the one open here, a signed-out visitor
- * (guest mode keeps nothing) just switches to it, and a signed-in account is asked first, as with
- * a join link. The app reloads for the new community and comes back here.
+ * The event opens in its own community. When that is not the one open here, everyone is asked
+ * first, as with a join link (the choice is remembered on this device, and a sandbox says so):
+ * "Open {community}" switches, and ReopenEventLink (root layout) brings the visitor back here once
+ * the new community is open, since the switch restarts the navigator.
  *
  * Then a signed-out visitor enters guest mode and lands on the event; a signed-in account goes
  * through the normal start screen (family matching, onboarding and the legal step are never
@@ -40,7 +42,6 @@ export default function EventLinkScreen() {
   );
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<AppError | null>(null);
-  const autoOpened = useRef<string | null>(null);
 
   const state = { signedIn: !!session, linked: !!member, onboarding, guest };
   const target = flyerLinkTarget(state, id);
@@ -52,8 +53,6 @@ export default function EventLinkScreen() {
   // The event screen sits in the (app) group, which opens for a signed-out visitor only in guest mode.
   const waitingForGuest = here && target.guest && !guest;
   const href = here && !waitingForGuest ? target.href : null;
-  const autoSlug = elsewhere && !session ? elsewhere.slug : null;
-  const autoName = elsewhere && !session ? elsewhere.name : null;
 
   useEffect(() => {
     if (waitingForGuest) setGuest(true);
@@ -63,17 +62,12 @@ export default function EventLinkScreen() {
     if (href) router.replace(href);
   }, [href, router]);
 
-  useEffect(() => {
-    if (!autoSlug || !autoName || autoOpened.current === autoSlug) return;
-    autoOpened.current = autoSlug;
-    chooseCommunity({ slug: autoSlug, name: autoName }).catch((err: unknown) => setOpenError(report(err, `open ${autoName}`)));
-  }, [autoSlug, autoName, chooseCommunity]);
-
   const open = (c: CommunityResult) => {
     setOpening(true);
     setOpenError(null);
-    // The app reloads for the new community and comes back here, where the event then opens.
+    reopenEventLinkAfterSwitch(eventId ? { eventId, slug: c.slug } : null);
     chooseCommunity({ slug: c.slug, name: c.name }).catch((err: unknown) => {
+      reopenEventLinkAfterSwitch(null);
       setOpenError(report(err, `open ${c.name}`));
       setOpening(false);
     });
@@ -91,7 +85,7 @@ export default function EventLinkScreen() {
     );
   }
 
-  if (elsewhere && (session || openError)) {
+  if (elsewhere) {
     return (
       <FullScreen>
         <Txt variant="title" color="navy" accessibilityRole="header">

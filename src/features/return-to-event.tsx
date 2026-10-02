@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
-import { isUuid } from '@/lib/flyer';
+import { flyerLinkPath, isUuid } from '@/lib/flyer';
 import { useApp } from '@/providers/app';
 
 /**
@@ -33,6 +33,37 @@ export function ReturnToEvent() {
     pending = null;
     if (signedIn && p.centerId === centerId) router.push(`/event/${p.eventId}`);
   }, [signedIn, centerId, router]);
+
+  return null;
+}
+
+/**
+ * A flyer's QR link (/e/<id>) switching to the event's own community. While the new community
+ * loads, the loading screen replaces the root navigator, which then starts again on its first
+ * screen (welcome, family matching or home) and forgets the link; so the link is kept here.
+ */
+let switching: { eventId: string; slug: string } | null = null;
+
+/** Call just before chooseCommunity on /e/<id>, and with null when the switch failed. */
+export function reopenEventLinkAfterSwitch(link: { eventId: string; slug: string } | null): void {
+  switching = link && link.slug && isUuid(link.eventId) ? { eventId: link.eventId.toLowerCase(), slug: link.slug } : null;
+}
+
+/**
+ * Mounted beside the root navigator, so it mounts again with it after a switch. Once the community
+ * the link switched to is open, it opens /e/<id> again (naming that community), which sends the
+ * visitor on from there. Used once; dropped when another community opened instead.
+ */
+export function ReopenEventLink() {
+  const router = useRouter();
+  const slug = useApp().center?.slug ?? null;
+
+  useEffect(() => {
+    const link = switching;
+    if (!link) return;
+    switching = null;
+    if (slug && link.slug === slug) router.replace(flyerLinkPath(link.eventId, slug));
+  }, [slug, router]);
 
   return null;
 }

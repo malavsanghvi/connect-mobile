@@ -103,11 +103,11 @@ export async function prefetchPhotoForShare(url: string): Promise<Blob | null> {
   return fetchBlob(url);
 }
 
-/** Web: hand a downloaded photo (prefetchPhotoForShare) to the browser's share sheet. */
-export async function shareWebPhoto(blob: Blob, fileName: string, mimeType: string): Promise<void> {
+/** Web: hand a downloaded photo (prefetchPhotoForShare; null when this browser can't share) to the browser's share sheet. */
+export async function shareWebPhoto(blob: Blob | null, fileName: string, mimeType: string): Promise<void> {
   const nav = webNavigator();
   const FileCtor = (globalThis as { File?: new (parts: Blob[], name: string, opts: { type: string }) => unknown }).File;
-  const file = FileCtor ? new FileCtor([blob], fileName, { type: mimeType }) : null;
+  const file = blob && FileCtor ? new FileCtor([blob], fileName, { type: mimeType }) : null;
   if (file && nav?.share && nav.canShare?.({ files: [file] })) {
     try {
       await nav.share({ files: [file] });

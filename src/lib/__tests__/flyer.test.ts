@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { FLYER_RESIGN_AFTER_MS, flyerFileName, flyerLinkCommunity, flyerLinkTarget, flyerMimeType, isExpiredLinkError, isUuid, needsResign } from '../flyer';
+import { FLYER_RESIGN_AFTER_MS, flyerFileName, flyerLinkCommunity, flyerLinkPath, flyerLinkTarget, flyerMimeType, isExpiredLinkError, isUuid, needsResign } from '../flyer';
 
 const ID = '6f1c2b9e-3d4a-4b8c-9e0f-1a2b3c4d5e6f';
 
@@ -95,6 +95,17 @@ describe('flyerLinkCommunity', () => {
     expect(flyerLinkCommunity('a'.repeat(64))).toBeNull();
     expect(flyerLinkCommunity([])).toBeNull();
     expect(flyerLinkCommunity(7)).toBeNull();
+  });
+});
+
+describe('flyerLinkPath', () => {
+  it('names the community the link switched to, which flyerLinkCommunity reads back', () => {
+    expect(flyerLinkPath(ID.toUpperCase(), 'jsh-houston')).toBe(`/e/${ID}?c=jsh-houston`);
+    const c = new URLSearchParams(flyerLinkPath(ID, 'jsh-houston').split('?')[1]).get('c');
+    expect(flyerLinkCommunity(c)).toBe('jsh-houston');
+  });
+  it('escapes a name that would break the query', () => {
+    expect(flyerLinkPath(ID, 'a&b c')).toBe(`/e/${ID}?c=a%26b%20c`);
   });
 });
 
