@@ -162,12 +162,18 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   Learn, Ask Niva, the guide), the lowest level that may use it: public (anyone, not
   signed in), community (signed in and linked to it) or one of the organization's own
   membership levels (Member, Life member…). The app asks `app.feature_access_for_me`
-  once the community is known, for a visitor who is not signed in too, and
-  `useFeature(area)` decides what to show: Home's "Watch live darshan" and "Do puja"
-  (`src/features/today-doors.tsx`), Welcome › Without signing in, the 3L sections, the
-  Niva button and the screens of each area (`ROUTE_FEATURE` in `src/lib/modules.ts`).
-  What is not available gets `FeatureNotice` instead: "Sign in to use …" with a Sign in
-  button, or "… is available to Member and above. Ask the office about membership.".
+  once the community is known (a signed-in person's first read waits until their link
+  to it is known, and is made again when the login is linked at the end of onboarding),
+  for a visitor who is not signed in too, and `useFeature(area)` decides what to show:
+  Home's "Watch live darshan" and "Do puja" (`src/features/today-doors.tsx`), Welcome ›
+  Without signing in (only the doors that lead somewhere here: a stream or an aarti
+  time, the Navang puja lesson; `useGuestDoors`), the 3L sections, the Niva button and
+  the screens of each area (`ROUTE_FEATURE` in `src/lib/modules.ts`; a library item is
+  gated by its own kind, `MediaItemView`). Today's timings are in the portal's list but
+  the app does not gate them (public in the database, shown on Home, the darshan
+  screens, the day plan and the guide). What is not available gets `FeatureNotice`
+  instead: "Sign in to use …" with a Sign in button, or "… is available to Member and
+  above. Ask the office about membership.".
   The app only decides what to show; the database itself enforces Live darshan (RLS),
   and for the other areas the app is the only guard until connect-crm B45. The virtual
   puja runs without signing in and records nothing then ("Sign in to earn puja

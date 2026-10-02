@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { ErrorState } from '@/components/states';
 import { Txt } from '@/components/ui';
 import { darshanDoorVisible } from '@/lib/darshan';
-import { useFeature } from '@/providers/access';
+import { useAccess, useFeature } from '@/providers/access';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
@@ -17,8 +18,13 @@ import { PujaEntry } from './puja/puja-entry';
  *
  * `hasStream` and `aarti` come from Today's load (the Today card has them already): the darshan door is left out
  * for a community with no stream and no aarti time. The puja door checks for its own lesson (PujaEntry).
+ *
+ * When what the person may use could not be read, the card says so once, with Try again, instead of two doors
+ * quietly missing (the doors come back when the read works).
  */
 export function TodayDoors({ hasStream, aarti }: { hasStream: boolean; aarti: string | null }) {
+  const access = useAccess();
+  if (access.error) return <ErrorState error={access.error} onRetry={() => void access.reload()} />;
   return (
     <>
       <DarshanDoor hasStream={hasStream} aarti={aarti} />

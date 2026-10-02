@@ -211,7 +211,8 @@ const GUEST_DOOR_KEYS = Object.keys(GUEST_DOORS) as GuestDoor[];
 
 /**
  * The doors a visitor may use: the area is open to the public (not only to a level they could reach by
- * signing in) and its module is on. Empty until the answer is in.
+ * signing in) and its module is on. Empty until the answer is in. Whether the community has anything
+ * behind a door is a separate check: see `guestDoorsToShow`.
  */
 export function guestAreas(snapshot: AccessSnapshot | null, modules: ModuleMap): GuestDoor[] {
   if (!snapshot) return [];
@@ -221,6 +222,36 @@ export function guestAreas(snapshot: AccessSnapshot | null, modules: ModuleMap):
     // A signed-in reader's yes may come from their level; a visitor's needs the area to be open to everyone.
     return !snapshot.signedIn || d.minLevel?.rank === PUBLIC_LEVEL.rank;
   });
+}
+
+/**
+ * What the Welcome screen found out about one door (`useGuestDoors` in src/features/guest-door.tsx): the community has
+ * something behind it (`leads`), has nothing (`nothing`: no stream and no aarti time, no Navang puja lesson), the check
+ * could not be made (`failed`), or is still being made (`checking`).
+ */
+export type DoorCheck = 'leads' | 'nothing' | 'failed' | 'checking';
+
+/**
+ * The check for one door, from the load that answers it (`data`: the community has something behind the door).
+ * A door the visitor may not use anyway (`wanted` is false) has nothing to check.
+ */
+export function doorCheckFor(wanted: boolean, load: { loading: boolean; error: unknown; data: boolean | undefined }): DoorCheck {
+  if (!wanted) return 'nothing';
+  if (load.loading) return 'checking';
+  if (load.error) return 'failed';
+  return load.data === true ? 'leads' : 'nothing';
+}
+
+/**
+ * The doors worth showing a visitor: open to the public (`guestAreas`) and leading somewhere, the same test Home's doors
+ * pass (a community with no stream and no aarti time has no darshan door; one with no Navang puja lesson has no puja
+ * door), so a visitor is never taken to "Live darshan is offline". Nothing shows until every check has settled, so the
+ * section does not grow door by door. A check that failed keeps its door: the screen it opens says what went wrong, with
+ * Try again (a feature is never hidden because of our own error).
+ */
+export function guestDoorsToShow(open: readonly GuestDoor[], checks: Record<GuestDoor, DoorCheck>): GuestDoor[] {
+  if (open.some((door) => checks[door] === 'checking')) return [];
+  return open.filter((door) => checks[door] === 'leads' || checks[door] === 'failed');
 }
 
 // ---------------------------------------------------------------------------
@@ -233,9 +264,25 @@ export type AccessSlot = { scope: string; snapshot: AccessSnapshot | null; error
 /** What one read of the answer came back with. */
 export type AccessRead = { snapshot: AccessSnapshot } | { error: AppError };
 
-/** The community and the person an answer belongs to. */
-export function accessScope(centerId: string | null, userId: string | null): string {
-  return `${centerId ?? ''}#${userId ?? ''}`;
+/**
+ * The community and the person an answer belongs to: the login, and the person it is linked to in this community
+ * (null while the login is not linked). A login that is not linked yet is another answer from the one it gets once
+ * it is, because the database works a person's level out from that link (an unlinked login is public there). So
+ * finishing onboarding changes the scope, and the answer is read again.
+ */
+export function accessScope(centerId: string | null, userId: string | null, personId: string | null): string {
+  return `${centerId ?? ''}#${userId ?? ''}#${personId ?? ''}`;
+}
+
+/**
+ * Is it time to read the answer (the community is known)? Not while a signed-in person's link to the community is
+ * still being looked up: the answer depends on it, so asking early would give a returning member a second read and a
+ * flicker, and a new one the answer for a visitor. And not again for a person and community the portal was found to
+ * lack the function for (`missingFor` is the scope of the last read when it found it missing, else null).
+ */
+export function accessReadDue(s: { signedIn: boolean; memberLoading: boolean; scope: string; missingFor: string | null }): boolean {
+  if (s.signedIn && s.memberLoading) return false;
+  return s.missingFor !== s.scope;
 }
 
 /**

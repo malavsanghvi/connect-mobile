@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { FEATURE_KEYS, FEATURE_MODULE, isFeatureKey } from '../access';
+import { MEDIA_KINDS } from '../media-library';
 import {
   ALL_ON,
   anyModuleOn,
@@ -253,6 +254,15 @@ describe('routeFeature (the access area of a pushed screen)', () => {
       expect(routeFeature(name, null)).toBeNull();
     }
     expect(Object.keys(MEDIA_KIND_FEATURE).sort()).toEqual(['podcast', 'recipe', 'stavan', 'video']);
+  });
+  it('puts every kind of library item in an area, so an item opened by a hand-made link is gated by what it is', () => {
+    // MediaItemView gates on the item's own kind, not the kind in the address: a video opened as /media/stavan/<id> is Look.
+    expect([...MEDIA_KINDS].sort()).toEqual(Object.keys(MEDIA_KIND_FEATURE).sort());
+    for (const kind of MEDIA_KINDS) expect(isFeatureKey(MEDIA_KIND_FEATURE[kind])).toBe(true);
+    expect(MEDIA_KIND_FEATURE.stavan).toBe('listen');
+    expect(MEDIA_KIND_FEATURE.podcast).toBe('listen');
+    expect(MEDIA_KIND_FEATURE.video).toBe('look');
+    expect(MEDIA_KIND_FEATURE.recipe).toBe('look');
   });
   it('maps the guide, but not its timings', () => {
     for (const name of ['guide', 'guide/index', 'guide/[slug]', 'guide/zones', 'guide/membership', 'guide/apply', 'guide/ask', 'guide/links', 'guide/admin', 'guide/registrations', 'guide/volunteer', 'guide/whatsapp']) {

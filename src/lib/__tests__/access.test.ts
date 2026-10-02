@@ -2,21 +2,25 @@ import { describe, expect, it } from '@jest/globals';
 
 import { translate } from '../../i18n';
 import {
+  accessReadDue,
   accessScope,
   AREA_LABEL,
   currentSlot,
   decideFeature,
+  doorCheckFor,
   fallbackSnapshot,
   FEATURE_KEYS,
   FEATURE_MODULE,
   featureMessage,
   GUEST_DOORS,
   guestAreas,
+  guestDoorsToShow,
   isFeatureKey,
   OPEN_BEFORE_LEVELS,
   parseAccess,
   settleSlot,
   type AccessSnapshot,
+  type DoorCheck,
 } from '../access';
 import { AppError } from '../errors';
 import { ALL_ON, isModuleKey, type ModuleMap } from '../modules';
@@ -298,17 +302,63 @@ describe('Welcome: without signing in', () => {
   });
 });
 
+describe('Welcome: only the doors that lead somewhere', () => {
+  const checks = (darshan: DoorCheck, puja: DoorCheck) => ({ darshan, puja });
+
+  it('shows a door when the community has something behind it', () => {
+    expect(guestDoorsToShow(['darshan', 'puja'], checks('leads', 'leads'))).toEqual(['darshan', 'puja']);
+  });
+  it('leaves out a door with nothing behind it, so a visitor is never taken to "Live darshan is offline"', () => {
+    expect(guestDoorsToShow(['darshan', 'puja'], checks('nothing', 'leads'))).toEqual(['puja']);
+    expect(guestDoorsToShow(['darshan', 'puja'], checks('leads', 'nothing'))).toEqual(['darshan']);
+    expect(guestDoorsToShow(['darshan', 'puja'], checks('nothing', 'nothing'))).toEqual([]);
+  });
+  it('shows nothing until every check has settled, so the section does not grow door by door', () => {
+    expect(guestDoorsToShow(['darshan', 'puja'], checks('leads', 'checking'))).toEqual([]);
+    expect(guestDoorsToShow(['darshan', 'puja'], checks('checking', 'checking'))).toEqual([]);
+  });
+  it('keeps a door whose check failed: the screen it opens says what went wrong, with Try again', () => {
+    expect(guestDoorsToShow(['darshan', 'puja'], checks('failed', 'nothing'))).toEqual(['darshan']);
+  });
+  it('does not wait for, or show, a door that is not open to the public', () => {
+    expect(guestDoorsToShow(['puja'], checks('checking', 'leads'))).toEqual(['puja']);
+    expect(guestDoorsToShow([], checks('leads', 'leads'))).toEqual([]);
+  });
+  it('works out one door from its load: wanted, being read, failed, or answered', () => {
+    expect(doorCheckFor(false, { loading: false, error: null, data: true })).toBe('nothing');
+    expect(doorCheckFor(true, { loading: true, error: null, data: undefined })).toBe('checking');
+    // The load keeps the answer for the earlier inputs while the new ones are read: still checking.
+    expect(doorCheckFor(true, { loading: true, error: null, data: false })).toBe('checking');
+    expect(doorCheckFor(true, { loading: false, error: new Error('network'), data: undefined })).toBe('failed');
+    expect(doorCheckFor(true, { loading: false, error: new Error('network'), data: true })).toBe('failed');
+    expect(doorCheckFor(true, { loading: false, error: null, data: true })).toBe('leads');
+    expect(doorCheckFor(true, { loading: false, error: null, data: false })).toBe('nothing');
+    expect(doorCheckFor(true, { loading: false, error: null, data: undefined })).toBe('nothing');
+  });
+});
+
 describe('holding the answer for the right person', () => {
   const guest = snapshot(visitorAnswer());
   const member = snapshot(communityAnswer());
   const failure = new AppError("We couldn't check what you can use here.", 'network');
 
   it('keeps one answer per person and community', () => {
-    expect(accessScope('c1', 'u1')).toBe('c1#u1');
-    expect(accessScope('c1', null)).toBe('c1#');
-    expect(accessScope(null, null)).toBe('#');
-    expect(accessScope('c1', 'u1')).not.toBe(accessScope('c1', null));
-    expect(accessScope('c1', 'u1')).not.toBe(accessScope('c2', 'u1'));
+    expect(accessScope('c1', 'u1', 'p1')).toBe('c1#u1#p1');
+    expect(accessScope('c1', 'u1', null)).toBe('c1#u1#');
+    expect(accessScope('c1', null, null)).toBe('c1##');
+    expect(accessScope(null, null, null)).toBe('##');
+    expect(accessScope('c1', 'u1', 'p1')).not.toBe(accessScope('c1', null, null));
+    expect(accessScope('c1', 'u1', 'p1')).not.toBe(accessScope('c2', 'u1', 'p1'));
+    expect(accessScope('c1', 'u1', 'p1')).not.toBe(accessScope('c1', 'u1', 'p2'));
+  });
+  it('is another answer once the login is linked to the community (the end of onboarding)', () => {
+    // Before the link the database counts the login as public here; after it, as a member of the community.
+    const unlinked = accessScope('c1', 'u1', null);
+    const linked = accessScope('c1', 'u1', 'p1');
+    expect(unlinked).not.toBe(linked);
+    const held = settleSlot(null, unlinked, { snapshot: guest });
+    expect(currentSlot(held, unlinked)).toBe(held);
+    expect(currentSlot(held, linked)).toBeNull(); // the new member is not shown the answer for a visitor
   });
   it('replaces what was held with a new answer', () => {
     const first = settleSlot(null, 'c1#', { snapshot: guest });
@@ -336,5 +386,35 @@ describe('holding the answer for the right person', () => {
     expect(currentSlot(held, 'c1#u2')).toBeNull(); // someone else signed in
     expect(currentSlot(held, 'c2#u1')).toBeNull(); // another community
     expect(currentSlot(null, 'c1#')).toBeNull();
+  });
+});
+
+describe('when to read the answer', () => {
+  const visitor = { signedIn: false, memberLoading: false, scope: accessScope('c1', null, null), missingFor: null };
+  const unlinked = { signedIn: true, memberLoading: false, scope: accessScope('c1', 'u1', null), missingFor: null };
+  const linked = { signedIn: true, memberLoading: false, scope: accessScope('c1', 'u1', 'p1'), missingFor: null };
+
+  it('reads for a visitor at once, whatever the member load is doing', () => {
+    expect(accessReadDue(visitor)).toBe(true);
+    expect(accessReadDue({ ...visitor, memberLoading: true })).toBe(true);
+  });
+  it("waits while a signed-in person's link to the community is being looked up", () => {
+    // A returning member then gets one read, after their link is known, not one now and another after it.
+    expect(accessReadDue({ ...linked, memberLoading: true, scope: accessScope('c1', 'u1', null) })).toBe(false);
+  });
+  it('reads once the link is known: for a new login that is not linked yet, and again when it is linked', () => {
+    expect(accessReadDue(unlinked)).toBe(true);
+    expect(accessReadDue(linked)).toBe(true);
+  });
+  it('does not ask a portal without the function again for the same person and community', () => {
+    expect(accessReadDue({ ...visitor, missingFor: visitor.scope })).toBe(false);
+    expect(accessReadDue({ ...linked, missingFor: linked.scope })).toBe(false);
+  });
+  it('asks again for another person or community, and when the last read did not find the function missing', () => {
+    // An old portal for the visitor, then the portal is deployed: the member's read works (missingFor goes back to null).
+    expect(accessReadDue({ ...linked, missingFor: visitor.scope })).toBe(true);
+    expect(accessReadDue({ ...visitor, missingFor: linked.scope })).toBe(true);
+    expect(accessReadDue({ ...visitor, scope: accessScope('c2', null, null), missingFor: visitor.scope })).toBe(true);
+    expect(accessReadDue(visitor)).toBe(true);
   });
 });

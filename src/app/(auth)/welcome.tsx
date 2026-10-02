@@ -6,11 +6,10 @@ import { FullScreen } from '@/components/full-screen';
 import type { IconName } from '@/components/icon';
 import { ErrorState } from '@/components/states';
 import { Button, LinkText, Txt, VStack } from '@/components/ui';
-import { openAfterGuest } from '@/features/guest-door';
-import { GUEST_DOORS, guestAreas, type GuestDoor } from '@/lib/access';
+import { openAfterGuest, useGuestDoors } from '@/features/guest-door';
+import { GUEST_DOORS, type GuestDoor } from '@/lib/access';
 import { useAccess } from '@/providers/access';
 import { useApp } from '@/providers/app';
-import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { fonts, space } from '@/theme';
 
@@ -19,7 +18,7 @@ const DOOR_ICON: Record<GuestDoor, IconName> = { darshan: 'eye-outline', puja: '
 /**
  * Onboarding step 0 (Onboarding.dc.html s0; docs/PROTOTYPE_ONBOARDING.md §1.3), with "Without signing in":
  * a button for each area the community lets a visitor use (Live darshan, Virtual puja, by the organization's
- * access levels), which enters guest mode and opens it.
+ * access levels) that has something to open here, which enters guest mode and opens it.
  */
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -27,8 +26,7 @@ export default function WelcomeScreen() {
   const { center, setGuest, switchCommunity } = useApp();
   const brand = useBranding();
   const access = useAccess();
-  const { map } = useModules();
-  const doors = guestAreas(access.snapshot, map);
+  const doors = useGuestDoors();
   const openDoor = (door: GuestDoor) => {
     openAfterGuest(door);
     setGuest(true);

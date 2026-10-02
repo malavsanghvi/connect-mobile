@@ -1,8 +1,16 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
-import { GUEST_DOORS, type GuestDoor } from '@/lib/access';
+import { doorCheckFor, GUEST_DOORS, guestAreas, guestDoorsToShow, type GuestDoor } from '@/lib/access';
+import { loadGyan } from '@/lib/api/gyan';
+import { loadToday } from '@/lib/api/home';
+import { darshanDoorVisible } from '@/lib/darshan';
+import { useLoad } from '@/lib/use-load';
+import { useAccess } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useModules } from '@/providers/modules';
+
+import { findPuja, NAVANG_GOAL_KEY } from './puja/puja-logic';
 
 /**
  * The screen a visitor chose on the Welcome screen ("Without signing in › Watch live darshan / Do puja"),
@@ -14,6 +22,34 @@ let pending: string | null = null;
 /** Call just before entering guest mode from the Welcome screen. */
 export function openAfterGuest(door: GuestDoor): void {
   pending = GUEST_DOORS[door].route;
+}
+
+/**
+ * The doors the Welcome screen offers a visitor ("Without signing in"): the areas the organization's access levels
+ * open to the public, that lead somewhere in this community. The same test as Home's doors, so a visitor is not
+ * taken to "Live darshan is offline" or "The virtual puja isn't available yet": the darshan door needs a stream or
+ * an aarti time (Today's load), the puja door needs the community's Navang puja lesson. Both are read without a
+ * session. Empty until the answer and the checks are in; a check that fails keeps its door (the screen says what
+ * went wrong, with Try again).
+ */
+export function useGuestDoors(): GuestDoor[] {
+  const { center } = useApp();
+  const { snapshot } = useAccess();
+  const { map } = useModules();
+  const open = guestAreas(snapshot, map);
+  const wantDarshan = open.includes('darshan');
+  const wantPuja = open.includes('puja');
+  const darshan = useLoad(
+    () => (wantDarshan && center ? loadToday(center).then((today) => darshanDoorVisible(true, !!today.darshan, today.timings?.aarti ?? null)) : Promise.resolve(false)),
+    [wantDarshan, center?.id],
+    'check for live darshan',
+  );
+  const puja = useLoad(
+    () => (wantPuja && center ? loadGyan(center, [], { goalKey: NAVANG_GOAL_KEY }).then((d) => findPuja(d.goals) !== null) : Promise.resolve(false)),
+    [wantPuja, center?.id],
+    'check for the virtual puja',
+  );
+  return guestDoorsToShow(open, { darshan: doorCheckFor(wantDarshan, darshan), puja: doorCheckFor(wantPuja, puja) });
 }
 
 /**

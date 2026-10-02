@@ -9,6 +9,7 @@
  * The loader and `useModule()` live in `src/providers/modules.tsx`.
  */
 import type { FeatureKey } from './access';
+import type { MediaKind } from './media-library';
 
 export const MODULE_KEYS = [
   'people',
@@ -394,8 +395,12 @@ export const ROUTE_FEATURE: Record<string, FeatureKey> = {
   'guide/zones': 'guide',
 };
 
-/** `media/[kind]` and `media/[kind]/[id]`: stavans and podcasts are Listen, videos and recipes are Look. */
-export const MEDIA_KIND_FEATURE: Record<string, FeatureKey> = {
+/**
+ * The area of each kind of library item: stavans and podcasts are Listen, videos and recipes are Look. The route
+ * gate reads it from the screen's address (`media/[kind]`), and `MediaItemView` from the item itself, because a
+ * link can open an item under any kind. Every kind has an area (the type sees to it).
+ */
+export const MEDIA_KIND_FEATURE: Record<MediaKind, FeatureKey> = {
   stavan: 'listen',
   podcast: 'listen',
   video: 'look',

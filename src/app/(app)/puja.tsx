@@ -188,6 +188,9 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
     const done = pujaDoneNote(state.slips, activity.maxSlips);
     setNote(null);
     announce(`${t('puja.complete')} ${t(done.key, done.vars)}`);
+    // A visitor's puja is not recorded, so no try line follows: say what signing in gives, after the completion
+    // (a member's try line is queued the same way when it is saved).
+    if (pujaPoints(personId) === 'sign_in') announce(t('puja.guestPoints'), { queue: true });
     void tries.record({ success: practiceSuccess(state, activity.maxSlips), score: practiceScore(spots.length, state.slips), detail: pujaTryDetail(state.slips, spots.length) });
   };
 
@@ -256,14 +259,17 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
 
 /**
  * Under a puja done without signing in: nothing was recorded, so say plainly what signing in gives, with a
- * Sign in button (back to the Welcome screen).
+ * Sign in button (back to the Welcome screen). Screen readers on a phone are told by the touch that completed the
+ * puja (announce); browsers read the live region.
  */
 function SignInForPoints() {
   const t = useT();
   const { setGuest } = useApp();
   return (
     <Card tone="panel">
-      <Txt variant="smallStrong">{t('puja.guestPoints')}</Txt>
+      <Txt variant="smallStrong" accessibilityLiveRegion={webLiveRegion}>
+        {t('puja.guestPoints')}
+      </Txt>
       <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
     </Card>
   );

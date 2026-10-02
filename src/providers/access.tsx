@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { accessScope, currentSlot, decideFeature, fallbackSnapshot, settleSlot, type AccessRead, type AccessReason, type AccessSlot, type AccessSnapshot, type FeatureKey } from '@/lib/access';
+import { accessReadDue, accessScope, currentSlot, decideFeature, fallbackSnapshot, settleSlot, type AccessRead, type AccessReason, type AccessSlot, type AccessSnapshot, type FeatureKey } from '@/lib/access';
 import { loadAccess } from '@/lib/api/access';
 import { report, type AppError } from '@/lib/errors';
 import { useApp } from '@/providers/app';
@@ -32,53 +32,57 @@ async function readAccess(centerId: string, signedIn: boolean): Promise<AccessRe
 /**
  * Loads `app.feature_access_for_me` once the community is known: for a signed-in person AND for a visitor
  * who is not signed in (the anonymous role may call it). It reads again when the person signs in or out,
- * when the community is switched and after any write (so a membership that was just recorded shows up).
+ * when the community is switched, when a login becomes linked to the community (onboarding: the database
+ * counts a login that is not linked yet as public) and after any write (so a membership that was just recorded
+ * shows up). A signed-in person's first read waits until their link to the community is known.
  * An answer belongs to one person in one community and is never shown to another. A portal that does not
  * have the function yet gets the rules from before access levels (members: everything; visitors: the guide
  * and today's timings), so this app can ship before the database change.
  */
 export function AccessProvider({ children }: { children: ReactNode }) {
-  const { center, session } = useApp();
+  const { center, session, member, memberLoading } = useApp();
   const { version } = useDataVersion();
   const centerId = center?.id ?? null;
   const signedIn = !!session;
-  const scope = accessScope(centerId, session?.user.id ?? null);
+  // The person the login is linked to in this community: the answer changes when the link is made.
+  const scope = accessScope(centerId, session?.user.id ?? null, member?.person.id ?? null);
   const [slot, setSlot] = useState<AccessSlot | null>(null);
-  // The latest inputs for reload(), and the scope a portal without the function was found for.
-  const latest = useRef({ centerId, signedIn, scope });
+  // The latest inputs for reload(), and the scope the last read found the function missing for (null when it did not).
+  const latest = useRef({ centerId, signedIn, scope, waiting: signedIn && memberLoading });
   const missingFor = useRef<string | null>(null);
   useEffect(() => {
-    latest.current = { centerId, signedIn, scope };
+    latest.current = { centerId, signedIn, scope, waiting: signedIn && memberLoading };
   });
 
+  /** Hold one read, and remember whether it found the function missing, for this person and community only. */
+  const settle = useCallback((forScope: string, read: AccessRead & { missing?: boolean }) => {
+    missingFor.current = 'missing' in read && read.missing ? forScope : null;
+    setSlot((prev) => settleSlot(prev, forScope, read));
+  }, []);
+
   useEffect(() => {
-    if (!centerId) return;
-    // A portal that lacks the function does not gain it between two writes: ask again when the person or the community changes.
-    if (missingFor.current === scope) return;
+    if (!centerId || !accessReadDue({ signedIn, memberLoading, scope, missingFor: missingFor.current })) return;
     let active = true;
     void readAccess(centerId, signedIn).then((read) => {
-      if (!active) return;
-      if ('missing' in read && read.missing) missingFor.current = scope;
-      setSlot((prev) => settleSlot(prev, scope, read));
+      if (active) settle(scope, read);
     });
     return () => {
       active = false;
     };
-    // `scope` is the community and the person; `version` reads again after a write.
-  }, [centerId, signedIn, scope, version]);
+    // `scope` is the community, the login and the person it is linked to; `version` reads again after a write.
+  }, [centerId, signedIn, memberLoading, scope, version, settle]);
 
   const reload = useCallback(async () => {
-    const { centerId: c, signedIn: s, scope: sc } = latest.current;
-    if (!c) return;
+    const { centerId: c, signedIn: s, scope: sc, waiting } = latest.current;
+    // Nothing to retry before the community is known or while the person's link is being looked up (the read follows by itself).
+    if (!c || waiting) return;
     // Show "checking" again while the retry runs.
     setSlot((prev) => (prev && prev.scope === sc && !prev.snapshot ? { ...prev, error: null } : prev));
-    missingFor.current = null;
     const read = await readAccess(c, s);
     // The person or the community changed while this was on its way: that answer is not wanted any more.
     if (latest.current.scope !== sc) return;
-    if ('missing' in read && read.missing) missingFor.current = sc;
-    setSlot((prev) => settleSlot(prev, sc, read));
-  }, []);
+    settle(sc, read);
+  }, [settle]);
 
   const current = currentSlot(slot, scope);
   const snapshot = current?.snapshot ?? null;
