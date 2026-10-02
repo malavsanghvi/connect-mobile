@@ -36,7 +36,7 @@ const DEFAULT_ASPECT = 3 / 4;
 const MAX_IMAGE_HEIGHT = 560;
 
 /** What the picture (or, without one, the list) needs from a mode. */
-type SpotsProps = {
+export type SpotsProps = {
   activity: HotspotActivity;
   look: (s: HotspotSpot, i: number) => SpotLook;
   onTouch: (s: HotspotSpot) => void;
@@ -261,9 +261,10 @@ function ordered(activity: HotspotActivity, look: SpotsProps['look'], order: Spo
  * The picture with its spots, sized to the picture's own shape so fractions
  * land where they should. When the picture can't be shown (none added, not in
  * this version of the app, or it failed to load), the spots become a list of
- * buttons, so the step can still be learned and practised.
+ * buttons, so the step can still be learned and practised. The virtual puja
+ * (src/app/(app)/puja.tsx) draws its picture with this too.
  */
-function SpotPicture(props: SpotsProps) {
+export function SpotPicture(props: SpotsProps) {
   const t = useT();
   const img = useActivityImage(props.activity.image, t('gyan.imageMissing'));
   const picture = usePictureRetry(img);

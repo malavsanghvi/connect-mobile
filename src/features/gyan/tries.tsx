@@ -23,13 +23,16 @@ export type TryState =
   | { status: 'saved'; success: boolean; line: Line }
   | { status: 'error'; message: string; code: string | null; pending: Pending };
 
+/** What recording tries needs from its screen: a lesson step, or the virtual puja (src/app/(app)/puja.tsx). */
+export type TryContext = Pick<StepContext, 'centerId' | 'personId' | 'timeZone' | 'rules' | 'step' | 'addPracticePoints' | 'burst' | 'reloadLesson'>;
+
 /**
  * Practice tries for one step: today's "N of 10" counter and recording each
  * try through app.record_gyan_attempt (which awards the repeat points).
  * A try that could not be saved says so, with Try again (the same try id, so
  * a try the server did record is never paid twice).
  */
-export function usePracticeTries(ctx: StepContext) {
+export function usePracticeTries(ctx: TryContext) {
   const t = useT();
   const counter = useLoad(() => loadTriesToday(ctx.personId, ctx.step.id, ctx.timeZone), [ctx.personId, ctx.step.id], 'load your practice tries for today');
   const [latest, setLatest] = useState<AttemptResult | null>(null);

@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.4 — 2026-10-02
+
+- **Virtual puja.** **Do puja** sits under Watch live darshan on Home's Today card. It goes straight to the Navang puja
+  of Mahavir Swami on the derasar photo: touch the places in order ("Touch 1 of 13"), and a wrong touch shows the right
+  spot. A completed puja is a practice try and earns the usual points (up to the community's daily limit).
+- **Learning when you need it.** "Learn the order" is always under the photo. After two wrong touches, or with "I'm not
+  sure", the puja offers to teach it step by step, then brings you back to your puja where you left off.
+- Also opens from a link: connect://puja (or /puja on the web).
+
 ## 1.6.3 — 2026-10-02
 
 - **Ask Niva from more places.** An **Ask Niva** tile on the Guide ("Quick answers, with sources"), an **Ask Niva** item in

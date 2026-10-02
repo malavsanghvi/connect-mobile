@@ -1,4 +1,5 @@
-import { AccessibilityInfo, Platform } from 'react-native';
+import type { RefObject } from 'react';
+import { AccessibilityInfo, Platform, type View } from 'react-native';
 
 /**
  * Say a line that is also shown in a live region that stays on screen
@@ -27,3 +28,18 @@ export function announce(text: string, opts?: { queue?: boolean }): void {
 
 /** The live region for a note that announce() already says on a phone: only browsers read it, so nobody hears it twice. */
 export const webLiveRegion: 'polite' | 'none' = Platform.OS === 'web' ? 'polite' : 'none';
+
+/**
+ * Move the screen reader to a view, for when the control that was pressed
+ * has just gone (VoiceOver and TalkBack would otherwise drop to the top of
+ * the screen). It reads the view, so no announce() is needed as well. After
+ * a moment, so the view is on screen first; returns a cancel for effects.
+ * Nothing on the web, where focus stays on the page.
+ */
+export function focusSoon(ref: RefObject<View | null>, delayMs = 300): () => void {
+  if (Platform.OS === 'web') return () => undefined;
+  const timer = setTimeout(() => {
+    if (ref.current) AccessibilityInfo.sendAccessibilityEvent(ref.current, 'focus');
+  }, delayMs);
+  return () => clearTimeout(timer);
+}
