@@ -4247,6 +4247,7 @@ export type Database = {
           model: string | null;
           answered_at: string | null;
           attempted_at: string | null;
+          is_test: boolean;
         };
         Insert: {
           id?: string;
@@ -4262,6 +4263,7 @@ export type Database = {
           model?: string | null;
           answered_at?: string | null;
           attempted_at?: string | null;
+          is_test?: boolean;
         };
         Update: {
           id?: string;
@@ -4277,6 +4279,43 @@ export type Database = {
           model?: string | null;
           answered_at?: string | null;
           attempted_at?: string | null;
+          is_test?: boolean;
+        };
+        Relationships: [];
+      };
+      niva_site_pages: {
+        Row: {
+          id: string;
+          center_id: string;
+          site: string;
+          url: string;
+          url_key: string;
+          lastmod: string | null;
+          discovered_at: string;
+          last_import_job: number | null;
+          last_hash: string | null;
+        };
+        Insert: {
+          id?: string;
+          center_id: string;
+          site: string;
+          url: string;
+          url_key: string;
+          lastmod?: string | null;
+          discovered_at?: string;
+          last_import_job?: number | null;
+          last_hash?: string | null;
+        };
+        Update: {
+          id?: string;
+          center_id?: string;
+          site?: string;
+          url?: string;
+          url_key?: string;
+          lastmod?: string | null;
+          discovered_at?: string;
+          last_import_job?: number | null;
+          last_hash?: string | null;
         };
         Relationships: [];
       };
@@ -10421,6 +10460,19 @@ export type Database = {
         };
         Returns: string;
       };
+      niva_discover_site: {
+        Args: {
+          p_center: string;
+          p_url: string;
+        };
+        Returns: number;
+      };
+      niva_discovery_status: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
+      };
       niva_health: {
         Args: {
           p_center: string;
@@ -10461,6 +10513,20 @@ export type Database = {
           p_kinds: string[];
         };
         Returns: string[];
+      };
+      niva_test_ask: {
+        Args: {
+          p_center: string;
+          p_question: string;
+          p_include_in_review?: boolean;
+        };
+        Returns: Json;
+      };
+      niva_test_result: {
+        Args: {
+          p_id: string;
+        };
+        Returns: Json;
       };
       normalize_ein: {
         Args: {

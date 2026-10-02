@@ -8,7 +8,8 @@ export type NivaConversation = Tables<'niva_conversations'>;
 /** This login's recent questions (RLS niva_own; rows are kept 30 days). Oldest first, as a chat reads. */
 export async function listMyNivaQuestions(centerId: string, userId: string): Promise<NivaConversation[]> {
   const rows = must(
-    await supabase.from('niva_conversations').select('*').eq('center_id', centerId).eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
+    // Staff test-box questions (connect-crm 0575, is_test) belong to the portal, not the member's own history.
+    await supabase.from('niva_conversations').select('*').eq('center_id', centerId).eq('user_id', userId).eq('is_test', false).order('created_at', { ascending: false }).limit(30),
     'load your Niva questions',
   );
   return rows.reverse();
