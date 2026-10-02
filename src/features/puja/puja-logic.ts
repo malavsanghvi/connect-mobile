@@ -47,8 +47,8 @@ function hotspotSteps(goal: GyanGoal, mode: HotspotActivity['mode']): PujaStep[]
  * which hides the Home button.
  */
 export function findPuja(goals: readonly GyanGoal[], key: string = NAVANG_GOAL_KEY): PujaLesson | null {
-  const want = key.trim().toLowerCase();
-  const matching = goals.filter((g) => (g.key ?? '').trim().toLowerCase() === want);
+  // The exact key, as loadGyan filters it on the server (and the content pack matches goals there).
+  const matching = goals.filter((g) => g.key === key);
   const ordered = [...matching.filter((g) => g.center_id !== null), ...matching.filter((g) => g.center_id === null)];
   for (const goal of ordered) {
     const practice = hotspotSteps(goal, 'practice')[0];
@@ -135,4 +135,56 @@ export function stepRun(screens: readonly { step: { id: string } }[], stepId: st
   let count = 0;
   while (start + count < screens.length && screens[start + count].step.id === stepId) count += 1;
   return { start, count };
+}
+
+/**
+ * Finishing this step (opened from the puja) completes its level now: every
+ * other step of the level was already done when the lesson opened, and the
+ * level wasn't. The server then pays the level bonus (and any treasure) too.
+ */
+export function completesLevel(stepIds: readonly string[], stepId: string, alreadyDone: ReadonlySet<string>, wasLevelDone: boolean): boolean {
+  return !wasLevelDone && stepIds.includes(stepId) && stepIds.every((id) => id === stepId || alreadyDone.has(id));
+}
+
+/**
+ * What the puja says once the member has learned the order. `points` is
+ * what the server paid for it (the step's points, plus the level bonus and
+ * treasure when it completed the lesson); null when that couldn't be read,
+ * so no number is claimed.
+ */
+export function learnedLine(points: number | null, levelDone: boolean): Line {
+  if (points !== null && points > 0) return levelDone ? { key: 'puja.learnedLevelPoints', vars: { n: points } } : { key: 'puja.learnedPoints', vars: { n: points } };
+  return levelDone ? { key: 'puja.learnedLevel' } : { key: 'puja.learned' };
+}
+
+/*
+ * Learning from the puja and coming back. The puja says it is waiting when it
+ * opens the learn step (awaitLearned); the level screen hands over what to
+ * say once the step is done (handLearned); the puja takes it when it is back
+ * in front (takeLearned). Backing out without finishing the step hands
+ * nothing over, so the try in progress is kept as it was.
+ */
+let learnHandoff: { waiting: boolean; note: string | null } = { waiting: false, note: null };
+
+/** The puja is opening the learn step and will come back to it. */
+export function awaitLearned(): void {
+  learnHandoff = { waiting: true, note: null };
+}
+
+/**
+ * The level screen: the learn step opened from the puja is done. True when a
+ * puja is waiting for it (it shows and says `note` once it is back in front);
+ * false when none is, and the level screen tells the member itself.
+ */
+export function handLearned(note: string): boolean {
+  if (!learnHandoff.waiting) return false;
+  learnHandoff = { waiting: false, note };
+  return true;
+}
+
+/** The puja, back in front: what to say when the member learned the order meanwhile (the try starts over), else null (the try goes on). */
+export function takeLearned(): string | null {
+  const { note } = learnHandoff;
+  learnHandoff = { waiting: false, note: null };
+  return note;
 }

@@ -5,17 +5,18 @@ import { AccessibilityInfo, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
 import { useInAppAudio } from '@/features/audio';
-import { announceIos } from '@/features/gyan/a11y';
-import { Celebration, type RunResult } from '@/features/gyan/celebration';
+import { announce } from '@/features/gyan/a11y';
+import { Celebration, CLOCK_SKEW_MS, type RunResult } from '@/features/gyan/celebration';
 import { PointsBurst } from '@/features/gyan/confetti';
 import { logSkippedContent } from '@/features/gyan/lesson-frame';
 import { haptic } from '@/features/gyan/motion';
+import { levelAwards } from '@/features/gyan/points';
 import { quizStars } from '@/features/gyan/quiz-logic';
 import { lessonScreens, STEP_COMPONENTS, stepKindLabel, stepRenderer } from '@/features/gyan/registry';
 import type { Burst, StepContext, StepResult } from '@/features/gyan/step-types';
 import { GyanHeaderChips } from '@/features/gyan-header';
-import { RETURN_TO_PUJA, stepRun } from '@/features/puja/puja-logic';
-import { completeStep, isLevelDone, isStepDone, loadGyan, type GyanData, type GyanGoal, type GyanLevel } from '@/lib/api/gyan';
+import { completesLevel, handLearned, learnedLine, RETURN_TO_PUJA, stepRun } from '@/features/puja/puja-logic';
+import { completeStep, isLevelDone, isStepDone, loadGyan, loadLevelAwards, type GyanData, type GyanGoal, type GyanLevel } from '@/lib/api/gyan';
 import type { ContentItem } from '@/lib/api/jainway';
 import { must, report } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
@@ -161,11 +162,35 @@ function Lesson({ data, goal, level, content, startStepId, backToPuja }: { data:
       setRun((r) => ({ ...r, stars: { ...r.stars, [step.id]: stars } }));
       setMissedInStep(0);
       if (single) {
-        // Learned from the virtual puja: back to the puja (the step's first-time points are in the note).
-        const note = firstTime && step.points > 0 ? t('puja.learnedPoints', { n: step.points }) : t('puja.learned');
-        toast(note);
-        announceIos(note); // the toast is a live region, which TalkBack and browsers read themselves
+        // Learned from the virtual puja: back to the puja, saying the points the server paid for it.
+        const stepIds = level.steps.map((x) => x.id);
+        const levelDone = completesLevel(stepIds, step.id, alreadyDone, wasLevelDone);
+        let points: number | null = firstTime ? step.points : 0;
+        if (levelDone) {
+          // The lesson is complete too, so the server also paid the level bonus (and any treasure): read what it paid,
+          // as the celebration does. Saving stays on meanwhile, so Continue can't finish the step twice.
+          setSaving(true);
+          try {
+            const a = levelAwards(await loadLevelAwards(me, level, new Date(startedAt - CLOCK_SKEW_MS).toISOString()), { stepIds, levelId: level.id, alreadyDone, wasLevelDone });
+            points = a.steps + a.bonus + a.treasure;
+          } catch (err) {
+            report(err, 'load the points from this level');
+            points = null; // the note then says the lesson is finished, without a number
+          } finally {
+            setSaving(false);
+          }
+        }
+        const line = learnedLine(points, levelDone);
+        const note = t(line.key, line.vars);
         haptic('right');
+        // The puja that opened this step shows and says the note once it is back in front (a line said now would be
+        // cut off by the move back, and TalkBack often misses a toast that has only just appeared).
+        if (router.canGoBack() && handLearned(note)) {
+          router.back();
+          return;
+        }
+        toast(note);
+        announce(note);
         if (router.canGoBack()) router.back();
         else router.replace('/puja');
         return;

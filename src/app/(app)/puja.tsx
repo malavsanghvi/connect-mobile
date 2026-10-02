@@ -1,11 +1,11 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Animated, Easing, Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { Button, Card, Row, Txt, VStack } from '@/components/ui';
-import { announce, webLiveRegion } from '@/features/gyan/a11y';
+import { announce, focusSoon, webLiveRegion } from '@/features/gyan/a11y';
 import type { HotspotSpot } from '@/features/gyan/activity';
 import { PointsBurst } from '@/features/gyan/confetti';
 import { SpotPicture } from '@/features/gyan/hotspot';
@@ -17,6 +17,7 @@ import { TryResult, usePracticeTries, type TryState } from '@/features/gyan/trie
 import { Button3D } from '@/features/gyan-ui';
 import {
   askedUnsure,
+  awaitLearned,
   dismissedOffer,
   findPuja,
   learnRoute,
@@ -25,6 +26,7 @@ import {
   pujaDoneNote,
   pujaTryDetail,
   showTeachOffer,
+  takeLearned,
   teachOfferAppeared,
   type PujaLesson,
   type TeachOffer,
@@ -47,7 +49,8 @@ import { colors, radii, space, touch } from '@/theme';
  * try (app.record_gyan_attempt: try points up to the community's daily cap).
  * It teaches only when needed: "Learn the order" is always there, and after
  * two wrong touches in a try (or "I'm not sure") it offers the learn step,
- * which comes back here when done.
+ * which comes back here when done. The photo comes straight after the intro
+ * and the pinned footer stays short, so the spots stay on screen during a try.
  */
 export default function PujaScreen() {
   const t = useT();
@@ -137,6 +140,32 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
     announce(text); // VoiceOver and TalkBack are told here; the note is a live region only on the web
   };
 
+  // When a pressed control gives way (I'm not sure → the offer, Do it again → a fresh try), screen readers are moved
+  // to what replaced it instead of dropping to the top of the screen.
+  const offerTitle = useRef<View>(null);
+  const counter = useRef<View>(null);
+  const [focusTo, setFocusTo] = useState<{ on: 'offer' | 'counter'; n: number } | null>(null);
+  useEffect(() => (focusTo ? focusSoon(focusTo.on === 'offer' ? offerTitle : counter) : undefined), [focusTo]);
+  const moveFocus = (on: 'offer' | 'counter') => setFocusTo((f) => ({ on, n: (f?.n ?? 0) + 1 }));
+
+  // Back from the learn step: only when the member finished it does the try in progress start over (a finished
+  // try stays, with Do it again); backing out of the lesson keeps the try and its hint as they were.
+  const learning = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!learning.current) return;
+      learning.current = false;
+      const learned = takeLearned();
+      if (learned === null) return;
+      setPractice((p) => (p.done ? p : freshPractice()));
+      setOffer(NO_OFFER);
+      setNote({ text: learned, ok: true, announced: true });
+      // Said once this screen is back in front: a line said during the move back would be cut off.
+      const timer = setTimeout(() => announce(learned, { queue: true }), 400);
+      return () => clearTimeout(timer);
+    }, []),
+  );
+
   const touchSpot = (s: HotspotSpot) => {
     const { state, outcome } = practiceTap(practice, spots, s.key);
     if (outcome === 'ignored') return;
@@ -165,29 +194,26 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
     setNote(null);
     setOffer(NO_OFFER);
     tries.reset();
-    announce(t('gyan.spotOf', { n: 1, total: spots.length }));
+    moveFocus('counter'); // "Touch 1 of 13" is read out
   };
 
   const unsure = () => {
     setOffer(askedUnsure());
-    // The button gives way to the offer, so screen readers are told what appeared.
-    announce(`${t('puja.offerTitle')} ${t('puja.offerBody')}`);
+    moveFocus('offer'); // the button gives way to the offer, whose question is read out
   };
 
   const openLearn = () => {
     if (!learn) return;
-    // A try in progress starts over when the member comes back: they chose to learn the order first.
-    if (!practice.done && (practice.next > 0 || practice.slips > 0)) {
-      setPractice(freshPractice());
-      setNote(null);
-    }
-    setOffer(NO_OFFER);
+    // Nothing changes here yet: the try starts over only if the member finishes the learn step (see above).
+    learning.current = true;
+    awaitLearned();
     router.push(learnRoute(lesson.goal.id, learn));
   };
 
   const doneLine = pujaDoneNote(practice.slips, activity.maxSlips);
   const footer = practice.done ? (
     <VStack gap={space.md}>
+      {note ? <FeedbackNote text={note.text} ok={note.ok} announced={note.announced} /> : null}
       <Completion title={t('puja.complete')} line={t(doneLine.key, doneLine.vars)} />
       <TryResult tries={tries} />
       <Button3D label={t('puja.again')} bg={colors.green} edge={colors.greenDark} disabled={tries.saving} onPress={again} />
@@ -196,11 +222,13 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
   ) : (
     <VStack gap={space.sm}>
       {note ? <FeedbackNote text={note.text} ok={note.ok} announced={note.announced} /> : null}
-      {offering ? <TeachOfferCard onLearn={openLearn} onDismiss={() => setOffer(dismissedOffer())} /> : null}
+      {offering ? <TeachOfferCard titleRef={offerTitle} onLearn={openLearn} onDismiss={() => setOffer(dismissedOffer())} /> : null}
       <Row gap={space.sm} style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <Txt variant="smallStrong" color="brown">
-          {t('gyan.spotOf', { n: Math.min(practice.next + 1, spots.length), total: spots.length })}
-        </Txt>
+        <View ref={counter} accessible>
+          <Txt variant="smallStrong" color="brown">
+            {t('gyan.spotOf', { n: Math.min(practice.next + 1, spots.length), total: spots.length })}
+          </Txt>
+        </View>
         {hasLearn && !offering ? <Quiet label={t('puja.unsure')} onPress={unsure} /> : null}
       </Row>
     </VStack>
@@ -209,16 +237,15 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
   return (
     <View style={{ flex: 1 }}>
       <Frame footer={footer}>
-        <VStack gap={space.xs}>
-          <Txt variant="small" color="ink2">
-            {t('puja.intro')}
-          </Txt>
-          {hasLearn ? <Quiet label={t('puja.learnOrder')} hint={t('puja.learnHint')} onPress={openLearn} link /> : null}
-        </VStack>
+        <Txt variant="small" color="ink2">
+          {t('puja.intro')}
+        </Txt>
         {refreshError ? <ErrorState error={refreshError} onRetry={() => void reload()} /> : null}
         <Animated.View style={shake.style}>
           <SpotPicture activity={activity} look={practiceLook(practice)} onTouch={touchSpot} labelFor={(s) => t('gyan.spotPracticeA11y', { label: s.label })} order="position" />
         </Animated.View>
+        {/* Below the photo, so the whole photo fits on a small phone at the start of a try. */}
+        {hasLearn ? <Quiet label={t('puja.learnOrder')} hint={t('puja.learnHint')} onPress={openLearn} link /> : null}
       </Frame>
       {burst ? <PointsBurst key={burst.id} seed={burst.id * 101} label={burst.points ? t('gyan.plusPoints', { n: burst.points }) : (burst.message ?? null)} confetti={burst.confetti} /> : null}
     </View>
@@ -241,17 +268,20 @@ function Quiet({ label, hint, onPress, link, center }: { label: string; hint?: s
   );
 }
 
-/** "Want to learn it step by step?" with Learn step by step / Not now. */
-function TeachOfferCard({ onLearn, onDismiss }: { onLearn: () => void; onDismiss: () => void }) {
+/**
+ * "Want to learn it step by step?" with Learn step by step / Not now. Kept
+ * short (the Learn button's hint says what it shows): it sits in the pinned
+ * footer, and every line there hides part of the photo.
+ */
+function TeachOfferCard({ titleRef, onLearn, onDismiss }: { titleRef: RefObject<View | null>; onLearn: () => void; onDismiss: () => void }) {
   const t = useT();
   return (
-    <View style={{ backgroundColor: colors.navyTint, borderRadius: radii.row, paddingVertical: 12, paddingHorizontal: 14, gap: space.sm }} accessibilityLiveRegion={webLiveRegion}>
-      <Txt variant="smallStrong" color="navy">
-        {t('puja.offerTitle')}
-      </Txt>
-      <Txt variant="small" color="ink2">
-        {t('puja.offerBody')}
-      </Txt>
+    <View style={{ backgroundColor: colors.navyTint, borderRadius: radii.row, paddingVertical: 10, paddingHorizontal: 14, gap: space.xs }} accessibilityLiveRegion={webLiveRegion}>
+      <View ref={titleRef} accessible>
+        <Txt variant="smallStrong" color="navy">
+          {t('puja.offerTitle')}
+        </Txt>
+      </View>
       <Row gap={space.md} style={{ flexWrap: 'wrap' }}>
         <Button label={t('puja.offerYes')} onPress={onLearn} size="sm" fill={false} accessibilityHint={t('puja.learnHint')} />
         <Quiet label={t('puja.offerNo')} onPress={onDismiss} />

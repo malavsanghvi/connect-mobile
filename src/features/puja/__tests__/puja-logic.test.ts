@@ -5,8 +5,12 @@ import type { GyanGoal, GyanLevel, GyanStep } from '../../../lib/api/gyan';
 import { blockingModule } from '../../../lib/modules';
 import {
   askedUnsure,
+  awaitLearned,
+  completesLevel,
   dismissedOffer,
   findPuja,
+  handLearned,
+  learnedLine,
   learnRoute,
   NAVANG_GOAL_KEY,
   NO_OFFER,
@@ -16,6 +20,7 @@ import {
   RETURN_TO_PUJA,
   showTeachOffer,
   stepRun,
+  takeLearned,
   TEACH_AFTER_SLIPS,
   teachOfferAppeared,
 } from '../puja-logic';
@@ -94,8 +99,9 @@ describe('findPuja', () => {
     expect(findPuja([empty, NAVANG])?.goal.id).toBe('navang');
   });
 
-  it('matches the key without regard to case or spaces', () => {
-    expect(findPuja([goal('g', NAVANG.levels, { key: ' Navang_Puja ' })])?.goal.id).toBe('g');
+  it('matches the key exactly, as loadGyan filters it on the server', () => {
+    expect(findPuja([goal('g', NAVANG.levels, { key: 'navang_puja' })])?.goal.id).toBe('g');
+    expect(findPuja([goal('g', NAVANG.levels, { key: 'Navang_Puja' })])).toBeNull();
   });
 
   it('teaches from the learn step in the same level, else the nearest level before it, else any', () => {
@@ -191,6 +197,44 @@ describe('Learn the order', () => {
       pathname: '/gyan/[goalId]/level/[levelId]',
       params: { goalId: 'navang', levelId: 'nine-places', step: 'learn', then: RETURN_TO_PUJA },
     });
+  });
+
+  it('knows when the learn step completes the lesson (the server then pays the level bonus too)', () => {
+    const ids = ['learn', 'practice'];
+    // The puja was done first: learning now finishes the one-level Navang lesson.
+    expect(completesLevel(ids, 'learn', new Set(['practice']), false)).toBe(true);
+    // Nothing done yet, or the lesson was already complete: no bonus now.
+    expect(completesLevel(ids, 'learn', new Set(), false)).toBe(false);
+    expect(completesLevel(ids, 'learn', new Set(['learn', 'practice']), true)).toBe(false);
+    // A step that isn't in the level never completes it.
+    expect(completesLevel(ids, 'gone', new Set(['learn', 'practice']), false)).toBe(false);
+  });
+
+  it('says what the server paid for learning the order, and never claims a number it could not read', () => {
+    const say = (points: number | null, levelDone: boolean) => {
+      const l = learnedLine(points, levelDone);
+      return translate('en', l.key, l.vars);
+    };
+    expect(say(10, false)).toBe("You've learned the order · +10 points. Now do the puja.");
+    expect(say(0, false)).toBe("You've learned the order. Now do the puja.");
+    expect(say(30, true)).toBe("You've learned the order and finished the lesson · +30 points. Now do the puja.");
+    expect(say(null, true)).toBe("You've learned the order and finished the lesson. Now do the puja.");
+    expect(say(0, true)).toBe("You've learned the order and finished the lesson. Now do the puja.");
+  });
+
+  it('starts the try over only when the member finished the learn step, not when they backed out', () => {
+    takeLearned(); // nothing left over from another test
+    // Backed out of the lesson: nothing was handed over, so the try goes on.
+    awaitLearned();
+    expect(takeLearned()).toBeNull();
+    // Finished: the puja is told what to say once it is back in front, once.
+    awaitLearned();
+    expect(handLearned('learned')).toBe(true);
+    expect(takeLearned()).toBe('learned');
+    expect(takeLearned()).toBeNull();
+    // No puja waiting (the level screen was opened some other way): the level screen tells the member itself.
+    expect(handLearned('learned')).toBe(false);
+    expect(takeLearned()).toBeNull();
   });
 
   it('finds where a step starts in the lesson, and how many screens it has', () => {

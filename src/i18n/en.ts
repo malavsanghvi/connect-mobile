@@ -1210,7 +1210,6 @@ export const en = {
   'puja.learnHint': 'Shows each place in order, with what to do and why, then brings you back to the puja.',
   'puja.unsure': "I'm not sure",
   'puja.offerTitle': 'Want to learn it step by step?',
-  'puja.offerBody': 'See each place in order, with what to do and why, then come back and do the puja.',
   'puja.offerYes': 'Learn step by step',
   'puja.offerNo': 'Not now',
   'puja.complete': 'Anumodana! Your Navang puja is complete.',
@@ -1228,6 +1227,8 @@ export const en = {
   'puja.unavailableBody': 'It uses the Navang puja lesson of Gyan Path. Once your community adds it, you can do the puja here.',
   'puja.learned': "You've learned the order. Now do the puja.",
   'puja.learnedPoints': "You've learned the order · +{n} points. Now do the puja.",
+  'puja.learnedLevel': "You've learned the order and finished the lesson. Now do the puja.",
+  'puja.learnedLevelPoints': "You've learned the order and finished the lesson · +{n} points. Now do the puja.",
 
   // Saathi
   'saathi.intro': "Celebrate each other's progress and lend a hand when someone falls behind. Anumodana earns you {anumodana} points, support earns {support}.",
