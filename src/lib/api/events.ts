@@ -1,5 +1,6 @@
 import type { Tables, TablesInsert } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
+import { isUuid } from '../flyer';
 import { withAuditReason } from '../request-context';
 import { supabase } from '../supabase';
 
@@ -41,6 +42,16 @@ export async function listRecentEvents(centerId: string, days = 30): Promise<Eve
 
 export async function getEvent(id: string): Promise<EventRow> {
   return must(await supabase.from('events').select('*').eq('id', id).single(), 'load this event');
+}
+
+/**
+ * The event, or null when there is no such event or this caller can't see it (RLS: a guest opening
+ * a members-only event from a flyer's QR link, or an event that is no longer published).
+ * A link with something other than an event id is "not found" too, never a database error.
+ */
+export async function findEvent(id: string): Promise<EventRow | null> {
+  if (!isUuid(id)) return null;
+  return maybe(await supabase.from('events').select('*').eq('id', id).maybeSingle(), 'load this event');
 }
 
 /** Most relevant RSVP of the household per event (an active one beats a cancelled one). */

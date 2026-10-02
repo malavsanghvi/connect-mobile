@@ -152,6 +152,7 @@ function RootNavigator() {
           <Stack.Screen name="(app)" />
         </Stack.Protected>
         <Stack.Screen name="join/[code]" />
+        <Stack.Screen name="e/[id]" />
       </Stack>
       {/* The legal step (#20) covers the app until the member's answers are recorded; the
           navigation underneath keeps its place, so onboarding continues where it was. */}

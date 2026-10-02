@@ -182,6 +182,22 @@ signed in, or opened on a link into one of the app's screens, opens it with no n
 The app themes itself from the community's brand kit (`centers.branding` colours and logo
 files) and shows "Sandbox · test data" over every screen of a sandbox.
 
+## Event flyers
+
+The portal (connect-crm › Events › builder) designs or uploads an event's flyer and stores its
+key in `events.flyer_path` (private `content` bucket). The event screen shows it under the title
+band (`src/features/event-flyer.tsx`) with **Share** (the system share sheet, so WhatsApp and
+Messages work) and **Save** (Photos; a download on the web), plus a full-screen viewer. Links are
+signed for an hour (`src/lib/api/flyers.ts`), signed again before Share/Save after 50 minutes,
+and once more if Storage refuses an expired link. Guests see the flyer of published public
+events (connect-crm 0578); members-only flyers stay private.
+
+The QR code on a flyer opens `https://<member web app>/e/<event id>` (`src/app/e/[id].tsx`,
+outside the route guards like `join/[code]`): a signed-out visitor browses the event as a guest
+(a members-only event says "This event is for members" with Sign in); a signed-in account goes
+through family matching, onboarding and the legal step as usual (`flyerLinkTarget` in
+`src/lib/flyer.ts`).
+
 ## Schema gaps
 
 Found while building against connect-crm migrations 0001–0017; the schema was not
