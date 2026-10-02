@@ -18,11 +18,15 @@ export type GyanSignoff = Tables<'gyan_signoffs'>;
 
 export type GyanData = { goals: GyanGoal[]; progress: GyanProgress[]; signoffs: GyanSignoff[] };
 
-/** Goals → levels → steps for the center (or its tradition), with progress for the given people. */
-export async function loadGyan(center: Center, personIds: string[]): Promise<GyanData> {
-  const goals = must(await supabase.from('gyan_goals').select('*').or(`center_id.eq.${center.id},center_id.is.null`).order('sort_order'), 'load Gyan Path goals').filter(
-    (g) => !g.tradition || g.tradition === center.tradition,
-  );
+/**
+ * Goals → levels → steps for the center (or its tradition), with progress for
+ * the given people. `goalKey` loads only the goals with that key (the virtual
+ * puja finds the Navang puja lesson by its key, without loading every lesson).
+ */
+export async function loadGyan(center: Center, personIds: string[], opts?: { goalKey?: string }): Promise<GyanData> {
+  let goalsQuery = supabase.from('gyan_goals').select('*').or(`center_id.eq.${center.id},center_id.is.null`);
+  if (opts?.goalKey) goalsQuery = goalsQuery.eq('key', opts.goalKey);
+  const goals = must(await goalsQuery.order('sort_order'), 'load Gyan Path goals').filter((g) => !g.tradition || g.tradition === center.tradition);
   const goalIds = goals.map((g) => g.id);
   const levels = goalIds.length ? must(await supabase.from('gyan_levels').select('*').in('goal_id', goalIds).order('sort_order'), 'load Gyan Path levels') : [];
   const levelIds = levels.map((l) => l.id);
