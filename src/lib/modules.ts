@@ -8,6 +8,7 @@
  * This file is pure (no React, no Supabase) so the whole map is unit-tested.
  * The loader and `useModule()` live in `src/providers/modules.tsx`.
  */
+import type { FeatureKey } from './access';
 
 export const MODULE_KEYS = [
   'people',
@@ -352,4 +353,68 @@ export function blockingModule(map: ModuleMap, routeName: string): ModuleKey | n
   const key = own(name) ?? own(`${name}/index`) ?? own(name.replace(/\/index$/, ''));
   if (!key || isModuleOn(map, key)) return null;
   return key;
+}
+
+// ---------------------------------------------------------------------------
+// Access levels: the area (src/lib/access.ts) each pushed screen belongs to
+// ---------------------------------------------------------------------------
+
+/**
+ * Pushed screens in the `(app)` stack → the access area they belong to, so the organization's minimum
+ * level for the area decides whether the screen opens (a visitor is asked to sign in; a member below the
+ * level is told which level it takes). Keys are route names, as in ROUTE_MODULE. A route with no entry
+ * needs no area: money, RSVPs, family and Pathshala always need a signed-in member and check it
+ * themselves, and Today's timings are not gated (`guide/timings`). The 3L library screens depend on what
+ * they open: see MEDIA_KIND_FEATURE.
+ */
+export const ROUTE_FEATURE: Record<string, FeatureKey> = {
+  darshan: 'darshan',
+  puja: 'puja',
+  niva: 'niva',
+  // Gyan Path lessons (the virtual puja's "Learn the order" opens one)
+  'gyan/index': 'learn',
+  'gyan/[goalId]/index': 'learn',
+  'gyan/[goalId]/level/[levelId]': 'learn',
+  // 3L: recipes are Look; the playlist and the random podcast are Listen
+  'recipe/[id]': 'look',
+  'recipe/random': 'look',
+  'listen/playlist': 'listen',
+  'listen/podcast-random': 'listen',
+  // the community guide (not its timings)
+  'guide/index': 'guide',
+  'guide/[slug]': 'guide',
+  'guide/admin': 'guide',
+  'guide/apply': 'guide',
+  'guide/ask': 'guide',
+  'guide/links': 'guide',
+  'guide/membership': 'guide',
+  'guide/registrations': 'guide',
+  'guide/volunteer': 'guide',
+  'guide/whatsapp': 'guide',
+  'guide/zones': 'guide',
+};
+
+/** `media/[kind]` and `media/[kind]/[id]`: stavans and podcasts are Listen, videos and recipes are Look. */
+export const MEDIA_KIND_FEATURE: Record<string, FeatureKey> = {
+  stavan: 'listen',
+  podcast: 'listen',
+  video: 'look',
+  recipe: 'look',
+};
+
+/**
+ * The access area a pushed screen belongs to, or null when it belongs to none. `params` are the route's
+ * parameters (the library screens need `kind`); an unknown kind belongs to no area, so the screen can say
+ * so itself.
+ */
+export function routeFeature(routeName: string, params?: object | null): FeatureKey | null {
+  const name = routeName.replace(/^\/+|\/+$/g, '');
+  const own = (table: Record<string, FeatureKey>, k: string): FeatureKey | undefined => (Object.prototype.hasOwnProperty.call(table, k) ? table[k] : undefined);
+  const direct = own(ROUTE_FEATURE, name) ?? own(ROUTE_FEATURE, `${name}/index`) ?? own(ROUTE_FEATURE, name.replace(/\/index$/, ''));
+  if (direct) return direct;
+  if (name === 'media/[kind]' || name === 'media/[kind]/index' || name === 'media/[kind]/[id]') {
+    const kind = (params as { kind?: unknown } | null | undefined)?.kind;
+    return typeof kind === 'string' ? (own(MEDIA_KIND_FEATURE, kind) ?? null) : null;
+  }
+  return null;
 }

@@ -14,6 +14,15 @@ export function isSecureStreamUrl(url: string | null | undefined): url is string
   return typeof url === 'string' && /^https:\/\/\S+$/i.test(url.trim());
 }
 
+/**
+ * Home's "Watch live darshan" button (src/features/today-doors.tsx): shown when the person may use Live darshan
+ * (the organization's access level for it, src/lib/access.ts) and the community has something to watch or a time
+ * for the aarti. A community with no darshan set up at all has no button.
+ */
+export function darshanDoorVisible(allowed: boolean, hasStream: boolean, aarti: string | null): boolean {
+  return allowed && (hasStream || !!aarti);
+}
+
 export function pickDarshan(rows: DarshanRow[], centerId: string): Darshan | null {
   const usable = rows.filter((r) => isSecureStreamUrl(r.media_url) && meta(r).stream_status !== 'off');
   const rank = (r: DarshanRow) => (r.center_id === centerId ? 0 : 2) + (meta(r).stream_status === 'live' ? 0 : 1);

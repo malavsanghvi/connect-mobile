@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
+import { FeatureNotice } from '@/components/feature-notice';
 import { EmptyState, Loaded } from '@/components/states';
 import { Button, Card, Divider, LinkText, Row, Txt, VStack } from '@/components/ui';
 import { goalProgress, lastActivityByGoal, loadGyan, loadPathshala, nextGyanLevel } from '@/lib/api/gyan';
@@ -8,6 +9,7 @@ import { formatDay } from '@/lib/format';
 import { attendanceSummary, continueGoalId } from '@/lib/learning';
 import { LEARN_PART_MODULE } from '@/lib/modules';
 import { useLoad } from '@/lib/use-load';
+import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
 import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
@@ -15,22 +17,26 @@ import { colors, fonts, radii } from '@/theme';
 
 /**
  * 3L › Learn: the Gyan Path hero (the whole level map) and Pathshala
- * enrollments and attendance, and the community guide. Gyan Path and
- * Pathshala are separate modules; guests see the guide.
+ * enrollments and attendance. Gyan Path and Pathshala are separate modules.
+ * Gyan Path is an area of the organization's access levels: a visitor is
+ * asked to sign in, a member below the level it asks for is told which level
+ * it takes. Pathshala is for signed-in members of the community.
  */
 export function LearnSection() {
   const t = useT();
   const { member } = useApp();
   const { isOn } = useModules();
+  const canLearn = useFeature('learn').allowed && !!member;
   const gyanOn = isOn(LEARN_PART_MODULE.gyan);
   const pathshalaOn = isOn(LEARN_PART_MODULE.pathshala);
   return (
     <VStack gap={14}>
-      {member && gyanOn ? <GyanHero /> : null}
+      {gyanOn && canLearn ? <GyanHero /> : null}
+      {gyanOn && !canLearn ? <FeatureNotice feature="learn" /> : null}
       {member && pathshalaOn ? <PathshalaBlock /> : null}
-      {!member && (gyanOn || pathshalaOn) ? (
+      {!member && pathshalaOn ? (
         <Txt variant="small" color="muted">
-          {t('threeL.guestLearn')}
+          {t('threeL.guestPathshala')}
         </Txt>
       ) : null}
     </VStack>

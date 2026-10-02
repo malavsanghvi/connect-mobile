@@ -75,6 +75,25 @@ export function pujaEntryVisible(found: boolean | undefined, checkFailed: boolea
   return found === true || (found === undefined && checkFailed);
 }
 
+/**
+ * What becomes of a finished puja. A member's puja is recorded as a practice try (points up to the community's daily
+ * cap); the puja is open to the public too, and a visitor who is not signed in has no person to record it for, so
+ * nothing is recorded and the screen invites them to sign in to earn puja points.
+ */
+export type PujaPoints = 'record' | 'sign_in';
+
+export function pujaPoints(personId: string | null | undefined): PujaPoints {
+  return personId ? 'record' : 'sign_in';
+}
+
+/**
+ * "Learn the order" (and the offer after wrong touches) needs the Navang puja lesson's learn step, which is Gyan
+ * Path: only for someone who may use Gyan Path (the organization's access level for it), so not for a visitor.
+ */
+export function pujaCanTeach(learn: PujaStep | null, mayUseGyanPath: boolean): boolean {
+  return learn !== null && mayUseGyanPath;
+}
+
 /** The teaching offer within one try: asked for ("I'm not sure"), or turned down ("Not now"). */
 export type TeachOffer = { unsure: boolean; dismissed: boolean };
 

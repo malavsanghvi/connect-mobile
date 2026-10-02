@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { FeatureNotice } from '@/components/feature-notice';
 import { ErrorState, Loaded, LoadingState } from '@/components/states';
 import { Banner, Button, Card, Chevron, Chip, Row, Txt, VStack } from '@/components/ui';
 import { EventIcon } from '@/features/event-icons';
@@ -12,6 +13,7 @@ import { report } from '@/lib/errors';
 import { formatTimeOfDay } from '@/lib/format';
 import { onlyFullyJain } from '@/lib/media-library';
 import { useLoad } from '@/lib/use-load';
+import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
@@ -21,23 +23,23 @@ import { EmptyLine, FailureBanner, ListCard, MediaRow, Shelf, kindEmpty, useWatc
 
 const SHELF = 3;
 
-/** 3L › Look: live darshan, videos, Jain recipes and the event photo albums. Guests see live darshan. */
+/**
+ * 3L › Look: live darshan, videos, Jain recipes and the event photo albums. Live darshan and Look (videos and
+ * recipes) are separate areas of the organization's access levels: a visitor sees live darshan when the
+ * organization has it open to the public, and is asked to sign in for the rest; a member below the level an
+ * area asks for is told which level it takes.
+ */
 export function LookSection() {
-  const t = useT();
   const { member } = useApp();
+  const darshan = useFeature('darshan');
+  const look = useFeature('look');
   return (
     <VStack gap={18}>
-      <DarshanTile />
-      {member ? (
-        <>
-          <LookShelves />
-          <PhotosCard />
-        </>
-      ) : (
-        <Txt variant="small" color="muted">
-          {t('threeL.guestLook')}
-        </Txt>
-      )}
+      {/* While the answer loads, or when it could not be had, the notice for Look below says so (once). */}
+      {darshan.allowed ? <DarshanTile /> : darshan.loading || darshan.error ? null : <FeatureNotice feature="darshan" />}
+      {look.allowed && member ? <LookShelves /> : <FeatureNotice feature="look" />}
+      {/* The event photo albums are not an area of their own: they stay for every member. */}
+      {member ? <PhotosCard /> : null}
     </VStack>
   );
 }

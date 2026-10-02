@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useFeature } from '@/providers/access';
 import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, components, layout, space } from '@/theme';
@@ -93,7 +94,9 @@ export function Screen({ title, root, showWordmark, children, footer, sticky, on
       }
     : undefined;
 
-  const nivaOn = useModule('niva');
+  // The Niva button is there only for someone who may use Ask Niva (the organization's access level for it,
+  // and its module on): not for a visitor, and not below the level the organization asks for.
+  const nivaOn = useFeature('niva').allowed;
   const ownTabBar = !root && tabBar;
   const showNiva = nivaOn && (niva ?? (root || tabBar));
 

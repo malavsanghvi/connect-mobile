@@ -23,7 +23,9 @@ import {
   learnRoute,
   NAVANG_GOAL_KEY,
   NO_OFFER,
+  pujaCanTeach,
   pujaDoneNote,
+  pujaPoints,
   pujaTryDetail,
   showTeachOffer,
   takeLearned,
@@ -35,42 +37,39 @@ import { loadGyan } from '@/lib/api/gyan';
 import type { Center } from '@/lib/api/member';
 import type { AppError } from '@/lib/errors';
 import { useLoad } from '@/lib/use-load';
+import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 import { colors, radii, space, touch } from '@/theme';
 
 /**
- * Virtual puja (Home › Today › Do puja; connect://puja, /puja on the web):
- * the Navang puja of Mahavir Swami, done straight away. It is the Navang puja
- * lesson's practice step (Gyan Path, goal key "navang_puja", found by key),
- * full screen: touch the 13 places in order on the derasar photo; a wrong
- * touch shakes and the right place glows. Each completed puja is a practice
- * try (app.record_gyan_attempt: try points up to the community's daily cap).
- * It teaches only when needed: "Learn the order" is always there, and after
- * two wrong touches in a try (or "I'm not sure") it offers the learn step,
- * which comes back here when done. The photo comes straight after the intro
- * and the pinned footer stays short, so the spots stay on screen during a try.
+ * Virtual puja (Home › Today › Do puja, and Welcome › Without signing in;
+ * connect://puja, /puja on the web): the Navang puja of Mahavir Swami, done
+ * straight away. It is open to the public (the organization's access level
+ * for the Virtual puja area, checked by the route), so it works for a visitor
+ * who is not signed in too: the lesson tables are public. It is the Navang
+ * puja lesson's practice step (Gyan Path, goal key "navang_puja", found by
+ * key), full screen: touch the 13 places in order on the derasar photo; a
+ * wrong touch shakes and the right place glows. A member's completed puja is
+ * a practice try (app.record_gyan_attempt: try points up to the community's
+ * daily cap); a visitor's is not recorded, and at the end says "Sign in to
+ * earn puja points". It teaches only when needed, for someone who may use
+ * Gyan Path: "Learn the order" is always there, and after two wrong touches
+ * in a try (or "I'm not sure") it offers the learn step, which comes back
+ * here when done. The photo comes straight after the intro and the pinned
+ * footer stays short, so the spots stay on screen during a try.
  */
 export default function PujaScreen() {
-  const t = useT();
-  const { center, member, setGuest } = useApp();
+  const { center, member } = useApp();
   const state = useLoad(
-    () => (center && member ? loadGyan(center, [], { goalKey: NAVANG_GOAL_KEY }).then((d) => findPuja(d.goals)) : Promise.resolve(null)),
-    [center?.id, member?.person.id],
+    () => (center ? loadGyan(center, [], { goalKey: NAVANG_GOAL_KEY }).then((d) => findPuja(d.goals)) : Promise.resolve(null)),
+    [center?.id],
     'load the virtual puja',
   );
+  const t = useT();
 
-  if (!member || !center) {
-    return (
-      <Frame>
-        <Card tone="panel">
-          <Txt variant="small">{t('puja.signIn')}</Txt>
-          <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
-        </Card>
-      </Frame>
-    );
-  }
+  if (!center) return <Frame>{null}</Frame>;
   if (state.data === undefined) {
     return <Frame>{state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <LoadingState />}</Frame>;
   }
@@ -83,7 +82,7 @@ export default function PujaScreen() {
     );
   }
   // A new practice step (the content changed) is a fresh puja; reloads of the same one keep the try in progress.
-  return <Puja key={state.data.practice.step.id} lesson={state.data} center={center} personId={member.person.id} refreshError={state.error} reload={state.reload} />;
+  return <Puja key={state.data.practice.step.id} lesson={state.data} center={center} personId={member?.person.id ?? null} refreshError={state.error} reload={state.reload} />;
 }
 
 /** The screen around the puja: a separate full-screen flow, like a lesson (no tab bar, no Niva button). */
@@ -99,7 +98,8 @@ function Frame({ children, footer }: { children: ReactNode; footer?: ReactNode }
   );
 }
 
-function Puja({ lesson, center, personId, refreshError, reload }: { lesson: PujaLesson; center: Center; personId: string; refreshError: AppError | null; reload: () => Promise<void> }) {
+/** `personId` is null for a visitor who is not signed in: the puja runs the same, but no try is recorded. */
+function Puja({ lesson, center, personId, refreshError, reload }: { lesson: PujaLesson; center: Center; personId: string | null; refreshError: AppError | null; reload: () => Promise<void> }) {
   const t = useT();
   const router = useRouter();
   const { invalidate } = useDataVersion();
@@ -108,7 +108,7 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
   const { practice: puja, learn } = lesson;
   const activity = puja.activity;
   const spots = activity.spots;
-  const hasLearn = learn !== null;
+  const mayUseGyanPath = useFeature('learn').allowed;
   const [burst, setBurst] = useState<(Burst & { id: number }) | null>(null);
   const tries = usePracticeTries({
     centerId: center.id,
@@ -124,6 +124,8 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
   const [practice, setPractice] = useState<PracticeState>(freshPractice);
   const [note, setNote] = useState<Feedback | null>(null);
   const [offer, setOffer] = useState<TeachOffer>(NO_OFFER);
+  // The order is taught by Gyan Path's lesson: only to someone who may use Gyan Path (not to a visitor).
+  const hasLearn = pujaCanTeach(learn, mayUseGyanPath);
   const offering = showTeachOffer(offer, practice.slips, hasLearn);
   const success = practiceSuccess(practice, activity.maxSlips);
   // A saved try may have paid points or completed the step: other screens (Home, Gyan Path) reload, as after
@@ -215,7 +217,7 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
     <VStack gap={space.md}>
       {note ? <FeedbackNote text={note.text} ok={note.ok} announced={note.announced} /> : null}
       <Completion title={t('puja.complete')} line={t(doneLine.key, doneLine.vars)} />
-      <TryResult tries={tries} />
+      {pujaPoints(personId) === 'record' ? <TryResult tries={tries} /> : <SignInForPoints />}
       <Button3D label={t('puja.again')} bg={colors.chandanDeep} edge={colors.chandanEdge} disabled={tries.saving} onPress={again} />
       {offering || (!success && hasLearn) ? <Quiet label={t('puja.offerYes')} hint={t('puja.learnHint')} onPress={openLearn} center /> : null}
     </VStack>
@@ -249,6 +251,21 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
       </Frame>
       {burst ? <PointsBurst key={burst.id} seed={burst.id * 101} label={burst.points ? t('gyan.plusPoints', { n: burst.points }) : (burst.message ?? null)} confetti={burst.confetti} /> : null}
     </View>
+  );
+}
+
+/**
+ * Under a puja done without signing in: nothing was recorded, so say plainly what signing in gives, with a
+ * Sign in button (back to the Welcome screen).
+ */
+function SignInForPoints() {
+  const t = useT();
+  const { setGuest } = useApp();
+  return (
+    <Card tone="panel">
+      <Txt variant="smallStrong">{t('puja.guestPoints')}</Txt>
+      <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
+    </Card>
   );
 }
 
