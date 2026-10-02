@@ -1,8 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { translate } from '../../../i18n';
+import { decideFeature, fallbackSnapshot, parseAccess } from '../../../lib/access';
 import type { GyanGoal, GyanLevel, GyanStep } from '../../../lib/api/gyan';
-import { blockingModule } from '../../../lib/modules';
+import { blockingModule, routeFeature } from '../../../lib/modules';
 import {
   askedUnsure,
   awaitLearned,
@@ -14,8 +15,10 @@ import {
   learnRoute,
   NAVANG_GOAL_KEY,
   NO_OFFER,
+  pujaCanTeach,
   pujaDoneNote,
   pujaEntryVisible,
+  pujaPoints,
   pujaTryDetail,
   RETURN_TO_PUJA,
   showTeachOffer,
@@ -166,6 +169,31 @@ describe('Home button', () => {
     expect(pujaEntryVisible(false, false)).toBe(false);
     // A later check failed, but the last answer was "no Navang puja here".
     expect(pujaEntryVisible(false, true)).toBe(false);
+  });
+});
+
+describe('a puja done without signing in', () => {
+  it('is recorded for a member and not for a visitor, who is invited to sign in instead', () => {
+    expect(pujaPoints('person-1')).toBe('record');
+    expect(pujaPoints(null)).toBe('sign_in');
+    expect(pujaPoints(undefined)).toBe('sign_in');
+    expect(pujaPoints('')).toBe('sign_in');
+  });
+  it('says plainly what signing in gives', () => {
+    expect(translate('en', 'puja.guestPoints')).toBe('Sign in to earn puja points');
+  });
+  it('teaches the order only to someone who may use Gyan Path, and only when the lesson has a learn step', () => {
+    const found = findPuja([NAVANG]);
+    if (!found?.learn) throw new Error('expected a learn step');
+    expect(pujaCanTeach(found.learn, true)).toBe(true);
+    expect(pujaCanTeach(found.learn, false)).toBe(false);
+    expect(pujaCanTeach(null, true)).toBe(false);
+    expect(pujaCanTeach(null, false)).toBe(false);
+  });
+  it('is open to the public by default: a visitor may open the route', () => {
+    expect(routeFeature('puja')).toBe('puja');
+    expect(decideFeature(fallbackSnapshot(false), 'puja', {}).allowed).toBe(false); // an older portal: as before, sign in
+    expect(decideFeature(parseAccess({ level: { key: 'public', label: 'Public', rank: 0 }, signed_in: false, features: { puja: { allowed: true, min_level: { key: 'public', label: 'Public', rank: 0 } } } }), 'puja', {}).allowed).toBe(true);
   });
 });
 

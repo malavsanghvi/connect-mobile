@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { FEATURE_KEYS, FEATURE_MODULE, isFeatureKey } from '../access';
+import { MEDIA_KINDS } from '../media-library';
 import {
   ALL_ON,
   anyModuleOn,
@@ -16,12 +18,15 @@ import {
   isModuleOn,
   isTabVisible,
   jainWayPanes,
+  MEDIA_KIND_FEATURE,
   MODULE_DEPENDS_ON,
   MODULE_KEYS,
   parseModuleRows,
   pickPane,
   resolveJainWayLink,
+  ROUTE_FEATURE,
   ROUTE_MODULE,
+  routeFeature,
   TAB_MODULES,
   threeLSections,
   type ModuleMap,
@@ -221,6 +226,78 @@ describe('blockingModule (deep links)', () => {
   it('never treats Object prototype names as routes', () => {
     expect(blockingModule(off(...MODULE_KEYS), 'constructor')).toBeNull();
     expect(blockingModule(off(...MODULE_KEYS), 'toString')).toBeNull();
+  });
+});
+
+describe('routeFeature (the access area of a pushed screen)', () => {
+  it('maps the screens of each area', () => {
+    expect(routeFeature('darshan')).toBe('darshan');
+    expect(routeFeature('puja')).toBe('puja');
+    expect(routeFeature('niva')).toBe('niva');
+    expect(routeFeature('/niva')).toBe('niva');
+    for (const name of ['gyan', 'gyan/index', 'gyan/[goalId]', 'gyan/[goalId]/index', 'gyan/[goalId]/level/[levelId]']) expect(routeFeature(name)).toBe('learn');
+    expect(routeFeature('recipe/[id]')).toBe('look');
+    expect(routeFeature('recipe/random')).toBe('look');
+    expect(routeFeature('listen/playlist')).toBe('listen');
+    expect(routeFeature('listen/podcast-random')).toBe('listen');
+  });
+  it('tells Listen from Look by what the library screen opens', () => {
+    for (const name of ['media/[kind]', 'media/[kind]/index', 'media/[kind]/[id]']) {
+      expect(routeFeature(name, { kind: 'stavan' })).toBe('listen');
+      expect(routeFeature(name, { kind: 'podcast' })).toBe('listen');
+      expect(routeFeature(name, { kind: 'video' })).toBe('look');
+      expect(routeFeature(name, { kind: 'recipe', id: 'r1' })).toBe('look');
+      expect(routeFeature(name, { kind: 'telepathy' })).toBeNull();
+      expect(routeFeature(name, { kind: ['stavan'] })).toBeNull();
+      expect(routeFeature(name, {})).toBeNull();
+      expect(routeFeature(name, undefined)).toBeNull();
+      expect(routeFeature(name, null)).toBeNull();
+    }
+    expect(Object.keys(MEDIA_KIND_FEATURE).sort()).toEqual(['podcast', 'recipe', 'stavan', 'video']);
+  });
+  it('puts every kind of library item in an area, so an item opened by a hand-made link is gated by what it is', () => {
+    // MediaItemView gates on the item's own kind, not the kind in the address: a video opened as /media/stavan/<id> is Look.
+    expect([...MEDIA_KINDS].sort()).toEqual(Object.keys(MEDIA_KIND_FEATURE).sort());
+    for (const kind of MEDIA_KINDS) expect(isFeatureKey(MEDIA_KIND_FEATURE[kind])).toBe(true);
+    expect(MEDIA_KIND_FEATURE.stavan).toBe('listen');
+    expect(MEDIA_KIND_FEATURE.podcast).toBe('listen');
+    expect(MEDIA_KIND_FEATURE.video).toBe('look');
+    expect(MEDIA_KIND_FEATURE.recipe).toBe('look');
+  });
+  it('maps the guide, but not its timings', () => {
+    for (const name of ['guide', 'guide/index', 'guide/[slug]', 'guide/zones', 'guide/membership', 'guide/apply', 'guide/ask', 'guide/links', 'guide/admin', 'guide/registrations', 'guide/volunteer', 'guide/whatsapp']) {
+      expect(routeFeature(name)).toBe('guide');
+    }
+    expect(routeFeature('guide/timings')).toBeNull();
+  });
+  it('leaves money, events, family and Pathshala to their own checks', () => {
+    for (const name of ['event/[id]/index', 'pledges', 'bolis', 'store', 'cart', 'settings', 'member-card', 'pathshala-enroll', 'person/[id]', 'pachchakhan/[id]', 'album/[id]', 'volunteer', 'give', 'family']) {
+      expect(routeFeature(name)).toBeNull();
+    }
+  });
+  it('never treats Object prototype names as routes', () => {
+    for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) expect(routeFeature(name)).toBeNull();
+    expect(routeFeature('media/[kind]', { kind: 'constructor' })).toBeNull();
+    expect(routeFeature('media/[kind]', { kind: '__proto__' })).toBeNull();
+  });
+  it('only names areas of the catalog', () => {
+    for (const feature of [...Object.values(ROUTE_FEATURE), ...Object.values(MEDIA_KIND_FEATURE)]) expect(isFeatureKey(feature)).toBe(true);
+  });
+  it("agrees with the module map: a screen's area and its module are the same module", () => {
+    for (const [route, feature] of Object.entries(ROUTE_FEATURE)) {
+      const areaModule = FEATURE_MODULE[feature];
+      if (areaModule === null || !(route in ROUTE_MODULE)) continue;
+      expect(ROUTE_MODULE[route]).toBe(areaModule);
+    }
+    // The library screens: both of their areas sit in Content.
+    expect(ROUTE_MODULE['media/[kind]/index']).toBe(FEATURE_MODULE.listen);
+    expect(ROUTE_MODULE['media/[kind]/index']).toBe(FEATURE_MODULE.look);
+    expect(ROUTE_MODULE['media/[kind]/[id]']).toBe(FEATURE_MODULE.look);
+  });
+  it('gives every area at least one screen or section to gate (the timings are not gated)', () => {
+    const used = new Set<string>([...Object.values(ROUTE_FEATURE), ...Object.values(MEDIA_KIND_FEATURE)]);
+    // Live darshan and Virtual puja each have a screen; Listen, Look and Learn have screens and 3L sections; Ask Niva a screen and the button.
+    expect([...FEATURE_KEYS].filter((k) => !used.has(k))).toEqual(['timings']);
   });
 });
 

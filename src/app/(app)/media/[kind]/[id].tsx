@@ -2,7 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/screen';
 import { Loaded } from '@/components/states';
-import { MediaDetailView, RecipeView } from '@/features/three-l/detail';
+import { MediaItemView } from '@/features/three-l/item-view';
 import { MembersOnly, kindName } from '@/features/three-l/media-ui';
 import { getMediaItem } from '@/lib/api/media';
 import { isMediaKind, type MediaItem } from '@/lib/media-library';
@@ -21,7 +21,8 @@ export default function MediaItemScreen() {
   const shownKind = state.data?.kind ?? (isMediaKind(kind) ? kind : null);
   return (
     <Screen title={shownKind ? kindName(t, shownKind) : t('threeL.title')} onRefresh={async () => invalidate()}>
-      {member ? <Loaded state={state}>{(item) => (!item ? null : item.kind === 'recipe' ? <RecipeView item={item} /> : <MediaDetailView item={item} />)}</Loaded> : <MembersOnly />}
+      {/* The item's own kind decides which area it needs (a link can open any item under any kind). */}
+      {member ? <Loaded state={state}>{(item) => (!item ? null : <MediaItemView item={item} />)}</Loaded> : <MembersOnly />}
     </Screen>
   );
 }

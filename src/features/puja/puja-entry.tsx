@@ -5,8 +5,8 @@ import { Icon } from '@/components/icon';
 import { Txt } from '@/components/ui';
 import { loadGyan } from '@/lib/api/gyan';
 import { useLoad } from '@/lib/use-load';
+import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
-import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
@@ -14,19 +14,22 @@ import { findPuja, NAVANG_GOAL_KEY, pujaEntryVisible } from './puja-logic';
 
 /**
  * "Do puja" for Home's Today card, beside "Watch live darshan" (the same
- * button look): opens the virtual Navang puja (/puja). Shown to members while
- * the Gyan Path module is on and the community has the Navang puja lesson with
- * its practice step (found by key, as the puja screen finds it). Nothing shows
- * while that is checked; if the check fails the button shows anyway and the
- * puja screen says what went wrong, with Try again. `style` lets it share a
- * row with the darshan button (`{ flex: 1 }`).
+ * button look): opens the virtual Navang puja (/puja). Shown to visitors who
+ * are not signed in and to members alike, while the organization's access
+ * level for the Virtual puja area lets them in (open to the public unless the
+ * organization says otherwise; the Gyan Path module must be on) and the
+ * community has the Navang puja lesson with its practice step (found by key,
+ * as the puja screen finds it). Nothing shows while that is checked; if the
+ * check fails the button shows anyway and the puja screen says what went
+ * wrong, with Try again. `style` lets it share a row with the darshan button
+ * (`{ flex: 1 }`).
  */
 export function PujaEntry({ style }: { style?: StyleProp<ViewStyle> }) {
   const t = useT();
   const router = useRouter();
-  const { center, member } = useApp();
-  const gyanOn = useModule('gyan_path');
-  const wanted = gyanOn && !!center && !!member;
+  const { center } = useApp();
+  const access = useFeature('puja');
+  const wanted = access.allowed && !!center;
   const check = useLoad(
     () => (wanted && center ? loadGyan(center, [], { goalKey: NAVANG_GOAL_KEY }).then((d) => findPuja(d.goals) !== null) : Promise.resolve(false)),
     [wanted, center?.id],

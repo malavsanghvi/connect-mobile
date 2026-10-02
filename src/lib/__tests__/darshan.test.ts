@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { isSecureStreamUrl, pickDarshan } from '../darshan';
+import { darshanDoorVisible, isSecureStreamUrl, pickDarshan } from '../darshan';
 
 const row = (o: Partial<{ title: string; media_url: string | null; center_id: string | null; metadata: unknown }>) => ({
   title: 'Stream',
@@ -8,6 +8,22 @@ const row = (o: Partial<{ title: string; media_url: string | null; center_id: st
   center_id: 'c1',
   metadata: { stream_status: 'live' },
   ...o,
+});
+
+describe("Home's Watch live darshan button", () => {
+  it('shows when the person may use Live darshan and there is a stream or an aarti time', () => {
+    expect(darshanDoorVisible(true, true, null)).toBe(true);
+    expect(darshanDoorVisible(true, false, '7:30 AM')).toBe(true);
+    expect(darshanDoorVisible(true, true, '7:30 AM')).toBe(true);
+  });
+  it('is left out for a community with no darshan set up at all', () => {
+    expect(darshanDoorVisible(true, false, null)).toBe(false);
+    expect(darshanDoorVisible(true, false, '')).toBe(false);
+  });
+  it('is left out for someone the organization keeps it from', () => {
+    expect(darshanDoorVisible(false, true, '7:30 AM')).toBe(false);
+    expect(darshanDoorVisible(false, false, null)).toBe(false);
+  });
 });
 
 describe('live darshan', () => {

@@ -14,6 +14,21 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.8 — 2026-10-02
+
+- **Live darshan and the virtual puja without signing in.** The Welcome screen has a new **Without signing in** section
+  with **Watch live darshan** and **Do puja**, and visitors see the same two buttons on Home's Today card. A button shows
+  only when the community has something behind it (a stream or an aarti time; the Navang puja lesson). A visitor's puja
+  records nothing and ends with **Sign in to earn puja points**.
+- **Each community decides who can use each area**: live darshan, the puja, the guide, Listen, Look, Learn and Ask Niva
+  (in the portal, Settings › Access levels). Below the level, the app says why. A visitor sees **Sign in to use …** with
+  a Sign in button. A member sees "… is available to Life member and above. Ask the office about membership."
+- The **Ask Niva** button is hidden when Niva isn't open to you.
+- A library item follows the area of what it is (stavans and podcasts are Listen, videos and recipes are Look), whatever
+  link opened it.
+- If the app can't tell what you can use, it says so with **Try again** instead of guessing. Until the portal update is
+  live, the app keeps the rules from before.
+
 ## 1.6.7 — 2026-10-02
 
 - **Sign in with a password**, for the demo account that testers and app reviewers use. Under "Send code" on the email

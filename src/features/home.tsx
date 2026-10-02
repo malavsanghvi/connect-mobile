@@ -33,7 +33,7 @@ import { EventIcon } from './event-icons';
 import { pronounFor, relativeDay, shortWhen, specialDayDismissKey, specialDayLead, turnsAge } from './event-rules';
 import { peopleLabel } from './events';
 import { nextSpecialDay, reminderSpecialDay, upNextItems, type DayNext, type UpNextKind } from './home-rules';
-import { PujaEntry } from './puja/puja-entry';
+import { TodayDoors } from './today-doors';
 
 /*
  * Home cards (layout B, owner 2026-10-02; the order is set in
@@ -166,12 +166,9 @@ const TODAY_HIDDEN_KEY = 'homeTodayHidden';
 /** "Today at {center}", compact: greeting, date and tithi, timings and the live darshan link (prototype L50–69). */
 export function TodayCard() {
   const t = useT();
-  const router = useRouter();
   const { center, member } = useApp();
   const [collapsed, setCollapsed] = useState(false);
   const state = useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], "load today's timings");
-  // The darshan button opens My Jain Way › 3L › Look (content module).
-  const libraryOn = useModule('content');
   const community = center?.short_name || center?.name || '';
   const family = member?.household?.display_name ?? null;
 
@@ -259,18 +256,7 @@ export function TodayCard() {
           {t('home.noTimings')}
         </Txt>
       )}
-      {(darshan || aarti) && libraryOn ? (
-        <Pressable
-          onPress={() => router.push({ pathname: '/jain-way', params: { tab: 'three_l', section: 'look' } })}
-          accessibilityRole="button"
-          style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.ground, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.md, opacity: pressed ? 0.8 : 1 })}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.live }} />
-          <Txt variant="small" color="navy" style={{ fontFamily: fonts.bodyMedium }}>
-            {aarti ? t('home.watchDarshanAarti', { time: aarti }) : t('home.watchDarshan')}
-          </Txt>
-        </Pressable>
-      ) : null}
-      <PujaEntry />
+      <TodayDoors hasStream={!!darshan} aarti={aarti} />
     </Card>
   );
 }

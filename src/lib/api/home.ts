@@ -31,7 +31,9 @@ export async function loadToday(center: Center): Promise<TodayInfo> {
     tithis.find((r) => r.center_id === null && r.tradition === center.tradition) ??
     tithis.find((r) => r.center_id === null) ??
     null;
-  // Guests can't read member-only content; a missing darshan link is not an error.
+  // Whether this reader may see the stream is the database's call (the Live darshan area of the organization's access
+  // levels: open to the public unless the organization asks for a level), so a visitor who is not signed in may get none;
+  // a missing darshan link is not an error.
   const darshanRows = darshanRes.error ? [] : (darshanRes.data ?? []);
   if (darshanRes.error) logError('reading the live darshan stream (hidden for this reader)', darshanRes.error);
   return { today, tithi, timings: maybe(timingsRes, "load today's timings"), darshan: pickDarshan(darshanRows, center.id) };
