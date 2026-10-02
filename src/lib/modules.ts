@@ -156,6 +156,7 @@ export const DRAWER_MODULE = {
   store: 'store',
   rsvp: 'events',
   dashboard: 'reports',
+  niva: 'niva',
   guide: null,
   volunteer: 'events',
   settings: null,
@@ -265,6 +266,7 @@ export const GUIDE_SECTION_MODULE = {
   registrations: null,
   admin: null,
   links: null,
+  niva: 'niva',
   ask: 'comms',
   pages: 'content',
 } as const satisfies Record<string, ModuleKey | null>;

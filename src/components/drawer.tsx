@@ -154,6 +154,7 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
                 {on('rsvp') ? <Item glyph="calendar-check" tint="navy" title={t('drawer.rsvp')} sub={t('drawer.rsvpSub')} onPress={() => go('/events')} /> : null}
                 {on('store') ? <Item glyph="bag" tint="green" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} /> : null}
                 {on('calendar') ? <Item glyph="calendar-dots" tint="brown" iconColor={colors.brown} title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} /> : null}
+                {on('niva') ? <Item glyph="sparkle" tint="brown" iconColor={colors.brown} title={t('drawer.niva')} sub={t('drawer.nivaSub')} onPress={() => go('/niva')} /> : null}
               </View>
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 10, marginVertical: 10 }} />
               <View style={{ gap: 2 }}>

@@ -306,21 +306,57 @@ export function isDailyMinutes(v: unknown): v is DailyMinutes {
 // Niva
 // ---------------------------------------------------------------------------
 
+/** One source Niva cited: its title, and the web page it came from when there is one. */
+export type NivaSource = { title: string; url?: string };
+
+function firstText(...values: unknown[]): string {
+  const v = values.find((x) => typeof x === 'string' && x.trim());
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/** Only a plain web address opens: anything else (javascript:, tel:, an app's own scheme, junk) is not a link. */
+function webUrl(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const url = raw.trim();
+  return /^https?:\/\/[^\s/?#]+[^\s]*$/i.test(url) ? url : undefined;
+}
+
+/**
+ * niva_conversations.sources jsonb → the sources to show, each title once, in
+ * the order Niva cited them. The worker stores [{content_item_id, title, url?}]
+ * (url only for a source imported from a web page); older rows hold plain
+ * strings or {label | name | source}. A repeated title keeps the first place
+ * and the first web address any copy of it carries.
+ */
+export function parseSources(raw: unknown): NivaSource[] {
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const out: NivaSource[] = [];
+  const at = new Map<string, number>();
+  for (const s of list) {
+    let title = '';
+    let url: string | undefined;
+    if (typeof s === 'string') title = s.trim();
+    else if (s && typeof s === 'object') {
+      const o = s as Record<string, unknown>;
+      title = firstText(o.title, o.label, o.name, o.source);
+      url = webUrl(o.url) ?? webUrl(o.source_url);
+    }
+    if (!title) continue;
+    const seen = at.get(title);
+    if (seen === undefined) {
+      at.set(title, out.length);
+      out.push(url ? { title, url } : { title });
+    } else if (url && !out[seen].url) {
+      out[seen] = { title, url };
+    }
+  }
+  return out;
+}
+
 /** niva_conversations.sources jsonb → "JSH website · About JSH", or null. */
 export function formatSources(raw: unknown): string | null {
-  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  const names = list
-    .map((s) => {
-      if (typeof s === 'string') return s.trim();
-      if (s && typeof s === 'object') {
-        const o = s as Record<string, unknown>;
-        const v = [o.title, o.label, o.name, o.source].find((x) => typeof x === 'string' && x.trim());
-        return typeof v === 'string' ? v.trim() : '';
-      }
-      return '';
-    })
-    .filter(Boolean);
-  return names.length ? [...new Set(names)].join(' · ') : null;
+  const names = parseSources(raw).map((s) => s.title);
+  return names.length ? names.join(' · ') : null;
 }
 
 export function normaliseQuestion(q: string): string {

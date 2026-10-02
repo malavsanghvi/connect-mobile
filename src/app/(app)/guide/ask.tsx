@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -12,6 +12,7 @@ import { formatLongDate, formatPhone } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -20,13 +21,18 @@ import { colors, fonts, radii, space } from '@/theme';
  * inbox. "Reply by WhatsApp as well as email" adds the member's mobile to the
  * message (there is no reply-channel column). Also lists the member's own
  * questions so they can follow them. ?topic picks the team; ?q fills in the
- * question (Niva's "Send to the team" when it cannot answer).
+ * question (Niva's "Send to the team" when it cannot answer). While Niva is
+ * on, the form first offers "Try asking Niva first" — except when Niva sent
+ * the member here, because it has already tried.
  */
 export default function AskScreen() {
   const t = useT();
+  const router = useRouter();
   const community = useCommunity();
   const params = useLocalSearchParams<{ topic?: string; q?: string }>();
   const { center, member } = useApp();
+  const nivaOn = useModule('niva');
+  const fromNiva = askPrefill(params.q) !== '';
   const { invalidate } = useDataVersion();
   const inboxes = useLoad(() => (center ? listTeamInboxes(center.id) : Promise.resolve([])), [center?.id], 'load the list of teams');
   const threads = useLoad(() => (member ? listMyThreads(member.person.id) : Promise.resolve([])), [member?.person.id], 'load your questions');
@@ -83,6 +89,16 @@ export default function AskScreen() {
       ) : (
         <>
           <GuideIntro>{t('guide.askIntro', { center: community })}</GuideIntro>
+          {nivaOn && !fromNiva ? (
+            <Card tone="panel" style={{ gap: 0 }}>
+              <Txt variant="small" color="ink2">
+                {t('guide.askNivaFirstSub', { center: community })}
+              </Txt>
+              <View style={{ alignSelf: 'flex-start' }}>
+                <LinkText label={`${t('guide.askNivaFirst')} ›`} onPress={() => router.push('/niva')} />
+              </View>
+            </Card>
+          ) : null}
           <Loaded state={inboxes}>
             {(list) => {
               const current = inboxId ?? defaultInbox(list);

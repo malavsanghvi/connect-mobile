@@ -23,6 +23,7 @@ import {
   nivaShouldPoll,
   nivaSpoken,
   nivaWaitEnds,
+  parseSources,
   type NivaLocal,
   goalMark,
   levelStars,
@@ -214,6 +215,49 @@ describe('niva', () => {
     expect(formatSources(['JSH website', { title: 'About JSH' }, 'JSH website'])).toBe('JSH website · About JSH');
     expect(formatSources([])).toBeNull();
     expect(formatSources(null)).toBeNull();
+    expect(formatSources([{ content_item_id: 'c1', title: 'Derasar timings', url: 'https://jsh.example/timings' }])).toBe('Derasar timings');
+  });
+
+  it('parses sources with a web address when the worker stored one', () => {
+    expect(
+      parseSources([
+        { content_item_id: 'c1', title: 'Derasar timings', url: 'https://jsh.example/visit#timings' },
+        { content_item_id: 'c2', title: 'Membership FAQ' },
+      ]),
+    ).toEqual([{ title: 'Derasar timings', url: 'https://jsh.example/visit#timings' }, { title: 'Membership FAQ' }]);
+  });
+
+  it('parses legacy rows: plain strings, label / name / source, one object, nothing', () => {
+    expect(parseSources(['JSH website', { label: 'About JSH' }, { name: 'Pathshala page' }, { source: 'Office' }])).toEqual([
+      { title: 'JSH website' },
+      { title: 'About JSH' },
+      { title: 'Pathshala page' },
+      { title: 'Office' },
+    ]);
+    expect(parseSources({ title: 'About JSH', source_url: 'http://jsh.example/about' })).toEqual([{ title: 'About JSH', url: 'http://jsh.example/about' }]);
+    expect(parseSources(null)).toEqual([]);
+    expect(parseSources([])).toEqual([]);
+    expect(parseSources('  ')).toEqual([]);
+    expect(parseSources([null, 3, { title: '  ' }, { content_item_id: 'c9' }])).toEqual([]);
+  });
+
+  it('shows each title once, keeping the first place and a web address from any copy', () => {
+    expect(parseSources(['JSH website', { title: 'About JSH' }, 'JSH website'])).toEqual([{ title: 'JSH website' }, { title: 'About JSH' }]);
+    expect(parseSources([{ title: 'About JSH' }, { title: 'Timings' }, { title: 'About JSH', url: 'https://jsh.example/about' }])).toEqual([
+      { title: 'About JSH', url: 'https://jsh.example/about' },
+      { title: 'Timings' },
+    ]);
+    expect(parseSources([{ title: 'About JSH', url: 'https://jsh.example/a' }, { title: 'About JSH', url: 'https://jsh.example/b' }])).toEqual([{ title: 'About JSH', url: 'https://jsh.example/a' }]);
+  });
+
+  it('only links plain web addresses', () => {
+    for (const url of ['javascript:alert(1)', 'tel:+17135550100', 'connect://niva', 'jsh.example/about', 'https://', 'https:// jsh.example', 'https://jsh.example/a page', 42, null, '']) {
+      expect(parseSources([{ title: 'About JSH', url }])).toEqual([{ title: 'About JSH' }]);
+    }
+    expect(parseSources([{ title: 'About JSH', url: '  HTTPS://jsh.example/about?x=1  ' }])).toEqual([{ title: 'About JSH', url: 'HTTPS://jsh.example/about?x=1' }]);
+    // url wins over source_url; a bad url falls back to a good source_url.
+    expect(parseSources([{ title: 'A', url: 'https://a.example', source_url: 'https://b.example' }])).toEqual([{ title: 'A', url: 'https://a.example' }]);
+    expect(parseSources([{ title: 'A', url: 'javascript:x', source_url: 'https://b.example' }])).toEqual([{ title: 'A', url: 'https://b.example' }]);
   });
 
   type Row = { id: string; question: string; answer: string | null; created_at: string; unanswered?: boolean; answer_status?: string };

@@ -1,19 +1,19 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, ActivityIndicator, AppState, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { Markdownish } from '@/components/markdown';
 import { Screen } from '@/components/screen';
 import { Loaded } from '@/components/states';
-import { Banner, Button, Card, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, LinkText, Txt, VStack } from '@/components/ui';
 import { askPrefill } from '@/features/guide';
+import { openExternal } from '@/features/guide-ui';
 import type { StringKey } from '@/i18n/en';
 import { askNiva, getNivaConversations, listMyNivaQuestions, type NivaConversation } from '@/lib/api/niva';
 import { report } from '@/lib/errors';
 import {
   communityName,
-  formatSources,
   isNivaRowItem,
   mergeNivaRows,
   NIVA_POLL_MS,
@@ -23,9 +23,11 @@ import {
   nivaShouldPoll,
   nivaSpoken,
   normaliseQuestion,
+  parseSources,
   type NivaLocal,
   type NivaPhase,
   type NivaRowItem,
+  type NivaSource,
 } from '@/lib/learning';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -58,8 +60,51 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function Bubble({ mine = false, source, children }: { mine?: boolean; source?: string | null; children: ReactNode }) {
-  const { scale, t } = useSettings();
+/**
+ * "Source: …" under an answer. A source imported from a web page links to it (in the in-app browser);
+ * the others are plain titles. If the page cannot be opened, the reason shows right here, and tapping
+ * the link again retries.
+ */
+function Sources({ sources }: { sources: NivaSource[] }) {
+  const { t } = useSettings();
+  const [error, setError] = useState<string | null>(null);
+  const open = (url: string) => {
+    setError(null);
+    void openExternal(url, t('niva.openSource'), setError);
+  };
+  return (
+    <View style={{ maxWidth: 300, paddingHorizontal: 6 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6 }}>
+        <Txt variant="meta" color="muted">
+          {t(sources.length > 1 ? 'niva.sourcesLabel' : 'niva.sourceLabel')}
+        </Txt>
+        {sources.map(({ title, url }, i) => (
+          <Fragment key={title}>
+            {url ? (
+              <LinkText label={title} underline onPress={() => open(url)} />
+            ) : (
+              <Txt variant="meta" color="muted" style={{ paddingVertical: 4 }}>
+                {title}
+              </Txt>
+            )}
+            {i < sources.length - 1 ? (
+              <Txt variant="meta" color="muted" importantForAccessibility="no" accessibilityElementsHidden>
+                ·
+              </Txt>
+            ) : null}
+          </Fragment>
+        ))}
+      </View>
+      {error ? (
+        <Txt variant="meta" color="danger" accessibilityLiveRegion="polite">
+          {error}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+function Bubble({ mine = false, sources, children }: { mine?: boolean; sources?: NivaSource[]; children: ReactNode }) {
   return (
     <View style={{ alignItems: mine ? 'flex-end' : 'flex-start' }}>
       <View
@@ -74,9 +119,7 @@ function Bubble({ mine = false, source, children }: { mine?: boolean; source?: s
         }}>
         {children}
       </View>
-      {source ? (
-        <Text style={{ fontFamily: fonts.body, fontSize: 11 * scale, color: colors.muted, paddingVertical: 4, paddingHorizontal: 6 }}>{t('niva.source', { source })}</Text>
-      ) : null}
+      {sources?.length ? <Sources sources={sources} /> : null}
     </View>
   );
 }
@@ -96,7 +139,8 @@ function BubbleText({ text, mine = false }: { text: string; mine?: boolean }) {
  * community's published Niva sources and stores the answer on the row. While
  * that happens the reply says "Looking that up for you…" and the screen
  * checks every few seconds (only while it is open and the app is in front).
- * The answer appears as soon as it is stored, with its sources. When there is
+ * The answer appears as soon as it is stored, with its sources (a source
+ * imported from a web page links to it: parseSources). When there is
  * no answer — the worker says why once answer_status is in the database, else
  * after NIVA_WAIT_MS — the owner's message says Niva cannot answer and "Send
  * to the team" opens Ask a question with the question filled in. If the app
@@ -323,7 +367,7 @@ export default function NivaScreen() {
     const phase = phaseOf(item);
     if (phase === 'answered') {
       return (
-        <Bubble source={formatSources(item.row.sources)}>
+        <Bubble sources={parseSources(item.row.sources)}>
           <Markdownish source={item.row.answer ?? ''} selectable />
         </Bubble>
       );
