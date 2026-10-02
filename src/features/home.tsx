@@ -33,6 +33,7 @@ import { EventIcon } from './event-icons';
 import { pronounFor, relativeDay, shortWhen, specialDayDismissKey, specialDayLead, turnsAge } from './event-rules';
 import { peopleLabel } from './events';
 import { nextSpecialDay, reminderSpecialDay, upNextItems, type DayNext, type UpNextKind } from './home-rules';
+import { PujaEntry } from './puja/puja-entry';
 
 /*
  * Home cards (layout B, owner 2026-10-02; the order is set in
@@ -269,6 +270,7 @@ export function TodayCard() {
           </Txt>
         </Pressable>
       ) : null}
+      <PujaEntry />
     </Card>
   );
 }

@@ -309,6 +309,7 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   'gyan/index': 'gyan_path',
   'gyan/[goalId]/index': 'gyan_path',
   'gyan/[goalId]/level/[levelId]': 'gyan_path',
+  puja: 'gyan_path', // the virtual puja (the Navang puja lesson's practice step)
   'pathshala-scan': 'pathshala',
   'pathshala-enroll': 'pathshala',
   'pathshala-teach': 'pathshala',

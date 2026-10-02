@@ -25,7 +25,7 @@ import { levelAwards } from './points';
 export type RunResult = { stars: Record<string, number>; correct: number; questions: number; practicePoints: number };
 
 /** Ledger rows a little older than the lesson's start still count, in case the phone's clock runs ahead of the server's. */
-const CLOCK_SKEW_MS = 10 * 60 * 1000;
+export const CLOCK_SKEW_MS = 10 * 60 * 1000;
 
 /**
  * Level complete (GyanPath.dc.html §3.5): stars, points with the level bonus

@@ -14,6 +14,45 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.6 — 2026-10-02
+
+- **A new Home.** In order:
+  - **Today** (sunrise, navkarsi, chauvihar, Watch live darshan, Do puja);
+  - the **shortcuts** as a grid;
+  - **Up next**;
+  - **Giving**;
+  - **Plan a special day**;
+  - **My Jain Way**.
+- **Shortcuts** no longer scroll sideways. They sit in a grid that lines up with the cards: 3 to a row on a phone, more on
+  wider screens.
+- **Up next** is one card instead of four. It holds the RSVP to confirm, today's lunch times, the next event (with RSVP if
+  your family hasn't replied) and a special day coming up (Choose a labh, or Not this year).
+- **Giving** shows every open opportunity in turn:
+  - it moves every 6 seconds;
+  - you can swipe, use the ‹ › buttons, or the arrow keys on the web;
+  - it pauses while you touch it, and doesn't move on its own with Reduce Motion or a screen reader on.
+- **Plan a special day** shows your family's next birthday, anniversary or other day, with **Plan a labh**. With no days
+  saved it offers **Add a special day**. Special days stay on Home even where giving is off; they then offer See special
+  days instead of a labh.
+
+## 1.6.5 — 2026-10-02
+
+- **Puja spots are chandan.** On the murti photo, in the virtual puja and in the Navang puja lesson:
+  - each place still to touch is a chandan ring;
+  - the place to touch now glows in chandan;
+  - a place already touched fills with chandan, like a tilak applied.
+
+  No green any more. "Do it again" is deep chandan too.
+
+## 1.6.4 — 2026-10-02
+
+- **Virtual puja.** **Do puja** sits under Watch live darshan on Home's Today card. It goes straight to the Navang puja
+  of Mahavir Swami on the derasar photo: touch the places in order ("Touch 1 of 13"), and a wrong touch shows the right
+  spot. A completed puja is a practice try and earns the usual points (up to the community's daily limit).
+- **Learning when you need it.** "Learn the order" is always under the photo. After two wrong touches, or with "I'm not
+  sure", the puja offers to teach it step by step, then brings you back to your puja where you left off.
+- Also opens from a link: connect://puja (or /puja on the web).
+
 ## 1.6.3 — 2026-10-02
 
 - **Ask Niva from more places.** An **Ask Niva** tile on the Guide ("Quick answers, with sources"), an **Ask Niva** item in

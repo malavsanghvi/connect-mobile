@@ -138,8 +138,18 @@ export const colors = {
   starOff: '#3A4B80',
   treasureInk: '#3A2A06',
   wrongInk: '#8C1D18',
-  /** Navang puja practice: an untouched spot on the murti picture. */
-  spotFill: 'rgba(255,255,255,0.7)',
+  /**
+   * Navang puja: chandan (sandalwood mixed with kesar), the colour of the puja itself. Every spot on the murti
+   * picture uses only these: a place still to touch, the one to touch now, and a place already touched. Never
+   * a community brand colour (brandPalette does not map these keys), so the puja looks the same everywhere.
+   */
+  chandan: '#E8A33D',
+  chandanDeep: '#9A5B12',
+  /** The pressed-edge of a chandan button (Button3D). */
+  chandanEdge: '#6B3E0B',
+  chandanTint: '#FCEFD8',
+  /** Navang puja: a place still to touch (a chandan ring over a pale chandan fill). */
+  spotFill: 'rgba(252,239,216,0.75)',
 } as const;
 
 export type ColorName = keyof typeof colors;
