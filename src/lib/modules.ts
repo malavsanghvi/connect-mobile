@@ -127,7 +127,12 @@ export function isTabVisible(map: ModuleMap, tab: TabRoute): boolean {
   return anyModuleOn(map, TAB_MODULES[tab]);
 }
 
-/** Home cards (src/features/home.tsx). null = always shown. */
+/**
+ * Home cards (src/features/home.tsx). null = always shown. `specialDay`
+ * covers Up next's special-day row and the "Plan a special day" card: special
+ * days are a Family feature, so they show with Pledges & donations off too,
+ * offering "See special days" instead of a labh (a labh is a pledge).
+ */
 export const HOME_CARD_MODULE = {
   today: null,
   todayDarshan: 'content',
@@ -135,7 +140,7 @@ export const HOME_CARD_MODULE = {
   jainWay: 'jain_way',
   feedback: 'surveys',
   lunch: 'events',
-  specialDay: 'giving',
+  specialDay: null,
   confirm: 'events',
   giving: 'giving',
   nextEvent: 'events',
