@@ -7,12 +7,16 @@ import { OnboardingFrame } from '@/features/onboarding/frame';
 import { biometricSupport, writeBiometricOptIn, type BiometricSupport } from '@/lib/biometrics';
 import { logError, report } from '@/lib/errors';
 import { formatOtp, isValidEmail, toE164 } from '@/lib/format';
+import { passwordErrorKey, signInMode } from '@/lib/password-sign-in';
 import { supabase } from '@/lib/supabase';
 import { useT } from '@/providers/settings';
 
 const RESEND_SECONDS = 60;
 
-/** Onboarding step 1: email or mobile → one-time code (Supabase OTP). */
+/**
+ * Onboarding step 1: email or mobile → one-time code (Supabase OTP). A third mode, `?mode=password`, signs in an
+ * account that has a password (the demo account testers and app reviewers use); members have none.
+ */
 
 // The code length is a Supabase project setting (6–10 digits); accept any of them.
 const CODE_MIN = 6;
@@ -21,10 +25,14 @@ export default function SignInScreen() {
   const router = useRouter();
   const t = useT();
   const params = useLocalSearchParams<{ mode?: string }>();
-  const mode: 'email' | 'phone' = params.mode === 'phone' ? 'phone' : 'email';
+  const chosen = signInMode(params.mode);
+  const usePassword = chosen === 'password';
+  // Password mode signs in with an email address, like the email code.
+  const mode: 'email' | 'phone' = chosen === 'phone' ? 'phone' : 'email';
 
   const [stage, setStage] = useState<'enter' | 'code'>('enter');
   const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [sentTo, setSentTo] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -87,6 +95,75 @@ export default function SignInScreen() {
     // The session listener in AppProvider moves the member on to "Is this your family?".
   };
 
+  const signInWithPassword = async () => {
+    setError(null);
+    setFieldError(null);
+    const email = isValidEmail(identifier) ? identifier.trim().toLowerCase() : null;
+    if (!email) return setFieldError(t('signin.emailInvalid'));
+    if (!password) return setFieldError(t('signin.passwordMissing'));
+    setBusy(true);
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) {
+      setBusy(false);
+      const known = passwordErrorKey(err.message);
+      if (known) {
+        logError('password sign-in refused', err);
+        return setError(t(known));
+      }
+      return setError(report(err, 'sign in').userMessage);
+    }
+    if (bio?.available) {
+      await writeBiometricOptIn(useBio).catch((e: unknown) => logError('saving the Face ID choice on this device', e));
+    }
+    // As with a code, the session listener in AppProvider takes it from here.
+  };
+
+  if (usePassword) {
+    return (
+      <OnboardingFrame step="signIn" title={t('signin.passwordTitle')} onBack={() => router.back()}>
+        {error ? <Banner tone="error" message={error} /> : null}
+        <Txt variant="small" color="ink2">
+          {t('signin.passwordIntro')}
+        </Txt>
+        <TextField
+          size="lg"
+          label={t('signin.emailLabel')}
+          value={identifier}
+          onChangeText={setIdentifier}
+          error={fieldError === t('signin.emailInvalid') ? fieldError : null}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          keyboardType="email-address"
+          textContentType="username"
+          placeholder="name@example.com"
+          returnKeyType="next"
+        />
+        <TextField
+          size="lg"
+          label={t('signin.passwordLabel')}
+          value={password}
+          onChangeText={setPassword}
+          error={fieldError === t('signin.passwordMissing') ? fieldError : null}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          textContentType="password"
+          returnKeyType="go"
+          onSubmitEditing={signInWithPassword}
+        />
+        <Button label={t('signin.passwordSubmit')} onPress={signInWithPassword} busy={busy} />
+        {bio?.available ? <Checkbox label={t('signin.useBiometric', { method: bio.label })} checked={useBio} onChange={setUseBio} /> : null}
+        <Pressable onPress={() => router.setParams({ mode: 'email' })} accessibilityRole="button" hitSlop={12} style={{ alignSelf: 'flex-start' }}>
+          <Txt variant="meta" color="navy" style={{ textDecorationLine: 'underline' }}>
+            {t('signin.useCodeInstead')}
+          </Txt>
+        </Pressable>
+      </OnboardingFrame>
+    );
+  }
+
   const codeSent = stage === 'code';
   const mmss = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
 
@@ -113,7 +190,16 @@ export default function SignInScreen() {
         onSubmitEditing={sendCode}
       />
       {!codeSent ? (
-        <Button label={t('signin.sendCode')} onPress={sendCode} busy={busy} />
+        <>
+          <Button label={t('signin.sendCode')} onPress={sendCode} busy={busy} />
+          {mode === 'email' ? (
+            <Pressable onPress={() => router.setParams({ mode: 'password' })} accessibilityRole="button" hitSlop={12} style={{ alignSelf: 'flex-start' }}>
+              <Txt variant="meta" color="muted" style={{ textDecorationLine: 'underline' }}>
+                {t('signin.havePassword')}
+              </Txt>
+            </Pressable>
+          ) : null}
+        </>
       ) : (
         <>
           <TextField
