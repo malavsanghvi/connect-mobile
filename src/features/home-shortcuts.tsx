@@ -1,17 +1,16 @@
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 
 import { Icon, type IconName } from '@/components/icon';
 import { Banner, Txt } from '@/components/ui';
 import { loadGyan, nextGyanLevel } from '@/lib/api/gyan';
 import { report } from '@/lib/errors';
-import { homeShortcuts, type HomeShortcut } from '@/lib/home-shortcuts';
-import { useWheelScrollsSideways } from '@/lib/wheel-sideways';
+import { homeShortcuts, shortcutColumns, type HomeShortcut } from '@/lib/home-shortcuts';
 import { useApp } from '@/providers/app';
 import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
-import { colors, space, touch } from '@/theme';
+import { colors, layout, space, touch } from '@/theme';
 
 type Look = { icon: IconName; bg: string; fg: string; label: 'home.shortcut.learn' | 'home.shortcut.playlist' | 'home.shortcut.photos' | 'home.shortcut.recipe' | 'home.shortcut.podcast' | 'home.shortcut.guide'; a11y: 'home.shortcut.learnA11y' | 'home.shortcut.playlistA11y' | 'home.shortcut.photosA11y' | 'home.shortcut.recipeA11y' | 'home.shortcut.podcastA11y' | 'home.shortcut.guideA11y' };
 
@@ -27,26 +26,40 @@ const looks = (): Record<HomeShortcut, Look> => ({
 
 const CIRCLE = 56;
 
+/** The grid's width before it has been measured: the screen inside the gutters (the web shows the app in a phone frame). */
+function estimatedWidth(windowWidth: number): number {
+  const frame = Platform.OS === 'web' ? Math.min(windowWidth, layout.webAppWidth) : windowWidth;
+  return Math.max(0, Math.min(frame, layout.maxContentWidth) - space.gutter * 2);
+}
+
 /**
- * Home shortcuts, under "Today at {center}": round buttons with a short
- * label that scroll sideways when they do not fit. Which ones and in what
- * order is the community's choice (centers.rules.home.shortcuts, see
- * src/lib/home-shortcuts.ts); one whose module is off is hidden.
+ * Home shortcuts, under "Today at {center}": round buttons with a short label
+ * in a fixed grid that never scrolls sideways, exactly as wide as the cards
+ * (it sits in the same gutters). Three a row on phones and the web, more on
+ * wider screens (shortcutColumns); extra shortcuts wrap onto the next row.
+ * Which ones and in what order is the community's choice
+ * (centers.rules.home.shortcuts, see src/lib/home-shortcuts.ts); one whose
+ * module is off is hidden.
  */
 export function HomeShortcuts() {
   const { t, scale } = useSettings();
   const router = useRouter();
   const { center, member } = useApp();
   const { map } = useModules();
+  const { width: windowWidth } = useWindowDimensions();
+  const [measured, setMeasured] = useState(0);
   const [busy, setBusy] = useState<HomeShortcut | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const keys = homeShortcuts(center?.rules, map);
-  const strip = useRef<ScrollView>(null);
-  const shown = !!center && !!member && keys.length > 0;
-  useWheelScrollsSideways(strip, shown);
   if (!center || !member || keys.length === 0) return null;
   const look = looks();
-  const width = Math.round(76 * Math.min(scale, 1.3));
+  const columns = shortcutColumns(measured || estimatedWidth(windowWidth), scale, keys.length);
+  const cell = `${100 / columns}%` as const;
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    if (w > 0 && w !== measured) setMeasured(w);
+  };
 
   // Straight into the next Gyan Path level (the goals screen when every level is done).
   const openLearn = async () => {
@@ -75,14 +88,7 @@ export function HomeShortcuts() {
 
   return (
     <View style={{ gap: space.sm }}>
-      <ScrollView
-        ref={strip}
-        horizontal
-        // On the web a mouse can't swipe: the wheel scrolls the strip sideways and the scrollbar shows there is more.
-        showsHorizontalScrollIndicator={Platform.OS === 'web'}
-        accessibilityLabel={t('home.shortcuts')}
-        style={{ flexGrow: 0, marginHorizontal: -space.gutter }}
-        contentContainerStyle={{ gap: space.xs, paddingHorizontal: space.gutter - space.xs }}>
+      <View onLayout={onLayout} role="group" aria-label={t('home.shortcuts')} style={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', rowGap: space.md }}>
         {keys.map((key) => {
           const l = look[key];
           const isBusy = busy === key;
@@ -94,7 +100,7 @@ export function HomeShortcuts() {
               accessibilityRole="button"
               accessibilityLabel={t(l.a11y)}
               accessibilityState={{ busy: isBusy, disabled: busy !== null }}
-              style={({ pressed }) => ({ width, minHeight: touch.min, alignItems: 'center', gap: 6, paddingVertical: 2, opacity: pressed ? 0.75 : busy !== null && !isBusy ? 0.6 : 1 })}>
+              style={({ pressed }) => ({ width: cell, minHeight: touch.min, alignItems: 'center', gap: 6, paddingVertical: 2, paddingHorizontal: 2, opacity: pressed ? 0.75 : busy !== null && !isBusy ? 0.6 : 1 })}>
               <View style={{ width: CIRCLE, height: CIRCLE, borderRadius: CIRCLE / 2, backgroundColor: l.bg, alignItems: 'center', justifyContent: 'center' }}>
                 {isBusy ? <ActivityIndicator color={l.fg} /> : <Icon name={l.icon} size={24} color={l.fg} />}
               </View>
@@ -104,7 +110,7 @@ export function HomeShortcuts() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
       {failure ? <Banner tone="error" message={failure} action={{ label: t('common.retry'), onPress: () => void openLearn() }} /> : null}
     </View>
   );

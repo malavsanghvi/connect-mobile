@@ -117,9 +117,13 @@ describe('Home, drawer and guide', () => {
     const m = off('events', 'store', 'jain_way', 'surveys', 'comms', 'giving', 'content');
     expect(isHomeCardVisible(m, 'today')).toBe(true);
     expect(isHomeCardVisible(m, 'guide')).toBe(true);
-    for (const card of ['lunch', 'confirm', 'nextEvent', 'jainWay', 'feedback', 'alerts', 'giving', 'specialDay', 'todayDarshan'] as const) {
+    for (const card of ['lunch', 'confirm', 'nextEvent', 'jainWay', 'feedback', 'alerts', 'giving', 'todayDarshan'] as const) {
       expect(isHomeCardVisible(m, card)).toBe(false);
     }
+  });
+  it('keeps special days on Home with giving off (they offer "See special days" instead of a labh)', () => {
+    expect(isHomeCardVisible(off('giving'), 'specialDay')).toBe(true);
+    expect(isHomeCardVisible(off('giving'), 'giving')).toBe(false);
   });
   it('maps drawer entries to their modules', () => {
     const m = off('calendar', 'pathshala', 'giving', 'store', 'events', 'reports');
