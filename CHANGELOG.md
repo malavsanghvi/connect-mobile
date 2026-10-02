@@ -14,6 +14,29 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.1 — 2026-10-01
+
+- **Niva shows the answer when it arrives.** After you ask, Niva says "Looking that up for you…" (with a spinner, and read
+  out by TalkBack) and checks every few seconds while the chat is open and the app is in front. The answer appears as
+  soon as it is ready, formatted, with its sources. It no longer says "still being set up" the moment a question is saved,
+  and you no longer have to leave and reopen the chat to see an answer. Pull down, or come back to the chat, to pick up an
+  answer that arrived later.
+- **When Niva can't answer** (it found nothing in the approved content, or after a minute and a half without an answer) it
+  says: "Currently we are unable to answer your question. Please leave your contact details and we would try to connect as
+  soon as possible." **Send to the team** opens Ask a question with your question already filled in. If messages to the
+  team are switched off for the community, it says to contact the office instead. If the app couldn't check for the
+  answer (no connection), it says so, with **Check again**, rather than saying Niva can't answer.
+- **New suggested questions** that the community's approved content can answer: derasar timings, address and parking,
+  becoming a member, signing a child up for Pathshala and upcoming events. "Am I eligible to vote?" is gone (Niva never sees
+  your own records), and so are the questions about today and this weekend.
+- The question box stays at the bottom of the chat, above the keyboard, and the chat scrolls to the newest message. Send
+  and the suggestions wait while a question is being saved, and the same question sent twice within a few seconds (a
+  double tap) is saved only once, so it counts once towards the community's monthly Niva questions. The box now says
+  "Ask your question in English".
+- "You are not a member of this community" and "The Niva module is switched off for this community" are shown as they
+  are, instead of a general "You don't have permission" message.
+- JavaScript only: runtime stays 3, so this reaches the 1.6.0 build over the air.
+
 ## 1.6.0 — 2026-10-01 · needs a new build (runtime 3)
 
 - **Gyan Path lessons are interactive.** Each step has its own screen:

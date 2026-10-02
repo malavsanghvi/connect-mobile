@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { Loaded } from '@/components/states';
 import { Banner, Button, Card, Checkbox, Chip, ChipGroup, LinkText, SectionTitle, TextField, Txt, VStack } from '@/components/ui';
-import { questionRef } from '@/features/guide';
+import { askPrefill, questionRef } from '@/features/guide';
 import { GuideIntro, GuideScreen, SignInFirst, useCommunity } from '@/features/guide-ui';
 import { listMyThreads, listTeamInboxes, sendToInbox } from '@/lib/api/guide';
 import { AppError, report } from '@/lib/errors';
@@ -19,18 +19,19 @@ import { colors, fonts, radii, space } from '@/theme';
  * Ask a question (Welcome.dc.html secAsk) → a thread in the chosen team
  * inbox. "Reply by WhatsApp as well as email" adds the member's mobile to the
  * message (there is no reply-channel column). Also lists the member's own
- * questions so they can follow them.
+ * questions so they can follow them. ?topic picks the team; ?q fills in the
+ * question (Niva's "Send to the team" when it cannot answer).
  */
 export default function AskScreen() {
   const t = useT();
   const community = useCommunity();
-  const params = useLocalSearchParams<{ topic?: string }>();
+  const params = useLocalSearchParams<{ topic?: string; q?: string }>();
   const { center, member } = useApp();
   const { invalidate } = useDataVersion();
   const inboxes = useLoad(() => (center ? listTeamInboxes(center.id) : Promise.resolve([])), [center?.id], 'load the list of teams');
   const threads = useLoad(() => (member ? listMyThreads(member.person.id) : Promise.resolve([])), [member?.person.id], 'load your questions');
   const [inboxId, setInboxId] = useState<string | null>(null);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => askPrefill(params.q));
   const [byWhatsapp, setByWhatsapp] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

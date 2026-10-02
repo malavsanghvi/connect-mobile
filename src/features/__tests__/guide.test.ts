@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { directionsUrl, firstStepsDone, markFor, parseTimingsTable, questionRef, readCenterContact, registrationStatus, replyWithin, rosterBodyLabel, splitSections, telUrl } from '../guide';
+import { askPrefill, directionsUrl, firstStepsDone, markFor, parseTimingsTable, questionRef, readCenterContact, registrationStatus, replyWithin, rosterBodyLabel, splitSections, telUrl } from '../guide';
 
 describe('guide helpers', () => {
   it('reads contact details from branding without inventing any', () => {
@@ -59,5 +59,15 @@ describe('legal sections', () => {
       { heading: 'What we collect', body: 'Name and email.' },
       { heading: 'How we use it', body: 'To run the app.' },
     ]);
+  });
+});
+
+describe('Ask a question prefill', () => {
+  it('takes the question from ?q, trimmed and capped, and ignores arrays and empty values', () => {
+    expect(askPrefill('  What are the derasar timings?  ')).toBe('What are the derasar timings?');
+    expect(askPrefill('x'.repeat(1500))).toHaveLength(1000);
+    expect(askPrefill(['a', 'b'])).toBe('');
+    expect(askPrefill('   ')).toBe('');
+    expect(askPrefill(undefined)).toBe('');
   });
 });

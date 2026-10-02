@@ -327,6 +327,126 @@ export function normaliseQuestion(q: string): string {
   return q.trim().replace(/\s+/g, ' ');
 }
 
+/** How often the Niva screen checks for answers while a question is being looked up. */
+export const NIVA_POLL_MS = 3000;
+/** How long the app waits for an answer before saying Niva cannot answer. */
+export const NIVA_WAIT_MS = 90000;
+/** The same question sent again within this time (a double tap) is ignored. */
+export const NIVA_REPEAT_MS = 10000;
+
+/**
+ * niva_conversations.answer_status values (connect-crm 0572) that mean the
+ * worker finished without an answer. 'pending' and 'paused' (waiting out an
+ * AI spending limit) keep waiting; so does a row with no status at all, which
+ * is what this app reads until the generated types carry the column.
+ */
+const NIVA_NO_ANSWER_STATUSES = new Set(['no_source', 'unsure', 'refused', 'failed']);
+
+export type NivaRowLike = { id: string; question: string; answer: string | null; created_at: string };
+
+/** What the member sees under a question that has been saved. */
+export type NivaPhase = 'looking' | 'answered' | 'no_answer' | 'check_failed';
+
+export type NivaWaitOptions = {
+  /** Device time when this device saved the question (askNiva returned). Wins over created_at, so a device clock that is ahead or behind never changes the wait. */
+  startedAt?: number | null;
+  /** Device time when a row from history was loaded: the wait never runs past this + NIVA_WAIT_MS, even when created_at looks like the future. */
+  seenAt?: number | null;
+};
+
+function nivaHasAnswer(row: { answer: string | null }): boolean {
+  return typeof row.answer === 'string' && row.answer.trim().length > 0;
+}
+
+/** answer_status when the row carries it (read defensively: the column is newer than the copied types). */
+export function nivaAnswerStatus(row: object): string | null {
+  const v = (row as { answer_status?: unknown }).answer_status;
+  return typeof v === 'string' && v ? v : null;
+}
+
+/** Device time when the app stops waiting for this row's answer. */
+export function nivaWaitEnds(row: { created_at: string }, opts: NivaWaitOptions = {}): number {
+  if (opts.startedAt != null) return opts.startedAt + NIVA_WAIT_MS;
+  const created = Date.parse(row.created_at);
+  if (!Number.isFinite(created)) return (opts.seenAt ?? 0) + NIVA_WAIT_MS;
+  return (opts.seenAt != null ? Math.min(created, opts.seenAt) : created) + NIVA_WAIT_MS;
+}
+
+/**
+ * One saved question's state:
+ * - an answer always wins (also over unanswered = true, so a regenerated answer stays visible);
+ * - a finished-without-answer status (no_source, unsure, refused, failed) is no_answer at once;
+ * - otherwise 'looking' until the wait ends, then no_answer — or check_failed when the app's last
+ *   check for this row failed, so "unable to answer" is never shown when the app could not check.
+ */
+export function nivaPhase(row: { answer: string | null; created_at: string }, opts: NivaWaitOptions & { now: number; lastCheckFailed?: boolean }): NivaPhase {
+  if (nivaHasAnswer(row)) return 'answered';
+  const status = nivaAnswerStatus(row);
+  if (status && NIVA_NO_ANSWER_STATUSES.has(status)) return 'no_answer';
+  if (opts.now < nivaWaitEnds(row, opts)) return 'looking';
+  return opts.lastCheckFailed ? 'check_failed' : 'no_answer';
+}
+
+export type NivaLocal<R> = { key: string; question: string; status: 'saving' | 'failed'; error?: string } | { key: string; question: string; row: R; startedAt: number };
+
+export type NivaRowItem<R> = { key: string; question: string; row: R; startedAt: number | null; seenAt: number | null };
+export type NivaItem<R> = Extract<NivaLocal<R>, { status: string }> | NivaRowItem<R>;
+
+export function isNivaRowItem<R>(item: NivaItem<R>): item is NivaRowItem<R> {
+  return 'row' in item;
+}
+
+/** Keep polling while any saved question is still being looked up. */
+export function nivaShouldPoll<R extends { answer: string | null; created_at: string }>(items: NivaItem<R>[], now: number): boolean {
+  return items.some((i) => isNivaRowItem(i) && nivaPhase(i.row, { now, startedAt: i.startedAt, seenAt: i.seenAt }) === 'looking');
+}
+
+/** The newest copy of a row: the last one given, except that a copy with an answer is never replaced by one without. */
+function newestCopy<R extends { answer: string | null }>(...copies: (R | undefined)[]): R {
+  const present = copies.filter((c): c is R => c !== undefined);
+  const answered = present.filter(nivaHasAnswer);
+  const pool = answered.length ? answered : present;
+  return pool[pool.length - 1];
+}
+
+/**
+ * The chat as one list, each question once: past questions (oldest first)
+ * merged with the ones asked on this screen and the copies fetched by the
+ * answer check (`fresh`). A question asked here that a reload brought back
+ * keeps its place, its key and its device-side wait.
+ */
+export function mergeNivaRows<R extends NivaRowLike>(history: R[], locals: NivaLocal<R>[], opts: { fresh?: Record<string, R>; seenAt?: number | null } = {}): NivaItem<R>[] {
+  const fresh = opts.fresh ?? {};
+  const asked = new Map<string, Extract<NivaLocal<R>, { row: R }>>();
+  for (const l of locals) if ('row' in l) asked.set(l.row.id, l);
+  const out: NivaItem<R>[] = [];
+  const seen = new Set<string>();
+  for (const h of history) {
+    if (seen.has(h.id)) continue;
+    seen.add(h.id);
+    const l = asked.get(h.id);
+    const row = newestCopy(l?.row, h, fresh[h.id]);
+    out.push({ key: l?.key ?? h.id, question: row.question, row, startedAt: l?.startedAt ?? null, seenAt: l ? null : (opts.seenAt ?? null) });
+  }
+  for (const l of locals) {
+    if (!('row' in l)) {
+      out.push(l);
+      continue;
+    }
+    if (seen.has(l.row.id)) continue;
+    seen.add(l.row.id);
+    const row = newestCopy(l.row, fresh[l.row.id]);
+    out.push({ key: l.key, question: row.question, row, startedAt: l.startedAt, seenAt: null });
+  }
+  return out;
+}
+
+/** True when the same question was sent less than NIVA_REPEAT_MS ago (a double tap): ignore it. */
+export function nivaIsRepeat(last: { question: string; at: number } | null, question: string, now: number): boolean {
+  if (!last) return false;
+  return last.question.toLowerCase() === normaliseQuestion(question).toLowerCase() && now - last.at < NIVA_REPEAT_MS;
+}
+
 // ---------------------------------------------------------------------------
 // Pathshala (enrollment, schedule, attendance)
 // ---------------------------------------------------------------------------
