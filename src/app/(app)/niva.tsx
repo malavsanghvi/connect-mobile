@@ -1,12 +1,13 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, AppState, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, AppState, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { Markdownish } from '@/components/markdown';
 import { Screen } from '@/components/screen';
 import { Loaded } from '@/components/states';
 import { Banner, Button, Card, Txt, VStack } from '@/components/ui';
+import { askPrefill } from '@/features/guide';
 import type { StringKey } from '@/i18n/en';
 import { askNiva, getNivaConversations, listMyNivaQuestions, type NivaConversation } from '@/lib/api/niva';
 import { report } from '@/lib/errors';
@@ -18,7 +19,9 @@ import {
   NIVA_POLL_MS,
   nivaIsRepeat,
   nivaPhase,
+  nivaShortQuestion,
   nivaShouldPoll,
+  nivaSpoken,
   normaliseQuestion,
   type NivaLocal,
   type NivaPhase,
@@ -55,12 +58,11 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function Bubble({ mine = false, source, live, children }: { mine?: boolean; source?: string | null; live?: boolean; children: ReactNode }) {
+function Bubble({ mine = false, source, children }: { mine?: boolean; source?: string | null; children: ReactNode }) {
   const { scale, t } = useSettings();
   return (
     <View style={{ alignItems: mine ? 'flex-end' : 'flex-start' }}>
       <View
-        accessibilityLiveRegion={live ? 'polite' : undefined}
         style={{
           maxWidth: 300,
           backgroundColor: mine ? colors.navy : colors.card,
@@ -99,7 +101,10 @@ function BubbleText({ text, mine = false }: { text: string; mine?: boolean }) {
  * after NIVA_WAIT_MS — the owner's message says Niva cannot answer and "Send
  * to the team" opens Ask a question with the question filled in. If the app
  * could not check, it says so with Check again instead. Pull down, or come
- * back to the screen, to pick up an answer that arrived later.
+ * back to the screen or the app (on the web, the browser tab), to pick up an
+ * answer that arrived later. The reply to each question asked here sits in
+ * a polite live region (TalkBack, and screen readers on the web); iOS has no
+ * live regions, so each change there is announced instead.
  */
 export default function NivaScreen() {
   const { t, scale } = useSettings();
@@ -115,54 +120,71 @@ export default function NivaScreen() {
   );
   const [local, setLocal] = useState<Local[]>([]);
   const [fresh, setFresh] = useState<Record<string, NivaConversation>>({});
-  const [checkFailed, setCheckFailed] = useState<{ ids: string[]; message: string } | null>(null);
+  const [lastFailedCheck, setCheckFailed] = useState<{ ids: string[]; message: string; at: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [focused, setFocused] = useState(true);
+  const focusedRef = useRef(true);
   const [appActive, setAppActive] = useState(() => AppState.currentState !== 'background' && AppState.currentState !== 'inactive');
   const [refreshing, setRefreshing] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
   const [text, setText] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
   const sentParam = useRef<string | null>(null);
   const lastAsk = useRef<{ question: string; at: number } | null>(null);
-  const checking = useRef(false);
+  const inFlight = useRef<Promise<void> | null>(null);
+  const spoken = useRef<Record<string, string>>({});
   const scrollRef = useRef<ScrollView>(null);
   const scrolledFor = useRef<string | null>(null);
 
   const items = mergeNivaRows(history.data?.rows ?? [], local, { fresh, seenAt: history.data?.loadedAt ?? null });
+  // A history load that worked after the failed check has read every recent question afresh, so "couldn't check" no longer applies.
+  const checkFailed = lastFailedCheck && lastFailedCheck.at > (history.data?.loadedAt ?? -Infinity) ? lastFailedCheck : null;
   const phaseOf = (i: RowItem): NivaPhase => nivaPhase(i.row, { now, startedAt: i.startedAt, seenAt: i.seenAt, lastCheckFailed: !!checkFailed?.ids.includes(i.row.id) });
   const saving = local.some((l) => 'status' in l && l.status === 'saving');
 
-  const ask = async (question: string, retryKey?: string) => {
-    const clean = normaliseQuestion(question);
-    if (!clean) {
-      setInputError(t('niva.empty'));
-      return;
-    }
-    setInputError(null);
+  const save = async (clean: string, key: string) => {
     if (!center || !member) return;
-    if (!retryKey) {
-      // A double tap (or the same question again within a few seconds) is ignored, so it is saved,
-      // answered and counted against the community's monthly Niva questions only once.
-      const at = Date.now();
-      if (nivaIsRepeat(lastAsk.current, clean, at)) return;
-      lastAsk.current = { question: clean, at };
-    }
-    const key = retryKey ?? `${Date.now()}-${Math.random()}`;
-    setLocal((prev) => (retryKey ? prev.map((l) => (l.key === key ? { key, question: clean, status: 'saving' } : l)) : [...prev, { key, question: clean, status: 'saving' }]));
     try {
       const row = await askNiva(center.id, member.userId, clean);
       const startedAt = Date.now();
       setLocal((prev) => prev.map((l) => (l.key === key ? { key, question: clean, row, startedAt } : l)));
       setNow(startedAt);
     } catch (err) {
+      // A question that was not saved never counts as "just asked", so typing it again sends it.
+      if (lastAsk.current?.question.toLowerCase() === clean.toLowerCase()) lastAsk.current = null;
       const msg = report(err, 'save your question for Niva').userMessage;
       setLocal((prev) => prev.map((l) => (l.key === key ? { key, question: clean, status: 'failed', error: msg } : l)));
     }
   };
 
-  /** One request for every question still being looked up (or whose last check failed). */
-  const check = async () => {
-    if (checking.current) return;
+  /** Starts saving the question; false (with the reason under the box) when it is not sent. */
+  const ask = (question: string, retryKey?: string): boolean => {
+    const clean = normaliseQuestion(question);
+    if (!clean) {
+      setInputError(t('niva.empty'));
+      return false;
+    }
+    setInputError(null);
+    if (!center || !member) return false;
+    if (!retryKey) {
+      // A double tap (or the same question again within a few seconds) is saved, answered and counted
+      // against the community's monthly Niva questions only once, and the member is told why.
+      const at = Date.now();
+      if (nivaIsRepeat(lastAsk.current, clean, at)) {
+        setInputError(t('niva.repeat'));
+        return false;
+      }
+      lastAsk.current = { question: clean, at };
+    }
+    const key = retryKey ?? `${Date.now()}-${Math.random()}`;
+    setLocal((prev) => (retryKey ? prev.map((l) => (l.key === key ? { key, question: clean, status: 'saving' } : l)) : [...prev, { key, question: clean, status: 'saving' }]));
+    void save(clean, key);
+    return true;
+  };
+
+  /** One request for every question still being looked up (or whose last check failed); a check already running is shared. */
+  const check = (): Promise<void> => {
+    if (inFlight.current) return inFlight.current;
     const idList = items
       .filter(isNivaRowItem)
       .filter((i) => {
@@ -170,22 +192,35 @@ export default function NivaScreen() {
         return p === 'looking' || p === 'check_failed';
       })
       .map((i) => i.row.id);
-    if (idList.length === 0) return;
-    checking.current = true;
+    if (idList.length === 0) return Promise.resolve();
+    const run = (async () => {
+      try {
+        const rows = await withTimeout(getNivaConversations(idList), CHECK_TIMEOUT_MS);
+        setFresh((prev) => {
+          const next = { ...prev };
+          for (const r of rows) next[r.id] = r;
+          return next;
+        });
+        setCheckFailed(null);
+      } catch (err) {
+        // Logged here; shown only once the wait is over (check_failed), never as "unable to answer".
+        setCheckFailed({ ids: idList, message: report(err, "check for Niva's answer").userMessage, at: Date.now() });
+      } finally {
+        inFlight.current = null;
+        setNow(Date.now());
+      }
+    })();
+    inFlight.current = run;
+    return run;
+  };
+
+  /** Check again: the button says "Checking…" until the check is back, whether it worked or not. */
+  const checkAgain = async () => {
+    setRechecking(true);
     try {
-      const rows = await withTimeout(getNivaConversations(idList), CHECK_TIMEOUT_MS);
-      setFresh((prev) => {
-        const next = { ...prev };
-        for (const r of rows) next[r.id] = r;
-        return next;
-      });
-      setCheckFailed(null);
-    } catch (err) {
-      // Logged here; shown only once the wait is over (check_failed), never as "unable to answer".
-      setCheckFailed({ ids: idList, message: report(err, "check for Niva's answer").userMessage });
+      await check();
     } finally {
-      checking.current = false;
-      setNow(Date.now());
+      setRechecking(false);
     }
   };
 
@@ -201,14 +236,23 @@ export default function NivaScreen() {
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
+      focusedRef.current = true;
       // Coming back (from Ask a question, another tab…) picks up answers that arrived meanwhile.
       if (focusedBefore.current) void reloadRef.current();
       focusedBefore.current = true;
-      return () => setFocused(false);
+      return () => {
+        setFocused(false);
+        focusedRef.current = false;
+      };
     }, []),
   );
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => setAppActive(state === 'active'));
+    const sub = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+      // Back in the app (on the web, the browser tab, which has no pull to refresh) with the chat open:
+      // reload, so an answer that arrived after the wait replaces "unable to answer".
+      if (state === 'active' && focusedRef.current) void reloadRef.current();
+    });
     return () => sub.remove();
   }, []);
   const polling = focused && appActive && nivaShouldPoll(items, now);
@@ -227,20 +271,20 @@ export default function NivaScreen() {
     }
   };
 
-  // A question tapped in the Niva button's menu arrives as ?q=…; ask it once.
+  // A question tapped in the Niva button's menu arrives as ?q=…; ask it once (trimmed, capped, never an array: askPrefill).
+  const prefill = askPrefill(q);
   useEffect(() => {
-    if (!q || !member || !center || sentParam.current === q) return;
-    sentParam.current = q;
-    void ask(q);
+    if (!prefill || !member || !center || sentParam.current === prefill) return;
+    sentParam.current = prefill;
+    ask(prefill);
     router.setParams({ q: undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, member?.userId, center?.id]);
+  }, [prefill, member?.userId, center?.id]);
 
   const submit = () => {
     if (saving) return;
-    const v = text;
-    setText('');
-    void ask(v);
+    // The box is cleared only once the question is on its way; otherwise it keeps the text and says why.
+    if (ask(text)) setText('');
   };
 
   const sendToTeam = (question: string) => router.push({ pathname: '/guide/ask', params: { q: question, topic: 'office' } });
@@ -251,18 +295,42 @@ export default function NivaScreen() {
   // Scroll to the newest message when the history loads, a question is added or a reply changes.
   const scrollMark = items.map((i) => `${i.key}:${isNivaRowItem(i) ? phaseOf(i) : i.status}`).join('|');
 
+  // iOS has no live regions: announce each change to the reply of a question asked here (never past questions on load).
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const before = spoken.current;
+    const after: Record<string, string> = {};
+    let say: string | null = null;
+    for (const item of items) {
+      if (isNivaRowItem(item) && item.startedAt == null) continue;
+      const state = isNivaRowItem(item) ? phaseOf(item) : item.status;
+      after[item.key] = state;
+      if (before[item.key] === undefined || before[item.key] === state) continue;
+      if (isNivaRowItem(item)) {
+        if (state === 'answered') say = t('niva.answeredA11y', { answer: nivaSpoken(item.row.answer ?? '') });
+        else if (state === 'looking') say = t('niva.looking');
+        else if (state === 'check_failed') say = t('niva.checkFailed');
+        else say = t('niva.unable');
+      } else {
+        say = item.status === 'saving' ? t('niva.saving') : t('niva.notSaved', { reason: item.error ?? '' });
+      }
+    }
+    spoken.current = after;
+    if (say) AccessibilityInfo.announceForAccessibility(say);
+  });
+
   const reply = (item: RowItem) => {
     const phase = phaseOf(item);
     if (phase === 'answered') {
       return (
         <Bubble source={formatSources(item.row.sources)}>
-          <Markdownish source={item.row.answer ?? ''} />
+          <Markdownish source={item.row.answer ?? ''} selectable />
         </Bubble>
       );
     }
     if (phase === 'looking') {
       return (
-        <Bubble live>
+        <Bubble>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
             <ActivityIndicator size="small" color={colors.brown} />
             <BubbleText text={t('niva.looking')} />
@@ -271,17 +339,24 @@ export default function NivaScreen() {
       );
     }
     if (phase === 'check_failed') {
-      return <Banner tone="warning" title={t('niva.checkFailed')} message={checkFailed?.message ?? ''} action={{ label: t('niva.checkAgain'), onPress: () => void check() }} />;
+      return (
+        <Banner
+          tone="warning"
+          title={t('niva.checkFailed')}
+          message={checkFailed?.message ?? ''}
+          action={{ label: rechecking ? t('niva.checking') : t('niva.checkAgain'), onPress: () => void checkAgain() }}
+        />
+      );
     }
     return (
       <VStack gap={space.sm}>
-        <Bubble live>
+        <Bubble>
           <BubbleText text={t('niva.unable')} />
         </Bubble>
         {teamOn ? (
           <Button
             label={t('niva.sendToTeam')}
-            accessibilityLabel={t('niva.sendToTeamLabel', { question: item.question })}
+            accessibilityLabel={t('niva.sendToTeamLabel', { question: nivaShortQuestion(item.question) })}
             accessibilityHint={t('niva.sendToTeamHint')}
             tone="secondary"
             size="sm"
@@ -369,15 +444,18 @@ export default function NivaScreen() {
               <Bubble mine>
                 <BubbleText text={item.question} mine />
               </Bubble>
-              {isNivaRowItem(item) ? (
-                reply(item)
-              ) : item.status === 'saving' ? (
-                <Txt variant="caption" color="muted">
-                  {t('niva.saving')}
-                </Txt>
-              ) : (
-                <Banner tone="error" message={t('niva.notSaved', { reason: item.error ?? '' })} action={{ label: t('niva.retry'), onPress: () => void ask(item.question, item.key) }} />
-              )}
+              {/* One live region from "Saving…" to the answer, so TalkBack reads each change to a question asked here. */}
+              <View accessibilityLiveRegion={!isNivaRowItem(item) || item.startedAt != null ? 'polite' : undefined}>
+                {isNivaRowItem(item) ? (
+                  reply(item)
+                ) : item.status === 'saving' ? (
+                  <Txt variant="caption" color="muted">
+                    {t('niva.saving')}
+                  </Txt>
+                ) : (
+                  <Banner tone="error" message={t('niva.notSaved', { reason: item.error ?? '' })} action={{ label: t('niva.retry'), onPress: () => ask(item.question, item.key) }} />
+                )}
+              </View>
             </VStack>
           ))}
 
@@ -390,7 +468,7 @@ export default function NivaScreen() {
                 {chips.map((c) => (
                   <Pressable
                     key={c}
-                    onPress={() => void ask(c)}
+                    onPress={() => ask(c)}
                     disabled={saving}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: saving }}

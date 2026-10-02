@@ -410,24 +410,27 @@ function newestCopy<R extends { answer: string | null }>(...copies: (R | undefin
 }
 
 /**
- * The chat as one list, each question once: past questions (oldest first)
- * merged with the ones asked on this screen and the copies fetched by the
- * answer check (`fresh`). A question asked here that a reload brought back
- * keeps its place, its key and its device-side wait.
+ * The chat as one list, each question once: past questions (oldest first),
+ * then the ones asked on this screen in the order they were asked (saved,
+ * saving or failed), each with the newest copy of its row — from the history
+ * reload or from the answer check (`fresh`). A question asked here that a
+ * reload brought back keeps its place, its key and its device-side wait, so a
+ * failed question never jumps behind one asked after it.
  */
 export function mergeNivaRows<R extends NivaRowLike>(history: R[], locals: NivaLocal<R>[], opts: { fresh?: Record<string, R>; seenAt?: number | null } = {}): NivaItem<R>[] {
   const fresh = opts.fresh ?? {};
-  const asked = new Map<string, Extract<NivaLocal<R>, { row: R }>>();
-  for (const l of locals) if ('row' in l) asked.set(l.row.id, l);
+  const askedHere = new Set<string>();
+  for (const l of locals) if ('row' in l) askedHere.add(l.row.id);
+  const stored = new Map<string, R>();
   const out: NivaItem<R>[] = [];
-  const seen = new Set<string>();
   for (const h of history) {
-    if (seen.has(h.id)) continue;
-    seen.add(h.id);
-    const l = asked.get(h.id);
-    const row = newestCopy(l?.row, h, fresh[h.id]);
-    out.push({ key: l?.key ?? h.id, question: row.question, row, startedAt: l?.startedAt ?? null, seenAt: l ? null : (opts.seenAt ?? null) });
+    if (stored.has(h.id)) continue;
+    stored.set(h.id, h);
+    if (askedHere.has(h.id)) continue;
+    const row = newestCopy(h, fresh[h.id]);
+    out.push({ key: h.id, question: row.question, row, startedAt: null, seenAt: opts.seenAt ?? null });
   }
+  const seen = new Set<string>();
   for (const l of locals) {
     if (!('row' in l)) {
       out.push(l);
@@ -435,10 +438,30 @@ export function mergeNivaRows<R extends NivaRowLike>(history: R[], locals: NivaL
     }
     if (seen.has(l.row.id)) continue;
     seen.add(l.row.id);
-    const row = newestCopy(l.row, fresh[l.row.id]);
+    const row = newestCopy(l.row, stored.get(l.row.id), fresh[l.row.id]);
     out.push({ key: l.key, question: row.question, row, startedAt: l.startedAt, seenAt: null });
   }
   return out;
+}
+
+/** A Markdown answer as plain words for a screen-reader announcement (no #, *, bullet marks or link addresses). */
+export function nivaSpoken(md: string): string {
+  return md
+    .replace(/\r\n/g, '\n')
+    .replace(/\[(.+?)\]\((.+?)\)/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .split('\n')
+    .map((l) => l.replace(/^\s*#{1,6}\s+/, '').replace(/^\s*([-*•]|\d+\.)\s+/, '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** A question cut to `max` characters for a button's accessibility label, so a screen reader soon reaches the button's name. */
+export function nivaShortQuestion(question: string, max = 80): string {
+  const q = normaliseQuestion(question);
+  return q.length > max ? `${q.slice(0, max).trimEnd()}…` : q;
 }
 
 /** True when the same question was sent less than NIVA_REPEAT_MS ago (a double tap): ignore it. */

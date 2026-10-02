@@ -2169,6 +2169,8 @@ export const en = {
   'niva.unableNoTeam': 'Messages to the team are not available in this app, so please contact the {center} office directly.',
   'niva.checkFailed': "Niva may have answered, but the app couldn't check.",
   'niva.checkAgain': 'Check again',
+  'niva.checking': 'Checking…',
+  'niva.answeredA11y': 'Niva answered: {answer}',
   'niva.notSaved': "Your question wasn't saved: {reason}",
   'niva.retry': 'Try again',
   'niva.source': 'Source: {source}',
@@ -2177,6 +2179,7 @@ export const en = {
   'niva.inputLabel': 'Message Niva',
   'niva.send': 'Send',
   'niva.empty': 'Type a question first.',
+  'niva.repeat': "You've just asked that. Niva's reply is above.",
   'niva.signIn': 'Sign in to ask Niva. Your questions help the team see what members need.',
   'niva.footer': 'Niva answers from {center}-approved content and shows its sources. Doctrinal questions are referred to Pathshala teachers.',
   // --- M-PLATFORM: modules switched off by the community ---

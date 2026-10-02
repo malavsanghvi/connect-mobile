@@ -19,7 +19,9 @@ import {
   NIVA_WAIT_MS,
   nivaIsRepeat,
   nivaPhase,
+  nivaShortQuestion,
   nivaShouldPoll,
+  nivaSpoken,
   nivaWaitEnds,
   type NivaLocal,
   goalMark,
@@ -305,6 +307,35 @@ describe('niva', () => {
     expect(isNivaRowItem(withFresh[2]) && withFresh[2].row.answer).toBe('Open 7:30 AM.');
     const historyAnswered = mergeNivaRows([a, b, answered], locals, { fresh: { c } });
     expect(isNivaRowItem(historyAnswered[2]) && historyAnswered[2].row.answer).toBe('Open 7:30 AM.');
+  });
+
+  it('keeps the questions asked here in the order they were asked after a reload, a failed one included', () => {
+    const a = row({ id: 'a', question: 'A', created_at: new Date(T0 - 3000).toISOString() });
+    const c = row({ id: 'c', question: 'C', created_at: new Date(T0).toISOString() });
+    // D failed to save first, then C was asked and saved.
+    const locals: NivaLocal<Row>[] = [
+      { key: 'kd', question: 'D', status: 'failed', error: 'offline' },
+      { key: 'kc', question: 'C', row: c, startedAt: T0 },
+    ];
+    expect(mergeNivaRows([a], locals).map((i) => i.key)).toEqual(['a', 'kd', 'kc']);
+    // The reload brings c back: D stays before C, and C keeps its key and its device-side wait.
+    const reloaded = mergeNivaRows([a, c], locals, { seenAt: T0 + 500 });
+    expect(reloaded.map((i) => i.key)).toEqual(['a', 'kd', 'kc']);
+    const kc = reloaded[2];
+    expect(isNivaRowItem(kc) && kc.startedAt).toBe(T0);
+    expect(isNivaRowItem(kc) && kc.seenAt).toBeNull();
+    // The reloaded copy is used when it is newer (here: it now has the answer).
+    const answeredLater = { ...c, answer: 'Open 7:30 AM.' };
+    const withAnswer = mergeNivaRows([a, answeredLater], locals);
+    expect(isNivaRowItem(withAnswer[2]) && withAnswer[2].row.answer).toBe('Open 7:30 AM.');
+  });
+
+  it('turns an answer into plain words for a screen reader, and shortens a long question for a label', () => {
+    expect(nivaSpoken('## Timings\n\n- **Morning:** 7:30 AM\n- Evening: 8:30 PM\n\nSee [the guide](https://example.org/guide).')).toBe('Timings Morning: 7:30 AM Evening: 8:30 PM See the guide.');
+    expect(nivaShortQuestion('  What are the   derasar timings?  ')).toBe('What are the derasar timings?');
+    const long = nivaShortQuestion('x'.repeat(1000));
+    expect(long).toHaveLength(81);
+    expect(long.endsWith('…')).toBe(true);
   });
 
   it('ignores the same question sent again within a few seconds', () => {
