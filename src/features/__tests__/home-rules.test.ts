@@ -75,28 +75,34 @@ describe('special days on Home', () => {
 });
 
 describe('givingSlides', () => {
-  const fmt = (c: number) => `$${c / 100}`;
-  const opp = (id: string, extra: Partial<GivingOpportunity> = {}): GivingOpportunity => ({ id, name: `Opp ${id}`, campaign_id: 'c1', amount_cents: null, min_amount_cents: null, campaign: { name: 'Paryushan' }, ...extra });
+  const opp = (id: string, extra: Partial<GivingOpportunity> = {}): GivingOpportunity => ({ id, name: `Opp ${id}`, kind: 'open', options: [], amount_cents: null, min_amount_cents: null, campaign: { name: 'Paryushan' }, ...extra });
 
   it('makes one slide per open opportunity, in the portal order', () => {
-    const slides = givingSlides([opp('a', { campaign_id: 'c1', min_amount_cents: 2500 }), opp('b', { campaign_id: 'c2', campaign: { name: 'Pathshala' } })], fmt);
+    const slides = givingSlides([opp('a', { min_amount_cents: 2500 }), opp('b', { campaign: { name: 'Pathshala' } })]);
     expect(slides.map((s) => s.opportunityId)).toEqual(['a', 'b']);
-    expect(slides[0]).toEqual({ key: 'opportunity:a', opportunityId: 'a', title: 'Opp a', ladder: null, campaignName: 'Paryushan', fromCents: 2500 });
-    expect(slides[1].fromCents).toBeNull(); // any amount
+    expect(slides[0]).toEqual({ key: 'opportunity:a', opportunityId: 'a', title: 'Opp a', campaignName: 'Paryushan', fromCents: 2500 });
+    expect(slides[1]).toMatchObject({ campaignName: 'Pathshala', fromCents: null }); // any amount
   });
-  it('folds a campaign of fixed levels into one slide with its tier ladder', () => {
-    const slides = givingSlides(
-      [opp('gold', { name: 'Gold', amount_cents: 500100 }), opp('other', { campaign_id: 'c2', campaign: { name: 'Jeevdaya' } }), opp('silver', { name: 'Silver', amount_cents: 250100 })],
-      fmt,
-    );
-    expect(slides.map((s) => s.key)).toEqual(['campaign:c1', 'opportunity:other']);
-    expect(slides[0]).toMatchObject({ opportunityId: 'gold', title: 'Paryushan', ladder: 'Gold $5001 · Silver $2501' });
+  it('gives every level of a campaign its own slide, each opening that level, next to an any-amount one', () => {
+    const slides = givingSlides([
+      opp('general'),
+      opp('gold', { name: 'Gold', kind: 'fixed', amount_cents: 500100 }),
+      opp('silver', { name: 'Silver', kind: 'fixed', amount_cents: 250100 }),
+    ]);
+    expect(slides.map((s) => [s.opportunityId, s.title, s.fromCents])).toEqual([
+      ['general', 'Opp general', null],
+      ['gold', 'Gold', 500100],
+      ['silver', 'Silver', 250100],
+    ]);
   });
-  it('a single fixed amount is not a ladder', () => {
-    const slides = givingSlides([opp('a', { amount_cents: 10100 })], fmt);
-    expect(slides).toEqual([{ key: 'opportunity:a', opportunityId: 'a', title: 'Opp a', ladder: null, campaignName: 'Paryushan', fromCents: 10100 }]);
+  it('shows the same "From" amount as the Give list (the smallest level of a tier opportunity)', () => {
+    const tier = opp('t', { kind: 'tier', options: [{ key: 'p', label: 'Platinum', amount_cents: 500000 }, { key: 's', label: 'Silver', amount_cents: 100000 }] });
+    expect(givingSlides([tier])[0].fromCents).toBe(100000);
+  });
+  it('has no campaign line when the opportunity has no campaign', () => {
+    expect(givingSlides([opp('a', { campaign: null, amount_cents: 10100, kind: 'fixed' })])).toEqual([{ key: 'opportunity:a', opportunityId: 'a', title: 'Opp a', campaignName: null, fromCents: 10100 }]);
   });
   it('is empty when nothing is open', () => {
-    expect(givingSlides([], fmt)).toEqual([]);
+    expect(givingSlides([])).toEqual([]);
   });
 });

@@ -445,6 +445,8 @@ export const en = {
   'home.givingHint': 'Double-tap to view and sponsor this one.',
   'home.givingPrev': 'Previous giving opportunity',
   'home.givingNext': 'Next giving opportunity',
+  'home.givingPause': 'Stop moving through the giving opportunities',
+  'home.givingPlay': 'Start moving through the giving opportunities again',
   'home.planEyebrow': 'Plan a special day',
   'home.planLabh': 'Plan a labh',
   'home.planLabhA11y': 'Plan a labh for {name}',

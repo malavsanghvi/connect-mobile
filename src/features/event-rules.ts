@@ -138,20 +138,6 @@ export function lunchWhy(g: LunchWhyInput): LunchWhy {
 }
 
 // ---------------------------------------------------------------------------
-// Giving card
-// ---------------------------------------------------------------------------
-
-/** "Platinum $5,000 · Gold $2,500 · Silver $1,000" when a campaign has fixed-amount levels. */
-export function tierLadder(levels: { name: string; amount_cents: number | null }[], format: (cents: number) => string): string | null {
-  const fixed = levels.filter((l): l is { name: string; amount_cents: number } => typeof l.amount_cents === 'number' && l.amount_cents > 0);
-  if (fixed.length < 2) return null;
-  return [...fixed]
-    .sort((a, b) => b.amount_cents - a.amount_cents)
-    .map((l) => `${l.name} ${format(l.amount_cents)}`)
-    .join(' · ');
-}
-
-// ---------------------------------------------------------------------------
 // Calendar
 // ---------------------------------------------------------------------------
 

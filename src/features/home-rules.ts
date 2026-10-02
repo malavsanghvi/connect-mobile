@@ -6,7 +6,8 @@
  */
 import { isWithinReminder } from '@/lib/rules';
 
-import { specialDayDismissKey, tierLadder } from './event-rules';
+import { specialDayDismissKey } from './event-rules';
+import { fromAmountCents } from './give/rules';
 
 // ---------------------------------------------------------------------------
 // Up next
@@ -92,44 +93,34 @@ export function nextSpecialDay<D extends HomeSpecialDayFields>(rows: readonly Da
 export type GivingOpportunity = {
   id: string;
   name: string;
-  campaign_id: string;
+  kind: string;
+  options: unknown;
   amount_cents: number | null;
   min_amount_cents: number | null;
   campaign: { name: string } | null;
 };
 
 export type GivingSlide = {
-  /** Stable key: the campaign for a tier ladder, else the opportunity. */
+  /** Stable key: the opportunity. */
   key: string;
-  /** The opportunity "View and sponsor" opens. */
+  /** The opportunity "View and sponsor" opens: always the one the slide names. */
   opportunityId: string;
   title: string;
-  /** "Gold $5,001 · Silver $2,501 · …" when the campaign has fixed levels; then the campaign is the title. */
-  ladder: string | null;
   campaignName: string | null;
-  /** The fixed or smallest amount (cents), null for any amount. */
+  /** The Give list's "From $X" amount (cents), null for any amount. */
   fromCents: number | null;
 };
 
 /**
  * One slide per open opportunity, in the portal's order, for the rotating
- * Giving card. A campaign whose opportunities are fixed levels (two or more
- * amounts) becomes one slide with its tier ladder, opening its first level,
- * so the card never rotates through "Gold", "Silver", "Bronze" one by one.
+ * Giving card. Each slide names one opportunity and opens that same one, so
+ * every open opportunity can be reached from Home (a campaign's Gold and
+ * Silver levels are two slides, not one ladder that opens only the first).
+ * The amount is the one the Give list shows (fromAmountCents).
  */
-export function givingSlides(opps: readonly GivingOpportunity[], format: (cents: number) => string): GivingSlide[] {
-  const out: GivingSlide[] = [];
-  const folded = new Set<string>();
-  for (const opp of opps) {
-    if (folded.has(opp.campaign_id)) continue;
-    const ladder = opp.campaign ? tierLadder(opps.filter((o) => o.campaign_id === opp.campaign_id), format) : null;
-    if (ladder && opp.campaign) {
-      folded.add(opp.campaign_id);
-      out.push({ key: `campaign:${opp.campaign_id}`, opportunityId: opp.id, title: opp.campaign.name, ladder, campaignName: opp.campaign.name, fromCents: null });
-      continue;
-    }
-    const from = opp.amount_cents ?? opp.min_amount_cents;
-    out.push({ key: `opportunity:${opp.id}`, opportunityId: opp.id, title: opp.name, ladder: null, campaignName: opp.campaign?.name ?? null, fromCents: typeof from === 'number' && from > 0 ? from : null });
-  }
-  return out;
+export function givingSlides(opps: readonly GivingOpportunity[]): GivingSlide[] {
+  return opps.map((opp) => {
+    const from = fromAmountCents(opp);
+    return { key: `opportunity:${opp.id}`, opportunityId: opp.id, title: opp.name, campaignName: opp.campaign?.name ?? null, fromCents: typeof from === 'number' && from > 0 ? from : null };
+  });
 }

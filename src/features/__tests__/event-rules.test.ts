@@ -20,7 +20,6 @@ import {
   specialDayDismissKey,
   specialDayLead,
   stepIndex,
-  tierLadder,
   tileColorIndex,
   toWebcal,
   turnsAge,
@@ -88,25 +87,6 @@ describe('lunch why line', () => {
   });
   it('a move by the member wins', () => {
     expect(lunchWhy({ isFirstSlot: false, members: [m('Rahul')], checkedInTime: '10:42 AM', movedByYou: true }).tag).toBe('moved');
-  });
-});
-
-describe('giving tiers', () => {
-  const fmt = (c: number) => `$${(c / 100).toLocaleString('en-US')}`;
-  it('lists fixed levels high to low', () => {
-    expect(
-      tierLadder(
-        [
-          { name: 'Silver', amount_cents: 100000 },
-          { name: 'Platinum', amount_cents: 500000 },
-          { name: 'Gold', amount_cents: 250000 },
-        ],
-        fmt,
-      ),
-    ).toBe('Platinum $5,000 · Gold $2,500 · Silver $1,000');
-  });
-  it('needs at least two fixed levels', () => {
-    expect(tierLadder([{ name: 'Any', amount_cents: null }, { name: 'Gold', amount_cents: 1000 }], fmt)).toBeNull();
   });
 });
 
