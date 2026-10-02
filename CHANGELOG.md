@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.5 — 2026-10-02
+
+- **Puja spots are chandan.** On the murti photo, in the virtual puja and in the Navang puja lesson:
+  - each place still to touch is a chandan ring;
+  - the place to touch now glows in chandan;
+  - a place already touched fills with chandan, like a tilak applied.
+
+  No green any more. "Do it again" is deep chandan too.
+
 ## 1.6.4 — 2026-10-02
 
 - **Virtual puja.** **Do puja** sits under Watch live darshan on Home's Today card. It goes straight to the Navang puja

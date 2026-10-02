@@ -216,7 +216,7 @@ function Puja({ lesson, center, personId, refreshError, reload }: { lesson: Puja
       {note ? <FeedbackNote text={note.text} ok={note.ok} announced={note.announced} /> : null}
       <Completion title={t('puja.complete')} line={t(doneLine.key, doneLine.vars)} />
       <TryResult tries={tries} />
-      <Button3D label={t('puja.again')} bg={colors.green} edge={colors.greenDark} disabled={tries.saving} onPress={again} />
+      <Button3D label={t('puja.again')} bg={colors.chandanDeep} edge={colors.chandanEdge} disabled={tries.saving} onPress={again} />
       {offering || (!success && hasLearn) ? <Quiet label={t('puja.offerYes')} hint={t('puja.learnHint')} onPress={openLearn} center /> : null}
     </VStack>
   ) : (
