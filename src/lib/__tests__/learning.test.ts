@@ -241,13 +241,34 @@ describe('niva', () => {
     expect(parseSources([null, 3, { title: '  ' }, { content_item_id: 'c9' }])).toEqual([]);
   });
 
-  it('shows each title once, keeping the first place and a web address from any copy', () => {
+  it('drops repeats (same title, same or no web address), keeping the first place and filling in a web address', () => {
     expect(parseSources(['JSH website', { title: 'About JSH' }, 'JSH website'])).toEqual([{ title: 'JSH website' }, { title: 'About JSH' }]);
     expect(parseSources([{ title: 'About JSH' }, { title: 'Timings' }, { title: 'About JSH', url: 'https://jsh.example/about' }])).toEqual([
       { title: 'About JSH', url: 'https://jsh.example/about' },
       { title: 'Timings' },
     ]);
-    expect(parseSources([{ title: 'About JSH', url: 'https://jsh.example/a' }, { title: 'About JSH', url: 'https://jsh.example/b' }])).toEqual([{ title: 'About JSH', url: 'https://jsh.example/a' }]);
+    expect(parseSources([{ title: 'About JSH', url: 'https://jsh.example/about' }, { title: 'About JSH' }, { title: 'About JSH', url: 'https://jsh.example/about' }])).toEqual([
+      { title: 'About JSH', url: 'https://jsh.example/about' },
+    ]);
+  });
+
+  it('keeps two pages that share a title but not a web address, so each links to its own page', () => {
+    expect(
+      parseSources([
+        { content_item_id: 'c1', title: 'Membership', url: 'https://jsh.example/membership' },
+        { content_item_id: 'c2', title: 'Membership', url: 'https://jsh.example/youth/membership' },
+      ]),
+    ).toEqual([
+      { title: 'Membership', url: 'https://jsh.example/membership' },
+      { title: 'Membership', url: 'https://jsh.example/youth/membership' },
+    ]);
+    // A copy with no address fills in the first one; the next different address is its own entry.
+    expect(parseSources([{ title: 'Membership' }, { title: 'Membership', url: 'https://jsh.example/a' }, { title: 'Membership', url: 'https://jsh.example/b' }, { title: 'Membership' }])).toEqual([
+      { title: 'Membership', url: 'https://jsh.example/a' },
+      { title: 'Membership', url: 'https://jsh.example/b' },
+    ]);
+    // The plain-text form still names each title once.
+    expect(formatSources([{ title: 'Membership', url: 'https://jsh.example/a' }, { title: 'Timings' }, { title: 'Membership', url: 'https://jsh.example/b' }])).toBe('Membership · Timings');
   });
 
   it('only links plain web addresses', () => {

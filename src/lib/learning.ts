@@ -322,16 +322,19 @@ function webUrl(raw: unknown): string | undefined {
 }
 
 /**
- * niva_conversations.sources jsonb → the sources to show, each title once, in
- * the order Niva cited them. The worker stores [{content_item_id, title, url?}]
+ * niva_conversations.sources jsonb → the sources to show, each once, in the
+ * order Niva cited them. The worker stores [{content_item_id, title, url?}]
  * (url only for a source imported from a web page); older rows hold plain
- * strings or {label | name | source}. A repeated title keeps the first place
- * and the first web address any copy of it carries.
+ * strings or {label | name | source}. A copy is a repeat when its title
+ * matches and its web address matches or is missing: it keeps the first
+ * place, and fills in the address when the first copy had none. Two pages
+ * with the same title but different addresses (imported pages often share
+ * one, like "Membership") are both kept, so each links to its own page.
  */
 export function parseSources(raw: unknown): NivaSource[] {
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
   const out: NivaSource[] = [];
-  const at = new Map<string, number>();
+  const at = new Map<string, number[]>();
   for (const s of list) {
     let title = '';
     let url: string | undefined;
@@ -342,20 +345,22 @@ export function parseSources(raw: unknown): NivaSource[] {
       url = webUrl(o.url) ?? webUrl(o.source_url);
     }
     if (!title) continue;
-    const seen = at.get(title);
-    if (seen === undefined) {
-      at.set(title, out.length);
-      out.push(url ? { title, url } : { title });
-    } else if (url && !out[seen].url) {
-      out[seen] = { title, url };
+    const seen = at.get(title) ?? [];
+    if (seen.length && (!url || seen.some((i) => out[i].url === url))) continue;
+    const bare = url ? seen.find((i) => !out[i].url) : undefined;
+    if (bare !== undefined) {
+      out[bare] = { title, url };
+      continue;
     }
+    at.set(title, [...seen, out.length]);
+    out.push(url ? { title, url } : { title });
   }
   return out;
 }
 
-/** niva_conversations.sources jsonb → "JSH website · About JSH", or null. */
+/** niva_conversations.sources jsonb → "JSH website · About JSH" (each title once), or null. */
 export function formatSources(raw: unknown): string | null {
-  const names = parseSources(raw).map((s) => s.title);
+  const names = [...new Set(parseSources(raw).map((s) => s.title))];
   return names.length ? names.join(' · ') : null;
 }
 

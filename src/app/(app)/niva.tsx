@@ -62,15 +62,19 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 
 /**
  * "Source: …" under an answer. A source imported from a web page links to it (in the in-app browser);
- * the others are plain titles. If the page cannot be opened, the reason shows right here, and tapping
- * the link again retries.
+ * the others are plain titles. If the page cannot be opened, the reason shows right here (in a live
+ * region, and announced on iOS), and tapping the link again retries.
  */
 function Sources({ sources }: { sources: NivaSource[] }) {
   const { t } = useSettings();
   const [error, setError] = useState<string | null>(null);
   const open = (url: string) => {
     setError(null);
-    void openExternal(url, t('niva.openSource'), setError);
+    void openExternal(url, t('niva.openSource'), (msg) => {
+      setError(msg);
+      // iOS has no live regions, so VoiceOver hears the reason only when it is announced.
+      if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(msg);
+    });
   };
   return (
     <View style={{ maxWidth: 300, paddingHorizontal: 6 }}>
@@ -79,7 +83,7 @@ function Sources({ sources }: { sources: NivaSource[] }) {
           {t(sources.length > 1 ? 'niva.sourcesLabel' : 'niva.sourceLabel')}
         </Txt>
         {sources.map(({ title, url }, i) => (
-          <Fragment key={title}>
+          <Fragment key={`${title}\n${url ?? ''}`}>
             {url ? (
               <LinkText label={title} underline onPress={() => open(url)} />
             ) : (
