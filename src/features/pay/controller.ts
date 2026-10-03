@@ -17,6 +17,7 @@
 
 import { useSyncExternalStore } from 'react';
 
+import type { OnlineMethod } from './methods';
 import type { SavingStep } from './steps';
 
 export type { SavingStep } from './steps';
@@ -50,10 +51,11 @@ export type PaymentUi = {
 };
 
 /**
- * Charges a card and records the payment against the request. Registered by
- * the payment integration once it exists; nothing registers one today.
+ * Takes the member to the provider's page and waits until the provider's webhook has recorded the payment against the
+ * request. `method` is the online way the member chose on the Pay sheet (Card or PayPal); without one the first online
+ * method is used. Registered by features/pay/online.ts while the community takes payments online.
  */
-export type CardCharger = (req: PaymentRequest) => Promise<{ paymentId: string; methodLabel: string }>;
+export type CardCharger = (req: PaymentRequest, method?: OnlineMethod) => Promise<{ paymentId: string; methodLabel: string }>;
 
 export type SavingJob = {
   /** "Saving your pledge". */

@@ -306,6 +306,7 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   recurring: 'giving',
   'recurring-setup': 'giving',
   'labh/[dayId]': 'giving',
+  'zelle-report': 'giving',
   // bolis
   bolis: 'bolis',
   'boli/[id]': 'bolis',

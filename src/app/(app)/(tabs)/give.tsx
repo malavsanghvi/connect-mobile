@@ -8,8 +8,11 @@ import { AvailabilityBar, Heading, slotsText, TintTile } from '@/features/give/p
 import { availabilityFraction, fromAmountCents, opportunityKind, slotsLine } from '@/features/give/rules';
 import { startPayment } from '@/features/pay';
 import { HowToGive } from '@/features/pay/how-to-give';
+import { canReportZelle, otherMethods, type PaymentMethods } from '@/features/pay/methods';
+import { ZelleReports } from '@/features/pay/zelle';
+import type { PaymentReport } from '@/features/pay/zelle-report';
 import { isBoliOpen, listBolis } from '@/lib/api/bolis';
-import { loadPaymentOptions, type OfflineMethod } from '@/lib/api/payments';
+import { listPaymentReports, loadPaymentMethods } from '@/lib/api/payments';
 import { listOpenPledges, listOpportunitiesWithAvailability, loadGiveSummary, type GiveSummary, type OpportunityListItem } from '@/lib/api/giving';
 import { AppError, logError, report } from '@/lib/errors';
 import { formatCents, formatCentsCompact } from '@/lib/format';
@@ -45,15 +48,7 @@ export default function GiveScreen() {
         givingOn ? listOpenPledges(member.household.id) : [],
       ]);
       // How to give (o-payments): a failure here is shown on its card, not over the whole tab.
-      const howToGive: HowToGiveState = !givingOn
-        ? null
-        : await loadPaymentOptions(center.id).then(
-            (o) => ({ methods: o.offline, error: null }),
-            (err: unknown) => {
-              logError('load how to give', err);
-              return { methods: [], error: err instanceof AppError ? err.userMessage : "We couldn't load how to give." };
-            },
-          );
+      const howToGive: HowToGiveState = !givingOn ? null : await loadHowToGive(center.id, member.household.id);
       const now = new Date();
       return {
         summary,
@@ -89,17 +84,40 @@ export default function GiveScreen() {
   return (
     <Screen title={t('tab.give')} root onRefresh={async () => invalidate()}>
       <Loaded state={state}>
-        {(data) => (data ? <GiveBody {...data} map={map} /> : <EmptyState icon="people-outline" title={t('give.noHousehold')} />)}
+        {(data) => (data ? <GiveBody {...data} map={map} onRetry={invalidate} /> : <EmptyState icon="people-outline" title={t('give.noHousehold')} />)}
       </Loaded>
     </Screen>
   );
 }
 
-type HowToGiveState = { methods: OfflineMethod[]; error: string | null } | null;
+type ReportsState = { reports: PaymentReport[]; error: string | null };
+type HowToGiveState = { methods: PaymentMethods | null; reports: ReportsState; error: string | null } | null;
 
-type GiveBodyProps = { howToGive: HowToGiveState; summary: GiveSummary | null; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: { id: string; pledge_number: string | null }[]; map: ModuleMap };
+/**
+ * The ways to give, and the family's Zelle reports. Each part fails on its own card with a retry. The reports are asked
+ * for only from a portal that has the new list (an older one has no reports to show).
+ */
+async function loadHowToGive(centerId: string, householdId: string): Promise<NonNullable<HowToGiveState>> {
+  const none: ReportsState = { reports: [], error: null };
+  const loaded = await loadPaymentMethods(centerId).then(
+    (methods) => ({ methods, error: null as string | null }),
+    (err: unknown) => {
+      logError('load how to give', err);
+      return { methods: null, error: err instanceof AppError ? err.userMessage : "We couldn't load how to give." };
+    },
+  );
+  if (!loaded.methods || loaded.methods.source !== 'methods') return { ...loaded, reports: none };
+  const reports: ReportsState = await listPaymentReports(centerId, householdId).then(
+    (r) => ({ reports: r.reports, error: null }),
+    // Already logged where it failed; the card says so with a retry.
+    (err: unknown) => ({ reports: [], error: err instanceof AppError ? err.userMessage : "We couldn't load your Zelle reports." }),
+  );
+  return { ...loaded, reports };
+}
 
-function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges, map }: GiveBodyProps) {
+type GiveBodyProps = { howToGive: HowToGiveState; summary: GiveSummary | null; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: { id: string; pledge_number: string | null }[]; map: ModuleMap; onRetry: () => void };
+
+function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges, map, onRetry }: GiveBodyProps) {
   const t = useT();
   const router = useRouter();
   const bolisCard = isGiveSectionVisible(map, 'bolis') ? <BolisCard openDigital={openDigital} inPerson={inPerson} /> : null;
@@ -182,11 +200,31 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
         <>
           <Heading>{t('howToGive.title')}</Heading>
           <Card style={{ gap: 10 }}>
-            {howToGive.error ? <Banner tone="error" message={howToGive.error} /> : <HowToGive methods={howToGive.methods} />}
+            {howToGive.error ? (
+              <Banner tone="error" message={howToGive.error} action={{ label: t('common.retry'), onPress: onRetry }} />
+            ) : (
+              <HowToGive methods={otherMethods(howToGive.methods)} onReport={canReportZelle(howToGive.methods) ? () => router.push('/zelle-report') : undefined} />
+            )}
             <Txt variant="meta" color="muted">
               {t('howToGive.intro')}
             </Txt>
           </Card>
+          {/* A report is not a gift: nothing in this card is added to any total above. */}
+          {howToGive.reports.error || howToGive.reports.reports.length > 0 ? (
+            <>
+              <Heading>{t('zelle.reportsTitle')}</Heading>
+              <Card style={{ gap: 10 }}>
+                {howToGive.reports.error ? (
+                  <Banner tone="error" message={howToGive.reports.error} action={{ label: t('common.retry'), onPress: onRetry }} />
+                ) : (
+                  <ZelleReports reports={howToGive.reports.reports} pledgeNumbers={new Map(openPledges.flatMap((p) => (p.pledge_number ? [[p.id, p.pledge_number] as const] : [])))} onChanged={onRetry} />
+                )}
+                <Txt variant="meta" color="muted">
+                  {t('zelle.reportsFootnote')}
+                </Txt>
+              </Card>
+            </>
+          ) : null}
         </>
       ) : null}
     </VStack>

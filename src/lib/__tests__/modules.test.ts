@@ -221,6 +221,10 @@ describe('blockingModule (deep links)', () => {
     expect(blockingModule(off('gyan_path'), 'gyan')).toBe('gyan_path');
     expect(blockingModule(off('comms'), 'guide/whatsapp')).toBe('comms');
     expect(blockingModule(off('niva'), '/niva')).toBe('niva');
+    // The Zelle report form is a Giving screen: Giving off, no form (deep links included).
+    expect(blockingModule(off('giving'), 'zelle-report')).toBe('giving');
+    expect(blockingModule(off('giving'), '/zelle-report')).toBe('giving');
+    expect(blockingModule(off('bolis'), 'zelle-report')).toBeNull();
     for (const name of ['media/[kind]', 'media/[kind]/[id]', 'recipe/[id]', 'recipe/random', 'listen/playlist', 'listen/podcast-random']) {
       expect(blockingModule(off('content'), name)).toBe('content');
     }

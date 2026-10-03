@@ -4,14 +4,16 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Chip, ChipGroup, Row, Segmented, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Chip, ChipGroup, Pill, Row, Segmented, Txt, VStack } from '@/components/ui';
 import { ChevronGlyph } from '@/features/give/icons';
 import { CheckBox, TintTile } from '@/features/give/parts';
 import { isYearOpen } from '@/features/give/rules';
 import { startPayment } from '@/features/pay';
+import { pledgesWithWaitingReport } from '@/features/pay/zelle-report';
 import type { Translate } from '@/i18n';
 import { BUCKETS, signedUrl } from '@/lib/api/files';
 import { listPledges, type PledgeWithPeople } from '@/lib/api/giving';
+import { listPaymentReports } from '@/lib/api/payments';
 import type { Tables } from '@/lib/database.types';
 import { report } from '@/lib/errors';
 import { formatCents, formatLongDate, fullName } from '@/lib/format';
@@ -44,7 +46,7 @@ function sourceLabel(t: Translate, source: string): string {
   return v === key ? source : v;
 }
 
-function PledgeRow({ t, p, selected, onToggle }: { t: Translate; p: PledgeWithPeople; selected: boolean; onToggle: () => void }) {
+function PledgeRow({ t, p, selected, onToggle, reported }: { t: Translate; p: PledgeWithPeople; selected: boolean; onToggle: () => void; reported: boolean }) {
   const open = isOpenPledge(p);
   const title = p.opportunityName ? [p.opportunityName, p.optionLabel].filter(Boolean).join(' · ') : p.dedication || p.campaignName || sourceLabel(t, p.source);
   const sub = [p.campaignName && p.campaignName !== title ? p.campaignName : null, p.opportunityName && p.dedication ? p.dedication : null].filter(Boolean).join(' · ') || sourceLabel(t, p.source);
@@ -79,6 +81,12 @@ function PledgeRow({ t, p, selected, onToggle }: { t: Translate; p: PledgeWithPe
             {pill.label}
           </Txt>
         </View>
+        {/* A Zelle the family reported for this pledge, waiting for the treasurer. It is not payment: the amounts and status above do not change. */}
+        {reported ? (
+          <View accessible accessibilityLabel={t('zelle.reportedA11y')} style={{ marginTop: 4, alignSelf: 'flex-end' }}>
+            <Pill label={t('zelle.status.reported')} tone="amber" />
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -87,7 +95,7 @@ function PledgeRow({ t, p, selected, onToggle }: { t: Translate; p: PledgeWithPe
 /** Family pledges (prototype Main.dc.html L928–981): years, summary tiles, filter, collapsible year groups, pay. Adults only. */
 export default function PledgesScreen() {
   const { t } = useSettings();
-  const { member } = useApp();
+  const { member, center } = useApp();
   const { invalidate } = useDataVersion();
   const { toast } = useFeedback();
   const names = new Map((member?.members ?? []).map((m) => [m.person.id, fullName(m.person)]));
@@ -96,6 +104,14 @@ export default function PledgesScreen() {
     [member?.household?.id],
     'load your pledges',
   );
+  // The family's Zelle reports (a "Reported" chip on the pledges they name). They are never added to any amount here.
+  // An older portal has none to show; any other failure is said on the screen, with a retry.
+  const reports = useLoad(
+    async () => (member?.household && center && member.isAdult ? (await listPaymentReports(center.id, member.household.id)).reports : []),
+    [member?.household?.id, center?.id, member?.isAdult ?? false],
+    'load your Zelle reports',
+  );
+  const reportedPledges = pledgesWithWaitingReport(reports.data ?? []);
   const [year, setYear] = useState<number | null>(null);
   const [filter, setFilter] = useState<PledgeFilter>('all');
   const [selected, setSelected] = useState<string[]>([]);
@@ -170,6 +186,7 @@ export default function PledgesScreen() {
                 ]}
               />
               {error ? <Banner tone="error" message={error} /> : null}
+              {reports.error ? <Banner tone="error" message={reports.error.userMessage} action={{ label: t('common.retry'), onPress: () => void reports.reload() }} /> : null}
               {pledges.length === 0 ? <EmptyState icon="receipt-outline" title={t('pledges.none')} /> : null}
               {groups.map((g) => {
                 const statement = statements.find((s) => s.tax_year === g.year && s.kind === 'tax_year');
@@ -209,7 +226,7 @@ export default function PledgesScreen() {
                     {isOpen ? (
                       <VStack gap={space.sm}>
                         {rows.map((p) => (
-                          <PledgeRow key={p.id} t={t} p={p} selected={selected.includes(p.id)} onToggle={() => setSelected(selected.includes(p.id) ? selected.filter((x) => x !== p.id) : [...selected, p.id])} />
+                          <PledgeRow key={p.id} t={t} p={p} reported={reportedPledges.has(p.id)} selected={selected.includes(p.id)} onToggle={() => setSelected(selected.includes(p.id) ? selected.filter((x) => x !== p.id) : [...selected, p.id])} />
                         ))}
                         {rows.length === 0 ? (
                           <Txt variant="meta" color="faint" style={{ paddingVertical: 4, paddingHorizontal: 2 }}>

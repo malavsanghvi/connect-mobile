@@ -1,21 +1,21 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { Modal, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CenterMark } from '@/components/brand';
-import { Banner, Button, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Radio, Row, Txt, VStack } from '@/components/ui';
 import { report } from '@/lib/errors';
 import { formatCents } from '@/lib/format';
 import { useApp } from '@/providers/app';
+import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
-import type { PaymentOptions } from '@/lib/api/payments';
-
 import { cardCharger, registerPayHost, useCardCharger, type PaymentOutcome, type PaymentRequest, type SavingJob, type SavingOutcome } from './controller';
 import { HowToGive } from './how-to-give';
-import { usePaymentOptions } from './online';
+import { canReportZelle, chosenOnline, joinNames, onlineMethods, otherMethods, type OnlineMethod, type PaymentMethods } from './methods';
+import { usePaymentMethods } from './online';
 import { processorLabel } from './online-wait';
 import { runSteps, stepStatuses, type StepStatus } from './steps';
 
@@ -24,7 +24,7 @@ const MIN_STEP_MS = 450;
 /** Let the sheet finish sliding away before the next full-screen view opens (iOS stacks modals badly). */
 const MODAL_GAP_MS = 350;
 
-type SheetState = { req: PaymentRequest; resolve: (o: PaymentOutcome) => void; busy: boolean; error: string | null };
+type SheetState = { req: PaymentRequest; resolve: (o: PaymentOutcome) => void; busy: boolean; error: string | null; /** The online way the member chose (a method's key); null until they choose, then the first one is used. */ choice: string | null };
 type SavingState = { job: SavingJob; resolve: (o: SavingOutcome) => void; done: number; failed: string | null; running: boolean; result: string | null };
 
 /** Pay sheet, "Saving" and "Thank you" for the whole app. Mount once, inside the providers. */
@@ -33,8 +33,12 @@ export function PayHost() {
   const [saving, setSaving] = useState<SavingState | null>(null);
   const [paid, setPaid] = useState<{ amountCents: number } | null>(null);
   const savingRef = useRef<SavingState | null>(null);
-  // What this community takes (online processor, offline instructions); registers the card charger.
-  const { options } = usePaymentOptions();
+  // "I sent it" opens a screen once, however many times it is tapped while the sheet slides away.
+  const openingReport = useRef(false);
+  const router = useRouter();
+  // What this community takes (Card, PayPal, Zelle, the office's instructions); registers the card charger.
+  const { methods, error: methodsError, loading: methodsLoading } = usePaymentMethods();
+  const { invalidate } = useDataVersion();
   const available = useCardCharger();
 
   useEffect(() => {
@@ -66,7 +70,7 @@ export function PayHost() {
       registerPayHost({
         pay: (req) =>
           new Promise<PaymentOutcome>((resolve) => {
-            setSheet({ req, resolve, busy: false, error: null });
+            setSheet({ req, resolve, busy: false, error: null, choice: null });
           }),
         save: (job) =>
           new Promise<SavingOutcome>((resolve) => {
@@ -90,18 +94,35 @@ export function PayHost() {
     if (alt) setTimeout(alt.run, MODAL_GAP_MS);
   };
 
+  const choose = (key: string) => setSheet((s) => (s && !s.busy ? { ...s, choice: key, error: null } : s));
+
   const confirm = async () => {
     const charge = cardCharger();
-    if (!sheet || !charge) return;
+    // While a payment is starting the button is busy (and disabled); this is the same guard for anything else that calls it.
+    if (!sheet || !charge || sheet.busy) return;
     setSheet({ ...sheet, busy: true, error: null });
     try {
-      const res = await charge(sheet.req);
+      const res = await charge(sheet.req, chosenOnline(methods, sheet.choice) ?? undefined);
       const amountCents = sheet.req.amountCents;
       closeSheet({ status: 'paid', paymentId: res.paymentId });
       setTimeout(() => setPaid({ amountCents }), MODAL_GAP_MS);
     } catch (err) {
       setSheet((s) => (s ? { ...s, busy: false, error: report(err, 'take your payment').userMessage } : s));
     }
+  };
+
+  // "I sent it" (Zelle): the sheet closes, then the report form opens with this payment's amount and pledges filled in.
+  // Once only: a second tap while the sheet slides away must not open a second form.
+  const reportZelleSent = () => {
+    const req = sheet?.req;
+    if (!req || openingReport.current) return;
+    openingReport.current = true;
+    closeSheet({ status: 'cancelled' });
+    const ids = req.pledgeIds ?? (req.pledgeId ? [req.pledgeId] : []);
+    setTimeout(() => {
+      openingReport.current = false;
+      router.push({ pathname: '/zelle-report', params: { amount: String(req.amountCents), pledges: ids.join(',') } });
+    }, MODAL_GAP_MS);
   };
 
   const finishSaving = (ok: boolean) => {
@@ -115,7 +136,7 @@ export function PayHost() {
 
   return (
     <>
-      <PaySheet state={sheet} options={options} charge={available} onCancel={() => closeSheet({ status: sheet && !available ? 'not_available' : 'cancelled' })} onAlternative={alternative} onConfirm={confirm} />
+      <PaySheet state={sheet} methods={methods} loadError={methodsError} loading={methodsLoading} onRetryLoad={invalidate} charge={available} onCancel={() => closeSheet({ status: sheet && !available ? 'not_available' : 'cancelled' })} onAlternative={alternative} onChoose={choose} onReport={reportZelleSent} onConfirm={confirm} />
       <SavingView state={saving} onRetry={() => void run(saving?.done ?? 0)} onClose={() => finishSaving(false)} onContinue={() => finishSaving(true)} />
       <ThankYou state={paid} onClose={() => setPaid(null)} />
     </>
@@ -135,16 +156,59 @@ function SheetRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Prototype Pay sheet (L1559): Pay · Cancel; To / For / Card / Total; confirm. */
-function PaySheet({ state, options, charge, onCancel, onAlternative, onConfirm }: { state: SheetState | null; options: PaymentOptions | null; charge: unknown; onCancel: () => void; onAlternative: () => void; onConfirm: () => void }) {
+/**
+ * Pay sheet (prototype L1559): Pay · Cancel; To / For; how to pay; Total; confirm.
+ *
+ * When the community takes payments online, the member sees the ways it lists (Card, PayPal) and chooses one; the
+ * provider's own page takes the payment. Zelle and the office's instructions sit under "Other ways to give", with a
+ * copy button and "I sent it" for Zelle. When nothing can be paid online the sheet says so honestly and shows those
+ * instructions instead. A child is told to ask a parent. Nothing here ever claims a payment: the provider's webhook
+ * records an online one, and a Zelle counts only once a treasurer has matched it to the bank.
+ */
+function PaySheet({
+  state,
+  methods,
+  loadError,
+  loading,
+  onRetryLoad,
+  charge,
+  onCancel,
+  onAlternative,
+  onChoose,
+  onReport,
+  onConfirm,
+}: {
+  state: SheetState | null;
+  methods: PaymentMethods | null;
+  /** Why how-to-give could not be loaded (shown with a retry), or null. */
+  loadError: string | null;
+  loading: boolean;
+  onRetryLoad: () => void;
+  charge: unknown;
+  onCancel: () => void;
+  onAlternative: () => void;
+  onChoose: (key: string) => void;
+  onReport: () => void;
+  onConfirm: () => void;
+}) {
   const t = useT();
   const insets = useSafeAreaInsets();
-  const { center } = useApp();
+  const { height } = useWindowDimensions();
+  const { center, member } = useApp();
+  const [othersOpen, setOthersOpen] = useState(false);
   const req = state?.req;
   const saved = !!(req?.pledgeId || req?.pledgeIds?.length);
-  const online = charge ? options?.online ?? null : null;
-  const provider = processorLabel(online?.processor);
-  const offReason = options?.onlineUnavailable;
+  const adult = !member || member.isAdult;
+  const online = charge && adult ? onlineMethods(methods) : [];
+  const selected = chosenOnline(charge && adult ? methods : null, state?.choice ?? null);
+  const others = adult ? otherMethods(methods) : [];
+  const offReason = methods?.onlineUnavailable;
+  const centerName = center?.short_name || center?.name || '';
+  const reportOpens = canReportZelle(methods) ? onReport : undefined;
+  // The list could not be read, or is still being read: say that, rather than "not set up yet".
+  const unknown = online.length === 0 && !methods && (!!loadError || loading);
+  // Under the choices, the other ways to give: shown with the new list (the older list never showed them on the sheet).
+  const showOthers = online.length > 0 && others.length > 0 && methods?.source === 'methods';
   return (
     <Modal visible={!!state} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={{ flex: 1, backgroundColor: colors.scrimSheet, justifyContent: 'flex-end' }}>
@@ -165,9 +229,83 @@ function PaySheet({ state, options, charge, onCancel, onAlternative, onConfirm }
               <Txt variant="small">{t('common.cancel')}</Txt>
             </Pressable>
           </Row>
-          <SheetRow label={t('pay.to')} value={center?.name ?? ''} />
-          <SheetRow label={t('pay.for')} value={req?.forLabel ?? ''} />
-          <SheetRow label={online ? t('pay.provider') : t('pay.card')} value={online ? provider : t('pay.noCard')} />
+          {!adult ? (
+            <View style={{ backgroundColor: colors.brownTint, borderColor: colors.brownBorder, borderWidth: 1, borderRadius: radii.card, padding: space.md, gap: space.xs }} accessibilityLiveRegion="polite">
+              <Txt variant="smallStrong" color="brownDark">
+                {t('locked.title')}
+              </Txt>
+              <Txt variant="small" color="brownDark">
+                {t('pay.askParent')}
+              </Txt>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: Math.max(220, height * 0.5) }} contentContainerStyle={{ gap: 14 }} keyboardShouldPersistTaps="handled">
+              <SheetRow label={t('pay.to')} value={center?.name ?? ''} />
+              <SheetRow label={t('pay.for')} value={req?.forLabel ?? ''} />
+              {online.length > 1 ? (
+                <View style={{ gap: space.sm }} accessibilityRole="radiogroup">
+                  <Txt variant="body" color="muted">
+                    {t('pay.payWith')}
+                  </Txt>
+                  {online.map((m) => (
+                    <Radio key={m.key} label={m.label} sub={onlineNote(t, m)} selected={selected?.key === m.key} onPress={() => onChoose(m.key)} />
+                  ))}
+                </View>
+              ) : online.length === 1 ? (
+                <View style={{ gap: space.xs }}>
+                  <SheetRow label={t('pay.provider')} value={online[0].label} />
+                  {onlineNote(t, online[0]) ? (
+                    <Txt variant="meta" color="muted">
+                      {onlineNote(t, online[0])}
+                    </Txt>
+                  ) : null}
+                </View>
+              ) : unknown ? null : (
+                <SheetRow label={t('pay.card')} value={t('pay.noCard')} />
+              )}
+              {showOthers ? (
+                <View style={{ gap: space.sm }}>
+                  <Pressable
+                    onPress={() => setOthersOpen(!othersOpen)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: othersOpen }}
+                    style={({ pressed }) => ({ minHeight: touch.min, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+                    <Txt variant="smallStrong" color="navy">
+                      {othersOpen ? t('pay.otherWaysHide') : t('pay.otherWays')}
+                    </Txt>
+                  </Pressable>
+                  {othersOpen ? <HowToGive methods={others} onReport={reportOpens} /> : null}
+                </View>
+              ) : null}
+              {unknown && loadError ? <Banner tone="error" title={t('pay.loadFailed')} message={loadError} action={{ label: t('common.retry'), onPress: onRetryLoad }} /> : null}
+              {unknown && !loadError ? (
+                <Txt variant="small" color="muted" accessibilityLiveRegion="polite">
+                  {t('pay.checking')}
+                </Txt>
+              ) : null}
+              {online.length === 0 && !unknown ? (
+                <View style={{ backgroundColor: colors.brownTint, borderColor: colors.brownBorder, borderWidth: 1, borderRadius: radii.card, padding: space.md, gap: space.xs }} accessibilityLiveRegion="polite">
+                  <Txt variant="smallStrong" color="brownDark">
+                    {t('pay.title')}
+                  </Txt>
+                  <Txt variant="small" color="brownDark">
+                    {offReason === 'offline_only' || offReason === 'test_mode'
+                      ? t(`pay.onlineOff.${offReason}`, { center: centerName })
+                      : saved
+                        ? t('pay.notSetUp')
+                        : t('pay.notSetUpNoPledge')}
+                  </Txt>
+                  {others.length > 0 ? (
+                    <HowToGive methods={others} tone="brown" onReport={reportOpens} />
+                  ) : (
+                    <Txt variant="meta" color="brownText">
+                      {t('pay.howToPay')}
+                    </Txt>
+                  )}
+                </View>
+              ) : null}
+            </ScrollView>
+          )}
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt variant="headline" style={{ fontFamily: fonts.bodyBold, fontSize: 20 }}>
               {t('pay.total')}
@@ -177,37 +315,18 @@ function PaySheet({ state, options, charge, onCancel, onAlternative, onConfirm }
             </Txt>
           </Row>
           {state?.error ? <Banner tone="error" message={state.error} /> : null}
-          {online?.mode === 'test' ? <Banner tone="info" message={t('pay.testMode')} /> : null}
-          {charge ? (
+          {selected?.mode === 'test' ? <Banner tone="info" message={t('pay.testMode')} /> : null}
+          {online.length > 0 && selected ? (
             <>
               {state?.busy ? (
                 <Txt variant="small" color="muted" accessibilityLiveRegion="polite">
-                  {t('pay.finishOnProvider', { provider })}
+                  {t('pay.finishOnProvider', { provider: processorLabel(selected.processor) })}
                 </Txt>
               ) : null}
               <Button label={t('pay.confirm')} tone="black" onPress={onConfirm} busy={state?.busy} />
             </>
           ) : (
             <>
-              <View style={{ backgroundColor: colors.brownTint, borderColor: colors.brownBorder, borderWidth: 1, borderRadius: radii.card, padding: space.md, gap: space.xs }} accessibilityLiveRegion="polite">
-                <Txt variant="smallStrong" color="brownDark">
-                  {t('pay.title')}
-                </Txt>
-                <Txt variant="small" color="brownDark">
-                  {offReason === 'offline_only' || offReason === 'test_mode'
-                    ? t(`pay.onlineOff.${offReason}`, { center: center?.short_name || center?.name || '' })
-                    : saved
-                      ? t('pay.notSetUp')
-                      : t('pay.notSetUpNoPledge')}
-                </Txt>
-                {options && options.offline.length > 0 ? (
-                  <HowToGive methods={options.offline} tone="brown" />
-                ) : (
-                  <Txt variant="meta" color="brownText">
-                    {t('pay.howToPay')}
-                  </Txt>
-                )}
-              </View>
               {req?.alternative ? <Button label={req.alternative.label} onPress={onAlternative} /> : null}
               <Button label={t('common.gotIt')} tone={req?.alternative ? 'secondary' : 'primary'} size={req?.alternative ? 'md' : 'cta'} onPress={onCancel} />
             </>
@@ -216,6 +335,13 @@ function PaySheet({ state, options, charge, onCancel, onAlternative, onConfirm }
       </View>
     </Modal>
   );
+}
+
+/** Under a choice: what else appears on that provider's page (wallets, Venmo, bank account). Empty when nothing. */
+function onlineNote(t: ReturnType<typeof useT>, m: OnlineMethod): string {
+  const wallets = joinNames(m.wallets);
+  const also = joinNames(m.also);
+  return [wallets ? t('pay.walletsNote', { wallets }) : '', also ? t('pay.alsoNote', { names: also }) : ''].filter(Boolean).join(' ');
 }
 
 const STEP_LOOK: Record<StepStatus, { bg: string; glyph: string; color: 'ink' | 'faint' | 'danger' }> = {

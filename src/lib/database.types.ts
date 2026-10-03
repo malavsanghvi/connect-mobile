@@ -1244,6 +1244,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      center_payment_plugins: {
+        Row: {
+          center_id: string;
+          plugin_key: string;
+          enabled: boolean;
+          mode: string;
+          status: string;
+          config: Json;
+          label_override: string | null;
+          sort: number | null;
+          changed_by: string | null;
+          changed_at: string | null;
+          live_approved_by: string | null;
+          live_approved_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          center_id: string;
+          plugin_key: string;
+          enabled?: boolean;
+          mode?: string;
+          status?: string;
+          config?: Json;
+          label_override?: string | null;
+          sort?: number | null;
+          changed_by?: string | null;
+          changed_at?: string | null;
+          live_approved_by?: string | null;
+          live_approved_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          center_id?: string;
+          plugin_key?: string;
+          enabled?: boolean;
+          mode?: string;
+          status?: string;
+          config?: Json;
+          label_override?: string | null;
+          sort?: number | null;
+          changed_by?: string | null;
+          changed_at?: string | null;
+          live_approved_by?: string | null;
+          live_approved_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       center_payment_processors: {
         Row: {
           center_id: string;
@@ -5393,6 +5444,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      payment_plugins: {
+        Row: {
+          key: string;
+          label: string;
+          family: string;
+          provider: string | null;
+          processor_method: string | null;
+          legacy_method: string | null;
+          records_as: string[];
+          depends_on: string[];
+          config_fields: Json;
+          sandbox_behavior: string;
+          status: string;
+          sort: number;
+        };
+        Insert: {
+          key: string;
+          label: string;
+          family: string;
+          provider?: string | null;
+          processor_method?: string | null;
+          legacy_method?: string | null;
+          records_as: string[];
+          depends_on?: string[];
+          config_fields?: Json;
+          sandbox_behavior: string;
+          status?: string;
+          sort: number;
+        };
+        Update: {
+          key?: string;
+          label?: string;
+          family?: string;
+          provider?: string | null;
+          processor_method?: string | null;
+          legacy_method?: string | null;
+          records_as?: string[];
+          depends_on?: string[];
+          config_fields?: Json;
+          sandbox_behavior?: string;
+          status?: string;
+          sort?: number;
+        };
+        Relationships: [];
+      };
       payment_processor_tests: {
         Row: {
           id: string;
@@ -5492,6 +5588,108 @@ export type Database = {
           applied_at?: string | null;
           detail?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      payment_reports: {
+        Row: {
+          id: string;
+          center_id: string;
+          household_id: string;
+          reported_by: string;
+          reported_by_person: string | null;
+          method: Database["app"]["Enums"]["payment_method"];
+          amount_cents: number;
+          sent_on: string;
+          confirmation: string | null;
+          confirmation_normalized: string | null;
+          sender_name: string | null;
+          sender_normalized: string | null;
+          pledge_ids: string[];
+          note: string | null;
+          status: string;
+          is_test: boolean;
+          window_days: number;
+          due_on: string;
+          bank_transaction_id: string | null;
+          payment_id: string | null;
+          matched_by: string | null;
+          matched_at: string | null;
+          unmatched_at: string | null;
+          notice_sent_at: string | null;
+          notice_error: string | null;
+          rejected_by: string | null;
+          rejected_at: string | null;
+          reject_reason: string | null;
+          withdrawn_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          center_id: string;
+          household_id: string;
+          reported_by: string;
+          reported_by_person?: string | null;
+          method?: Database["app"]["Enums"]["payment_method"];
+          amount_cents: number;
+          sent_on: string;
+          confirmation?: string | null;
+          confirmation_normalized?: string | null;
+          sender_name?: string | null;
+          sender_normalized?: string | null;
+          pledge_ids?: string[];
+          note?: string | null;
+          status?: string;
+          is_test?: boolean;
+          window_days: number;
+          due_on: string;
+          bank_transaction_id?: string | null;
+          payment_id?: string | null;
+          matched_by?: string | null;
+          matched_at?: string | null;
+          unmatched_at?: string | null;
+          notice_sent_at?: string | null;
+          notice_error?: string | null;
+          rejected_by?: string | null;
+          rejected_at?: string | null;
+          reject_reason?: string | null;
+          withdrawn_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          center_id?: string;
+          household_id?: string;
+          reported_by?: string;
+          reported_by_person?: string | null;
+          method?: Database["app"]["Enums"]["payment_method"];
+          amount_cents?: number;
+          sent_on?: string;
+          confirmation?: string | null;
+          confirmation_normalized?: string | null;
+          sender_name?: string | null;
+          sender_normalized?: string | null;
+          pledge_ids?: string[];
+          note?: string | null;
+          status?: string;
+          is_test?: boolean;
+          window_days?: number;
+          due_on?: string;
+          bank_transaction_id?: string | null;
+          payment_id?: string | null;
+          matched_by?: string | null;
+          matched_at?: string | null;
+          unmatched_at?: string | null;
+          notice_sent_at?: string | null;
+          notice_error?: string | null;
+          rejected_by?: string | null;
+          rejected_at?: string | null;
+          reject_reason?: string | null;
+          withdrawn_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -9274,6 +9472,15 @@ export type Database = {
         };
         Returns: undefined;
       };
+      attach_bank_line_to_payment: {
+        Args: {
+          p_txn: string;
+          p_payment: string;
+          p_report?: string;
+          p_learn_payer?: boolean;
+        };
+        Returns: string;
+      };
       attach_checkout: {
         Args: {
           p_checkout: string;
@@ -9573,8 +9780,17 @@ export type Database = {
           p_pledge_ids?: string[];
           p_learn_payer?: boolean;
           p_payer_person?: string;
+          p_report?: string;
+          p_separate_reason?: string;
         };
         Returns: string;
+      };
+      confirm_exact_zelle_matches: {
+        Args: {
+          p_center: string;
+          p_pairs: Json;
+        };
+        Returns: Json;
       };
       confirm_paypal_email: {
         Args: {
@@ -10376,6 +10592,14 @@ export type Database = {
         };
         Returns: string;
       };
+      link_payment_report: {
+        Args: {
+          p_report: string;
+          p_payment: string;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
       log_practice: {
         Args: {
           p_center: string;
@@ -10457,6 +10681,12 @@ export type Database = {
           p_center: string;
         };
         Returns: { document_id: string; kind: string; title: string; version: string; body_md: string; mode: string; published_at: string; requires_yearly_resign: boolean; answered: boolean; granted: boolean; answered_version: string; answered_at: string }[];
+      };
+      member_payment_methods: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
       };
       member_payment_options: {
         Args: {
@@ -10551,6 +10781,13 @@ export type Database = {
           p_center: string;
         };
         Returns: { key: string; label: string; enabled: boolean; core: boolean }[];
+      };
+      my_payment_reports: {
+        Args: {
+          p_center: string;
+          p_household: string;
+        };
+        Returns: Json;
       };
       my_person_id: {
         Args: {
@@ -10826,11 +11063,37 @@ export type Database = {
         };
         Returns: string[];
       };
+      payment_plugin_config_problem: {
+        Args: {
+          p_key: string;
+          p_config: Json;
+          p_mode: string;
+        };
+        Returns: string;
+      };
+      payment_plugin_settings: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
+      };
       payment_posts_to_qbo: {
         Args: {
           p_payment: string;
         };
         Returns: boolean;
+      };
+      payment_report_counts: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
+      };
+      payment_report_queue: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
       };
       payment_settings: {
         Args: {
@@ -10961,6 +11224,14 @@ export type Database = {
       pledge_writeoff_postings: {
         Args: {
           p_pledges: string[];
+        };
+        Returns: Json;
+      };
+      possible_duplicate_zelle: {
+        Args: {
+          p_household: string;
+          p_amount_cents: number;
+          p_on: string;
         };
         Returns: Json;
       };
@@ -11281,6 +11552,13 @@ export type Database = {
         };
         Returns: undefined;
       };
+      reject_payment_report: {
+        Args: {
+          p_report: string;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
       reject_qbo_match: {
         Args: {
           p_id: string;
@@ -11320,6 +11598,20 @@ export type Database = {
           p_items: string[];
         };
         Returns: undefined;
+      };
+      report_payment: {
+        Args: {
+          p_center: string;
+          p_household: string;
+          p_method: string;
+          p_amount_cents: number;
+          p_sent_on: string;
+          p_confirmation: string;
+          p_sender_name: string;
+          p_pledge_ids: string[];
+          p_note: string;
+        };
+        Returns: Json;
       };
       request_add_family_member: {
         Args: {
@@ -11690,6 +11982,18 @@ export type Database = {
         };
         Returns: undefined;
       };
+      set_payment_plugin: {
+        Args: {
+          p_center: string;
+          p_key: string;
+          p_enabled: boolean;
+          p_config: Json;
+          p_label_override: string;
+          p_sort: number;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       set_payment_processor: {
         Args: {
           p_center: string;
@@ -11766,6 +12070,15 @@ export type Database = {
           p_basis: string;
           p_posting: string;
           p_go_live_date: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
+      set_zelle_reporting: {
+        Args: {
+          p_center: string;
+          p_window_days: number;
+          p_bank_account: string;
           p_reason: string;
         };
         Returns: Json;
@@ -11980,7 +12293,7 @@ export type Database = {
         Args: {
           p_txn: string;
         };
-        Returns: { household_id: string; household_name: string; household_number: string; org_household_id: string; members: string; primary_member: string; primary_org_member_id: string; zone: string; city: string; last_gift_on: string; score: number; reason: string; ambiguous: boolean; open_pledge_cents: number }[];
+        Returns: { household_id: string; household_name: string; household_number: string; org_household_id: string; members: string; primary_member: string; primary_org_member_id: string; zone: string; city: string; last_gift_on: string; score: number; reason: string; ambiguous: boolean; open_pledge_cents: number; report_id: string }[];
       };
       suggest_deposit_payments: {
         Args: {
@@ -12112,6 +12425,13 @@ export type Database = {
         };
         Returns: string;
       };
+      withdraw_payment_report: {
+        Args: {
+          p_report: string;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
       worker_stale_after: {
         Args: Record<PropertyKey, never>;
         Returns: string;
@@ -12122,6 +12442,24 @@ export type Database = {
           p_year: number;
         };
         Returns: Json;
+      };
+      zelle_exact_matches: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
+      };
+      zelle_rehearsal: {
+        Args: {
+          p_center: string;
+        };
+        Returns: boolean;
+      };
+      zelle_report_window_days: {
+        Args: {
+          p_center: string;
+        };
+        Returns: number;
       };
     };
     Enums: {
