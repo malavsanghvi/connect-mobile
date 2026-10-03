@@ -193,16 +193,18 @@ type ShapeSpec = {
   max: number;
   /** How much of the next tile peeks in at the right edge (a share of one tile; a hero uses HERO_PEEK). */
   peek: number;
+  /** The widest a tile may be when it is the only one in its row: it fills the cards' width up to this (px). A poster is 1.5 times as tall as it is wide, so it stops sooner. */
+  aloneMax: number;
 };
 
 export const TILE_SHAPES: Record<TileShape, ShapeSpec> = {
   // A hero is never narrower than 280: that is what Today's three timings need to show whole ("8:03 AM", "Chauvihar" in a third
   // of the card), as the old card had on the smallest phone. Where the room is less than that plus the sliver, the sliver shrinks.
-  hero: { ratio: null, min: 280, max: 440, peek: 0 },
-  poster: { ratio: 1.5, min: 112, max: 168, peek: 0.4 },
-  wide: { ratio: 9 / 16, min: 200, max: 280, peek: 0.3 },
-  card: { ratio: null, min: 200, max: 260, peek: 0.3 },
-  feature: { ratio: null, min: 128, max: 176, peek: 0.4 },
+  hero: { ratio: null, min: 280, max: 440, peek: 0, aloneMax: Number.POSITIVE_INFINITY },
+  poster: { ratio: 1.5, min: 112, max: 168, peek: 0.4, aloneMax: 340 },
+  wide: { ratio: 9 / 16, min: 200, max: 280, peek: 0.3, aloneMax: 440 },
+  card: { ratio: null, min: 200, max: 260, peek: 0.3, aloneMax: 440 },
+  feature: { ratio: null, min: 128, max: 176, peek: 0.4, aloneMax: 440 },
 };
 
 /** Space between two tiles (px). */
@@ -242,9 +244,9 @@ export type TileSize = {
 };
 
 export type TileSizeOptions = {
-  /** How many tiles the row has. A hero that is alone has nothing to peek at and is as wide as the cards (default: more than one). */
+  /** How many tiles the row has. A tile that is alone has nothing to peek at and is as wide as the cards (a poster up to TILE_SHAPES.poster.aloneMax) instead of sitting at the left with blank space beside it (default: more than one). */
   count?: number;
-  /** The row's padding at each side (railGeometry bleed): the room beyond the cards' own width, which a lone hero does not use. */
+  /** The row's padding at each side (railGeometry bleed): the room beyond the cards' own width, which a lone tile does not use. */
   bleed?: number;
 };
 
@@ -267,6 +269,12 @@ export function railTileSize(shape: TileShape, available: number, textScale = 1,
   const scale = Number.isFinite(textScale) && textScale > 1 ? Math.min(textScale, 1.3) : 1;
   const min = spec.min * scale;
   const max = spec.max * scale;
+  if (options.count !== undefined && options.count <= 1) {
+    // Alone: no next tile to peek at, so the tile fills the cards' width (the row's own padding is not part of it), as a lone hero does.
+    const bleed = Number.isFinite(options.bleed) && (options.bleed ?? 0) > 0 ? (options.bleed as number) : 0;
+    const width = Math.round(Math.max(min, Math.min(spec.aloneMax, room - bleed)));
+    return { width, height: spec.ratio === null ? null : Math.round(width * spec.ratio), interval: width + gap, whole: 1 };
+  }
   const widthFor = (whole: number) => (room - gap * whole) / (whole + spec.peek);
   let whole = 1;
   while (whole < 12 && widthFor(whole) > max) whole += 1;

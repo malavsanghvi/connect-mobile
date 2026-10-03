@@ -249,6 +249,41 @@ describe('railTileSize (big enough to read, the next tile peeking in)', () => {
   });
 });
 
+describe('railTileSize for a tile that is alone in its row', () => {
+  const alone = (shape: TileShape, screen: number, scale = 1) => railTileSize(shape, screen - 20, scale, TILE_GAP, { count: 1, bleed: 20 });
+
+  it('fills the cards’ width on a phone, like the hero: a lone giving, special-day or Learn & listen tile has no blank space beside it', () => {
+    for (const shape of ['card', 'wide', 'feature'] as const) {
+      for (const screen of [320, 360, 375, 390, 430]) {
+        const s = alone(shape, screen);
+        expect(s.width).toBe(screen - 40);
+        expect(s.whole).toBe(1);
+        expect(s.interval).toBe(s.width + TILE_GAP);
+      }
+    }
+    expect(alone('wide', 375).height).toBe(Math.round(335 * (9 / 16)));
+    expect(alone('card', 375).height).toBeNull();
+  });
+  it('fills the cards’ width for a lone event poster too, 2:3, up to a width of 340 (a poster is half as tall again as it is wide)', () => {
+    expect(alone('poster', 375)).toEqual({ width: 335, height: 503, interval: 347, whole: 1 });
+    expect(alone('poster', 320).width).toBe(280);
+    expect(alone('poster', 430).width).toBe(340);
+    expect(alone('poster', 1024).width).toBe(TILE_SHAPES.poster.aloneMax);
+  });
+  it('stops at a sensible width on a wide screen, left where it begins', () => {
+    expect(alone('card', 1024).width).toBe(440);
+    expect(alone('wide', 1024).width).toBe(440);
+    expect(alone('feature', 1024).width).toBe(440);
+  });
+  it('is the usual size when there is more than one tile or the count is not known yet (the skeleton)', () => {
+    expect(railTileSize('card', 355, 1, TILE_GAP, { count: 2, bleed: 20 })).toEqual(railTileSize('card', 355));
+    expect(railTileSize('poster', 355, 1, TILE_GAP, { count: undefined, bleed: 20 })).toEqual(railTileSize('poster', 355));
+  });
+  it('is as wide as the cards on the smallest phone at the largest text size too (nothing scales a lone tile out of its row)', () => {
+    for (const shape of ['poster', 'wide', 'card', 'feature'] as const) expect(alone(shape, 320, 1.3).width).toBe(280);
+  });
+});
+
 describe('railTileSize for the hero tiles (Today and My Jain Way)', () => {
   const room = (screen: number) => screen - 20;
   /** How much of the next tile shows at the right edge when the row starts. */
