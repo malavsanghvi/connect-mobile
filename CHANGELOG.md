@@ -14,6 +14,26 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.7.0 — 2026-10-03
+
+- **Choose how to pay.** When your community takes cards and PayPal, the Pay sheet lists both and you choose. Card shows
+  that Apple Pay and Google Pay appear on the card page when your phone supports them; PayPal shows Venmo when PayPal
+  offers it. Zelle, check, cash and the other ways to give are under **Other ways to give**. As before, the app never
+  marks anything paid: the provider confirms it, and if it can't be confirmed in time the sheet says so honestly.
+- **Zelle: copy the address, then say you sent it.** Zelle now shows the address with a **Copy** button (on a phone it
+  opens the share sheet, whose Copy puts it on your clipboard), the name to look for in your bank app and the memo to write.
+  After you send it in your bank app, tap **I sent it**: the amount, the date, the confirmation number (asked for, never
+  required), the name your bank shows, and the pledges it is for. Reporting a Zelle is for adults only.
+- **Your Zelle reports** are listed on Give with a **Reported** chip, and a **Reported** chip also appears on the pledges
+  they name. A report is **never counted as given**, in any total or statement, until the treasurer matches it at the
+  bank, and then it gets a receipt. If it isn't on the bank statement after the community's window (10 days to start
+  with), it says **Not seen at the bank** and you are told. A report that is still waiting can be withdrawn.
+- In a sandbox, Zelle never shows the real address: it says "Sandbox: no real money moves" and offers **Report a test
+  payment**.
+- Problems are said in plain English next to what you did ("Could not send your report — ..."), with **Try again**.
+- Until the community's portal is updated, the app keeps the Pay sheet and How to give exactly as before (one online
+  provider, Zelle as plain instructions, no reports).
+
 ## 1.6.9 — 2026-10-03
 
 - **A new Home, in rows.** Every row slides sideways with the next tile peeking in, and a sliver of the previous one once
