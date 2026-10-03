@@ -64,6 +64,20 @@ export function addDays(iso: string, days: number): string {
   return toISODate(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
 }
 
+/**
+ * A 'YYYY-MM-DD' date `months` calendar months on (or back), keeping the day of the month, or the last day of the month when
+ * that one is shorter: Oct 2 + 2 is Dec 2, Dec 15 + 2 is Feb 15 of the next year, Dec 31 + 2 is Feb 28 (29 in a leap year).
+ */
+export function addMonths(iso: string, months: number): string {
+  const p = parseISODate(iso);
+  if (!p || !Number.isFinite(months)) return iso;
+  const index = p.y * 12 + (p.m - 1) + Math.trunc(months);
+  const y = Math.floor(index / 12);
+  const m = (((index % 12) + 12) % 12) + 1;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return toISODate(y, m, Math.min(p.d, lastDay));
+}
+
 /** Whole days from a to b (both 'YYYY-MM-DD'). */
 export function daysBetween(a: string, b: string): number {
   const pa = parseISODate(a);

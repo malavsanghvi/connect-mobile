@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -78,11 +78,19 @@ export type ScreenProps = {
    * member card (Main.dc.html L2208).
    */
   niva?: boolean;
+  /**
+   * Where the scrolled content is: how far down it has scrolled (`y`) and how
+   * tall the visible part is, on layout and while scrolling. Home uses it to
+   * load each row only as it comes near (src/lib/home-rails.ts revealRails).
+   */
+  onViewport?: (viewport: { y: number; height: number }) => void;
 };
 
 /** Every screen: safe area, header (menu/back · title · member card), scroll, pull-to-refresh, tab bar, Niva. */
-export function Screen({ title, root, showWordmark, children, footer, sticky, onRefresh, headerRight, scroll = true, contentStyle, hideHeader, tabBar = true, niva }: ScreenProps) {
+export function Screen({ title, root, showWordmark, children, footer, sticky, onRefresh, headerRight, scroll = true, contentStyle, hideHeader, tabBar = true, niva, onViewport }: ScreenProps) {
   const [refreshing, setRefreshing] = useState(false);
+  // The last scroll position, for the viewport reported when the screen's size changes.
+  const scrolledY = useRef(0);
   const refresh = onRefresh
     ? async () => {
         setRefreshing(true);
@@ -124,6 +132,16 @@ export function Screen({ title, root, showWordmark, children, footer, sticky, on
             <ScrollView
               style={{ flex: 1 }}
               keyboardShouldPersistTaps="handled"
+              onLayout={onViewport ? (e) => onViewport({ y: scrolledY.current, height: e.nativeEvent.layout.height }) : undefined}
+              onScroll={
+                onViewport
+                  ? (e) => {
+                      scrolledY.current = e.nativeEvent.contentOffset.y;
+                      onViewport({ y: e.nativeEvent.contentOffset.y, height: e.nativeEvent.layoutMeasurement.height });
+                    }
+                  : undefined
+              }
+              scrollEventThrottle={onViewport ? 100 : undefined}
               refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.navy} /> : undefined}>
               {inner}
             </ScrollView>

@@ -98,14 +98,24 @@ export async function loadFeedbackHome(center: Center, member: Member): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// Home event cards: next event, 24-hour confirmation prompt, event-day lunch card
+// Home event actions: the 24-hour confirmation prompt and the event-day lunch card
 // ---------------------------------------------------------------------------
 
+/** How many people are on each of these RSVPs (attendees not cancelled), by RSVP id: the "3" of "Going · 3" on an event tile. */
+export async function countAttendees(rsvpIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (rsvpIds.length === 0) return out;
+  const rows = must(await supabase.from('attendees').select('rsvp_id, status').in('rsvp_id', rsvpIds), 'load your RSVPs');
+  for (const r of rows) if (r.status !== 'cancelled') out.set(r.rsvp_id, (out.get(r.rsvp_id) ?? 0) + 1);
+  return out;
+}
 
+/**
+ * What the family has to act on today: the RSVP waiting for "Still coming?" (the pop-up opens by itself, the
+ * event's tile carries a Confirm chip) and, on the day of an event, their lunch times. The events themselves,
+ * with the family's RSVP status on each, are the Events row's own load (src/features/home-rails.tsx).
+ */
 export type HomeEvents = {
-  next: EventRow | null;
-  nextRsvp: Rsvp | null;
-  nextCount: number;
   confirm: { event: EventRow; rsvp: Rsvp; count: number; names: string[] } | null;
   lunch: { event: EventRow; card: LunchCard; checkedInAt: string | null } | null;
   timeZone: string;
@@ -119,9 +129,6 @@ export async function loadHomeEvents(center: Center, member: Member | null): Pro
   const rsvps = householdId ? await listHouseholdRsvps(householdId, events.map((e) => e.id)) : new Map<string, Rsvp>();
 
   const upcoming = events.filter((e) => e.status === 'live' || !e.starts_at || new Date(e.starts_at) >= now);
-  const next = upcoming[0] ?? null;
-  const nextRsvp = next ? (rsvps.get(next.id) ?? null) : null;
-  const nextCount = nextRsvp && rsvpState(nextRsvp) !== 'cancelled' ? (await listAttendees(nextRsvp.id)).filter((a) => a.status !== 'cancelled').length : 0;
 
   let confirm: HomeEvents['confirm'] = null;
   for (const e of upcoming) {
@@ -152,5 +159,5 @@ export async function loadHomeEvents(center: Center, member: Member | null): Pro
       break;
     }
   }
-  return { next, nextRsvp, nextCount, confirm, lunch, timeZone: center.time_zone };
+  return { confirm, lunch, timeZone: center.time_zone };
 }

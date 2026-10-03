@@ -26,12 +26,13 @@ const SORTS: { value: MediaSort; label: 'media.sortTitle' | 'media.sortLiked' | 
 /**
  * One shelf of the 3L library in full (stavans, videos, podcasts or recipes):
  * search (title, singer or speaker, other spellings, tags), A–Z / most liked
- * / newest, "Fully Jain only" for recipes, play all for audio.
+ * / newest, "Fully Jain only" for recipes (already on with `?fullyJain=1`,
+ * Home's "Fully Jain recipes" tile), play all for audio.
  */
 export default function MediaLibraryScreen() {
   const t = useT();
   const router = useRouter();
-  const { kind: rawKind } = useLocalSearchParams<{ kind: string }>();
+  const { kind: rawKind, fullyJain: fullyJainParam } = useLocalSearchParams<{ kind: string; fullyJain?: string }>();
   const kind = isMediaKind(rawKind) ? rawKind : null;
   const { center, member } = useApp();
   const { invalidate } = useDataVersion();
@@ -40,7 +41,7 @@ export default function MediaLibraryScreen() {
   const watch = useWatch();
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<MediaSort>('title');
-  const [fullyJain, setFullyJain] = useState(false);
+  const [fullyJain, setFullyJain] = useState(fullyJainParam === '1');
   const [nothingToPlay, setNothingToPlay] = useState(false);
   const q = useDebounced(searchQuery(query), 300);
   const state = useLoad(

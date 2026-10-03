@@ -1,3 +1,4 @@
+import { albumLeadsSomewhere } from '../album-open';
 import type { Tables } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
 import { supabase } from '../supabase';
@@ -33,6 +34,12 @@ export type AlbumSummary = {
   coverPaths: string[];
 };
 
+/** Newest first: by when the album's event starts, else by when the album was made (the order of the Photos grid and of Home's Photos tile). */
+function newestFirst<T extends { album: Album; event: { starts_at: string | null } | null }>(list: T[]): T[] {
+  const when = (s: T) => s.event?.starts_at ?? s.album.created_at;
+  return [...list].sort((a, b) => when(b).localeCompare(when(a)));
+}
+
 /** Albums for the Photos grid, newest event first, with counts and cover paths. */
 export async function listAlbums(centerId: string): Promise<AlbumSummary[]> {
   const albums = must(await supabase.from('photo_albums').select('*').eq('center_id', centerId).in('visibility', ['public', 'members']).order('created_at', { ascending: false }).limit(200), 'load photo albums');
@@ -63,8 +70,67 @@ export async function listAlbums(centerId: string): Promise<AlbumSummary[]> {
       coverPaths: mine.filter((p) => !isVideoPath(p.storage_path)).slice(0, 3).map((p) => p.storage_path),
     };
   });
-  const when = (s: AlbumSummary) => s.event?.starts_at ?? s.album.created_at;
-  return out.sort((a, b) => when(b).localeCompare(when(a)));
+  return newestFirst(out);
+}
+
+/** What Home's Photos tile needs of an album: not the counts and the three-picture collage the Photos grid has. */
+export type AlbumPreview = {
+  album: Album;
+  event: AlbumSummary['event'];
+  /** The album has an approved photo or video here. Without one, its online album (a Google Photos link) is where its photos are (album-open). */
+  hasMedia: boolean;
+  /** Storage path of the album's first approved picture; null when it has none. */
+  coverPath: string | null;
+};
+
+/** How many of an album's first photos are read to find its cover and whether it has any. */
+const PREVIEW_PHOTOS = 8;
+
+/** Rounds of reading photos at most: when the newest albums have nothing to open, the next ones are looked at (so at most this many times `limit` albums). */
+const PREVIEW_ROUNDS = 3;
+
+/**
+ * The newest `limit` albums that lead somewhere, for Home's Photos tile, in the
+ * Photos grid's order. Unlike listAlbums it does not read every approved photo
+ * of every album (up to 10,000 rows): once the albums are in order, one small
+ * request per album reads its first photos, in parallel, so a Home that
+ * reloads after every write stays light. An album with nothing to open (no
+ * photo here and no online album: staff often make one for an event before its
+ * photos arrive, and it sorts first while the event is still to come) is passed
+ * over and the next newest takes its place in a further round, so a few empty
+ * albums at the top never leave the tile without an album, or hide it altogether.
+ */
+export async function listAlbumPreviews(centerId: string, limit: number): Promise<AlbumPreview[]> {
+  const want = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+  const albums = must(await supabase.from('photo_albums').select('*').eq('center_id', centerId).in('visibility', ['public', 'members']).order('created_at', { ascending: false }).limit(200), 'load photo albums');
+  if (albums.length === 0 || want === 0) return [];
+  const eventIds = [...new Set(albums.map((a) => a.event_id).filter((x): x is string => !!x))];
+  const events = eventIds.length ? must(await supabase.from('events').select('id, name, starts_at, ends_at').in('id', eventIds), 'load the events for photo albums') : [];
+  const byEvent = new Map(events.map((e) => [e.id, e]));
+  const newest = newestFirst(
+    albums.map((album) => {
+      const ev = album.event_id ? (byEvent.get(album.event_id) ?? null) : null;
+      return { album, event: ev ? { name: ev.name, starts_at: ev.starts_at, ends_at: ev.ends_at } : null };
+    }),
+  );
+  const previews: AlbumPreview[] = [];
+  let next = 0;
+  for (let round = 0; round < PREVIEW_ROUNDS && next < newest.length && previews.length < want; round += 1) {
+    // Only as many albums as are still needed: usually the first round fills the list and that is all.
+    const batch = newest.slice(next, next + (want - previews.length));
+    next += batch.length;
+    const firstPhotos = await Promise.all(
+      batch.map(async ({ album }) =>
+        must(await supabase.from('photos').select('storage_path').eq('album_id', album.id).eq('status', 'approved').order('created_at', { ascending: true }).limit(PREVIEW_PHOTOS), 'load photo albums'),
+      ),
+    );
+    batch.forEach(({ album, event }, i) => {
+      const hasMedia = firstPhotos[i].length > 0;
+      if (!albumLeadsSomewhere({ album, photos: hasMedia ? 1 : 0, videos: 0 })) return;
+      previews.push({ album, event, hasMedia, coverPath: firstPhotos[i].find((p) => !isVideoPath(p.storage_path))?.storage_path ?? null });
+    });
+  }
+  return previews;
 }
 
 export type AlbumDetail = AlbumSummary & { items: Photo[] };

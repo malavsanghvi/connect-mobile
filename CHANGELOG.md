@@ -14,6 +14,31 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.6.9 — 2026-10-03
+
+- **A new Home, in rows.** Every row slides sideways with the next tile peeking in, and a sliver of the previous one once
+  you swipe. There are no scrollbars and nothing moves by itself. In order:
+  - **Today at JSH** (the timings, Watch live darshan, Do puja) with **My Jain Way** beside it: today's progress, your
+    points and streak. Tap it for the full list.
+  - **Plan a special day**: a tile for each special day in the next two months, with Plan a labh. The row is hidden when
+    there are none.
+  - **Events**: poster tiles with your family's RSVP status under each (RSVP, Going, Waitlisted, Not going, and so on).
+    Events in date order; one that needs your confirmation comes first.
+  - **Giving opportunities**: a tile for each one, with View and sponsor.
+  - **Life@JSH**: New here?, WhatsApp groups, Your zone, Timings, Volunteering, Who's who and Special days.
+  - **Learn & listen**: Continue learning, My playlist, Podcasts, Recipes and Photos.
+- This replaces the round shortcut buttons, the Up next card, the rotating Giving card, the Plan a special day card and
+  the My JSH card. Feedback requests and today's lunch times sit just under the first row; only urgent alerts stay above
+  Today.
+- A tile you can't use (the community turned it off, or it needs a membership level you don't have) is left out. If a row
+  can't load, it says so with **Try again**.
+- Changed: **Not this year** is no longer on Home (use **Show on Home** under Family › Special days). **Please confirm**
+  opens the confirm screen, and the Still coming? pop-up is unchanged. The one-tap random recipe and podcast buttons are
+  gone from Home. The community's Home-shortcut order no longer changes the order on Home; which tiles show still follows
+  it.
+- Continue learning loads a short summary instead of every lesson, and pictures further along a row load as you reach
+  them.
+
 ## 1.6.8 — 2026-10-02
 
 - **Live darshan and the virtual puja without signing in.** The Welcome screen has a new **Without signing in** section

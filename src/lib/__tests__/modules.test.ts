@@ -122,13 +122,23 @@ describe('Home, drawer and guide', () => {
     const m = off('events', 'store', 'jain_way', 'surveys', 'comms', 'giving', 'content');
     expect(isHomeCardVisible(m, 'today')).toBe(true);
     expect(isHomeCardVisible(m, 'guide')).toBe(true);
-    for (const card of ['lunch', 'confirm', 'nextEvent', 'jainWay', 'feedback', 'alerts', 'giving', 'todayDarshan'] as const) {
+    for (const card of ['lunch', 'confirm', 'jainWay', 'feedback', 'alerts', 'giving', 'todayDarshan'] as const) {
       expect(isHomeCardVisible(m, card)).toBe(false);
     }
   });
   it('keeps special days on Home with giving off (they offer "See special days" instead of a labh)', () => {
     expect(isHomeCardVisible(off('giving'), 'specialDay')).toBe(true);
     expect(isHomeCardVisible(off('giving'), 'giving')).toBe(false);
+  });
+  it('maps the Home rails to their modules', () => {
+    const rails = ['railLearning', 'railEvents', 'railListen', 'giving', 'railPhotos', 'railRecipes'] as const;
+    for (const rail of rails) expect(isHomeCardVisible(ALL_ON, rail)).toBe(true);
+    expect(rails.filter((r) => !isHomeCardVisible(off('gyan_path'), r))).toEqual(['railLearning']);
+    expect(rails.filter((r) => !isHomeCardVisible(off('events'), r))).toEqual(['railEvents']);
+    expect(rails.filter((r) => !isHomeCardVisible(off('content'), r))).toEqual(['railListen', 'railPhotos', 'railRecipes']);
+    expect(rails.filter((r) => !isHomeCardVisible(off('giving'), r))).toEqual(['giving']);
+    // Every module switched off (only the core one stays on) hides every rail.
+    expect(rails.filter((r) => isHomeCardVisible(off(...MODULE_KEYS), r))).toEqual([]);
   });
   it('maps drawer entries to their modules', () => {
     const m = off('calendar', 'pathshala', 'giving', 'store', 'events', 'reports');

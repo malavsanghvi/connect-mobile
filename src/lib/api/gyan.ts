@@ -7,8 +7,13 @@ import { supabase } from '../supabase';
 import { isMissingBucket } from './photos';
 
 import { classSchedule, continueGoalId, registrationOpen, todayAtMinutes, type AttendanceMark, type DailyMinutes } from '../learning';
+import { buildGyanSummary, goalProgress, GYAN_SUMMARY_COLUMNS, isLevelDone, isStepDone, lastActivityByGoal, type GoalProgress as GoalProgressOf, type GyanSummary, type ProgressMark } from '../gyan-progress';
 
 import type { Center } from './member';
+
+// The progress arithmetic is pure and lives in src/lib/gyan-progress.ts (with the summary Home reads); it is re-exported here so every screen keeps one place to import from.
+export { goalProgress, isLevelDone, isStepDone, lastActivityByGoal };
+export type { GyanSummary };
 
 export type GyanStep = Tables<'gyan_steps'>;
 export type GyanLevel = Tables<'gyan_levels'> & { steps: GyanStep[] };
@@ -48,42 +53,27 @@ export async function loadGyan(center: Center, personIds: string[], opts?: { goa
   };
 }
 
-export type GoalProgress = { levelsDone: number; levelsTotal: number; stepsDone: number; stepsTotal: number; currentLevel: GyanLevel | null; complete: boolean };
-
-export function isStepDone(progress: GyanProgress[], personId: string, stepId: string): boolean {
-  return progress.some((p) => p.person_id === personId && p.step_id === stepId && p.completed_at);
+/**
+ * What Home's Continue learning needs of Gyan Path: the goals, their levels, the id of every step and the person's
+ * progress, and nothing of the lessons (GYAN_SUMMARY_COLUMNS). loadGyan selects every column, quizzes and activities included,
+ * which is most of the data (about 135 KB for the content pack) and was fetched on every Home load. The answers
+ * (goalProgress, lastActivityByGoal) are the same from either.
+ */
+export async function loadGyanSummary(center: Center, personId: string): Promise<GyanSummary> {
+  const goals = must(await supabase.from('gyan_goals').select(GYAN_SUMMARY_COLUMNS.goals).or(`center_id.eq.${center.id},center_id.is.null`).order('sort_order'), 'load Gyan Path goals').filter((g) => !g.tradition || g.tradition === center.tradition);
+  const goalIds = goals.map((g) => g.id);
+  const levels = goalIds.length ? must(await supabase.from('gyan_levels').select(GYAN_SUMMARY_COLUMNS.levels).in('goal_id', goalIds).order('sort_order'), 'load Gyan Path levels') : [];
+  const levelIds = levels.map((l) => l.id);
+  const [stepsRes, progressRes] = await Promise.all([
+    levelIds.length ? supabase.from('gyan_steps').select(GYAN_SUMMARY_COLUMNS.steps).in('level_id', levelIds) : Promise.resolve({ data: [] as { id: string; level_id: string }[], error: null }),
+    supabase.from('gyan_progress').select(GYAN_SUMMARY_COLUMNS.progress).eq('person_id', personId),
+  ]);
+  const steps = must(stepsRes, 'load Gyan Path lessons');
+  const progress: ProgressMark[] = must(progressRes, 'load your progress');
+  return buildGyanSummary({ goals, levels, steps, progress });
 }
 
-export function isLevelDone(level: GyanLevel, progress: GyanProgress[], personId: string): boolean {
-  return level.steps.length > 0 && level.steps.every((s) => isStepDone(progress, personId, s.id));
-}
-
-/** Levels unlock strictly in order; the current level is the first unfinished one. */
-export function goalProgress(goal: GyanGoal, progress: GyanProgress[], personId: string): GoalProgress {
-  let levelsDone = 0;
-  for (const l of goal.levels) {
-    if (isLevelDone(l, progress, personId)) levelsDone += 1;
-    else break;
-  }
-  const stepsTotal = goal.levels.reduce((s, l) => s + l.steps.length, 0);
-  const stepsDone = goal.levels.reduce((s, l) => s + l.steps.filter((st) => isStepDone(progress, personId, st.id)).length, 0);
-  return { levelsDone, levelsTotal: goal.levels.length, stepsDone, stepsTotal, currentLevel: goal.levels[levelsDone] ?? null, complete: goal.levels.length > 0 && levelsDone >= goal.levels.length };
-}
-
-/** When the person last completed a step in each goal. */
-export function lastActivityByGoal(g: Pick<GyanData, 'goals' | 'progress'>, personId: string): Map<string, string> {
-  const last = new Map<string, string>();
-  for (const goal of g.goals) {
-    const stepIds = new Set(goal.levels.flatMap((l) => l.steps.map((s) => s.id)));
-    const latest = g.progress
-      .filter((pr) => pr.person_id === personId && pr.completed_at && stepIds.has(pr.step_id))
-      .map((pr) => pr.completed_at as string)
-      .sort()
-      .pop();
-    if (latest) last.set(goal.id, latest);
-  }
-  return last;
-}
+export type GoalProgress = GoalProgressOf<GyanLevel>;
 
 /**
  * The level "continue" opens (3L › Learn hero, Home › Learn shortcut): the
