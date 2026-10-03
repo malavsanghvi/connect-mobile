@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewProps, type ViewStyle } from 'react-native';
 
 import { Icon } from '@/components/icon';
@@ -30,6 +30,9 @@ import { colors, fonts, layout, radii, shadows, space, touch, type ColorName } f
  */
 
 const isWeb = Platform.OS === 'web';
+
+/** A held row is out of reach of assistive technology too (it is not there yet for anyone). */
+const heldProps = { accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants', ...(isWeb ? { 'aria-hidden': true } : null) } as unknown as ViewProps;
 
 /** Web only: props React Native's types do not know (react-native-web forwards them to the element). */
 function webProps(props: Record<string, unknown>): ViewProps {
@@ -100,6 +103,21 @@ export function useRailReveal<K extends string>(): RailReveal<K> {
 /** What a row gets to know about when it may load. */
 export type RailSlot = { shown: boolean; onPlace: (top: number) => void };
 
+/**
+ * Whether the rows under a row that is still finding out whether it has anything (`active`) are held back: drawn invisible
+ * (Rail `held`), with their loads running as usual, for at most `maxMs`. When the row turns up it pushes them down before
+ * anything of them has been seen, instead of the member watching the page jump. False once `active` is over or the time is up.
+ */
+export function useHold(active: boolean, maxMs: number): boolean {
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    const timer = setTimeout(() => setExpired(true), maxMs);
+    return () => clearTimeout(timer);
+  }, [active, maxMs]);
+  return active && !expired;
+}
+
 export type RailState<T> = { data: T | undefined; error: AppError | null; reload: () => void };
 
 /** useLoad for a row: nothing is fetched until the row is shown (`shown`), and it reloads after any write like every Home card. */
@@ -134,12 +152,14 @@ type RailProps<T> = {
   reload: () => void;
   keyOf: (item: T) => string;
   renderTile: (item: T, ctx: TileCtx) => ReactNode;
-  /** Banners about part of the row (pictures that did not load, an action that failed). */
+  /** Banners about part of the row (pictures that did not load, an action that failed). Null when there is nothing to say: the row is then left out if it has no tile. */
   notice?: ReactNode;
+  /** The row keeps its place on Home but is drawn invisible, as a skeleton, and cannot be reached (useHold). */
+  held?: boolean;
   onPlace: (top: number) => void;
 };
 
-export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onSeeAll, items, error, reload, keyOf, renderTile, notice, onPlace }: RailProps<T>) {
+export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onSeeAll, items, error, reload, keyOf, renderTile, notice, held, onPlace }: RailProps<T>) {
   const t = useT();
   const { scale } = useSettings();
   const { width: windowWidth } = useWindowDimensions();
@@ -238,8 +258,10 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
     : null;
 
   // A row with no tile still shows when there is something to say about it (an error, a notice): it is only left out when nothing is wrong.
-  const mode = railView({ tiles: items === undefined ? undefined : count, error: !!error, notice: notice !== undefined && notice !== null && notice !== false });
-  if (mode === 'hidden') return null;
+  const known = railView({ tiles: items === undefined ? undefined : count, error: !!error, notice: notice !== undefined && notice !== null && notice !== false });
+  if (known === 'hidden') return null;
+  // A held row is a skeleton nobody sees yet (it takes the room its tiles will, so the rows under it are placed and load as they would).
+  const mode = held ? 'loading' : known;
   // A quiet row draws nothing until it knows it has tiles. Its empty box is there only so Home knows where it is (and when to load it); the
   // negative margin takes back the gap Home leaves between its rows (space.lg), so the rows below do not move when it turns out to be empty.
   if (quiet && mode === 'loading') return <View onLayout={onRootLayout} style={{ height: 0, marginTop: -space.lg }} />;
@@ -249,7 +271,7 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
   const showChevrons = isWeb && (hover || focusWithin) && count > 1;
 
   return (
-    <View onLayout={onRootLayout} style={{ gap: 2 }}>
+    <View onLayout={onRootLayout} style={[{ gap: 2 }, held ? { opacity: 0, pointerEvents: 'none' } : null]} {...(held ? heldProps : null)}>
       {title ? <RailHeader title={title} onSeeAll={onSeeAll} /> : null}
       {error ? <ErrorState error={error} onRetry={reload} /> : null}
       {notice}

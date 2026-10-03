@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/icon';
@@ -19,7 +19,7 @@ import type { FamilyMember } from '@/lib/api/member';
 import { logError, report, type AppError } from '@/lib/errors';
 import { needsResign } from '@/lib/flyer';
 import { formatCents, formatCentsCompact, formatDateTime, monthShortUpper, parseISODate, zonedParts } from '@/lib/format';
-import { homeRows, learnListenTiles, lifeTiles, type HomeMember, type HomeRow, type LearnListenTile, type LifeTile } from '@/lib/home-rails';
+import { homeRows, learnListenTiles, lifeTiles, SPECIAL_DAYS_HOLD_MS, type HomeMember, type HomeRow, type LearnListenTile, type LifeTile } from '@/lib/home-rails';
 import { communityName, goalMark } from '@/lib/learning';
 import { isHomeCardVisible } from '@/lib/modules';
 import type { MediaItem } from '@/lib/media-library';
@@ -36,7 +36,7 @@ import { colors, fonts, radii, space } from '@/theme';
 import { EventIcon } from './event-icons';
 import { shortWhen } from './event-rules';
 import { bandFor } from './events';
-import { Decor, Rail, RailTile, TileBadge, TileCaption, TilePicture, useRailLoad, type RailReveal, type RailSlot, type TileCtx } from './home-rail';
+import { Decor, Rail, RailTile, TileBadge, TileCaption, TilePicture, useHold, useRailLoad, type RailReveal, type RailSlot, type TileCtx } from './home-rail';
 import {
   eventCards,
   eventChipSpoken,
@@ -64,7 +64,7 @@ import {
   type SignedFlyer,
 } from './home-rail-items';
 import { upcomingSpecialDays } from './home-rules';
-import { DateTile, TileLoading, TodayGreeting, TodayTile, useHomeSpecialDays, useTodayHidden, useTodayInfo } from './home';
+import { DateTile, TileLoading, TodayGreeting, TodayTile, useHomeSpecialDays, useTodayHidden, useTodayInfo, type HomeSpecialDaysData } from './home';
 import { JainWayProgressCard } from './jain-way-progress';
 import { canPlanLabh, occasionOf } from './special-days';
 import { loadAlbumPreviewsWithCovers, paletteFor } from './photos';
@@ -82,21 +82,25 @@ import { KIND_ICON, mediaSubtitle, toQueueItem } from './three-l/media-ui';
  *   6  Learn & listen
  *
  * Which rows show and which tiles Life@{center} and Learn & listen have are pure rules (src/lib/home-rails.ts);
- * the tiles are built from the data in home-rail-items.ts. Every row but the first, the fixed Life@{center} and
- * the strip above them loads on its own, only when it comes near the screen.
+ * the tiles are built from the data in home-rail-items.ts. Events, Giving opportunities and Learn & listen load on their
+ * own, only when they come near the screen. Plan a special day loads when Home does, because it hides itself (most
+ * families have no day coming) and a row that turns up late would move everything under it: until it knows, the rows under
+ * it are drawn invisible, for at most SPECIAL_DAYS_HOLD_MS.
  */
 
 const NOT_PLACED = () => {};
 
 /** The rows that load only as they come near the screen. */
-export type LazyRow = Extract<HomeRow, 'specialDays' | 'events' | 'give' | 'learnListen'>;
+export type LazyRow = Extract<HomeRow, 'events' | 'give' | 'learnListen'>;
 
 /**
  * Every row this member (or guest) gets, in Home order; each one a direct child of Home's content so its top
  * is known. Like every Home card, a row reloads after a write elsewhere in the app (the screen holds that back
- * while another screen is on top of Home: src/app/(app)/(tabs)/index.tsx).
+ * while another screen is on top of Home: src/app/(app)/(tabs)/index.tsx). `underToday` is what goes between the first
+ * row and the second: the notices that load after Home has been drawn (feedback, lunch times, the less urgent alerts),
+ * under Today so that they never push it down.
  */
-export function HomeRows({ reveal }: { reveal: RailReveal<LazyRow> }) {
+export function HomeRows({ reveal, underToday }: { reveal: RailReveal<LazyRow>; underToday?: ReactNode }) {
   const { center, member } = useApp();
   const { map } = useModules();
   const access = useAccess();
@@ -104,6 +108,10 @@ export function HomeRows({ reveal }: { reveal: RailReveal<LazyRow> }) {
   const learn = useFeature('learn');
   const listen = useFeature('listen');
   const look = useFeature('look');
+  // Plan a special day: its load starts now. Until it knows whether it has days, the rows under it are held (see above).
+  const hasDaysRow = !!member?.household && isHomeCardVisible(map, 'specialDay');
+  const days = useHomeSpecialDays(hasDaysRow);
+  const held = useHold(hasDaysRow && days.data === undefined && !days.error, SPECIAL_DAYS_HOLD_MS);
   if (!center) return null;
   const who: HomeMember = member ? { isAdult: member.isAdult, hasHousehold: !!member.household } : null;
   const rows = homeRows({ rules: center.rules, modules: map, member: who, access: { guide: guide.allowed, learn: learn.allowed, listen: listen.allowed, look: look.allowed } });
@@ -112,15 +120,23 @@ export function HomeRows({ reveal }: { reveal: RailReveal<LazyRow> }) {
   const tilesNow = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed } }).length;
   const accessProblem = access.error && tilesIfAllowed > tilesNow ? { error: access.error, retry: () => void access.reload() } : null;
   const slot = (row: LazyRow): RailSlot => ({ shown: reveal.revealed.includes(row), onPlace: (top) => reveal.place(row, top) });
+  const under = <Fragment key="under-today">{underToday}</Fragment>;
   return (
     <>
+      {rows.includes('today') ? null : under}
       {rows.map((row) => {
-        if (row === 'today') return <TodayRow key={row} />;
-        if (row === 'specialDays') return <SpecialDaysRow key={row} {...slot(row)} />;
-        if (row === 'events') return <EventsRow key={row} {...slot(row)} />;
-        if (row === 'give') return <GiveRow key={row} {...slot(row)} />;
-        if (row === 'life') return <LifeRow key={row} />;
-        return <LearnListenRow key={row} {...slot(row)} accessProblem={accessProblem} />;
+        if (row === 'today')
+          return (
+            <Fragment key={row}>
+              <TodayRow />
+              {under}
+            </Fragment>
+          );
+        if (row === 'specialDays') return <SpecialDaysRow key={row} state={days} />;
+        if (row === 'events') return <EventsRow key={row} {...slot(row)} held={held} />;
+        if (row === 'give') return <GiveRow key={row} {...slot(row)} held={held} />;
+        if (row === 'life') return <LifeRow key={row} held={held} />;
+        return <LearnListenRow key={row} {...slot(row)} held={held} accessProblem={accessProblem} />;
       })}
       {accessProblem && !rows.includes('learnListen') ? <LearnListenAccessError error={accessProblem.error} onRetry={accessProblem.retry} /> : null}
     </>
@@ -207,16 +223,15 @@ function JainWayTile({ today, ctx }: { today: LoadState<TodayInfo>; ctx: TileCtx
 // ---------------------------------------------------------------------------
 
 /**
- * The family's special days coming in the next two months, soonest first, at most ten, each a tile that opens
- * the labh planner (or the special days when no labh can be planned). With none coming the whole row is hidden.
- * It draws nothing while it loads (most families have nothing here, so a skeleton would only flash). Special
- * days are added and read in Family › Special days; the Special days tile of Life@{center} keeps that a tap
- * away when this row is hidden.
+ * The family's special days coming in the next two calendar months (today to the same day two months on), soonest first, at
+ * most ten, each a tile that opens the labh planner (or the special days when no labh can be planned). With none coming the
+ * whole row is hidden. It draws nothing while it loads (most families have nothing here, so a skeleton would only flash), and
+ * it loads when Home does (HomeRows), not when it nears the screen. Special days are added and read in Family › Special
+ * days; the Special days tile of Life@{center} keeps that a tap away when this row is hidden.
  */
-function SpecialDaysRow({ shown, onPlace }: RailSlot) {
+function SpecialDaysRow({ state }: { state: LoadState<HomeSpecialDaysData> }) {
   const t = useT();
   const { member } = useApp();
-  const state = useHomeSpecialDays(shown);
   const d = state.data;
   const days = d && d.today ? upcomingSpecialDays(d.rows, d.hidden, d.today) : undefined;
   return (
@@ -225,13 +240,13 @@ function SpecialDaysRow({ shown, onPlace }: RailSlot) {
       label={t('home.row.special')}
       shape="card"
       captionLines={0}
-      loading={shown}
+      loading
       quiet
       items={days}
-      error={shown ? state.error : null}
+      error={state.error}
       reload={() => void state.reload()}
       keyOf={(x) => x.day.id}
-      onPlace={onPlace}
+      onPlace={NOT_PLACED}
       renderTile={(x, ctx) => <SpecialDayTile x={x} today={d?.today ?? ''} ctx={ctx} members={member?.members ?? []} adult={!!member?.isAdult} />}
     />
   );
@@ -333,7 +348,7 @@ async function readRsvps(householdId: string, tiles: readonly EventTile[]): Prom
  * name, date and venue. A member sees the family's RSVP status on every tile as a chip, in date order; only an event the
  * family still has to confirm (an adult's Confirm chip) is moved to the front. A guest sees the public events with no status.
  */
-function EventsRow({ shown, onPlace }: RailSlot) {
+function EventsRow({ shown, onPlace, held }: RailSlot & { held: boolean }) {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
@@ -394,6 +409,7 @@ function EventsRow({ shown, onPlace }: RailSlot) {
       keyOf={(x) => x.tile.key}
       onPlace={onPlace}
       notice={notice}
+      held={held}
       renderTile={(card, ctx) => <EventTileView card={card} ctx={ctx} tz={tz} flyerUrl={d?.flyers[card.tile.eventId] ?? null} />}
     />
   );
@@ -524,7 +540,7 @@ function DesignedPoster({ tile, tz }: { tile: EventTile; tz: string | null }) {
 // ---------------------------------------------------------------------------
 
 /** Every open opportunity as a big tile with "From $X" and View and sponsor; no rotation, nothing moves by itself. */
-function GiveRow({ shown, onPlace }: RailSlot) {
+function GiveRow({ shown, onPlace, held }: RailSlot & { held: boolean }) {
   const t = useT();
   const router = useRouter();
   const { center } = useApp();
@@ -542,6 +558,7 @@ function GiveRow({ shown, onPlace }: RailSlot) {
       reload={state.reload}
       keyOf={(x) => x.key}
       onPlace={onPlace}
+      held={held}
       renderTile={(tile, ctx) => <GiveTileView tile={tile} ctx={ctx} />}
     />
   );
@@ -615,7 +632,7 @@ const lifeLook = (tile: LifeTile): LifeLook => {
  * an icon, a short label and one line on what it helps with. They go where the My {center} card and the New here
  * shortcut went (the community guide and its sections), plus Special days. Static: nothing to load, no skeleton.
  */
-function LifeRow() {
+function LifeRow({ held }: { held: boolean }) {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
@@ -636,6 +653,7 @@ function LifeRow() {
       reload={NOT_PLACED}
       keyOf={(k) => k}
       onPlace={NOT_PLACED}
+      held={held}
       renderTile={(key, ctx) => {
         const look = lifeLook(key);
         const label = t(look.label);
@@ -691,7 +709,7 @@ async function attempt<T>(action: string, run: () => Promise<T>): Promise<{ part
  * its module and the access level of its area all allow it; one that is not allowed is not shown, not shown
  * locked, and with none left the row is gone.
  */
-function LearnListenRow({ shown, onPlace, accessProblem }: RailSlot & { accessProblem: { error: AppError; retry: () => void } | null }) {
+function LearnListenRow({ shown, onPlace, held, accessProblem }: RailSlot & { held: boolean; accessProblem: { error: AppError; retry: () => void } | null }) {
   const t = useT();
   const { center, member } = useApp();
   const { map } = useModules();
@@ -792,6 +810,7 @@ function LearnListenRow({ shown, onPlace, accessProblem }: RailSlot & { accessPr
       keyOf={(c) => c.key}
       onPlace={onPlace}
       notice={notice}
+      held={held}
       renderTile={(card, ctx) => <LearnListenTileView card={card} ctx={ctx} d={d} />}
     />
   );

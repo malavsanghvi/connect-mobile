@@ -27,6 +27,15 @@ export function homeSpecialDays<D extends HomeSpecialDayFields>(rows: readonly D
 }
 
 /**
+ * Home's alerts, split by where they show: the urgent ones above the first row (they are meant to be seen first), the
+ * important and informational ones under it with the other notices, so that an alert arriving late does not push Today down.
+ * The order given (urgent first, as api/home listAlerts sorts them) is kept.
+ */
+export function splitAlerts<A extends { severity: string }>(alerts: readonly A[]): { urgent: A[]; other: A[] } {
+  return { urgent: alerts.filter((a) => a.severity === 'urgent'), other: alerts.filter((a) => a.severity !== 'urgent') };
+}
+
+/**
  * The days of the Plan a special day row: those coming within the next two calendar months, soonest first, at most
  * `limit`. The window runs from `today` (the community's date, today counts) to the same day two months on, inclusive:
  * Oct 2 to Dec 2, Dec 15 to Feb 15, and for a day that month does not have the last day of the month (Dec 31 to Feb 28,

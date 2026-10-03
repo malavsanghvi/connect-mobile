@@ -4,7 +4,7 @@ import { specialDayDismissKey } from '../event-rules';
 import { nextOccurrence } from '@/lib/rules';
 
 import { SPECIAL_DAY_LIMIT, SPECIAL_DAY_WINDOW_MONTHS } from '../home-rail-items';
-import { homeSpecialDays, upcomingSpecialDays } from '../home-rules';
+import { homeSpecialDays, splitAlerts, upcomingSpecialDays } from '../home-rules';
 
 type Day = { id: string; show_on_home: boolean; reminder_days_before: number };
 const day = (id: string, extra: Partial<Day> = {}): Day => ({ id, show_on_home: true, reminder_days_before: 14, ...extra });
@@ -123,5 +123,28 @@ describe('upcomingSpecialDays (the Plan a special day row)', () => {
   });
   it('shows nothing before the community’s date is known', () => {
     expect(upcomingSpecialDays([{ day: day('a'), next: '2026-10-08' }], [], '')).toEqual([]);
+  });
+});
+
+describe('splitAlerts (which alerts go above Home’s first row)', () => {
+  const alert = (id: string, severity: string) => ({ id, severity });
+
+  it('keeps only the urgent ones above the first row and puts the others with the notices under it', () => {
+    const { urgent, other } = splitAlerts([alert('a', 'urgent'), alert('b', 'important'), alert('c', 'info'), alert('d', 'urgent')]);
+    expect(urgent.map((a) => a.id)).toEqual(['a', 'd']);
+    expect(other.map((a) => a.id)).toEqual(['b', 'c']);
+  });
+  it('keeps the order given (listAlerts sorts urgent first) and loses none', () => {
+    const all = [alert('a', 'urgent'), alert('b', 'important'), alert('c', 'info')];
+    const { urgent, other } = splitAlerts(all);
+    expect(urgent.length + other.length).toBe(all.length);
+    expect(splitAlerts([alert('x', 'info'), alert('y', 'important')]).other.map((a) => a.id)).toEqual(['x', 'y']);
+  });
+  it('has nothing above the first row without an urgent alert, and nothing at all without alerts', () => {
+    expect(splitAlerts([alert('b', 'important')]).urgent).toEqual([]);
+    expect(splitAlerts([])).toEqual({ urgent: [], other: [] });
+  });
+  it('puts an alert with a severity it does not know under the first row, not above it', () => {
+    expect(splitAlerts([alert('z', 'weird')]).other.map((a) => a.id)).toEqual(['z']);
   });
 });

@@ -7,7 +7,7 @@ import { ErrorState, LoadingState } from '@/components/states';
 import { StrokeIcon } from '@/components/stroke-icon';
 import { Banner, Button, Card, Chevron, Row, Txt, VStack } from '@/components/ui';
 import { listSpecialDays, nextTithiDates, type SpecialDay } from '@/lib/api/family';
-import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type FeedbackHome, type HomeEvents, type TodayInfo } from '@/lib/api/home';
+import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type Alert, type FeedbackHome, type HomeEvents, type TodayInfo } from '@/lib/api/home';
 import { reactivateAccount } from '@/lib/api/settings';
 import { logError, report } from '@/lib/errors';
 import { formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt } from '@/lib/format';
@@ -23,13 +23,14 @@ import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
 import { useConfirmPopup } from './confirm-popup';
+import { splitAlerts } from './home-rules';
 import { TodayDoors } from './today-doors';
 
 /*
  * The pieces of Home that are not rows of tiles (owner, 2026-10-02; the order is set in
- * src/app/(app)/(tabs)/index.tsx): the strip of what needs you (deactivated, alerts, feedback requested,
- * today's lunch times, the "Still coming?" pop-up), Today at {center} (the first tile of the first row),
- * and the guest sign-in card. The rows are in home-rails.tsx.
+ * src/app/(app)/(tabs)/index.tsx): what needs you (the deactivated notice and urgent alerts above the first row;
+ * the other alerts, today's lunch times and feedback requested under it, and the "Still coming?" pop-up),
+ * Today at {center} (the first tile of the first row), and the guest sign-in card. The rows are in home-rails.tsx.
  */
 
 /** A spinner in the size of a first-row tile (Today's height), so the rows below do not jump when its data arrives. */
@@ -259,17 +260,27 @@ export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHi
 }
 
 // ---------------------------------------------------------------------------
-// What needs you (above the first row)
+// What needs you (alerts, feedback, lunch)
 // ---------------------------------------------------------------------------
 
-export function AlertsSection() {
+/** The alerts the community has up (RLS returns only those in their window): one load, shown in two places (AlertsStrip). `enabled` is false for guests and when the community switched alerts off. */
+export function useHomeAlerts(enabled: boolean): LoadState<Alert[]> {
   const { center } = useApp();
-  const state = useLoad(() => (center ? listAlerts(center.id) : Promise.resolve([])), [center?.id], 'load alerts');
-  if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : null;
-  if (state.data.length === 0) return null;
+  return useLoad(() => (enabled && center ? listAlerts(center.id) : Promise.resolve([])), [enabled, center?.id], 'load alerts');
+}
+
+/**
+ * The alerts as banners. The urgent ones go above Home's first row, where they are seen first (and where a failure to read
+ * the alerts says so, with Try again); the important and informational ones go under it with the other notices (feedback,
+ * lunch times), so an alert that arrives late does not push Today down.
+ */
+export function AlertsStrip({ state, part }: { state: LoadState<Alert[]>; part: 'urgent' | 'other' }) {
+  if (state.data === undefined) return state.error && part === 'urgent' ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : null;
+  const alerts = splitAlerts(state.data)[part];
+  if (alerts.length === 0) return null;
   return (
     <VStack gap={space.sm}>
-      {state.data.map((a) => (
+      {alerts.map((a) => (
         <Banner key={a.id} tone={a.severity === 'urgent' ? 'error' : a.severity === 'important' ? 'warning' : 'info'} title={a.title} message={a.body} />
       ))}
     </VStack>
@@ -398,7 +409,7 @@ function LunchRow({ lunch, tz }: { lunch: NonNullable<HomeEvents['lunch']>; tz: 
 }
 
 /**
- * What the family has to act on today, above the first row: today's lunch times (on the day of an event they
+ * What the family has to act on today, under the first row: today's lunch times (on the day of an event they
  * RSVPd to with lunch, once someone has checked in; it was a row of the Up next card, and it is time-sensitive).
  * A failed load of the family's events shows here with Try again whether or not there is lunch to show, because
  * the "Still coming?" pop-up depends on the same load. `lunch` is false when the community switched lunch off.
@@ -432,14 +443,19 @@ export type HomeSpecialDaysData = {
   today: string;
 };
 
+/** The last answer for each household, so that Home shows the row at once when it is mounted again and then checks it (stale while revalidate). */
+const lastSpecialDays = new Map<string, HomeSpecialDaysData>();
+
 /**
  * The family's special days with the date each next falls on, for the Plan a special day row. `enabled` is
- * false for guests, for someone without a household and when the row has not come near the screen yet:
- * nothing is fetched then.
+ * false for guests and for someone without a household: nothing is fetched then. The load starts when Home does
+ * (not when the row nears the screen): most of the page is below it, and a row that appears late moves everything
+ * under it. The last answer is kept and shown while the new one loads.
  */
 export function useHomeSpecialDays(enabled: boolean): LoadState<HomeSpecialDaysData> {
   const { center, member } = useApp();
-  return useLoad(
+  const key = center && member?.household ? `${center.id}:${member.household.id}` : null;
+  const state = useLoad(
     async (): Promise<HomeSpecialDaysData> => {
       if (!enabled || !center || !member?.household) return { rows: [], hidden: [], today: '' };
       const today = todayAt(center.time_zone);
@@ -450,11 +466,15 @@ export function useHomeSpecialDays(enabled: boolean): LoadState<HomeSpecialDaysD
         all.filter((d) => d.show_on_home && !d.calendar_date && d.tithi && d.tithi_month).map((d) => ({ id: d.id, tithi: d.tithi as string, month: d.tithi_month as string })),
       );
       const rows = all.map((day) => ({ day, next: day.calendar_date ? nextOccurrence(day.calendar_date, today) : (tithiDates[day.id] ?? null) }));
-      return { rows, hidden: Array.isArray(hidden) ? hidden : [], today };
+      const answer = { rows, hidden: Array.isArray(hidden) ? hidden : [], today };
+      lastSpecialDays.set(`${center.id}:${member.household.id}`, answer);
+      return answer;
     },
     [enabled, center?.id, member?.household?.id],
     'load special days',
   );
+  const kept = enabled && key ? lastSpecialDays.get(key) : undefined;
+  return state.data === undefined && kept ? { ...state, data: kept } : state;
 }
 
 /** Square tile with the month and day of a special day (44 × 48). */

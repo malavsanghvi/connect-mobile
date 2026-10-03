@@ -424,6 +424,13 @@ export function tileCutOff(index: number, scrollX: number, viewWidth: number, ti
 export const RAIL_PRELOAD = 0.5;
 
 /**
+ * The longest the rows under Plan a special day wait (drawn invisible, their loads already running) for that row to find out
+ * whether it has days, so that it does not push them down after the member has started to read (ms). On a slow connection
+ * the rows show without it and the row may still come in late.
+ */
+export const SPECIAL_DAYS_HOLD_MS = 1200;
+
+/**
  * Where a row really is on Home: the top of its box (px down Home's content),
  * or null when its layout is not a position at all. The web hides a screen
  * that another one covers (display: none) and then reports every view on it as
