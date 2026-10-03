@@ -25,8 +25,9 @@ import { colors, fonts, layout, radii, shadows, space, touch, type ColorName } f
  * - Screen readers: the row's title is a heading; its tiles are a labelled list (web) of buttons, each read
  *   with its details (and "3 of 8" on a phone, where there is no list to say it).
  * - Each row loads on its own, only when it comes near the screen (useRailReveal), and shows skeleton tiles
- *   until then. A failure shows inside the row in plain English with Try again; a row with nothing in it is
- *   left out.
+ *   until then. A failure shows inside the row in plain English with Try again, also when it leaves the row without
+ *   a tile (the row keeps its title); a row with nothing in it and nothing wrong is left out (railView).
+ * - A row mounts the pictures of the tiles in view and two more ahead, and the rest as it is moved (imageReach).
  */
 
 const isWeb = Platform.OS === 'web';

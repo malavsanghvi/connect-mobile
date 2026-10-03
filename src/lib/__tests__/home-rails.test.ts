@@ -37,6 +37,7 @@ import {
 } from '../home-rails';
 import { HOME_SHORTCUT_KEYS } from '../home-shortcuts';
 import { ALL_ON, HOME_CARD_MODULE, MODULE_KEYS, type ModuleMap } from '../modules';
+import { textScales } from '../../theme';
 
 const off = (...keys: (typeof MODULE_KEYS)[number][]): ModuleMap => Object.fromEntries(keys.map((k) => [k, false]));
 const adult = { isAdult: true, hasHousehold: true };
@@ -320,7 +321,7 @@ describe('railTileSize for the hero tiles (Today and My Jain Way)', () => {
 
     it('is at least what the old card gave, at 360 / 375 / 390 / 412 and at every text size', () => {
       for (const screen of [360, 375, 390, 412]) {
-        for (const scale of [1, 1.15, 1.3]) expect(heroRoom(screen, scale)).toBeGreaterThanOrEqual(oldRoom(screen) - 1e-9);
+        for (const scale of Object.values(textScales)) expect(heroRoom(screen, scale)).toBeGreaterThanOrEqual(oldRoom(screen) - 1e-9);
       }
     });
     it('is exactly what the old card gave wherever the tile is narrower than the cards only by the peeking sliver', () => {

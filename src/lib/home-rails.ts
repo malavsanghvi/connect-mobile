@@ -8,7 +8,10 @@
  *   src/lib/modules.ts HOME_CARD_MODULE), its Home shortcuts (centers.rules.home.shortcuts), the access levels
  *   (src/lib/access.ts), signed in or a guest, and the adults-only rule for giving;
  * - how big a tile is for the room there is (railTileSize) and where the rail starts and ends on the screen
- *   (railGeometry): large enough to read on a phone, with the next tile peeking in;
+ *   (railGeometry): large enough to read on a phone, with the next tile peeking in, or filling the row when it is alone;
+ *   the room Today's three timings have for their words (todayTimeRoom);
+ * - what a row draws (railView: skeleton, tiles, a message, or nothing) and how many of its tiles have their pictures
+ *   mounted (imageReach);
  * - where a swipe, the ‹ › buttons and the arrow keys take the rail (railSnapShift, railRestOffset, pageTarget,
  *   keyTarget, railEdges), and whether a tile the keyboard reached is cut off (tileCutOff);
  * - which rows are near enough to the screen to load (revealRails, with railTop for where a row is), so a row

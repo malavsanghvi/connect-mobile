@@ -160,19 +160,29 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
 - **Home** (`src/app/(app)/(tabs)/index.tsx`): six Netflix-style **rows** of big tiles
   (`src/features/home-rails.tsx`, the scrolling row itself in `src/features/home-rail.tsx`), each
   scrolling sideways with no scrollbar, the next tile peeking in at the right edge and a sliver of the
-  previous one at the left once it has moved. 1 **Today at {center}** (unchanged) beside **My Jain Way**
-  (the navy progress card of the My Jain Way tab, `src/features/jain-way-progress.tsx`; it opens that tab;
-  a guest sees Today alone), 2 **Plan a special day** (the household's days in the next 60 days, hidden
-  with none), 3 **Events** (a poster each, flyer or designed, with the family's RSVP status as a chip:
-  RSVP and Confirm first), 4 **Giving opportunities**, 5 **Life@{center}** (the guide's features and
-  Special days), 6 **Learn & listen** (Continue learning, My playlist, Podcasts, Recipes, Photos). Above
-  the first row, only when something needs you: the deactivated notice, alerts, feedback requested,
-  today's lunch times (the "Still coming?" pop-up opens by itself 24 hours before an event). Which rows and
+  previous one at the left once it has moved (a row with a single tile fills the width instead). 1 **Today at
+  {center}** (same height and content; beside My Jain Way the card is 24 px narrower and its three timings have
+  4 px of side padding instead of 8, so each time keeps the room for its words the old card gave it) beside
+  **My Jain Way** (the navy progress card of the My Jain Way tab, `src/features/jain-way-progress.tsx`; it opens
+  that tab; a guest sees Today alone), 2 **Plan a special day** (the household's days from today to the same day
+  two calendar months on, in the community's time zone, hidden with none; it loads when Home does and keeps its last
+  answer, and the rows under it are drawn invisible, for at most 1.2 s, until it knows, so it never pushes them down
+  once they have been seen), 3 **Events** (a poster each, flyer or designed, in date order with the family's RSVP status
+  as a chip; an adult's Confirm tile, "Still coming?", comes first; a tap does what the chip says: Confirm opens the
+  confirmation, Going / Waitlisted / You attended the tickets, RSVP / Not going / closed the event page), 4 **Giving
+  opportunities**, 5 **Life@{center}** (the guide's features and Special days), 6 **Learn & listen** (Continue
+  learning, which reads a light summary of Gyan Path and stays as "Gyan Path · Every level done", opening the goals,
+  when every goal is finished; My playlist, Podcasts, Recipes, Photos). Above the first row only the deactivated notice
+  and the urgent alerts; between rows 1 and 2 the other alerts, today's lunch times and feedback requested (so none of
+  them pushes Today down; the "Still coming?" pop-up opens by itself 24 hours before an event). Which rows and
   tiles show is pure and unit-tested (`src/lib/home-rails.ts`): the community's modules, its Home shortcuts
   (`centers.rules.home.shortcuts`; each is a tile of Learn & listen), the access levels (a tile the person
   may not use is left out, not shown locked), and, for a guest, only Today, the public events and the
-  guide tiles. A row loads only as it nears the screen, shows its own plain-English error with Try again,
-  and is left out when it has nothing to show.
+  guide tiles. A row loads only as it nears the screen (Plan a special day when Home does), shows its own
+  plain-English error with Try again, and is left out when it has nothing to show and nothing wrong: a row whose
+  every load failed keeps its title and says so. Known limitations: Tab stops on every tile of every row (the arrow keys
+  also move within a row, but a row is not a single Tab stop), and a notice that loads late (feedback, lunch times) can
+  still push rows 2 and below down by its own height.
 - **Access levels** (`src/lib/access.ts`; the model is connect-crm `docs/ACCESS_LEVELS.md`):
   each organization sets, for each area (Live darshan, Virtual puja, Listen, Look,
   Learn, Ask Niva, the guide), the lowest level that may use it: public (anyone, not

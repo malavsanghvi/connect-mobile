@@ -1,7 +1,7 @@
 /**
  * Pure rules behind Home's Plan a special day row (src/features/home-rails.tsx): which of the family's special
- * days it shows. The rest of Home's tiles are built in home-rail-items.ts. Unit-tested in
- * src/features/__tests__/home-rules.test.ts.
+ * days it shows, over the next two calendar months; and which alerts go above the first row. The rest of Home's tiles
+ * are built in home-rail-items.ts. Unit-tested in src/features/__tests__/home-rules.test.ts.
  */
 import { addMonths, daysBetween, parseISODate } from '@/lib/format';
 
