@@ -3,10 +3,10 @@
  * days it shows. The rest of Home's tiles are built in home-rail-items.ts. Unit-tested in
  * src/features/__tests__/home-rules.test.ts.
  */
-import { daysBetween } from '@/lib/format';
+import { addMonths, daysBetween, parseISODate } from '@/lib/format';
 
 import { specialDayDismissKey } from './event-rules';
-import { SPECIAL_DAY_LIMIT, SPECIAL_DAY_WINDOW_DAYS } from './home-rail-items';
+import { SPECIAL_DAY_LIMIT, SPECIAL_DAY_WINDOW_MONTHS } from './home-rail-items';
 
 /** The fields of a saved special day these rules read (app.special_days). */
 export type HomeSpecialDayFields = { id: string; show_on_home: boolean; reminder_days_before: number };
@@ -27,20 +27,22 @@ export function homeSpecialDays<D extends HomeSpecialDayFields>(rows: readonly D
 }
 
 /**
- * The days of the Plan a special day row: those coming within the next two months (`withinDays`, today
- * counts), soonest first, at most `limit`. Empty means the whole row is hidden. A day further off waits until
- * it comes inside the window.
+ * The days of the Plan a special day row: those coming within the next two calendar months, soonest first, at most
+ * `limit`. The window runs from `today` (the community's date, today counts) to the same day two months on, inclusive:
+ * Oct 2 to Dec 2, Dec 15 to Feb 15, and for a day that month does not have the last day of the month (Dec 31 to Feb 28,
+ * or 29 in a leap year). Empty means the whole row is hidden. A day further off waits until it comes inside the window.
  */
 export function upcomingSpecialDays<D extends HomeSpecialDayFields>(
   rows: readonly DayNext<D>[],
   hidden: readonly string[],
   today: string,
-  withinDays: number = SPECIAL_DAY_WINDOW_DAYS,
+  months: number = SPECIAL_DAY_WINDOW_MONTHS,
   limit: number = SPECIAL_DAY_LIMIT,
 ): { day: D; next: string; inDays: number }[] {
-  if (!today) return [];
+  if (!parseISODate(today)) return [];
+  const last = addMonths(today, months);
   return homeSpecialDays(rows, hidden)
+    .filter((r) => parseISODate(r.next) !== null && daysBetween(today, r.next) >= 0 && daysBetween(r.next, last) >= 0)
     .map((r) => ({ ...r, inDays: daysBetween(today, r.next) }))
-    .filter((r) => Number.isFinite(r.inDays) && r.inDays >= 0 && r.inDays <= withinDays)
     .slice(0, Math.max(0, limit));
 }

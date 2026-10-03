@@ -72,13 +72,16 @@ export function listDisplayName(t: Translate, day: Pick<SpecialDay, 'label' | 'p
   return who ? t('days.whoseKind', { name: who.person.preferred_name || who.person.first_name, kind }) : kindLabel(t, occ);
 }
 
+/** whenText counts the days ("in 14 days") below this many, then names the date. */
+export const WHEN_COUNTS_DAYS_BELOW = 60;
+
 /** Family-tab timing: "Tomorrow", "in 14 days", or "Mar 14" when 60+ days out (prototype whenTxt). */
 export function whenText(t: Translate, today: string, next: string | null): string {
   if (!next) return '';
   const n = daysBetween(today, next);
   if (n <= 0) return t('days.today');
   if (n === 1) return t('days.tomorrow');
-  if (n < 60) return t('days.inDays', { n });
+  if (n < WHEN_COUNTS_DAYS_BELOW) return t('days.inDays', { n });
   const d = parseISODate(next);
   return d ? `${monthName(d.m)} ${d.d}` : '';
 }

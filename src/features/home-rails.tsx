@@ -330,8 +330,8 @@ async function readRsvps(householdId: string, tiles: readonly EventTile[]): Prom
 
 /**
  * Upcoming events as posters (2:3): the signed flyer when the event has one, else a designed poster with its
- * name, date and venue. A member sees the family's RSVP status on every tile as a chip, and the events that
- * want a reply (RSVP, Confirm) come first; a guest sees the public events with no status.
+ * name, date and venue. A member sees the family's RSVP status on every tile as a chip, in date order; only an event the
+ * family still has to confirm (an adult's Confirm chip) is moved to the front. A guest sees the public events with no status.
  */
 function EventsRow({ shown, onPlace }: RailSlot) {
   const t = useT();
@@ -434,7 +434,7 @@ function EventTileView({ card, ctx, tz, flyerUrl }: { card: EventCard; ctx: Tile
   const { tile, chip } = card;
   const when = tile.live ? t('home.rail.liveNow') : formatDateTime(tile.startsAt, tz);
   const label = [tile.name, when, tile.venue, chip ? eventChipSpoken(t, chip, tz) : null].filter(Boolean).join('. ');
-  const target = eventTarget(chip, card.rsvpStatus);
+  const target = eventTarget(chip);
   const open = () => router.push(target === 'confirm' ? { pathname: '/event/[id]/confirm', params: { id: tile.eventId } } : target === 'tickets' ? { pathname: '/event/[id]/tickets', params: { id: tile.eventId } } : { pathname: '/event/[id]', params: { id: tile.eventId } });
   const designed = <DesignedPoster tile={tile} tz={tz} />;
   return (

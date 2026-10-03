@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   addDays,
+  addMonths,
   daysBetween,
   formatCents,
   formatCentsCompact,
@@ -77,6 +78,37 @@ describe('dates and times', () => {
     expect(formatTimeLeft('2026-09-22T17:00:00Z', now)).toBe('5 hours');
     expect(formatTimeLeft('2026-09-22T12:10:00Z', now)).toBe('10 minutes');
     expect(formatTimeLeft('2026-09-21T12:00:00Z', now)).toBe('');
+  });
+});
+
+describe('addMonths (calendar months, clamped to the last day of a shorter month)', () => {
+  it('keeps the day of the month', () => {
+    expect(addMonths('2026-10-02', 2)).toBe('2026-12-02');
+    expect(addMonths('2026-10-02', 0)).toBe('2026-10-02');
+    expect(addMonths('2026-10-02', 12)).toBe('2027-10-02');
+  });
+  it('goes on into the next year', () => {
+    expect(addMonths('2026-12-15', 2)).toBe('2027-02-15');
+    expect(addMonths('2026-11-30', 2)).toBe('2027-01-30');
+    expect(addMonths('2026-12-01', 1)).toBe('2027-01-01');
+  });
+  it('clamps to the last day of a month that is shorter, leap years included', () => {
+    expect(addMonths('2026-12-31', 2)).toBe('2027-02-28');
+    expect(addMonths('2027-12-31', 2)).toBe('2028-02-29');
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-28');
+    expect(addMonths('2028-01-31', 1)).toBe('2028-02-29');
+    expect(addMonths('2026-08-31', 1)).toBe('2026-09-30');
+    expect(addMonths('2026-08-31', 2)).toBe('2026-10-31');
+    expect(addMonths('2028-02-29', 12)).toBe('2029-02-28');
+    expect(addMonths('2028-02-29', 48)).toBe('2032-02-29');
+  });
+  it('goes back as well', () => {
+    expect(addMonths('2026-03-31', -1)).toBe('2026-02-28');
+    expect(addMonths('2026-01-15', -2)).toBe('2025-11-15');
+  });
+  it('gives back what it cannot read', () => {
+    expect(addMonths('not a date', 2)).toBe('not a date');
+    expect(addMonths('2026-10-02', Number.NaN)).toBe('2026-10-02');
   });
 });
 

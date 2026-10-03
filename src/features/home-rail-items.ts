@@ -14,14 +14,14 @@ import { onlyFullyJain, type MediaItem } from '@/lib/media-library';
 
 import { albumDate, turnsAge } from './event-rules';
 import { fromAmountCents, opportunityKind } from './give/rules';
-import { listDisplayName, whenText } from './special-days';
+import { listDisplayName, WHEN_COUNTS_DAYS_BELOW, whenText } from './special-days';
 
 /** At most this many tiles in a row ("See all" has the rest). */
 export const RAIL_LIMIT = 12;
 
-/** Plan a special day shows the days of the next two months, at most this many. */
+/** Plan a special day shows the days of the next two calendar months (home-rules.ts upcomingSpecialDays), at most this many. */
 export const SPECIAL_DAY_LIMIT = 10;
-export const SPECIAL_DAY_WINDOW_DAYS = 60;
+export const SPECIAL_DAY_WINDOW_MONTHS = 2;
 
 // ---------------------------------------------------------------------------
 // Continue learning (Gyan Path)
@@ -111,9 +111,13 @@ export function specialDayTitle(t: Translate, day: Pick<SpecialDay, 'label' | 'p
   return person && age != null ? t('home.turns', { name: person.preferred_name || person.first_name, age }) : listDisplayName(t, day, members);
 }
 
-/** "Thu, Oct 22 · in 20 days": the date, with how far off it is while that is under two months (a far day shows the date alone). */
+/**
+ * "Thu, Oct 22 · in 20 days": the date, with how far off it is while that is counted in days (whenText counts up to
+ * WHEN_COUNTS_DAYS_BELOW; a day just inside the two-month window can be 61 or 62 days off and shows the date alone,
+ * as whenText would name it again).
+ */
 export function specialDayWhen(t: Translate, today: string, next: string, inDays: number): string {
-  return inDays < SPECIAL_DAY_WINDOW_DAYS ? `${formatDay(next)} · ${whenText(t, today, next)}` : formatDay(next);
+  return inDays < WHEN_COUNTS_DAYS_BELOW ? `${formatDay(next)} · ${whenText(t, today, next)}` : formatDay(next);
 }
 
 // ---------------------------------------------------------------------------
@@ -211,10 +215,10 @@ export type RsvpFacts = { status: string; count: number };
 /**
  * What the family's RSVP says on an event's tile:
  *
- * - `rsvp`: no reply yet and RSVPs are open (an invitation not answered counts as no reply); the highlighted
- *   one, and the tiles with it come first;
- * - `confirm`: RSVP made, and the event is inside its confirmation window (the old Up next "Please confirm"),
- *   also first;
+ * - `rsvp`: no reply yet and RSVPs are open (an invitation not answered counts as no reply); the highlighted chip;
+ * - `confirm`: RSVP made, and the event is inside its confirmation window (the old Up next "Please confirm"). Only
+ *   for an adult: it is the call to action of the confirm screen, which asks a child to ask a parent. These tiles
+ *   come first (eventCards);
  * - `going` (with the number of people), `waitlisted`, `notGoing`, `attended`;
  * - `opens` (RSVPs not open yet) and `closed` for no RSVP when none can be made;
  * - `adultsOnly`: a child's login with no RSVP; RSVPs are made by an adult in the family.
@@ -245,7 +249,8 @@ export function eventChip(tile: EventTile, rsvp: RsvpFacts | null, who: { now: D
     case 'confirmed':
       return { kind: 'going', count: rsvp.count };
     case 'rsvpd':
-      return inConfirmWindow(tile, who.now) ? { kind: 'confirm' } : { kind: 'going', count: rsvp.count };
+      // A child sees the family's status, not the call to action: the confirm screen is for an adult.
+      return who.adult && inConfirmWindow(tile, who.now) ? { kind: 'confirm' } : { kind: 'going', count: rsvp.count };
     default:
       if (tile.rsvpBlock === 'not_open_yet') return { kind: 'opens', on: tile.rsvpOpensAt };
       if (tile.rsvpBlock === 'closed' || tile.rsvpBlock === 'past') return { kind: 'closed' };
@@ -308,43 +313,48 @@ export function eventChipSpoken(t: Translate, chip: EventChip, tz: string | null
   }
 }
 
-/** Whether the family has tickets to open (any RSVP that is not cancelled, as the Events tab decides): the tile then opens the tickets, else the event, to RSVP. */
-export function opensTickets(rsvpStatus: string | null | undefined): boolean {
-  return !!rsvpStatus && rsvpStatus !== 'cancelled';
-}
-
-/** Where an event tile goes: the confirm screen while a reply is wanted, the family's tickets once it has an RSVP, else the event (to RSVP, or to read, for a guest). */
+/**
+ * Where an event tile goes, so a tap does what its chip says: the confirm screen while a reply to "Still coming?" is wanted
+ * (Confirm), the family's tickets once the RSVP is in (Going, Waitlisted, You attended), else the event page, to RSVP (RSVP,
+ * Not going, RSVPs closed or not open yet, Ask a parent) or to read (a guest, who has no chip).
+ */
 export type EventTarget = 'event' | 'tickets' | 'confirm';
 
-export function eventTarget(chip: EventChip | null, rsvpStatus: string | null | undefined): EventTarget {
-  if (chip?.kind === 'confirm') return 'confirm';
-  return opensTickets(rsvpStatus) ? 'tickets' : 'event';
+export function eventTarget(chip: EventChip | null): EventTarget {
+  switch (chip?.kind) {
+    case 'confirm':
+      return 'confirm';
+    case 'going':
+    case 'waitlisted':
+    case 'attended':
+      return 'tickets';
+    default:
+      return 'event';
+  }
 }
 
 export type EventCard = {
   tile: EventTile;
   /** null for a guest: no RSVP status. */
   chip: EventChip | null;
-  rsvpStatus: string | null;
 };
 
-/** Whether a reply is wanted from the family: they come first. */
-export function needsReply(chip: EventChip | null): boolean {
-  return chip?.kind === 'rsvp' || chip?.kind === 'confirm';
+/** Whether the family is asked "Still coming?" on this tile: the only tiles that are moved to the front. */
+export function needsConfirmation(chip: EventChip | null): boolean {
+  return chip?.kind === 'confirm';
 }
 
 /**
- * The cards of the Events row. A signed-in member (`who`) gets the family's RSVP status on every tile, and the
- * events that want a reply (RSVP, Confirm) come first, each group in date order. A guest (`who` null, no
- * `rsvps`) gets the public events in date order with no status. At most `limit` cards, counted after sorting.
+ * The cards of the Events row, in date order (soonest first, as listUpcomingEvents returns them): the owner asked for
+ * the events with their RSVP status, not for a new order. The one exception is an event the family must still confirm
+ * (an adult's Confirm chip: it is inside its confirmation window), which comes to the front, as the old Up next put "Please
+ * confirm" above the rest. A signed-in member (`who`) gets the family's RSVP status on every tile; a guest (`who` null, no
+ * `rsvps`) gets the public events with no status. At most `limit` cards, counted after moving the Confirm tiles up.
  */
 export function eventCards(tiles: readonly EventTile[], rsvps: Readonly<Record<string, RsvpFacts>> | null, who: { now: Date; adult: boolean } | null, limit = RAIL_LIMIT): EventCard[] {
-  const cards = tiles.map((tile): EventCard => {
-    const rsvp = who ? (rsvps?.[tile.eventId] ?? null) : null;
-    return { tile, chip: who ? eventChip(tile, rsvp, who) : null, rsvpStatus: rsvp?.status ?? null };
-  });
-  const first = cards.filter((c) => needsReply(c.chip));
-  const rest = cards.filter((c) => !needsReply(c.chip));
+  const cards = tiles.map((tile): EventCard => ({ tile, chip: who ? eventChip(tile, rsvps?.[tile.eventId] ?? null, who) : null }));
+  const first = cards.filter((c) => needsConfirmation(c.chip));
+  const rest = cards.filter((c) => !needsConfirmation(c.chip));
   return [...first, ...rest].slice(0, Math.max(0, limit));
 }
 

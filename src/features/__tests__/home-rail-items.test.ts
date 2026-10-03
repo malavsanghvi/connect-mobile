@@ -19,8 +19,7 @@ import {
   jainWayLabel,
   learningTiles,
   learnListenCards,
-  needsReply,
-  opensTickets,
+  needsConfirmation,
   photoTiles,
   playlistQueue,
   RAIL_LIMIT,
@@ -221,6 +220,13 @@ describe('eventChip (what the family’s RSVP says on a poster)', () => {
     expect(chip(tile(), rsvp('confirmed', 4), false)).toEqual({ kind: 'going', count: 4 });
     expect(chip(tile({ rsvpBlock: 'closed' }), null, false)).toEqual({ kind: 'closed' });
   });
+  it('never shows a child the Confirm call to action (the confirm screen is for an adult): the family is going', () => {
+    const soon = tile({ startsAt: '2026-10-03T14:59:00Z' });
+    expect(chip(soon, rsvp('rsvpd', 3), true)).toEqual({ kind: 'confirm' });
+    expect(chip(soon, rsvp('rsvpd', 3), false)).toEqual({ kind: 'going', count: 3 });
+    // An invitation not answered is still no reply, whoever looks.
+    expect(chip(soon, rsvp('invited'), false)).toEqual({ kind: 'adultsOnly' });
+  });
   it('knows the confirmation window', () => {
     expect(inConfirmWindow({ startsAt: '2026-10-03T00:00:00Z', confirmHoursBefore: 24 }, NOW)).toBe(true);
     expect(inConfirmWindow({ startsAt: '2026-10-02T15:00:00Z', confirmHoursBefore: 24 }, NOW)).toBe(false);
@@ -229,7 +235,7 @@ describe('eventChip (what the family’s RSVP says on a poster)', () => {
   });
 });
 
-describe('eventCards (the Events row: status on every tile, replies wanted first)', () => {
+describe('eventCards (the Events row: the family’s status on every tile, in date order, Confirm first)', () => {
   const NOW = new Date('2026-10-02T15:00:00Z');
   const tile = (id: string, over: Partial<EventTile> = {}): EventTile => ({
     key: `event:${id}`,
@@ -245,71 +251,111 @@ describe('eventCards (the Events row: status on every tile, replies wanted first
     ...over,
   });
   const member = { now: NOW, adult: true };
+  const SOON = '2026-10-03T10:00:00Z';
 
-  it('puts the events that want a reply first (RSVP and Confirm), each group in date order', () => {
-    // In date order, as listUpcomingEvents returns them.
-    const tiles = [tile('soon', { startsAt: '2026-10-03T10:00:00Z' }), tile('going1'), tile('open1'), tile('going2'), tile('open2'), tile('closed', { rsvpBlock: 'closed' })];
-    const rsvps = { going1: { status: 'confirmed', count: 2 }, going2: { status: 'rsvpd', count: 4 }, soon: { status: 'rsvpd', count: 3 } };
+  it('keeps the events in date order, so an event that needs a reply is not moved above one sooner than it', () => {
+    // In date order, as listUpcomingEvents returns them: going, RSVP wanted, going, RSVP wanted, closed.
+    const tiles = [tile('going1'), tile('open1'), tile('going2'), tile('open2'), tile('closed', { rsvpBlock: 'closed' })];
+    const rsvps = { going1: { status: 'confirmed', count: 2 }, going2: { status: 'rsvpd', count: 4 } };
     const cards = eventCards(tiles, rsvps, member);
     expect(cards.map((c) => [c.tile.eventId, c.chip?.kind])).toEqual([
-      ['soon', 'confirm'],
-      ['open1', 'rsvp'],
-      ['open2', 'rsvp'],
       ['going1', 'going'],
+      ['open1', 'rsvp'],
       ['going2', 'going'],
+      ['open2', 'rsvp'],
       ['closed', 'closed'],
     ]);
   });
-  it('gives every tile the family’s status, and carries the RSVP so the tile opens the tickets', () => {
+  it('moves only the events the family must still confirm to the front, each group in date order', () => {
+    const tiles = [tile('a'), tile('soon1', { startsAt: SOON }), tile('b'), tile('soon2', { startsAt: '2026-10-03T12:00:00Z' }), tile('c')];
+    const rsvps = { soon1: { status: 'rsvpd', count: 3 }, soon2: { status: 'rsvpd', count: 2 }, b: { status: 'rsvpd', count: 1 } };
+    const cards = eventCards(tiles, rsvps, member);
+    expect(cards.map((c) => [c.tile.eventId, c.chip?.kind])).toEqual([
+      ['soon1', 'confirm'],
+      ['soon2', 'confirm'],
+      ['a', 'rsvp'],
+      ['b', 'going'],
+      ['c', 'rsvp'],
+    ]);
+  });
+  it('does not move a child’s event to the front: a child has no Confirm', () => {
+    const tiles = [tile('a'), tile('soon', { startsAt: SOON })];
+    const cards = eventCards(tiles, { soon: { status: 'rsvpd', count: 3 } }, { now: NOW, adult: false });
+    expect(cards.map((c) => [c.tile.eventId, c.chip?.kind])).toEqual([
+      ['a', 'adultsOnly'],
+      ['soon', 'going'],
+    ]);
+  });
+  it('gives every tile the family’s status', () => {
     const cards = eventCards([tile('a'), tile('b')], { a: { status: 'waitlisted', count: 1 } }, member);
-    expect(cards.map((c) => c.rsvpStatus)).toEqual([null, 'waitlisted']);
-    expect(cards.every((c) => c.chip !== null)).toBe(true);
+    expect(cards.map((c) => c.chip?.kind)).toEqual(['waitlisted', 'rsvp']);
   });
   it('shows a guest the public events in date order with no status at all', () => {
     const cards = eventCards([tile('a'), tile('b', { rsvpBlock: 'closed' })], null, null);
     expect(cards.map((c) => c.tile.eventId)).toEqual(['a', 'b']);
-    expect(cards.every((c) => c.chip === null && c.rsvpStatus === null)).toBe(true);
+    expect(cards.every((c) => c.chip === null)).toBe(true);
   });
   it('shows no status when the family’s RSVPs could not be read (a guess would say RSVP on an event they are going to)', () => {
     const cards = eventCards([tile('a')], null, null);
     expect(cards[0].chip).toBeNull();
   });
-  it('shows at most the limit, counted after sorting, so a reply wanted from a later event still shows', () => {
-    const tiles = Array.from({ length: 30 }, (_, i) => tile(`e${i}`));
-    const rsvps = Object.fromEntries(tiles.slice(0, 29).map((x) => [x.eventId, { status: 'confirmed', count: 2 }]));
+  it('shows at most the limit, counted after the Confirm tiles are moved up, so an event to confirm later in the list still shows', () => {
+    const tiles = [...Array.from({ length: 29 }, (_, i) => tile(`e${i}`)), tile('late', { startsAt: SOON })];
+    const rsvps = { late: { status: 'rsvpd', count: 2 } };
     const cards = eventCards(tiles, rsvps, member);
     expect(cards).toHaveLength(RAIL_LIMIT);
-    expect(cards[0].tile.eventId).toBe('e29');
+    expect(cards[0].tile.eventId).toBe('late');
+    expect(cards[1].tile.eventId).toBe('e0');
     expect(eventCards(tiles, rsvps, member, 3)).toHaveLength(3);
   });
-  it('sorts a reply wanted on an event that is on now like any other', () => {
+  it('treats an event that is on now like any other', () => {
     const cards = eventCards([tile('live', { live: true, startsAt: '2026-10-02T13:00:00Z' }), tile('later')], { live: { status: 'confirmed', count: 2 } }, member);
-    expect(cards.map((c) => c.tile.eventId)).toEqual(['later', 'live']);
+    expect(cards.map((c) => c.tile.eventId)).toEqual(['live', 'later']);
   });
-  it('knows which chips want a reply', () => {
-    expect(needsReply({ kind: 'rsvp' })).toBe(true);
-    expect(needsReply({ kind: 'confirm' })).toBe(true);
-    for (const kind of ['waitlisted', 'notGoing', 'attended', 'closed', 'adultsOnly'] as const) expect(needsReply({ kind })).toBe(false);
-    expect(needsReply({ kind: 'going', count: 2 })).toBe(false);
-    expect(needsReply(null)).toBe(false);
+  it('knows which chips are moved to the front: only Confirm', () => {
+    expect(needsConfirmation({ kind: 'confirm' })).toBe(true);
+    for (const kind of ['rsvp', 'waitlisted', 'notGoing', 'attended', 'closed', 'adultsOnly'] as const) expect(needsConfirmation({ kind })).toBe(false);
+    expect(needsConfirmation({ kind: 'going', count: 2 })).toBe(false);
+    expect(needsConfirmation({ kind: 'opens', on: null })).toBe(false);
+    expect(needsConfirmation(null)).toBe(false);
   });
 });
 
-describe('eventTarget and opensTickets (where an event tile goes)', () => {
+describe('eventTarget (a tap does what the chip says)', () => {
   it('opens the confirmation while a reply to "Still coming?" is wanted', () => {
-    expect(eventTarget({ kind: 'confirm' }, 'rsvpd')).toBe('confirm');
+    expect(eventTarget({ kind: 'confirm' })).toBe('confirm');
   });
-  it('opens the tickets for any RSVP that is not cancelled (as the Events tab does), else the event, to RSVP', () => {
-    for (const status of ['rsvpd', 'confirmed', 'waitlisted', 'invited', 'attended']) expect(opensTickets(status)).toBe(true);
-    expect(opensTickets('cancelled')).toBe(false);
-    expect(opensTickets(null)).toBe(false);
-    expect(opensTickets(undefined)).toBe(false);
-    expect(opensTickets('')).toBe(false);
-    expect(eventTarget({ kind: 'going', count: 2 }, 'confirmed')).toBe('tickets');
-    expect(eventTarget({ kind: 'rsvp' }, null)).toBe('event');
-    expect(eventTarget({ kind: 'notGoing' }, 'cancelled')).toBe('event');
-    // A guest has no chip and no RSVP: the event.
-    expect(eventTarget(null, null)).toBe('event');
+  it('opens the family’s tickets once the RSVP is in: Going, Waitlisted, You attended', () => {
+    expect(eventTarget({ kind: 'going', count: 2 })).toBe('tickets');
+    expect(eventTarget({ kind: 'going', count: 0 })).toBe('tickets');
+    expect(eventTarget({ kind: 'waitlisted' })).toBe('tickets');
+    expect(eventTarget({ kind: 'attended' })).toBe('tickets');
+  });
+  it('opens the event page, where the family can RSVP, for RSVP (an invitation not answered yet), Not going, closed and not open yet', () => {
+    expect(eventTarget({ kind: 'rsvp' })).toBe('event');
+    expect(eventTarget({ kind: 'notGoing' })).toBe('event');
+    expect(eventTarget({ kind: 'closed' })).toBe('event');
+    expect(eventTarget({ kind: 'opens', on: '2026-10-05T14:00:00Z' })).toBe('event');
+    expect(eventTarget({ kind: 'adultsOnly' })).toBe('event');
+  });
+  it('opens the event for a guest, who has no chip', () => {
+    expect(eventTarget(null)).toBe('event');
+  });
+  it('agrees with the chip for every RSVP status, invited and no_show included (no tickets behind "RSVP" or "Not going")', () => {
+    const NOW = new Date('2026-10-02T15:00:00Z');
+    const base: EventTile = { key: 'event:e1', eventId: 'e1', name: 'Navpad Puja', venue: null, startsAt: '2026-10-10T23:00:00Z', flyerPath: null, live: false, rsvpBlock: null, rsvpOpensAt: null, confirmHoursBefore: 24 };
+    const go = (status: string | null) => {
+      const c = eventChip(base, status ? { status, count: 2 } : null, { now: NOW, adult: true });
+      return [c.kind, eventTarget(c)];
+    };
+    expect(go(null)).toEqual(['rsvp', 'event']);
+    expect(go('invited')).toEqual(['rsvp', 'event']);
+    expect(go('cancelled')).toEqual(['notGoing', 'event']);
+    expect(go('no_show')).toEqual(['notGoing', 'event']);
+    expect(go('rsvpd')).toEqual(['going', 'tickets']);
+    expect(go('confirmed')).toEqual(['going', 'tickets']);
+    expect(go('waitlisted')).toEqual(['waitlisted', 'tickets']);
+    expect(go('attended')).toEqual(['attended', 'tickets']);
   });
 });
 
@@ -329,8 +375,8 @@ describe('eventChipText and eventChipSpoken (the chip in words, and for a screen
     expect(text({ kind: 'attended' })).toBe('You attended');
     expect(text({ kind: 'closed' })).toBe('RSVPs closed');
     expect(text({ kind: 'adultsOnly' })).toBe('Ask a parent');
-    expect(text({ kind: 'opens', on: '2026-10-12T15:00:00Z' })).toBe('RSVP opens Oct 12');
-    expect(text({ kind: 'opens', on: null })).toBe('RSVP opens soon');
+    expect(text({ kind: 'opens', on: '2026-10-12T15:00:00Z' })).toBe('Opens Oct 12');
+    expect(text({ kind: 'opens', on: null })).toBe('Opens soon');
   });
   it('reads each chip as a sentence a screen reader can use', () => {
     expect(spoken({ kind: 'rsvp' })).toBe('RSVP: your family has not replied yet');
@@ -393,6 +439,9 @@ describe('specialDayTitle and specialDayWhen (a Plan a special day tile)', () =>
     expect(specialDayWhen(t, '2026-10-02', '2026-10-03', 1)).toBe('Sat, Oct 3 · Tomorrow');
     expect(specialDayWhen(t, '2026-10-02', '2026-10-02', 0)).toBe('Fri, Oct 2 · Today');
     expect(specialDayWhen(t, '2026-10-02', '2026-12-01', 60)).toBe('Tue, Dec 1');
+    // The two-month window can reach 62 days: the date alone, as whenText would name it.
+    expect(specialDayWhen(t, '2026-10-02', '2026-12-02', 61)).toBe('Wed, Dec 2');
+    expect(specialDayWhen(t, '2026-10-02', '2026-12-01', 59 + 1)).toBe('Tue, Dec 1');
   });
 });
 
