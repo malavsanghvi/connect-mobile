@@ -1,55 +1,12 @@
 /**
- * Pure rules behind the Home cards (src/features/home.tsx): what goes in
- * "Up next" and which special day the Plan card offers (the rails' tiles are
- * built in home-rail-items.ts). Unit-tested in
+ * Pure rules behind Home's Plan a special day row (src/features/home-rails.tsx): which of the family's special
+ * days it shows. The rest of Home's tiles are built in home-rail-items.ts. Unit-tested in
  * src/features/__tests__/home-rules.test.ts.
  */
-import { isWithinReminder } from '@/lib/rules';
+import { daysBetween } from '@/lib/format';
 
 import { specialDayDismissKey } from './event-rules';
-
-// ---------------------------------------------------------------------------
-// Up next
-// ---------------------------------------------------------------------------
-
-/** The rows of the "Up next" card, in the order they show. */
-export const UP_NEXT_KINDS = ['confirm', 'lunch', 'nextEvent', 'specialDay'] as const;
-export type UpNextKind = (typeof UP_NEXT_KINDS)[number];
-
-export type UpNextInput = {
-  /** The event whose RSVP waits for "Still coming?" (Home events `confirm`). */
-  confirmEventId: string | null;
-  /** Today's event with the family's lunch times (Home events `lunch`). */
-  lunchEventId: string | null;
-  /** The next published event (Home events `next`). */
-  nextEventId: string | null;
-  /** The special day whose reminder window has started (reminderSpecialDay). */
-  specialDayId: string | null;
-  /** Which rows this member may see: the community's modules (isHomeCardVisible) and adults-only rules. */
-  show: Partial<Record<UpNextKind, boolean>>;
-};
-
-/**
- * What the "Up next" card lists, in order: the RSVP waiting to be confirmed,
- * today's lunch times, the next event and an upcoming special day. The next
- * event is left out when it is the event already shown to confirm or with
- * lunch times (one row per event). Empty means the card is hidden.
- */
-export function upNextItems(input: UpNextInput): UpNextKind[] {
-  const out: UpNextKind[] = [];
-  const confirm = input.show.confirm === true && !!input.confirmEventId;
-  const lunch = input.show.lunch === true && !!input.lunchEventId;
-  if (confirm) out.push('confirm');
-  if (lunch) out.push('lunch');
-  const covered = [confirm ? input.confirmEventId : null, lunch ? input.lunchEventId : null];
-  if (input.show.nextEvent === true && input.nextEventId && !covered.includes(input.nextEventId)) out.push('nextEvent');
-  if (input.show.specialDay === true && input.specialDayId) out.push('specialDay');
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// Special days on Home
-// ---------------------------------------------------------------------------
+import { SPECIAL_DAY_LIMIT, SPECIAL_DAY_WINDOW_DAYS } from './home-rail-items';
 
 /** The fields of a saved special day these rules read (app.special_days). */
 export type HomeSpecialDayFields = { id: string; show_on_home: boolean; reminder_days_before: number };
@@ -69,17 +26,21 @@ export function homeSpecialDays<D extends HomeSpecialDayFields>(rows: readonly D
     .sort((a, b) => a.next.localeCompare(b.next) || a.day.id.localeCompare(b.day.id));
 }
 
-/** The special day "Up next" reminds about: the soonest whose reminder window (reminder_days_before) has started; null when none has. */
-export function reminderSpecialDay<D extends HomeSpecialDayFields>(rows: readonly DayNext<D>[], today: string, hidden: readonly string[]): { day: D; next: string } | null {
-  return homeSpecialDays(rows, hidden).find((r) => isWithinReminder(r.next, today, r.day.reminder_days_before)) ?? null;
-}
-
 /**
- * The family's next special day for the "Plan a special day" card, however
- * far off (a labh can be planned ahead). `excludeId` is the day "Up next"
- * already shows, so the two cards never offer the same day: the Plan card
- * moves on to the one after it, or is hidden when there is none.
+ * The days of the Plan a special day row: those coming within the next two months (`withinDays`, today
+ * counts), soonest first, at most `limit`. Empty means the whole row is hidden. A day further off waits until
+ * it comes inside the window.
  */
-export function nextSpecialDay<D extends HomeSpecialDayFields>(rows: readonly DayNext<D>[], hidden: readonly string[], excludeId?: string | null): { day: D; next: string } | null {
-  return homeSpecialDays(rows, hidden).find((r) => r.day.id !== excludeId) ?? null;
+export function upcomingSpecialDays<D extends HomeSpecialDayFields>(
+  rows: readonly DayNext<D>[],
+  hidden: readonly string[],
+  today: string,
+  withinDays: number = SPECIAL_DAY_WINDOW_DAYS,
+  limit: number = SPECIAL_DAY_LIMIT,
+): { day: D; next: string; inDays: number }[] {
+  if (!today) return [];
+  return homeSpecialDays(rows, hidden)
+    .map((r) => ({ ...r, inDays: daysBetween(today, r.next) }))
+    .filter((r) => Number.isFinite(r.inDays) && r.inDays >= 0 && r.inDays <= withinDays)
+    .slice(0, Math.max(0, limit));
 }

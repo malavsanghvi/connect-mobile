@@ -1,75 +1,48 @@
-import { useRouter, type Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/icon';
 import { ErrorState, LoadingState } from '@/components/states';
 import { StrokeIcon } from '@/components/stroke-icon';
-import { Banner, Button, Card, Chevron, Divider, ProgressBar, Row, Txt, VStack } from '@/components/ui';
-import { canPlanLabh, listDisplayName, occasionOf, whenText } from '@/features/special-days';
-import type { Translate } from '@/i18n';
-import { confirmAttendance, listAttendees } from '@/lib/api/events';
+import { Banner, Button, Card, Chevron, Row, Txt, VStack } from '@/components/ui';
 import { listSpecialDays, nextTithiDates, type SpecialDay } from '@/lib/api/family';
-import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type FeedbackHome, type HomeEvents } from '@/lib/api/home';
-import { loadJainWayToday } from '@/lib/api/jainway';
-import type { FamilyMember } from '@/lib/api/member';
+import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type FeedbackHome, type HomeEvents, type TodayInfo } from '@/lib/api/home';
 import { reactivateAccount } from '@/lib/api/settings';
 import { logError, report } from '@/lib/errors';
-import { daysBetween, formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt, zonedParts } from '@/lib/format';
+import { formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt } from '@/lib/format';
 import { communityName } from '@/lib/learning';
-import { lunchLines, nextOccurrence, streakDisplay, streakLabel, tithiLabel } from '@/lib/rules';
+import { lunchLines, nextOccurrence, tithiLabel } from '@/lib/rules';
 import { readPref, writePref } from '@/lib/storage';
 import { pointsLine } from '@/lib/survey-popup';
 import { useLoad, type LoadState } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
-import { useModule } from '@/providers/modules';
-import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
 import { useConfirmPopup } from './confirm-popup';
-import { EventIcon } from './event-icons';
-import { pronounFor, relativeDay, shortWhen, specialDayDismissKey, specialDayLead, turnsAge } from './event-rules';
-import { peopleLabel } from './events';
-import { nextSpecialDay, reminderSpecialDay, upNextItems, type DayNext, type UpNextKind } from './home-rules';
 import { TodayDoors } from './today-doors';
 
 /*
- * Home cards (Netflix-style Home, owner 2026-10-02; the order is set in
- * src/app/(app)/(tabs)/index.tsx): deactivated → Today → alerts → Up next
- * (confirm, lunch, next event, special day) → Plan a special day → the rails
- * (home-rails.tsx) → My Jain Way → Feedback → "My {center}" guide → guest
- * sign-in.
+ * The pieces of Home that are not rows of tiles (owner, 2026-10-02; the order is set in
+ * src/app/(app)/(tabs)/index.tsx): the strip of what needs you (deactivated, alerts, feedback requested,
+ * today's lunch times, the "Still coming?" pop-up), Today at {center} (the first tile of the first row),
+ * and the guest sign-in card. The rows are in home-rails.tsx.
  */
 
-function SectionLoading() {
+/** A spinner in the size of a first-row tile (Today's height), so the rows below do not jump when its data arrives. */
+export function TileLoading() {
   return (
-    <Card hero>
+    <Card hero style={{ flexGrow: 1, minHeight: 247, justifyContent: 'center' }}>
       <LoadingState />
     </Card>
   );
 }
 
-/** Eyebrow row with a right-hand note (feedback, special day, giving cards). */
-export function EyebrowRow({ left, right, color }: { left: string; right?: string | null; color: 'purple' | 'brown' | 'navy' }) {
-  return (
-    <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }} gap={space.sm}>
-      <Txt variant="eyebrow" color={color} style={color === 'navy' ? { fontFamily: fonts.bodySemi, letterSpacing: 0.48 } : null}>
-        {left}
-      </Txt>
-      {right ? (
-        <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-          {right}
-        </Txt>
-      ) : null}
-    </Row>
-  );
-}
-
 /**
  * Rounded in-card button that sizes to its label (prototype "align-self:
- * flex-start" pills). `size` "sm" (44) is for the compact Up next rows;
+ * flex-start" pills). `size` "sm" (44) is for the compact strip;
  * `a11yLabel` names what it acts on when the label alone is not unique.
  */
 export function PillButton({
@@ -150,7 +123,11 @@ export function DeactivatedBanner() {
   );
 }
 
-function Tile({ label, value }: { label: string; value: string }) {
+// ---------------------------------------------------------------------------
+// Today at {center}
+// ---------------------------------------------------------------------------
+
+function TimeTile({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flex: 1, backgroundColor: colors.panel, borderRadius: radii.md, paddingVertical: 6, paddingHorizontal: space.sm }}>
       <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
@@ -163,57 +140,75 @@ function Tile({ label, value }: { label: string; value: string }) {
 
 const TODAY_HIDDEN_KEY = 'homeTodayHidden';
 
-/** "Today at {center}", compact: greeting, date and tithi, timings and the live darshan link (prototype L50–69). */
-export function TodayCard() {
-  const t = useT();
-  const { center, member } = useApp();
-  const [collapsed, setCollapsed] = useState(false);
-  const state = useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], "load today's timings");
-  const community = center?.short_name || center?.name || '';
-  const family = member?.household?.display_name ?? null;
+/** The day's tithi, timings and live darshan link. One load: Today and the My Jain Way tile beside it both read it. */
+export function useTodayInfo(): LoadState<TodayInfo> {
+  const { center } = useApp();
+  return useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], "load today's timings");
+}
 
+/** Whether the member hid "Today at {center}" on this device (the one-line greeting stays in its place), and the switch. */
+export function useTodayHidden(): [boolean, (hidden: boolean) => void] {
+  const [hidden, setHidden] = useState(false);
   useEffect(() => {
     let alive = true;
     readPref<boolean>(TODAY_HIDDEN_KEY, false).then((v) => {
-      if (alive) setCollapsed(v);
+      if (alive) setHidden(v);
     });
     return () => {
       alive = false;
     };
   }, []);
-
-  const setHidden = (v: boolean) => {
-    setCollapsed(v);
+  const set = (v: boolean) => {
+    setHidden(v);
     writePref(TODAY_HIDDEN_KEY, v).catch((err: unknown) => logError('remembering the Today card on this device', err));
   };
+  return [hidden, set];
+}
 
-  if (collapsed) {
-    return (
-      <Row gap={space.sm}>
-        <Txt variant="body" color="ink2" style={{ flex: 1 }}>
-          {family ? (
-            <>
-              {`${t('home.greetingLead')} `}
-              <Txt variant="bodyStrong" color="ink2">
-                {family}
-              </Txt>
-            </>
-          ) : (
-            t('welcome.jaiJinendra')
-          )}
+/** What stands in for Today at {center} while it is hidden: "Jai Jinendra, {family}" and a button to bring it back. */
+export function TodayGreeting({ onShow }: { onShow: () => void }) {
+  const t = useT();
+  const { center, member } = useApp();
+  const community = center?.short_name || center?.name || '';
+  const family = member?.household?.display_name ?? null;
+  return (
+    <Row gap={space.sm}>
+      <Txt variant="body" color="ink2" style={{ flex: 1 }}>
+        {family ? (
+          <>
+            {`${t('home.greetingLead')} `}
+            <Txt variant="bodyStrong" color="ink2">
+              {family}
+            </Txt>
+          </>
+        ) : (
+          t('welcome.jaiJinendra')
+        )}
+      </Txt>
+      <Pressable
+        onPress={onShow}
+        accessibilityRole="button"
+        style={({ pressed }) => ({ minHeight: 40, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+        <Txt variant="meta" color="navy" style={{ fontFamily: fonts.bodySemi }}>
+          {t('home.showToday', { center: community })}
         </Txt>
-        <Pressable
-          onPress={() => setHidden(false)}
-          accessibilityRole="button"
-          style={({ pressed }) => ({ minHeight: 40, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
-          <Txt variant="meta" color="navy" style={{ fontFamily: fonts.bodySemi }}>
-            {t('home.showToday', { center: community })}
-          </Txt>
-        </Pressable>
-      </Row>
-    );
-  }
-  if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <SectionLoading />;
+      </Pressable>
+    </Row>
+  );
+}
+
+/**
+ * "Today at {center}": the first tile of Home's first row. Greeting, date and tithi, timings, and the live
+ * darshan and puja doors (prototype L50–69; the doors follow the access levels, today-doors.tsx). Its height
+ * and content are what the card has always had; the row decides its width. The close button hides it (the
+ * row then shows the greeting line instead).
+ */
+export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHide: () => void }) {
+  const t = useT();
+  const { center, member } = useApp();
+  const community = center?.short_name || center?.name || '';
+  const family = member?.household?.display_name ?? null;
+  if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <TileLoading />;
   const { today, tithi, timings, darshan } = state.data;
   const tiles = [
     timings?.sunrise ? { label: t('home.sunrise'), value: formatTimeOfDay(timings.sunrise) } : null,
@@ -223,7 +218,7 @@ export function TodayCard() {
   const aarti = timings?.aarti ? formatTimeOfDay(timings.aarti) : null;
 
   return (
-    <Card hero style={{ gap: space.sm, paddingVertical: space.md }}>
+    <Card hero style={{ gap: space.sm, paddingVertical: space.md, flexGrow: 1 }}>
       <Row align="flex-start" gap={space.sm}>
         <View style={{ flex: 1 }}>
           <Txt variant="meta" color="muted">
@@ -237,7 +232,7 @@ export function TodayCard() {
           </Txt>
         </View>
         <Pressable
-          onPress={() => setHidden(true)}
+          onPress={onHide}
           accessibilityRole="button"
           accessibilityLabel={t('home.hideToday', { center: community })}
           hitSlop={4}
@@ -248,7 +243,7 @@ export function TodayCard() {
       {tiles.length ? (
         <Row gap={space.sm} align="stretch">
           {tiles.map((x) => (
-            <Tile key={x.label} label={x.label} value={x.value} />
+            <TimeTile key={x.label} label={x.label} value={x.value} />
           ))}
         </Row>
       ) : (
@@ -260,6 +255,10 @@ export function TodayCard() {
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------------
+// What needs you (above the first row)
+// ---------------------------------------------------------------------------
 
 export function AlertsSection() {
   const { center } = useApp();
@@ -275,42 +274,8 @@ export function AlertsSection() {
   );
 }
 
-export function JainWayCard() {
-  const t = useT();
-  const router = useRouter();
-  const { center, member } = useApp();
-  const state = useLoad(() => (center && member ? loadJainWayToday(center, member.person.id) : Promise.reject(new Error('not signed in'))), [center?.id, member?.person.id], 'load My Jain Way');
-  if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <SectionLoading />;
-  const d = state.data;
-  const n = d.selected.length;
-  const done = d.doneIds.length;
-  const streak = streakDisplay(d.streak, d.today);
-  const next = d.selected.find((p) => !d.doneIds.includes(p.id));
-  const community = center?.short_name || center?.name || '';
-  return (
-    <Card hero onPress={() => router.push('/jain-way')} accessibilityLabel={t('home.myWay')} style={{ gap: 10 }}>
-      <Row style={{ justifyContent: 'space-between' }} align="baseline">
-        <Txt variant="section">{t('home.myWay')}</Txt>
-        <Txt variant="meta" color="green" style={{ fontFamily: fonts.bodySemi }}>
-          {t('home.doneOf', { done, n })}
-        </Txt>
-      </Row>
-      <ProgressBar value={n ? done / n : 0} track={colors.divider} label={t('home.doneOf', { done, n })} />
-      <Row gap={space.xs}>
-        <EventIcon name="flame" size={16} color={colors.flame2} />
-        <Txt variant="meta" color="brown" style={{ fontFamily: fonts.bodySemi, flex: 1 }}>
-          {`${streakLabel(streak.days)} · ${t('home.centerPoints', { points: d.pointsTotal.toLocaleString('en-US'), center: community })}`}
-        </Txt>
-      </Row>
-      <Txt variant="meta" color="muted">
-        {n === 0 ? t('home.choosePractices') : next ? t('home.nextPractice', { name: next.name }) : t('home.allDone')}
-      </Txt>
-    </Card>
-  );
-}
-
 /**
- * One load feeds the Home "Feedback requested" card and the "How was <event>?"
+ * One load feeds the Home "Feedback requested" strip and the "How was <event>?"
  * pop-up. `enabled` is false for guests and when the community switched
  * surveys off: nothing is fetched then.
  */
@@ -323,8 +288,8 @@ export function useFeedbackHome(enabled: boolean): LoadState<FeedbackHome> {
   );
 }
 
-/** "FEEDBACK REQUESTED" card: the most recent open survey the member has not answered (prototype L77–84). It stays until the survey closes. */
-export function FeedbackCard({ state }: { state: LoadState<FeedbackHome> }) {
+/** "FEEDBACK REQUESTED", compact: the most recent open survey the member has not answered, with a button to answer it (prototype L77–84). It stays until the survey closes. */
+export function FeedbackStrip({ state }: { state: LoadState<FeedbackHome> }) {
   const t = useT();
   const router = useRouter();
   const { center } = useApp();
@@ -332,27 +297,33 @@ export function FeedbackCard({ state }: { state: LoadState<FeedbackHome> }) {
   const first = state.data.requests[0];
   if (!first) return null;
   const { survey, eventName } = first;
+  const title = eventName ? t('home.feedbackTitle', { event: eventName }) : survey.title;
   const earn = pointsLine(t, 'earn', survey.reward_points, communityName(center));
   return (
-    <Card hero tone="outlinePurple">
-      <EyebrowRow left={t('home.feedbackRequested')} right={t('home.feedbackMeta')} color="purple" />
-      <Txt variant="headline">{eventName ? t('home.feedbackTitle', { event: eventName }) : survey.title}</Txt>
-      <Txt variant="meta" color="muted">
-        {survey.description?.trim() || t('home.feedbackBody')}
-      </Txt>
-      {earn ? (
-        <Txt variant="meta" color="purple" style={{ fontFamily: fonts.bodySemi }}>
-          {earn}
-        </Txt>
-      ) : null}
-      <PillButton label={t('home.shareFeedback')} tone="purple" onPress={() => router.push({ pathname: '/survey/[id]', params: { id: survey.id } })} />
+    <Card hero tone="outlinePurple" style={{ paddingVertical: space.md }}>
+      <Row gap={space.md}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt variant="eyebrow" color="purple" style={{ fontFamily: fonts.bodySemi, letterSpacing: 0.48 }}>
+            {t('home.feedbackRequested')}
+          </Txt>
+          <Txt variant="bodyStrong" numberOfLines={2}>
+            {title}
+          </Txt>
+          {earn ? (
+            <Txt variant="caption" color="purple" style={{ fontFamily: fonts.bodySemi }}>
+              {earn}
+            </Txt>
+          ) : null}
+        </View>
+        <PillButton label={t('home.shareFeedback')} a11yLabel={`${t('home.shareFeedback')} · ${title}`} tone="purple" size="sm" onPress={() => router.push({ pathname: '/survey/[id]', params: { id: survey.id } })} />
+      </Row>
     </Card>
   );
 }
 
-const NO_EVENTS = (timeZone: string): HomeEvents => ({ next: null, nextRsvp: null, nextCount: 0, confirm: null, lunch: null, timeZone });
+const NO_EVENTS = (timeZone: string): HomeEvents => ({ confirm: null, lunch: null, timeZone });
 
-/** One load feeds every event row of "Up next" (confirm, lunch, next event). `enabled` is false when none of them may show. */
+/** One load feeds the "Still coming?" pop-up and today's lunch times. `enabled` is false when neither may show. */
 export function useHomeEvents(enabled = true): LoadState<HomeEvents> {
   const { center, member } = useApp();
   return useLoad(
@@ -362,197 +333,26 @@ export function useHomeEvents(enabled = true): LoadState<HomeEvents> {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Special days on Home ("Up next" reminder + "Plan a special day")
-// ---------------------------------------------------------------------------
-
-const DISMISSED_KEY = 'specialDaysNotThisYear';
-
-export type HomeSpecialDaysData = {
-  /** Every saved day with the date it next falls on (null while a tithi's date is not published). */
-  rows: DayNext<SpecialDay>[];
-  /** "Not this year" choices remembered on this device (specialDayDismissKey values). */
-  hidden: string[];
-  /** The community's today. */
-  today: string;
-  /** How many days the family has saved (the Plan card offers "Add a special day" at 0). */
-  saved: number;
-};
-
-export type HomeSpecialDays = {
-  state: LoadState<HomeSpecialDaysData>;
-  /** Remembered "Not this year" choices plus the ones made since the load. */
-  hidden: string[];
-  /** "Not this year" for one occurrence: hides it on Home on this device until next year. */
-  hide: (key: string, name: string) => void;
-};
-
-/** One load feeds the special-day row of "Up next" and the "Plan a special day" card. `enabled` is false for guests and when the card is switched off. */
-export function useHomeSpecialDays(enabled: boolean): HomeSpecialDays {
-  const t = useT();
-  const { center, member } = useApp();
-  const { toast } = useFeedback();
-  const [justHidden, setJustHidden] = useState<string[]>([]);
-  const state = useLoad(
-    async (): Promise<HomeSpecialDaysData> => {
-      if (!enabled || !center || !member?.household) return { rows: [], hidden: [], today: '', saved: 0 };
-      const today = todayAt(center.time_zone);
-      const [all, hidden] = await Promise.all([listSpecialDays(member.household.id), readPref<string[]>(DISMISSED_KEY, [])]);
-      const tithiDates = await nextTithiDates(
-        center.id,
-        today,
-        all.filter((d) => d.show_on_home && !d.calendar_date && d.tithi && d.tithi_month).map((d) => ({ id: d.id, tithi: d.tithi as string, month: d.tithi_month as string })),
-      );
-      const rows = all.map((day) => ({ day, next: day.calendar_date ? nextOccurrence(day.calendar_date, today) : (tithiDates[day.id] ?? null) }));
-      return { rows, hidden: Array.isArray(hidden) ? hidden : [], today, saved: all.length };
-    },
-    [enabled, center?.id, member?.household?.id],
-    'load special days',
-  );
-  const hidden = [...(state.data?.hidden ?? []), ...justHidden];
-  const hide = (key: string, name: string) => {
-    setJustHidden((prev) => (prev.includes(key) ? prev : [...prev, key]));
-    readPref<string[]>(DISMISSED_KEY, [])
-      .then((prev) => writePref(DISMISSED_KEY, [...new Set([...(Array.isArray(prev) ? prev : []), key])]))
-      .then(() => toast(t('home.notThisYearToast', { name }), 'info'))
-      .catch((err: unknown) => {
-        // Not saved: show the day again, so Home never pretends it was hidden.
-        setJustHidden((prev) => prev.filter((k) => k !== key));
-        toast(report(err, 'hide this special day').userMessage, 'error');
-      });
-  };
-  return { state, hidden, hide };
-}
-
-type DayWords = { title: string; lead: string; body: string };
-
-/** "Anya turns 10", "In 2 weeks · special day" and the labh line for a special day on `next`. */
-function describeSpecialDay(t: Translate, day: SpecialDay, next: string, today: string, members: FamilyMember[]): DayWords {
-  const lead = specialDayLead(daysBetween(today, next));
-  const person = day.person_id ? (members.find((m) => m.person.id === day.person_id)?.person ?? null) : null;
-  const age = day.kind === 'birthday' && person ? turnsAge(person.date_of_birth, next) : null;
-  const pronoun = pronounFor(person?.gender);
-  const pronounWord = pronoun === 'her' ? t('home.pronounHer') : pronoun === 'his' ? t('home.pronounHis') : t('home.pronounTheir');
-  const leadText =
-    lead.kind === 'today'
-      ? t('home.specialLeadToday')
-      : lead.kind === 'tomorrow'
-        ? t('home.specialLeadTomorrow')
-        : lead.kind === 'weeks'
-          ? lead.n === 1
-            ? t('home.specialLeadWeek')
-            : t('home.specialLeadWeeks', { n: lead.n })
-          : t('home.specialLeadDays', { n: lead.n });
-  return {
-    title: person && age != null ? t('home.turns', { name: person.preferred_name || person.first_name, age }) : listDisplayName(t, day, members),
-    lead: leadText,
-    body: day.kind === 'birthday' && person ? t('home.specialBirthdayBody', { pronoun: pronounWord }) : t('home.specialBody'),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Up next
-// ---------------------------------------------------------------------------
-
-/** Square tile on the left of an "Up next" row: the month and day, or an icon. */
-function DateTile({ iso, bg, fg }: { iso: string | null; bg: string; fg: string }) {
-  return (
-    <View style={{ width: 44, height: 48, borderRadius: radii.lg, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Txt variant="fine" style={{ color: fg }}>
-        {iso ? monthShortUpper(iso) : ''}
-      </Txt>
-      <Txt variant="section" style={{ color: fg, lineHeight: 20, fontFamily: fonts.bodyBold }}>
-        {iso ? String(parseISODate(iso)?.d ?? '') : ''}
-      </Txt>
-    </View>
-  );
+/**
+ * Opens the in-app "Still coming?" pop-up (once; "Remind me later" is respected) 24 hours before an event the
+ * family has RSVPd to but not confirmed. It used to open from the Up next card; the same event's tile in the
+ * Events row carries a Confirm chip, so the question is never lost when the pop-up is put off.
+ */
+export function ConfirmPrompt({ events }: { events: LoadState<HomeEvents> }) {
+  const { showConfirm } = useConfirmPopup();
+  const eventId = events.data?.confirm?.event.id ?? null;
+  useEffect(() => {
+    if (!eventId) return;
+    showConfirm(eventId, { auto: true }).catch((err: unknown) => logError('showing the RSVP confirm pop-up', err));
+  }, [eventId, showConfirm]);
+  return null;
 }
 
 function IconTile({ icon, bg, fg }: { icon: IconName; bg: string; fg: string }) {
   return (
-    <View style={{ width: 44, height: 48, borderRadius: radii.lg, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={{ width: 44, height: 48, borderRadius: radii.lg, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }} aria-hidden>
       <Icon name={icon} size={22} color={fg} />
     </View>
-  );
-}
-
-/** Small label over an "Up next" row's title ("Please confirm", "Today · Paryushan"). */
-function RowLead({ children, color }: { children: string; color: 'navy' | 'green' | 'brown' }) {
-  return (
-    <Txt variant="caption" color={color} style={{ fontFamily: fonts.bodySemi }}>
-      {children}
-    </Txt>
-  );
-}
-
-/** "Please confirm": still coming? Yes / Change or cancel. Also opens the in-app pop-up once (auto, respecting "Remind me later"). */
-function ConfirmRow({ confirm, tz }: { confirm: NonNullable<HomeEvents['confirm']>; tz: string }) {
-  const t = useT();
-  const router = useRouter();
-  const { toast } = useFeedback();
-  const { invalidate } = useDataVersion();
-  const { showConfirm } = useConfirmPopup();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const eventId = confirm.event.id;
-
-  useEffect(() => {
-    showConfirm(eventId, { auto: true }).catch((err: unknown) => logError('showing the RSVP confirm pop-up', err));
-  }, [eventId, showConfirm]);
-
-  const eventIso = confirm.event.starts_at ? zonedParts(new Date(confirm.event.starts_at), tz).iso : null;
-  const rel = relativeDay(eventIso, todayAt(tz));
-  const title =
-    rel === 'tomorrow'
-      ? t('home.stillComingTomorrow', { event: confirm.event.name })
-      : rel === 'today'
-        ? t('home.stillComingToday', { event: confirm.event.name })
-        : t('home.stillComing', { event: confirm.event.name, when: shortWhen(confirm.event.starts_at, tz) });
-
-  const confirmYes = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const attendees = (await listAttendees(confirm.rsvp.id)).filter((a) => a.status !== 'cancelled');
-      await confirmAttendance(confirm.rsvp.id, attendees.map((a) => a.id), []);
-      invalidate();
-      toast(t('notif.confirmedToast', { people: peopleLabel(t, attendees.length) }));
-    } catch (err) {
-      setError(report(err, 'confirm your attendance').userMessage);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <VStack gap={space.sm}>
-      <Row gap={space.md} align="flex-start">
-        <IconTile icon="checkmark-done-outline" bg={colors.navyTint} fg={colors.navy} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <RowLead color="navy">{t('home.pleaseConfirm')}</RowLead>
-          <Txt variant="bodyStrong">{title}</Txt>
-          <Txt variant="meta" color="muted">
-            {t('home.confirmPeople', { people: peopleLabel(t, confirm.count) })}
-          </Txt>
-        </View>
-      </Row>
-      {error ? <Banner tone="error" message={error} action={{ label: t('common.retry'), onPress: () => void confirmYes() }} /> : null}
-      <Row gap={space.sm}>
-        <View style={{ flex: 1 }}>
-          <Button label={t('events.yesComing')} accessibilityLabel={`${t('events.yesComing')} · ${confirm.event.name}`} tone="green" size="sm" onPress={confirmYes} busy={busy} style={{ paddingHorizontal: space.sm }} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button
-            label={t('events.changeOrCancel')}
-            accessibilityLabel={`${t('events.changeOrCancel')} · ${confirm.event.name}`}
-            tone="secondary"
-            size="sm"
-            onPress={() => router.push({ pathname: '/event/[id]/confirm', params: { id: confirm.event.id } })}
-            style={{ paddingHorizontal: space.sm }}
-          />
-        </View>
-      </Row>
-    </VStack>
   );
 }
 
@@ -572,7 +372,9 @@ function LunchRow({ lunch, tz }: { lunch: NonNullable<HomeEvents['lunch']>; tz: 
       <Row gap={space.md} align="flex-start">
         <IconTile icon="restaurant-outline" bg={colors.greenTint} fg={colors.green} />
         <View style={{ flex: 1, gap: 2 }}>
-          <RowLead color="green">{lead}</RowLead>
+          <Txt variant="caption" color="green" style={{ fontFamily: fonts.bodySemi }}>
+            {lead}
+          </Txt>
           <Txt variant="bodyStrong">{t('home.lunchTitle')}</Txt>
           {lines.map((line) => (
             <Txt key={line} variant="meta" color="ink2">
@@ -593,243 +395,77 @@ function LunchRow({ lunch, tz }: { lunch: NonNullable<HomeEvents['lunch']>; tz: 
   );
 }
 
-/** The next event: date tile, name, RSVP status, and an RSVP button when the family has not replied. */
-function NextEventItem({ events }: { events: HomeEvents }) {
-  const t = useT();
-  const router = useRouter();
-  const { member } = useApp();
-  const { next, nextRsvp, nextCount, timeZone } = events;
-  if (!next) return null;
-  const when = shortWhen(next.starts_at, timeZone);
-  const hasActiveRsvp = !!nextRsvp && nextRsvp.status !== 'cancelled';
-  const status = !nextRsvp
-    ? t('home.rsvpOpen', { when })
-    : nextRsvp.status === 'cancelled'
-      ? t('home.youCancelled')
-      : nextRsvp.status === 'confirmed'
-        ? t('home.nConfirmed', { n: nextCount, when })
-        : t('home.nAttending', { n: nextCount, when });
-  const iso = next.starts_at ? zonedParts(new Date(next.starts_at), timeZone).iso : null;
-  const open = () => router.push(hasActiveRsvp ? { pathname: '/event/[id]/tickets', params: { id: next.id } } : { pathname: '/event/[id]', params: { id: next.id } });
-  const needsRsvp = !hasActiveRsvp && member?.isAdult;
-  return (
-    <Row gap={space.md}>
-      <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={`${next.name}. ${status}`} style={({ pressed }) => ({ flex: 1, minHeight: touch.min, opacity: pressed ? 0.8 : 1 })}>
-        <Row gap={space.md}>
-          <DateTile iso={iso} bg={colors.navy} fg={colors.white} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="bodyStrong">{next.name}</Txt>
-            <Txt variant="meta" color="muted">
-              {status}
-            </Txt>
-          </View>
-          {needsRsvp ? null : <Chevron />}
-        </Row>
-      </Pressable>
-      {needsRsvp ? (
-        <Pressable
-          onPress={open}
-          accessibilityRole="button"
-          accessibilityLabel={`${t('events.rsvp')} · ${next.name}`}
-          style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.navy, backgroundColor: colors.card, paddingHorizontal: 14, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
-          <Txt variant="smallStrong" color="navy">
-            {t('events.rsvp')}
-          </Txt>
-        </Pressable>
-      ) : null}
-    </Row>
-  );
-}
-
-/** A special day whose reminder has started: "Choose a labh" (or "See special days") and "Not this year". */
-function SpecialDayRow({ hit, today, days }: { hit: { day: SpecialDay; next: string }; today: string; days: HomeSpecialDays }) {
-  const t = useT();
-  const router = useRouter();
-  const { member } = useApp();
-  // A labh is a pledge: adults only, and only while Pledges & donations is on.
-  const givingOn = useModule('giving');
-  if (!member) return null;
-  const words = describeSpecialDay(t, hit.day, hit.next, today, member.members);
-  const labh = canPlanLabh({ givingOn, isAdult: member.isAdult, occasion: occasionOf(hit.day), labhPromptEnabled: hit.day.labh_prompt_enabled });
-  return (
-    <VStack gap={space.sm}>
-      <Row gap={space.md} align="flex-start">
-        <DateTile iso={hit.next} bg={colors.brownTint} fg={colors.brown} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <RowLead color="brown">{words.lead}</RowLead>
-          <Txt variant="bodyStrong">{words.title}</Txt>
-          <Txt variant="meta" color="muted">
-            {formatDay(hit.next)}
-          </Txt>
-        </View>
-      </Row>
-      <Row gap={space.sm}>
-        {labh ? (
-          <PillButton label={t('home.chooseLabh')} a11yLabel={t('home.planLabhA11y', { name: words.title })} tone="brown" size="sm" fill onPress={() => router.push(`/labh/${encodeURIComponent(hit.day.id)}` as Href)} />
-        ) : (
-          <PillButton label={t('home.planDay')} tone="brown" size="sm" fill onPress={() => router.push('/special-days')} />
-        )}
-        <PillButton label={t('home.notThisYear')} a11yLabel={`${t('home.notThisYear')} · ${words.title}`} tone="plain" size="sm" fill onPress={() => days.hide(specialDayDismissKey(hit.day.id, hit.next), words.title)} />
-      </Row>
-    </VStack>
-  );
-}
-
 /**
- * "Up next": what is coming for this member in one card — the RSVP waiting
- * to be confirmed, today's lunch times, the next event and a special day
- * whose reminder has started — one compact row each with its action
- * (home-rules upNextItems). `show` carries the community's modules and the
- * adults-only rules. Hidden when there is nothing to show.
+ * What the family has to act on today, above the first row: today's lunch times (on the day of an event they
+ * RSVPd to with lunch, once someone has checked in; it was a row of the Up next card, and it is time-sensitive).
+ * A failed load of the family's events shows here with Try again whether or not there is lunch to show, because
+ * the "Still coming?" pop-up depends on the same load. `lunch` is false when the community switched lunch off.
  */
-export function UpNextCard({ events, days, show }: { events: LoadState<HomeEvents>; days: HomeSpecialDays; show: Record<UpNextKind, boolean> }) {
-  const t = useT();
-  const eventsShown = show.confirm || show.lunch || show.nextEvent;
-  const ev = eventsShown ? events.data : undefined;
-  const dd = show.specialDay ? days.state.data : undefined;
-  const special = dd ? reminderSpecialDay(dd.rows, dd.today, days.hidden) : null;
-  const items = upNextItems({
-    confirmEventId: ev?.confirm?.event.id ?? null,
-    lunchEventId: ev?.lunch?.event.id ?? null,
-    nextEventId: ev?.next?.id ?? null,
-    specialDayId: special?.day.id ?? null,
-    show,
-  });
-  // A special-days failure is shown once, on the Plan a special day card.
-  const eventsError = eventsShown ? events.error : null;
-  const loading = (eventsShown && events.data === undefined && !events.error) || (show.specialDay && days.state.data === undefined && !days.state.error);
-  if (items.length === 0 && !eventsError && !loading) return null;
-
-  const row = (kind: UpNextKind) => {
-    if (kind === 'confirm' && ev?.confirm) return <ConfirmRow confirm={ev.confirm} tz={ev.timeZone} />;
-    if (kind === 'lunch' && ev?.lunch) return <LunchRow lunch={ev.lunch} tz={ev.timeZone} />;
-    if (kind === 'nextEvent' && ev) return <NextEventItem events={ev} />;
-    if (kind === 'specialDay' && special && dd) return <SpecialDayRow hit={special} today={dd.today} days={days} />;
-    return null;
-  };
-
-  return (
-    <Card hero style={{ gap: space.md }}>
-      <Txt variant="eyebrow" color="navy" accessibilityRole="header" style={{ fontFamily: fonts.bodySemi, letterSpacing: 0.48 }}>
-        {t('home.upNext')}
-      </Txt>
-      {eventsError ? <ErrorState error={eventsError} onRetry={() => void events.reload()} /> : null}
-      {items.map((kind, i) => (
-        <VStack key={kind} gap={space.md}>
-          {i > 0 ? <Divider /> : null}
-          {row(kind)}
-        </VStack>
-      ))}
-      {loading ? (
-        <Row gap={space.sm} style={{ minHeight: touch.min }}>
-          <ActivityIndicator color={colors.navy} />
-          <Txt variant="small" color="muted" accessibilityLiveRegion="polite">
-            {t('common.loading')}
-          </Txt>
-        </Row>
-      ) : null}
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Plan a special day
-// ---------------------------------------------------------------------------
-
-/**
- * "Plan a special day": the family's next special day (Family › Special
- * days), however far off, with "Plan a labh" — or "See special days" for a
- * child, a punyatithi, a day without the labh prompt, or when Pledges &
- * donations is off. With no days saved an adult is offered "Add a special
- * day". `excludeReminder` is true while "Up next" shows the reminder row, so
- * the two cards never show the same day.
- */
-export function PlanSpecialDayCard({ days, excludeReminder }: { days: HomeSpecialDays; excludeReminder: boolean }) {
-  const t = useT();
-  const router = useRouter();
-  const { member } = useApp();
-  const givingOn = useModule('giving');
-  const s = days.state;
-  if (!member?.household) return null;
-  if (s.data === undefined) return s.error ? <ErrorState error={s.error} onRetry={() => void s.reload()} /> : null;
-  const d = s.data;
-  const refreshError = s.error ? <ErrorState error={s.error} onRetry={() => void s.reload()} /> : null;
-
-  if (d.saved === 0) {
-    if (!member.isAdult) return refreshError;
-    return (
-      <>
-        {refreshError}
-        <Card hero tone="outlineSaffron" style={{ gap: 10 }}>
-          <EyebrowRow left={t('home.planEyebrow')} color="brown" />
-          <Txt variant="headline">{t('home.planEmptyTitle')}</Txt>
-          <Txt variant="meta" color="muted">
-            {givingOn ? t('home.planEmptyBody') : t('home.planEmptyBodyNoLabh')}
-          </Txt>
-          <PillButton label={t('home.planAdd')} tone="brown" onPress={() => router.push('/special-days')} />
-        </Card>
-      </>
-    );
-  }
-
-  const exclude = excludeReminder ? (reminderSpecialDay(d.rows, d.today, days.hidden)?.day.id ?? null) : null;
-  const pick = nextSpecialDay(d.rows, days.hidden, exclude);
-  if (!pick) return refreshError;
-  const words = describeSpecialDay(t, pick.day, pick.next, d.today, member.members);
-  const labh = canPlanLabh({ givingOn, isAdult: member.isAdult, occasion: occasionOf(pick.day), labhPromptEnabled: pick.day.labh_prompt_enabled });
-  const inDays = daysBetween(d.today, pick.next);
-  const when = inDays < 60 ? `${formatDay(pick.next)} · ${whenText(t, d.today, pick.next)}` : formatDay(pick.next);
+export function EventActionsStrip({ events, lunch }: { events: LoadState<HomeEvents>; lunch: boolean }) {
+  if (events.data === undefined) return events.error ? <ErrorState error={events.error} onRetry={() => void events.reload()} /> : null;
+  const refreshError = events.error ? <ErrorState error={events.error} onRetry={() => void events.reload()} /> : null;
+  if (!lunch || !events.data.lunch) return refreshError;
   return (
     <>
       {refreshError}
-      <Card hero tone="outlineSaffron" style={{ gap: 10 }}>
-        <EyebrowRow left={t('home.planEyebrow')} color="brown" />
-        <Row gap={space.md} align="flex-start">
-          <DateTile iso={pick.next} bg={colors.brownTint} fg={colors.brown} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="headline">{words.title}</Txt>
-            <Txt variant="meta" color="muted">
-              {when}
-            </Txt>
-          </View>
-        </Row>
-        {labh ? (
-          <>
-            <Txt variant="meta" color="muted">
-              {words.body}
-            </Txt>
-            <PillButton label={t('home.planLabh')} a11yLabel={t('home.planLabhA11y', { name: words.title })} tone="brown" onPress={() => router.push(`/labh/${encodeURIComponent(pick.day.id)}` as Href)} />
-          </>
-        ) : (
-          <PillButton label={t('home.planDay')} tone="brown" onPress={() => router.push('/special-days')} />
-        )}
+      <Card hero>
+        <LunchRow lunch={events.data.lunch} tz={events.data.timeZone} />
       </Card>
     </>
   );
 }
 
-export function GuideLink() {
-  const t = useT();
-  const router = useRouter();
-  const { center } = useApp();
-  const title = t('home.guideTitle', { center: center?.short_name || '' });
+// ---------------------------------------------------------------------------
+// Special days on Home (the Plan a special day row)
+// ---------------------------------------------------------------------------
+
+const DISMISSED_KEY = 'specialDaysNotThisYear';
+
+export type HomeSpecialDaysData = {
+  /** Every saved day with the date it next falls on (null while a tithi's date is not published). */
+  rows: { day: SpecialDay; next: string | null }[];
+  /** "Not this year" choices made earlier on this device (specialDayDismissKey values); they still hide that year's day. */
+  hidden: string[];
+  /** The community's today. */
+  today: string;
+};
+
+/**
+ * The family's special days with the date each next falls on, for the Plan a special day row. `enabled` is
+ * false for guests, for someone without a household and when the row has not come near the screen yet:
+ * nothing is fetched then.
+ */
+export function useHomeSpecialDays(enabled: boolean): LoadState<HomeSpecialDaysData> {
+  const { center, member } = useApp();
+  return useLoad(
+    async (): Promise<HomeSpecialDaysData> => {
+      if (!enabled || !center || !member?.household) return { rows: [], hidden: [], today: '' };
+      const today = todayAt(center.time_zone);
+      const [all, hidden] = await Promise.all([listSpecialDays(member.household.id), readPref<string[]>(DISMISSED_KEY, [])]);
+      const tithiDates = await nextTithiDates(
+        center.id,
+        today,
+        all.filter((d) => d.show_on_home && !d.calendar_date && d.tithi && d.tithi_month).map((d) => ({ id: d.id, tithi: d.tithi as string, month: d.tithi_month as string })),
+      );
+      const rows = all.map((day) => ({ day, next: day.calendar_date ? nextOccurrence(day.calendar_date, today) : (tithiDates[day.id] ?? null) }));
+      return { rows, hidden: Array.isArray(hidden) ? hidden : [], today };
+    },
+    [enabled, center?.id, member?.household?.id],
+    'load special days',
+  );
+}
+
+/** Square tile with the month and day of a special day (44 × 48). */
+export function DateTile({ iso, bg, fg }: { iso: string | null; bg: string; fg: string }) {
   return (
-    <Card hero onPress={() => router.push('/guide')} accessibilityLabel={title} style={{ paddingVertical: 14 }}>
-      <Row gap={space.md}>
-        <View style={{ width: 44, height: 44, borderRadius: radii.card, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt variant="subhead" color="navy" style={{ fontFamily: fonts.bodyBold }}>
-            i
-          </Txt>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt variant="bodyStrong">{title}</Txt>
-          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-            {t('home.guideBody')}
-          </Txt>
-        </View>
-        <Chevron />
-      </Row>
-    </Card>
+    <View style={{ width: 44, height: 48, borderRadius: radii.lg, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }} aria-hidden>
+      <Txt variant="fine" style={{ color: fg }}>
+        {iso ? monthShortUpper(iso) : ''}
+      </Txt>
+      <Txt variant="section" style={{ color: fg, lineHeight: 20, fontFamily: fonts.bodyBold }}>
+        {iso ? String(parseISODate(iso)?.d ?? '') : ''}
+      </Txt>
+    </View>
   );
 }
 

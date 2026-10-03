@@ -1,607 +1,280 @@
 import { Image } from 'expo-image';
-import { useIsFocused, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { useRef, useState, type ReactNode } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewProps, type ViewStyle } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
+import { useState, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/icon';
 import { ErrorState } from '@/components/states';
 import { Banner, Row, Txt } from '@/components/ui';
-import { usePulse, useReduceMotion } from '@/features/gyan/motion';
-import { KIND_ICON, kindName, mediaSubtitle, openItem, toQueueItem, useWatch } from '@/features/three-l/media-ui';
-import { listHouseholdRsvps, listUpcomingEvents, type Rsvp } from '@/lib/api/events';
+import type { StringKey } from '@/i18n';
+import { listHouseholdRsvps, listUpcomingEvents, rsvpBlockReason } from '@/lib/api/events';
+import type { SpecialDay } from '@/lib/api/family';
 import { BUCKETS, signedUrls } from '@/lib/api/files';
 import { listOpportunities } from '@/lib/api/giving';
 import { goalProgress, lastActivityByGoal, loadGyan } from '@/lib/api/gyan';
+import { countAttendees, type TodayInfo } from '@/lib/api/home';
+import { loadJainWayToday } from '@/lib/api/jainway';
 import { listMedia, loadMyPlaylist, mediaPictures } from '@/lib/api/media';
+import type { FamilyMember } from '@/lib/api/member';
 import { logError, report, type AppError } from '@/lib/errors';
 import { needsResign } from '@/lib/flyer';
 import { formatCents, formatCentsCompact, formatDateTime, monthShortUpper, parseISODate, zonedParts } from '@/lib/format';
-import { homeRails, keyTarget, pageTarget, RAIL_PRELOAD, railEdges, railGeometry, railTileSize, railTop, revealRails, TILE_GAP, tileCutOff, type HomeRail, type TileShape, type TileSize } from '@/lib/home-rails';
-import { goalMark } from '@/lib/learning';
-import { playbackOf, type MediaItem } from '@/lib/media-library';
+import { homeRows, learnListenTiles, lifeTiles, type HomeMember, type HomeRow, type LearnListenTile, type LifeTile } from '@/lib/home-rails';
+import { communityName, goalMark } from '@/lib/learning';
+import { isHomeCardVisible } from '@/lib/modules';
+import type { MediaItem } from '@/lib/media-library';
 import { sizedPhotoUrl } from '@/lib/photo-size';
-import { useLoad } from '@/lib/use-load';
+import { streakDisplay, streakLabel } from '@/lib/rules';
+import { useLoad, type LoadState } from '@/lib/use-load';
+import { useAccess, useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
-import { FreezeDataVersion } from '@/providers/data-version';
-import { useModules } from '@/providers/modules';
+import { useModule, useModules } from '@/providers/modules';
 import { usePlayer } from '@/providers/player';
 import { useSettings, useT } from '@/providers/settings';
-import { colors, fonts, layout, radii, shadows, space, touch, type ColorName } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
 import { EventIcon } from './event-icons';
 import { shortWhen } from './event-rules';
 import { bandFor } from './events';
+import { Decor, Rail, RailTile, TileBadge, TileCaption, TilePicture, useRailLoad, type RailReveal, type RailSlot, type TileCtx } from './home-rail';
 import {
-  eventMark,
+  eventCards,
+  eventChipSpoken,
+  eventChipText,
+  eventTarget,
   eventTiles,
   flyersToSign,
   giveTiles,
+  jainWayLabel,
   learningTiles,
-  listenQueue,
-  listenTiles,
-  opensTickets,
-  PHOTO_TILES,
+  learnListenCards,
+  playlistQueue,
   photoTiles,
-  recipeTiles,
-  type EventMark,
+  specialDayTitle,
+  specialDayWhen,
+  type EventCard,
+  type EventChip,
   type EventTile,
   type GiveTile,
+  type LearnListenCard,
+  type LearnListenParts,
   type LearningTile,
-  type ListenTile,
-  type PhotoTile,
+  type Part,
+  type RsvpFacts,
   type SignedFlyer,
 } from './home-rail-items';
+import { upcomingSpecialDays } from './home-rules';
+import { DateTile, TileLoading, TodayGreeting, TodayTile, useHomeSpecialDays, useTodayHidden, useTodayInfo } from './home';
+import { JainWayProgressCard } from './jain-way-progress';
+import { canPlanLabh, occasionOf } from './special-days';
 import { loadAlbumPreviewsWithCovers, paletteFor } from './photos';
+import { KIND_ICON, mediaSubtitle, toQueueItem } from './three-l/media-ui';
 
 /*
- * Home rails (owner, 2026-10-02: a Netflix-style Home). Under Today, the
- * alerts, Up next and Plan a special day: rows of large tiles that scroll
- * sideways — Continue learning, Upcoming events, Listen, Give, Photos and
- * Fully Jain recipes. Which rails show, the tile sizes and when a rail loads
- * are pure rules in src/lib/home-rails.ts; the tiles are built from the data
- * in home-rail-items.ts.
+ * Home in rows (owner, 2026-10-02). Every row is a strip of tiles that scrolls sideways (home-rail.tsx); the
+ * order and what is in each is set here:
  *
- * - The rail starts at the cards' left edge and runs out to the right edge
- *   of the screen, with the next tile peeking in; a swipe comes to rest on a
- *   tile (snapToInterval on phones, CSS scroll snap on the web). No
- *   scrollbar shows on the web.
- * - Web: ‹ › buttons appear while the mouse is over the rail (not a finger on
- *   a touch screen) or the keyboard is in it, and move it a screenful; the
- *   arrow keys (and Home / End) move from tile to tile; Tab goes through the
- *   tiles, and brings a tile it reaches that is cut off into view.
- * - Screen readers: the rail's title is a heading; its tiles are a labelled
- *   list (web) of buttons, each read with its details (and "3 of 8" on a
- *   phone, where there is no list to say it).
- * - Each rail loads on its own, only when it comes near the screen
- *   (useRailReveal), and shows skeleton tiles until then. A failure shows
- *   inside the rail in plain English with Try again; a rail with nothing in
- *   it is left out.
+ *   1  Today at {center} and My Jain Way (no title: the tiles carry their own)
+ *   2  Plan a special day (the family's days in the next two months; the whole row is hidden without any)
+ *   3  Events, each with the family's RSVP status
+ *   4  Giving opportunities
+ *   5  Life@{center}
+ *   6  Learn & listen
+ *
+ * Which rows show and which tiles Life@{center} and Learn & listen have are pure rules (src/lib/home-rails.ts);
+ * the tiles are built from the data in home-rail-items.ts. Every row but the first, the fixed Life@{center} and
+ * the strip above them loads on its own, only when it comes near the screen.
  */
 
-const isWeb = Platform.OS === 'web';
+const NOT_PLACED = () => {};
 
-/** Web only: props React Native's types do not know (react-native-web forwards them to the element). */
-function webProps(props: Record<string, unknown>): ViewProps {
-  return (isWeb ? props : {}) as unknown as ViewProps;
-}
-
-/** Web scroll snap, the CSS twin of snapToInterval; overscroll stays in the rail (no browser "back" on a trackpad swipe). */
-const WEB_SNAP = (isWeb ? { scrollSnapType: 'x mandatory', scrollPaddingLeft: space.gutter, scrollPaddingRight: space.gutter, overscrollBehaviorX: 'contain' } : null) as unknown as ViewStyle | null;
-const WEB_SNAP_TILE = (isWeb ? { scrollSnapAlign: 'start' } : null) as unknown as ViewStyle | null;
-
-/** Whether the browser shows a focus ring for this focus (the keyboard, not a click). */
-function focusVisible(e: unknown): boolean {
-  const target = (e as { target?: { matches?: (selector: string) => boolean } } | null)?.target;
-  try {
-    return target?.matches?.(':focus-visible') ?? true;
-  } catch {
-    return true;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Lazy loading
-// ---------------------------------------------------------------------------
-
-export type RailReveal = {
-  /** Screen onViewport: where Home's content is scrolled to. */
-  onViewport: (viewport: { y: number; height: number }) => void;
-  /** A rail's top within Home's content (its onLayout). */
-  place: (rail: HomeRail, top: number) => void;
-  /** Rails that may load. */
-  revealed: readonly HomeRail[];
-};
+/** The rows that load only as they come near the screen. */
+export type LazyRow = Extract<HomeRow, 'specialDays' | 'events' | 'give' | 'learnListen'>;
 
 /**
- * Which rails are near enough to load: a rail loads once its top is above
- * the bottom of the screen plus half a screen (RAIL_PRELOAD), and then stays
- * loaded. The list is kept in a ref as well, so a scroll that brings nothing
- * new in changes no state at all.
+ * Every row this member (or guest) gets, in Home order; each one a direct child of Home's content so its top
+ * is known. Like every Home card, a row reloads after a write elsewhere in the app (the screen holds that back
+ * while another screen is on top of Home: src/app/(app)/(tabs)/index.tsx).
  */
-export function useRailReveal(): RailReveal {
-  const tops = useRef<Partial<Record<HomeRail, number>>>({});
-  const viewport = useRef<{ y: number; height: number } | null>(null);
-  const current = useRef<readonly HomeRail[]>([]);
-  const [revealed, setRevealed] = useState<readonly HomeRail[]>([]);
-  const check = () => {
-    const v = viewport.current;
-    if (!v || !(v.height > 0)) return;
-    const next = revealRails(tops.current, current.current, v.y + v.height, v.height * RAIL_PRELOAD);
-    if (next === current.current) return;
-    current.current = next;
-    setRevealed(next);
-  };
-  return {
-    onViewport: (v) => {
-      viewport.current = v;
-      check();
-    },
-    place: (rail, top) => {
-      if (tops.current[rail] === top) return;
-      tops.current = { ...tops.current, [rail]: top };
-      check();
-    },
-    revealed,
-  };
-}
-
-type RailSlot = { shown: boolean; onPlace: (top: number) => void };
-
-type RailState<T> = { data: T | undefined; error: AppError | null; reload: () => void };
-
-/** useLoad for a rail: nothing is fetched until the rail is shown (`shown`), and it reloads after any write like every Home card. */
-function useRailLoad<T>(shown: boolean, loader: () => Promise<T>, deps: readonly unknown[], action: string): RailState<T> {
-  const state = useLoad<T | null>(() => (shown ? loader() : Promise.resolve(null)), [shown, ...deps], action);
-  return { data: state.data ?? undefined, error: shown ? state.error : null, reload: () => void state.reload() };
-}
-
-// ---------------------------------------------------------------------------
-// The rails Home shows
-// ---------------------------------------------------------------------------
-
-/**
- * Every rail this member (or guest) gets, in Home order; each one a direct
- * child of Home's content so its top is known. Like every Home card, a rail
- * reloads after a write elsewhere in the app, but only once Home is in front
- * again (FreezeDataVersion): a like or a playlist change on another screen
- * does not reload every rail behind it.
- */
-export function HomeRails({ reveal }: { reveal: RailReveal }) {
+export function HomeRows({ reveal }: { reveal: RailReveal<LazyRow> }) {
   const { center, member } = useApp();
   const { map } = useModules();
-  const focused = useIsFocused();
+  const access = useAccess();
+  const guide = useFeature('guide');
+  const learn = useFeature('learn');
+  const listen = useFeature('listen');
+  const look = useFeature('look');
   if (!center) return null;
-  const rails = homeRails({ rules: center.rules, modules: map, member: member ? { isAdult: member.isAdult } : null });
+  const who: HomeMember = member ? { isAdult: member.isAdult, hasHousehold: !!member.household } : null;
+  const rows = homeRows({ rules: center.rules, modules: map, member: who, access: { guide: guide.allowed, learn: learn.allowed, listen: listen.allowed, look: look.allowed } });
+  // Learn & listen waits for what this person may use. When that could not be read, the row says so, with Try again, instead of its tiles being quietly missing.
+  const tilesIfAllowed = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: true, listen: true, look: true } }).length;
+  const tilesNow = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed } }).length;
+  const accessProblem = access.error && tilesIfAllowed > tilesNow ? { error: access.error, retry: () => void access.reload() } : null;
+  const slot = (row: LazyRow): RailSlot => ({ shown: reveal.revealed.includes(row), onPlace: (top) => reveal.place(row, top) });
   return (
-    <FreezeDataVersion frozen={!focused}>
-      {rails.map((rail) => {
-        const slot: RailSlot = { shown: reveal.revealed.includes(rail), onPlace: (top) => reveal.place(rail, top) };
-        if (rail === 'learning') return <LearningRail key={rail} {...slot} />;
-        if (rail === 'events') return <EventsRail key={rail} {...slot} />;
-        if (rail === 'listen') return <ListenRail key={rail} {...slot} />;
-        if (rail === 'give') return <GiveRail key={rail} {...slot} />;
-        if (rail === 'photos') return <PhotosRail key={rail} {...slot} />;
-        return <RecipesRail key={rail} {...slot} />;
+    <>
+      {rows.map((row) => {
+        if (row === 'today') return <TodayRow key={row} />;
+        if (row === 'specialDays') return <SpecialDaysRow key={row} {...slot(row)} />;
+        if (row === 'events') return <EventsRow key={row} {...slot(row)} />;
+        if (row === 'give') return <GiveRow key={row} {...slot(row)} />;
+        if (row === 'life') return <LifeRow key={row} />;
+        return <LearnListenRow key={row} {...slot(row)} accessProblem={accessProblem} />;
       })}
-    </FreezeDataVersion>
+      {accessProblem && !rows.includes('learnListen') ? <LearnListenAccessError error={accessProblem.error} onRetry={accessProblem.retry} /> : null}
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// The rail itself
+// Row 1: Today at {center} and My Jain Way
 // ---------------------------------------------------------------------------
 
-type TileCtx = { index: number; count: number; size: TileSize };
+type TodayTileKey = 'today' | 'jainWay';
 
-type DomNode = { contains?: (node: unknown) => boolean; firstElementChild?: { focus?: (opts?: { preventScroll?: boolean }) => void } | null };
-
-type RailProps<T> = {
-  title: string;
-  shape: TileShape;
-  /** Lines of words under each tile (the skeleton draws as many). */
-  captionLines: 0 | 2;
-  /** The rail is fetching now. Until then (it is waiting to come near the screen) its skeleton stays still. */
-  loading: boolean;
-  onSeeAll?: () => void;
-  items: T[] | undefined;
-  error: AppError | null;
-  reload: () => void;
-  keyOf: (item: T) => string;
-  renderTile: (item: T, ctx: TileCtx) => ReactNode;
-  /** Banners about part of the rail (pictures that did not load, an action that failed). */
-  notice?: ReactNode;
-  onPlace: (top: number) => void;
-};
-
-function Rail<T>({ title, shape, captionLines, loading, onSeeAll, items, error, reload, keyOf, renderTile, notice, onPlace }: RailProps<T>) {
+/**
+ * Today at {center}, unchanged in height and content, with My Jain Way beside it for a member (the navy
+ * progress tile; it opens the My Jain Way tab with the full list of practices). A guest gets Today alone.
+ * When the member has hidden Today, its greeting line stands in for it above whatever tiles are left.
+ */
+function TodayRow() {
   const t = useT();
-  const { scale } = useSettings();
-  const { width: windowWidth } = useWindowDimensions();
-  const reduceMotion = useReduceMotion();
-  const [measured, setMeasured] = useState(0);
-  const [edges, setEdges] = useState({ prev: false, next: false });
-  const [hover, setHover] = useState(false);
-  const [focusWithin, setFocusWithin] = useState(false);
-  const scroller = useRef<ScrollView>(null);
-  const wrapper = useRef<View>(null);
-  // Web: each tile's list item, so the arrow keys can move the focus from tile to tile.
-  const tiles = useRef<(View | null)[]>([]);
-  const metrics = useRef({ x: 0, view: 0, content: 0 });
-
-  // The rail runs from the cards' left edge to the right edge of the screen (railGeometry).
-  const { bleed, room } = railGeometry({ measured, windowWidth, web: isWeb, frameWidth: layout.webAppWidth, maxContentWidth: layout.maxContentWidth, gutter: space.gutter });
-  const size = railTileSize(shape, room, scale);
-  const count = items?.length ?? 0;
-
-  const onRootLayout = (e: LayoutChangeEvent) => {
-    const { y, width, height } = e.nativeEvent.layout;
-    // The web reports a screen that another one covers as 0 x 0: that is no position, and passing it on would reveal (and load) every rail.
-    const top = railTop({ y, width, height });
-    if (top !== null) onPlace(top);
-    const w = Math.round(width);
-    if (w > 0 && w !== measured) setMeasured(w);
-  };
-
-  const updateEdges = () => {
-    const { x, view, content } = metrics.current;
-    const next = railEdges(x, view, content);
-    setEdges((e) => (e.prev === next.prev && e.next === next.next ? e : next));
-  };
-  const scrollToTile = (i: number) => scroller.current?.scrollTo({ x: Math.max(0, i) * size.interval, animated: reduceMotion === false });
-  const page = (step: -1 | 1) => scrollToTile(pageTarget(metrics.current.x, size.interval, step * size.whole, count));
-  // A tile cut off at either side comes to the left edge.
-  const bringIn = (i: number) => {
-    const { x, view } = metrics.current;
-    if (tileCutOff(i, x, view, size, bleed)) scrollToTile(i);
-  };
-  const tileAt = (target: unknown) => tiles.current.findIndex((node) => !!(node as unknown as DomNode | null)?.contains?.(target));
-  const focusTile = (i: number) => {
-    (tiles.current[i] as unknown as DomNode | null)?.firstElementChild?.focus?.({ preventScroll: true });
-    bringIn(i);
-  };
-  const onKeyDown = (e: { key: string; target?: unknown; preventDefault: () => void }) => {
-    const target = keyTarget(e.key, Math.max(0, tileAt(e.target)), count);
-    if (target === null) return;
-    e.preventDefault();
-    focusTile(target);
-  };
-  // Tab (not the arrow keys, which move the rail themselves) can put the focus on a tile that is only partly in view: the
-  // browser's own scroll can lose to the scroll snapping, so bring it in here. For keyboard focus only: a mouse click on a
-  // tile that peeks in must not move it from under the pointer.
-  const onListFocus = (e: { target?: unknown }) => {
-    if (!focusVisible(e)) return;
-    const at = tileAt(e.target);
-    if (at >= 0) bringIn(at);
-  };
-  const onWrapperBlur = (e: { relatedTarget?: unknown }) => {
-    const root = wrapper.current as unknown as DomNode | null;
-    if (!e.relatedTarget || !root?.contains?.(e.relatedTarget)) setFocusWithin(false);
-  };
-  // The ‹ › buttons are for the mouse and the keyboard, not a finger (a touch screen swipes; the arrows would only flash over the
-  // poster under it), and a mouse click on a button (which keeps the focus) is not the keyboard being in the rail.
-  const wrapperWeb = (isWeb
-    ? {
-        onPointerEnter: (e: { pointerType?: string }) => {
-          if (e.pointerType !== 'touch') setHover(true);
-        },
-        onPointerLeave: () => setHover(false),
-        onFocus: (e: unknown) => setFocusWithin(focusVisible(e)),
-        onBlur: onWrapperBlur,
-      }
-    : null) as unknown as ViewProps | null;
-  const listWeb = (isWeb ? { role: 'list', 'aria-label': title, onKeyDown, onFocus: onListFocus } : null) as unknown as ViewProps | null;
-  // Only the web needs to know how far the rail has moved (for the ‹ › buttons).
-  const scrollWeb = isWeb
-    ? {
-        scrollEventThrottle: 50,
-        onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-          metrics.current = { x: e.nativeEvent.contentOffset.x, view: e.nativeEvent.layoutMeasurement.width, content: e.nativeEvent.contentSize.width };
-          updateEdges();
-        },
-        onLayout: (e: LayoutChangeEvent) => {
-          metrics.current = { ...metrics.current, view: e.nativeEvent.layout.width };
-          updateEdges();
-        },
-        onContentSizeChange: (w: number) => {
-          metrics.current = { ...metrics.current, content: w };
-          updateEdges();
-        },
-      }
-    : null;
-
-  if (items !== undefined && items.length === 0 && !error) return null;
-
-  // The buttons sit at the middle of the pictures (the words under them do not count); a card tile is all words, so the middle of the row.
-  const chevronTop = size.height === null ? null : 4 + size.height / 2 - 20;
-  const showChevrons = isWeb && (hover || focusWithin) && count > 1;
-
+  const { center, member } = useApp();
+  const { map } = useModules();
+  const today = useTodayInfo();
+  const [hidden, setHidden] = useTodayHidden();
+  const community = center?.short_name || center?.name || '';
+  const jainWayOn = !!member && isHomeCardVisible(map, 'jainWay');
+  const keys: TodayTileKey[] = [...(hidden ? [] : (['today'] as const)), ...(jainWayOn ? (['jainWay'] as const) : [])];
   return (
-    <View onLayout={onRootLayout} style={{ gap: 2 }}>
-      <RailHeader title={title} onSeeAll={onSeeAll} />
-      {error ? <ErrorState error={error} onRetry={reload} /> : null}
-      {notice}
-      {items === undefined ? (
-        error ? null : (
-          <RailSkeleton title={title} size={size} bleed={bleed} captionLines={captionLines} animate={loading} />
-        )
-      ) : count === 0 ? null : (
-        <View ref={wrapper} style={{ marginHorizontal: -bleed }} {...wrapperWeb}>
-          <ScrollView
-            ref={scroller}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={size.interval}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            style={WEB_SNAP}
-            contentContainerStyle={{ paddingHorizontal: bleed, paddingVertical: 4 }}
-            {...scrollWeb}>
-            <View accessibilityRole={isWeb ? undefined : 'list'} style={{ flexDirection: 'row', alignItems: 'stretch', gap: TILE_GAP }} {...listWeb}>
-              {items.map((item, i) => (
-                <View
-                  key={keyOf(item)}
-                  ref={(node) => {
-                    tiles.current[i] = node;
-                  }}
-                  style={[{ width: size.width }, WEB_SNAP_TILE]}
-                  {...webProps({ role: 'listitem', 'aria-posinset': i + 1, 'aria-setsize': count })}>
-                  {renderTile(item, { index: i, count, size })}
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-          {showChevrons && edges.prev ? <RailChevron side="left" top={chevronTop} label={t('home.rail.back', { rail: title })} onPress={() => page(-1)} /> : null}
-          {showChevrons && edges.next ? <RailChevron side="right" top={chevronTop} label={t('home.rail.on', { rail: title })} onPress={() => page(1)} /> : null}
-        </View>
-      )}
-    </View>
+    <>
+      {hidden ? <TodayGreeting onShow={() => setHidden(false)} /> : null}
+      <Rail
+        label={t('home.todayAt', { center: community })}
+        shape="hero"
+        captionLines={0}
+        loading={false}
+        items={keys}
+        error={null}
+        reload={NOT_PLACED}
+        keyOf={(k) => k}
+        onPlace={NOT_PLACED}
+        renderTile={(k, ctx) => (k === 'today' ? <TodayTile state={today} onHide={() => setHidden(true)} /> : <JainWayTile today={today} ctx={ctx} />)}
+      />
+    </>
   );
 }
 
-/** The rail's title (a heading) and "See all ›", which goes where the old Home shortcut went. */
-function RailHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => void }) {
-  const t = useT();
-  return (
-    <Row style={{ justifyContent: 'space-between', minHeight: touch.min }} gap={space.sm}>
-      <Txt variant="subhead" accessibilityRole="header" style={{ flex: 1, fontFamily: fonts.bodyBold }}>
-        {title}
-      </Txt>
-      {onSeeAll ? (
-        <Pressable
-          onPress={onSeeAll}
-          accessibilityRole="button"
-          accessibilityLabel={t('home.rail.seeAllA11y', { rail: title })}
-          style={({ pressed }) => ({ minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: space.sm, opacity: pressed ? 0.6 : 1 })}>
-          <Txt variant="smallStrong" color="navy">
-            {t('common.seeAll')}
-          </Txt>
-          <Icon name="chevron-forward" size={16} color={colors.navy} />
-        </Pressable>
-      ) : null}
-    </Row>
-  );
-}
-
-/** Web: the ‹ › button over one end of the rail (`top`: its distance from the top of the rail; null centres it on the row). For the mouse; the keyboard has the arrow keys and screen readers the list itself. */
-function RailChevron({ side, top, label, onPress }: { side: 'left' | 'right'; top: number | null; label: string; onPress: () => void }) {
-  const vertical: ViewStyle = top === null ? { top: '50%', marginTop: -20 } : { top };
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityLabel={label}
-      // Hidden from assistive technology, so also out of the Tab order (an element cannot be both focusable and hidden).
-      {...webProps({ 'aria-hidden': true, tabIndex: -1 })}
-      style={({ pressed }) => [
-        { position: 'absolute', width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borderInput, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 0.96 },
-        vertical,
-        side === 'left' ? { left: 6 } : { right: 6 },
-        shadows.strip,
-      ]}>
-      <Icon name={side === 'left' ? 'chevron-back' : 'chevron-forward'} size={22} color={colors.navy} />
-    </Pressable>
-  );
-}
-
-/** Grey tiles in the rail's own sizes while it loads. They pulse gently once the rail is loading, and stay still before that and with Reduce Motion. */
-function RailSkeleton({ title, size, bleed, captionLines, animate }: { title: string; size: TileSize; bleed: number; captionLines: 0 | 2; animate: boolean }) {
-  const t = useT();
-  const { scale } = useSettings();
-  const reduceMotion = useReduceMotion();
-  const pulse = usePulse(animate, reduceMotion);
-  const opacity = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.55, 1] });
-  const height = size.height ?? Math.round(150 * Math.min(scale, 1.3));
-  return (
-    <Animated.View
-      accessible
-      accessibilityLabel={t('home.rail.loading', { rail: title })}
-      {...webProps({ 'aria-busy': true })}
-      style={{ opacity, marginHorizontal: -bleed, paddingHorizontal: bleed, paddingVertical: 4, flexDirection: 'row', gap: TILE_GAP, overflow: 'hidden' }}>
-      {[0, 1, 2, 3].map((i) => (
-        <View key={i} style={{ width: size.width, gap: space.sm }}>
-          <View style={{ height, borderRadius: radii.xl, backgroundColor: colors.panel }} />
-          {captionLines > 0 ? (
-            <View style={{ gap: 6, paddingHorizontal: 2 }}>
-              <View style={{ height: 12, width: '80%', borderRadius: 6, backgroundColor: colors.panel }} />
-              <View style={{ height: 10, width: '50%', borderRadius: 5, backgroundColor: colors.panel }} />
-            </View>
-          ) : null}
-        </View>
-      ))}
-    </Animated.View>
-  );
-}
-
-/** One tile: a button with its details for screen readers, a focus ring for the keyboard on the web. */
-function RailTile({ ctx, label, hint, onPress, children }: { ctx: TileCtx; label: string; hint?: string; onPress: () => void; children: ReactNode }) {
-  const t = useT();
-  const [ring, setRing] = useState(false);
-  // A phone's screen reader has no list to say where the tile is, so the label does.
-  const a11yLabel = isWeb ? label : `${label}. ${t('home.rail.position', { n: ctx.index + 1, total: ctx.count })}`;
-  return (
-    <Pressable
-      onPress={onPress}
-      onFocus={(e) => {
-        if (isWeb) setRing(focusVisible(e));
-      }}
-      onBlur={() => setRing(false)}
-      accessibilityRole="button"
-      accessibilityLabel={a11yLabel}
-      accessibilityHint={hint}
-      style={({ pressed }) => [
-        { flexGrow: 1, gap: space.sm, borderRadius: radii.xl, opacity: pressed ? 0.85 : 1 },
-        isWeb ? { outlineWidth: ring ? 3 : 0, outlineStyle: 'solid', outlineColor: colors.navy, outlineOffset: 2 } : null,
-      ]}>
-      {children}
-    </Pressable>
-  );
-}
-
-/** Words under a tile: the title (two lines at most) and one line of details. */
-function TileCaption({ title, sub, subColor = 'muted' }: { title: string; sub?: string | null; subColor?: ColorName }) {
-  return (
-    <View style={{ gap: 2, paddingHorizontal: 2 }}>
-      <Txt variant="smallStrong" numberOfLines={2}>
-        {title}
-      </Txt>
-      {sub ? (
-        <Txt variant="caption" color={subColor} numberOfLines={1} style={{ fontFamily: fonts.body }}>
-          {sub}
-        </Txt>
-      ) : null}
-    </View>
-  );
-}
-
-/** A small label on a tile's picture ("For you", "On now", "You're going"). */
-function TileBadge({ label, bg, fg }: { label: string; bg: string; fg: ColorName }) {
-  return (
-    <View style={{ alignSelf: 'flex-start', backgroundColor: bg, borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3 }}>
-      <Txt variant="badge" color={fg}>
-        {label}
-      </Txt>
-    </View>
-  );
-}
-
-/** Two soft circles that give a designed tile some depth. */
-function Decor() {
-  return (
-    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={{ position: 'absolute', right: -36, top: -36, width: 128, height: 128, borderRadius: 64, backgroundColor: colors.white, opacity: 0.1 }} />
-      <View style={{ position: 'absolute', left: -24, bottom: -48, width: 96, height: 96, borderRadius: 48, backgroundColor: colors.white, opacity: 0.06 }} />
-    </View>
-  );
-}
-
-/** A picture that falls back to the designed tile when it does not load (logged, never a broken image). */
-function TilePicture({ uri, cacheKey, what, fallback }: { uri: string | null; cacheKey?: string; what: string; fallback: ReactNode }) {
-  const [broken, setBroken] = useState<string | null>(null);
-  if (!uri || broken === uri) return <>{fallback}</>;
-  return (
-    <Image
-      source={cacheKey ? { uri, cacheKey } : { uri }}
-      style={StyleSheet.absoluteFill}
-      contentFit="cover"
-      transition={150}
-      accessibilityIgnoresInvertColors
-      onError={(e) => {
-        logError(`showing ${what} on Home (showing the designed tile instead)`, e.error);
-        setBroken(uri);
-      }}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Continue learning
-// ---------------------------------------------------------------------------
-
-function LearningRail({ shown, onPlace }: RailSlot) {
+/** My Jain Way: the navy progress card of the My Jain Way tab, with the next practice under it, as one button to that tab. */
+function JainWayTile({ today, ctx }: { today: LoadState<TodayInfo>; ctx: TileCtx }) {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
-  const state = useRailLoad(
-    shown,
-    async (): Promise<LearningTile[]> => {
-      if (!center || !member) return [];
-      const me = member.person.id;
-      const g = await loadGyan(center, [me]);
-      const last = lastActivityByGoal(g, me);
-      return learningTiles(
-        g.goals.map((goal) => {
-          const p = goalProgress(goal, g.progress, me);
-          return {
-            id: goal.id,
-            name: goal.name,
-            tint: goal.tint,
-            mark: goalMark(goal),
-            recommended: goal.recommended,
-            levelsDone: p.levelsDone,
-            levelsTotal: p.levelsTotal,
-            stepsDone: p.stepsDone,
-            stepsTotal: p.stepsTotal,
-            complete: p.complete,
-            currentLevel: p.currentLevel ? { id: p.currentLevel.id, name: p.currentLevel.name } : null,
-            lastActivity: last.get(goal.id) ?? null,
-          };
-        }),
-      );
-    },
-    [center?.id, member?.person.id],
-    'load your Gyan Path',
-  );
+  const state = useLoad(() => (center && member ? loadJainWayToday(center, member.person.id) : Promise.reject(new Error('not signed in'))), [center?.id, member?.person.id], 'load My Jain Way');
+  if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <TileLoading />;
+  const d = state.data;
+  const community = communityName(center);
+  const total = d.selected.length;
+  const done = d.doneIds.length;
+  const streak = streakDisplay(d.streak, d.today);
+  const next = d.selected.find((p) => !d.doneIds.includes(p.id));
+  const status = total === 0 ? t('home.choosePractices') : next ? t('home.nextPractice', { name: next.name }) : t('home.allDone');
+  const label = jainWayLabel(t, { done, total, points: d.pointsTotal, community, streak: streakLabel(streak.days), next: next?.name ?? null });
   return (
-    <Rail
-      title={t('home.rail.learning')}
-      shape="wide"
-      captionLines={2}
-      loading={shown}
-      onSeeAll={() => router.push('/gyan')}
-      items={state.data}
-      error={state.error}
-      reload={state.reload}
-      keyOf={(x) => x.key}
-      onPlace={onPlace}
-      renderTile={(tile, ctx) => <LearningTileView tile={tile} ctx={ctx} />}
-    />
-  );
-}
-
-function LearningTileView({ tile, ctx }: { tile: LearningTile; ctx: TileCtx }) {
-  const t = useT();
-  const router = useRouter();
-  const tint = tile.tint ?? colors.navy;
-  const level = t('learn.levelOf', { level: tile.levelNumber, n: tile.levelsTotal });
-  const pct = Math.round(tile.progress * 100);
-  const label = [tile.goalName, tile.recommended ? t('learn.forYou') : null, `${level}: ${tile.levelName}`, t('home.rail.percentDone', { n: pct })].filter(Boolean).join('. ');
-  return (
-    <RailTile ctx={ctx} label={label} hint={t('home.rail.startHint')} onPress={() => router.push({ pathname: '/gyan/[goalId]/level/[levelId]', params: { goalId: tile.goalId, levelId: tile.levelId } })}>
-      <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, backgroundColor: tint, overflow: 'hidden', padding: space.md, justifyContent: 'space-between' }}>
-        <Decor />
-        {tile.recommended ? <TileBadge label={t('learn.forYou')} bg={colors.white} fg="navy" /> : <View />}
-        <Txt variant="hero" color="white" numberOfLines={1}>
-          {tile.mark}
-        </Txt>
-        {/* Steps done of the whole goal: the bar along the bottom, like a show half watched. */}
-        <View style={{ height: 5, borderRadius: 3, backgroundColor: colors.scrimFaint, overflow: 'hidden' }}>
-          <View style={{ width: `${pct}%`, height: 5, borderRadius: 3, backgroundColor: colors.white }} />
-        </View>
-      </View>
-      <TileCaption title={tile.goalName} sub={`${level} · ${tile.levelName}`} />
+    <RailTile ctx={ctx} label={label} hint={t('home.myWayHint')} onPress={() => router.push('/jain-way')} radius={radii.xxl} gap={0}>
+      <JainWayProgressCard
+        d={d}
+        tithi={today.data?.tithi ?? null}
+        community={community}
+        asHeader={false}
+        compact
+        style={{ flexGrow: 1 }}
+        footer={
+          <Txt variant="meta" color="white" style={{ fontFamily: fonts.bodySemi }} numberOfLines={2}>
+            {status}
+          </Txt>
+        }
+      />
     </RailTile>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Upcoming events
+// Row 2: Plan a special day
+// ---------------------------------------------------------------------------
+
+/**
+ * The family's special days coming in the next two months, soonest first, at most ten, each a tile that opens
+ * the labh planner (or the special days when no labh can be planned). With none coming the whole row is hidden.
+ * It draws nothing while it loads (most families have nothing here, so a skeleton would only flash). Special
+ * days are added and read in Family › Special days; the Special days tile of Life@{center} keeps that a tap
+ * away when this row is hidden.
+ */
+function SpecialDaysRow({ shown, onPlace }: RailSlot) {
+  const t = useT();
+  const { member } = useApp();
+  const state = useHomeSpecialDays(shown);
+  const d = state.data;
+  const days = d && d.today ? upcomingSpecialDays(d.rows, d.hidden, d.today) : undefined;
+  return (
+    <Rail
+      title={t('home.row.special')}
+      label={t('home.row.special')}
+      shape="card"
+      captionLines={0}
+      loading={shown}
+      quiet
+      items={days}
+      error={shown ? state.error : null}
+      reload={() => void state.reload()}
+      keyOf={(x) => x.day.id}
+      onPlace={onPlace}
+      renderTile={(x, ctx) => <SpecialDayTile x={x} today={d?.today ?? ''} ctx={ctx} members={member?.members ?? []} adult={!!member?.isAdult} />}
+    />
+  );
+}
+
+function SpecialDayTile({ x, today, ctx, members, adult }: { x: { day: SpecialDay; next: string; inDays: number }; today: string; ctx: TileCtx; members: FamilyMember[]; adult: boolean }) {
+  const t = useT();
+  const router = useRouter();
+  const givingOn = useModule('giving');
+  const title = specialDayTitle(t, x.day, x.next, members);
+  const when = specialDayWhen(t, today, x.next, x.inDays);
+  const labh = canPlanLabh({ givingOn, isAdult: adult, occasion: occasionOf(x.day), labhPromptEnabled: x.day.labh_prompt_enabled });
+  const action = labh ? t('home.planLabh') : t('home.planDay');
+  const open = () => (labh ? router.push(`/labh/${encodeURIComponent(x.day.id)}` as Href) : router.push('/special-days'));
+  return (
+    <RailTile ctx={ctx} label={[title, when, action].join('. ')} hint={labh ? t('home.special.labhHint') : t('home.special.daysHint')} onPress={open}>
+      <View style={{ flexGrow: 1, borderRadius: radii.xl, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.saffron, padding: space.cardX, gap: space.md, justifyContent: 'space-between' }}>
+        <Row gap={space.md} align="flex-start">
+          <DateTile iso={x.next} bg={colors.brownTint} fg={colors.brown} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Txt variant="headline" numberOfLines={3}>
+              {title}
+            </Txt>
+            <Txt variant="meta" color="muted" numberOfLines={2}>
+              {when}
+            </Txt>
+          </View>
+        </Row>
+        <View style={{ minHeight: 44, borderRadius: radii.pill, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md }}>
+          <Txt variant="smallStrong" color="white" center>
+            {action}
+          </Txt>
+        </View>
+      </View>
+    </RailTile>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Row 3: Events
 // ---------------------------------------------------------------------------
 
 type EventsData = {
-  tiles: EventTile[];
-  /** The family's RSVP status per event (not for a guest): "You're going", and the tile opens the tickets. */
-  rsvps: Record<string, string>;
-  /** Why the RSVPs could not be read (the tiles open the event meanwhile). */
+  cards: EventCard[];
+  /** Why the family's RSVPs could not be read (the tiles then carry no RSVP status). */
   rsvpError: string | null;
   /** Signed flyer links by event. */
   flyers: Record<string, string>;
@@ -609,12 +282,12 @@ type EventsData = {
   flyerError: string | null;
 };
 
-/** The flyers' signed links, kept while they are fresh (flyersToSign): the rail reloads after every write, and a new link means a browser downloads every flyer again. */
+/** The flyers' signed links, kept while they are fresh (flyersToSign): the row reloads after every write, and a new link means a browser downloads every flyer again. */
 const keptFlyerLinks = new Map<string, SignedFlyer>();
 
 /**
  * The events' flyers, signed in one request (those whose link is not still fresh). A failure is returned, not thrown:
- * the events show with their designed posters (or the flyers whose link is still good) and the rail says so.
+ * the events show with their designed posters (or the flyers whose link is still good) and the row says so.
  */
 async function signFlyers(tiles: readonly EventTile[]): Promise<{ urls: Record<string, string>; error: string | null }> {
   let error: string | null = null;
@@ -637,40 +310,63 @@ async function signFlyers(tiles: readonly EventTile[]): Promise<{ urls: Record<s
   return { urls, error };
 }
 
-/** The family's RSVPs to these events, by event; a failure is returned, not thrown. */
-async function readRsvps(householdId: string | null, tiles: readonly EventTile[]): Promise<{ status: Record<string, string>; error: string | null }> {
-  if (!householdId || tiles.length === 0) return { status: {}, error: null };
+/** The family's RSVP to each of these events, with how many people are on it; a failure is returned, not thrown. */
+async function readRsvps(householdId: string, tiles: readonly EventTile[]): Promise<{ facts: Record<string, RsvpFacts>; error: string | null }> {
+  if (tiles.length === 0) return { facts: {}, error: null };
   try {
-    const rsvps: Map<string, Rsvp> = await listHouseholdRsvps(
-      householdId,
-      tiles.map((x) => x.eventId),
-    );
-    const status: Record<string, string> = {};
+    const rsvps = await listHouseholdRsvps(householdId, tiles.map((x) => x.eventId));
+    const counts = await countAttendees([...rsvps.values()].filter((r) => r.status !== 'cancelled').map((r) => r.id));
+    const facts: Record<string, RsvpFacts> = {};
     rsvps.forEach((r, eventId) => {
-      status[eventId] = r.status;
+      facts[eventId] = { status: r.status, count: counts.get(r.id) ?? 0 };
     });
-    return { status, error: null };
+    return { facts, error: null };
   } catch (err) {
-    return { status: {}, error: report(err, 'load your RSVPs').userMessage };
+    return { facts: {}, error: report(err, 'load your RSVPs').userMessage };
   }
 }
 
-function EventsRail({ shown, onPlace }: RailSlot) {
+/**
+ * Upcoming events as posters (2:3): the signed flyer when the event has one, else a designed poster with its
+ * name, date and venue. A member sees the family's RSVP status on every tile as a chip, and the events that
+ * want a reply (RSVP, Confirm) come first; a guest sees the public events with no status.
+ */
+function EventsRow({ shown, onPlace }: RailSlot) {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
   const tz = center?.time_zone ?? null;
   const householdId = member?.household?.id ?? null;
+  const adult = !!member?.isAdult;
+  const signedIn = !!member;
   const state = useRailLoad(
     shown,
     async (): Promise<EventsData> => {
-      if (!center) return { tiles: [], rsvps: {}, rsvpError: null, flyers: {}, flyerError: null };
-      const tiles = eventTiles(await listUpcomingEvents(center.id), new Date());
+      if (!center) return { cards: [], rsvpError: null, flyers: {}, flyerError: null };
+      const now = new Date();
+      const events = await listUpcomingEvents(center.id);
+      const tiles = eventTiles(
+        events.map((e) => ({
+          id: e.id,
+          name: e.name,
+          venue: e.venue,
+          starts_at: e.starts_at,
+          ends_at: e.ends_at,
+          status: e.status,
+          flyer_path: e.flyer_path,
+          rsvp_block: rsvpBlockReason(e, now),
+          rsvp_opens_at: e.rsvp_opens_at,
+          confirmation_hours_before: e.confirmation_hours_before,
+        })),
+        now,
+      );
       // The RSVPs and the flyers only need the events: ask for both at once.
-      const [rsvps, flyers] = await Promise.all([readRsvps(householdId, tiles), signFlyers(tiles)]);
-      return { tiles, rsvps: rsvps.status, rsvpError: rsvps.error, flyers: flyers.urls, flyerError: flyers.error };
+      const [rsvps, flyers] = await Promise.all([signedIn && householdId ? readRsvps(householdId, tiles) : Promise.resolve({ facts: null, error: null }), signFlyers(tiles)]);
+      // Without the family's RSVPs there is no status to show (a guess would say "RSVP" on an event they are going to): the tiles carry none, and the row says why.
+      const who = signedIn && rsvps.facts ? { now, adult } : null;
+      return { cards: eventCards(tiles, rsvps.facts, who), rsvpError: rsvps.error, flyers: flyers.urls, flyerError: flyers.error };
     },
-    [center?.id, householdId],
+    [center?.id, householdId, signedIn, adult],
     'load upcoming events',
   );
   const d = state.data;
@@ -682,43 +378,72 @@ function EventsRail({ shown, onPlace }: RailSlot) {
   );
   return (
     <Rail
-      title={t('home.rail.events')}
+      title={t('home.row.events')}
+      label={t('home.row.events')}
       shape="poster"
-      captionLines={0}
+      captionLines={1}
       loading={shown}
       onSeeAll={() => router.push('/events')}
-      items={d?.tiles}
+      items={d?.cards}
       error={state.error}
       reload={state.reload}
-      keyOf={(x) => x.key}
+      keyOf={(x) => x.tile.key}
       onPlace={onPlace}
       notice={notice}
-      renderTile={(tile, ctx) => <EventTileView tile={tile} ctx={ctx} tz={tz} rsvp={d?.rsvps[tile.eventId] ?? null} flyerUrl={d?.flyers[tile.eventId] ?? null} />}
+      renderTile={(card, ctx) => <EventTileView card={card} ctx={ctx} tz={tz} flyerUrl={d?.flyers[card.tile.eventId] ?? null} />}
     />
   );
 }
 
-function EventTileView({ tile, ctx, tz, rsvp, flyerUrl }: { tile: EventTile; ctx: TileCtx; tz: string | null; rsvp: string | null; flyerUrl: string | null }) {
+function chipLook(kind: EventChip['kind']): { bg: string; fg: string; border: string } {
+  switch (kind) {
+    case 'rsvp':
+      return { bg: colors.brown, fg: colors.white, border: colors.brown };
+    case 'confirm':
+      return { bg: colors.navy, fg: colors.white, border: colors.navy };
+    case 'going':
+    case 'attended':
+      return { bg: colors.greenTint, fg: colors.greenDark, border: colors.greenBorder };
+    case 'waitlisted':
+      return { bg: colors.brownTint, fg: colors.brownDark, border: colors.brownBorder };
+    default:
+      return { bg: colors.chip, fg: colors.muted, border: colors.border };
+  }
+}
+
+/** The family's RSVP status under a poster: the ones that want a reply are filled, the rest are quiet. */
+function EventChipView({ chip, tz }: { chip: EventChip; tz: string | null }) {
+  const t = useT();
+  const look = chipLook(chip.kind);
+  return (
+    <View style={{ alignSelf: 'stretch', minHeight: 30, borderRadius: radii.card, backgroundColor: look.bg, borderWidth: 1, borderColor: look.border, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 3 }}>
+      <Txt variant="caption" center numberOfLines={1} style={{ color: look.fg, fontFamily: fonts.bodyBold }}>
+        {eventChipText(t, chip, tz)}
+      </Txt>
+    </View>
+  );
+}
+
+function EventTileView({ card, ctx, tz, flyerUrl }: { card: EventCard; ctx: TileCtx; tz: string | null; flyerUrl: string | null }) {
   const t = useT();
   const router = useRouter();
-  const mark: EventMark = eventMark(rsvp);
-  const markText = mark === 'going' ? t('home.rail.going') : mark === 'waitlisted' ? t('home.rail.waitlisted') : null;
+  const { tile, chip } = card;
   const when = tile.live ? t('home.rail.liveNow') : formatDateTime(tile.startsAt, tz);
-  const label = [tile.name, when, tile.venue, markText].filter(Boolean).join('. ');
-  // The family's tickets once it has an RSVP (as the Events tab does), else the event, to RSVP.
-  const open = () => router.push(opensTickets(rsvp) ? { pathname: '/event/[id]/tickets', params: { id: tile.eventId } } : { pathname: '/event/[id]', params: { id: tile.eventId } });
+  const label = [tile.name, when, tile.venue, chip ? eventChipSpoken(t, chip, tz) : null].filter(Boolean).join('. ');
+  const target = eventTarget(chip, card.rsvpStatus);
+  const open = () => router.push(target === 'confirm' ? { pathname: '/event/[id]/confirm', params: { id: tile.eventId } } : target === 'tickets' ? { pathname: '/event/[id]/tickets', params: { id: tile.eventId } } : { pathname: '/event/[id]', params: { id: tile.eventId } });
   const designed = <DesignedPoster tile={tile} tz={tz} />;
   return (
-    <RailTile ctx={ctx} label={label} hint={t('home.rail.openHint')} onPress={open}>
+    <RailTile ctx={ctx} label={label} hint={chip?.kind === 'confirm' ? t('home.event.confirmHint') : t('home.rail.openHint')} onPress={open}>
       <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, overflow: 'hidden', backgroundColor: bandFor(tile.eventId) }}>
         {flyerUrl ? <FlyerPoster url={flyerUrl} cacheKey={tile.flyerPath ?? undefined} fallback={designed} /> : designed}
-        {tile.live || markText ? (
-          <View style={{ position: 'absolute', top: 8, left: 8, gap: 4, pointerEvents: 'none' }}>
-            {tile.live ? <TileBadge label={t('home.rail.liveNow')} bg={colors.live} fg="white" /> : null}
-            {markText ? <TileBadge label={markText} bg={mark === 'going' ? colors.green : colors.brown} fg="white" /> : null}
+        {tile.live ? (
+          <View style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none' }}>
+            <TileBadge label={t('home.rail.liveNow')} bg={colors.live} fg="white" />
           </View>
         ) : null}
       </View>
+      {chip ? <EventChipView chip={chip} tz={tz} /> : null}
     </RailTile>
   );
 }
@@ -791,140 +516,19 @@ function DesignedPoster({ tile, tz }: { tile: EventTile; tz: string | null }) {
 }
 
 // ---------------------------------------------------------------------------
-// Listen
+// Row 4: Giving opportunities
 // ---------------------------------------------------------------------------
 
-type PicturesData<T> = { tiles: T[]; pictures: Record<string, string>; pictureError: string | null };
-
-/** Pictures for media tiles; a failure keeps the tiles (designed ones) and says so in the rail. */
-async function withPictures<T>(tiles: T[], itemOf: (tile: T) => MediaItem): Promise<PicturesData<T>> {
-  try {
-    return { tiles, pictures: tiles.length ? await mediaPictures(tiles.map(itemOf)) : {}, pictureError: null };
-  } catch (err) {
-    return { tiles, pictures: {}, pictureError: report(err, 'load the pictures').userMessage };
-  }
-}
-
-type ListenData = PicturesData<ListenTile> & {
-  /** All of My playlist and all the stavans and podcasts loaded: what a tap queues (the tiles are only the first few of them). */
-  playlist: MediaItem[];
-  library: MediaItem[];
-};
-
-function ListenRail({ shown, onPlace }: RailSlot) {
-  const t = useT();
-  const router = useRouter();
-  const { center, member } = useApp();
-  const player = usePlayer();
-  const watch = useWatch();
-  const [watched, setWatched] = useState<MediaItem | null>(null);
-  const state = useRailLoad(
-    shown,
-    async (): Promise<ListenData> => {
-      if (!center) return { tiles: [], pictures: {}, pictureError: null, playlist: [], library: [] };
-      const [playlist, library] = await Promise.all([loadMyPlaylist(center.id), listMedia(center.id, ['stavan', 'podcast'], { sort: 'recent', limit: 30 })]);
-      return { ...(await withPictures(listenTiles(playlist, library), (x) => x.item)), playlist, library };
-    },
-    [center?.id, member?.person.id],
-    'load stavans and podcasts',
-  );
-  const d = state.data;
-
-  // Play it in the app's player (from this tile on, carrying on through the whole of its list: listenQueue) and open the item's screen, which is the player.
-  const play = (tile: ListenTile) => {
-    const item = tile.item;
-    const how = playbackOf(item);
-    if (how === 'audio') {
-      if (player.current?.id !== item.id || player.error) {
-        const queue = listenQueue(tile.queue, d?.playlist ?? [], d?.library ?? []).map((x) => toQueueItem(t, x));
-        player.playQueue(queue, item.id);
-      }
-      openItem(router, item);
-    } else if (how === 'watch' || how === 'link') {
-      setWatched(item);
-      watch.watch(item);
-    } else {
-      openItem(router, item);
-    }
-  };
-
-  const notice = (
-    <>
-      {d?.pictureError ? <Banner tone="error" title={t('home.rail.picturesFailed')} message={d.pictureError} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
-      {watch.error ? <Banner tone="error" message={watch.error} action={watched ? { label: t('common.retry'), onPress: () => watch.watch(watched) } : undefined} /> : null}
-    </>
-  );
-
-  return (
-    <Rail
-      title={t('home.rail.listen')}
-      shape="square"
-      captionLines={2}
-      loading={shown}
-      onSeeAll={() => router.push({ pathname: '/jain-way', params: { tab: 'three_l', section: 'listen' } })}
-      items={d?.tiles}
-      error={state.error}
-      reload={state.reload}
-      keyOf={(x) => x.key}
-      onPlace={onPlace}
-      notice={notice}
-      renderTile={(tile, ctx) => <ListenTileView tile={tile} ctx={ctx} picture={d?.pictures[tile.item.id] ?? null} busy={watch.busyId === tile.item.id} onPress={() => play(tile)} />}
-    />
-  );
-}
-
-const KIND_TILE: Record<MediaItem['kind'], () => string> = {
-  stavan: () => colors.purple,
-  podcast: () => colors.store,
-  video: () => colors.videoTile,
-  recipe: () => colors.green,
-};
-
-function ListenTileView({ tile, ctx, picture, busy, onPress }: { tile: ListenTile; ctx: TileCtx; picture: string | null; busy: boolean; onPress: () => void }) {
-  const t = useT();
-  const p = usePlayer();
-  const item = tile.item;
-  const how = playbackOf(item);
-  const isCurrent = p.current?.id === item.id;
-  const playing = isCurrent && p.playing;
-  const sub = playing ? t('player.playing') : [kindName(t, item.kind), mediaSubtitle(t, item)].filter(Boolean).join(' · ');
-  // The glyph says what the tile does (it plays, or opens); a tile already playing shows the speaker.
-  const glyph: IconName = how === 'link' ? 'open-outline' : how === 'none' ? 'chevron-forward' : playing ? 'volume-high' : 'play';
-  return (
-    <RailTile ctx={ctx} label={[item.title, sub].filter(Boolean).join('. ')} hint={how === 'audio' ? t('home.rail.playHint') : t('home.rail.openHint')} onPress={onPress}>
-      <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, overflow: 'hidden', backgroundColor: KIND_TILE[item.kind](), alignItems: 'center', justifyContent: 'center' }}>
-        <TilePicture
-          uri={picture}
-          what={`the picture of ${item.title}`}
-          fallback={
-            <>
-              <Decor />
-              <Icon name={KIND_ICON[item.kind]} size={44} color={colors.white} />
-            </>
-          }
-        />
-        <View style={{ position: 'absolute', right: 8, bottom: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <Icon name={busy ? 'hourglass-outline' : glyph} size={18} color={colors.navy} />
-        </View>
-        {isCurrent ? <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: colors.onNavyGreen, pointerEvents: 'none' }} /> : null}
-      </View>
-      <TileCaption title={item.title} sub={sub} subColor={isCurrent ? 'navy' : 'muted'} />
-    </RailTile>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Give
-// ---------------------------------------------------------------------------
-
-function GiveRail({ shown, onPlace }: RailSlot) {
+/** Every open opportunity as a big tile with "From $X" and View and sponsor; no rotation, nothing moves by itself. */
+function GiveRow({ shown, onPlace }: RailSlot) {
   const t = useT();
   const router = useRouter();
   const { center } = useApp();
   const state = useRailLoad(shown, async () => (center ? giveTiles(await listOpportunities(center.id)) : []), [center?.id], 'load giving opportunities');
   return (
     <Rail
-      title={t('home.rail.give')}
+      title={t('home.row.give')}
+      label={t('home.row.give')}
       shape="card"
       captionLines={0}
       loading={shown}
@@ -945,8 +549,12 @@ function GiveTileView({ tile, ctx }: { tile: GiveTile; ctx: TileCtx }) {
   const { scale } = useSettings();
   const amount = tile.fromCents ? t('give.from', { amount: tile.compact ? formatCentsCompact(tile.fromCents) : formatCents(tile.fromCents) }) : t('give.anyAmount');
   return (
-    <RailTile ctx={ctx} label={[tile.title, tile.detail, amount].filter(Boolean).join('. ')} hint={t('home.rail.giveHint')} onPress={() => router.push({ pathname: '/opportunity/[id]', params: { id: tile.opportunityId } })}>
-      <View style={{ flexGrow: 1, minHeight: Math.round(150 * Math.min(scale, 1.3)), borderRadius: radii.xl, backgroundColor: colors.brownTint, borderWidth: 1, borderColor: colors.brownBorder, padding: space.cardX, gap: space.md, justifyContent: 'space-between' }}>
+    <RailTile
+      ctx={ctx}
+      label={[tile.title, tile.detail, amount, t('home.viewAndSponsor')].filter(Boolean).join('. ')}
+      hint={t('home.rail.giveHint')}
+      onPress={() => router.push({ pathname: '/opportunity/[id]', params: { id: tile.opportunityId } })}>
+      <View style={{ flexGrow: 1, minHeight: Math.round(170 * Math.min(scale, 1.3)), borderRadius: radii.xl, backgroundColor: colors.brownTint, borderWidth: 1, borderColor: colors.brownBorder, padding: space.cardX, gap: space.md, justifyContent: 'space-between' }}>
         <View style={{ gap: 4 }}>
           <Txt variant="headline" numberOfLines={3}>
             {tile.title}
@@ -957,89 +565,371 @@ function GiveTileView({ tile, ctx }: { tile: GiveTile; ctx: TileCtx }) {
             </Txt>
           ) : null}
         </View>
-        {/* The amount has the whole line to itself, so a large one never wraps; the round button says the tile opens. */}
-        <Row style={{ justifyContent: 'space-between' }} gap={space.sm}>
-          <Txt variant="bodyStrong" color="brown" style={{ flex: 1 }}>
+        <View style={{ gap: space.sm }}>
+          <Txt variant="bodyStrong" color="brown">
             {amount}
           </Txt>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="chevron-forward" size={18} color={colors.white} />
+          <View style={{ minHeight: 44, borderRadius: radii.pill, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md }}>
+            <Txt variant="smallStrong" color="white" center>
+              {t('home.viewAndSponsor')}
+            </Txt>
           </View>
-        </Row>
+        </View>
       </View>
     </RailTile>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Photos
+// Row 5: Life@{center}
 // ---------------------------------------------------------------------------
 
-type PhotosData = { tiles: PhotoTile[]; urls: Record<string, string>; urlError: string | null };
+type LifeLook = { icon: IconName; bg: string; fg: string; label: StringKey; line: StringKey; href: Href };
 
-function PhotosRail({ shown, onPlace }: RailSlot) {
+// Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
+const lifeLook = (tile: LifeTile): LifeLook => {
+  switch (tile) {
+    case 'guide':
+      return { icon: 'compass-outline', bg: colors.navyTint, fg: colors.navy, label: 'home.life.guide', line: 'home.life.guideLine', href: '/guide' };
+    case 'whatsapp':
+      return { icon: 'logo-whatsapp', bg: colors.greenTint, fg: colors.green, label: 'home.life.whatsapp', line: 'guide.tile.whatsappSub', href: '/guide/whatsapp' };
+    case 'zone':
+      return { icon: 'location-outline', bg: colors.brownTint, fg: colors.brown, label: 'home.life.zone', line: 'guide.tile.zoneSub', href: '/guide/zones' };
+    case 'timings':
+      return { icon: 'time-outline', bg: colors.navyTint, fg: colors.navy, label: 'home.life.timings', line: 'guide.tile.timingsSub', href: '/guide/timings' };
+    case 'volunteer':
+      return { icon: 'hand-left-outline', bg: colors.greenTint, fg: colors.green, label: 'home.life.volunteer', line: 'guide.tile.volunteerSub', href: '/guide/volunteer' };
+    case 'admin':
+      return { icon: 'people-outline', bg: colors.purpleTint, fg: colors.purple, label: 'home.life.admin', line: 'guide.tile.adminSub', href: '/guide/admin' };
+    case 'specialDays':
+      return { icon: 'gift-outline', bg: colors.brownTint, fg: colors.brown, label: 'home.life.specialDays', line: 'home.life.specialDaysLine', href: '/special-days' };
+  }
+};
+
+/**
+ * Life@{center} (it replaces the My {center} card): what the community offers to a member, a few features each with
+ * an icon, a short label and one line on what it helps with. They go where the My {center} card and the New here
+ * shortcut went (the community guide and its sections), plus Special days. Static: nothing to load, no skeleton.
+ */
+function LifeRow() {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
-  const tz = center?.time_zone ?? null;
-  const [openError, setOpenError] = useState<{ message: string; retry: () => void } | null>(null);
-  const state = useRailLoad(
-    shown,
-    async (): Promise<PhotosData> => {
-      if (!center) return { tiles: [], urls: {}, urlError: null };
-      const { albums, urls, urlError } = await loadAlbumPreviewsWithCovers(center.id, PHOTO_TILES);
-      return { tiles: photoTiles(albums, tz), urls, urlError };
-    },
-    [center?.id, member?.person.id, tz],
-    'load photo albums',
-  );
-  const d = state.data;
-
-  const open = (tile: PhotoTile) => {
-    setOpenError(null);
-    const online = tile.onlineUrl;
-    if (!online) {
-      router.push({ pathname: '/album/[id]', params: { id: tile.albumId } });
-      return;
-    }
-    WebBrowser.openBrowserAsync(online).catch((err: unknown) => setOpenError({ message: report(err, 'open the full album').userMessage, retry: () => open(tile) }));
-  };
-
-  const notice = (
-    <>
-      {d?.urlError ? <Banner tone="error" title={t('home.rail.picturesFailed')} message={d.urlError} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
-      {openError ? <Banner tone="error" message={openError.message} action={{ label: t('common.retry'), onPress: openError.retry }} /> : null}
-    </>
-  );
-
+  const { map } = useModules();
+  const guide = useFeature('guide');
+  const community = communityName(center);
+  const keys = lifeTiles({ modules: map, guideAllowed: guide.allowed, member: member ? { isAdult: member.isAdult, hasHousehold: !!member.household } : null });
+  const title = t('home.row.life', { center: community });
   return (
     <Rail
-      title={t('home.rail.photos')}
-      shape="wide"
-      captionLines={2}
-      loading={shown}
-      onSeeAll={() => router.push({ pathname: '/events', params: { view: 'photos' } })}
-      items={d?.tiles}
-      error={state.error}
-      reload={state.reload}
-      keyOf={(x) => x.key}
-      onPlace={onPlace}
-      notice={notice}
-      renderTile={(tile, ctx) => <PhotoTileView tile={tile} ctx={ctx} url={tile.coverPath ? (sizedPhotoUrl(d?.urls[tile.coverPath], 'thumb') ?? null) : null} onPress={() => open(tile)} />}
+      title={title}
+      label={title}
+      shape="feature"
+      captionLines={0}
+      loading={false}
+      items={keys}
+      error={null}
+      reload={NOT_PLACED}
+      keyOf={(k) => k}
+      onPlace={NOT_PLACED}
+      renderTile={(key, ctx) => {
+        const look = lifeLook(key);
+        const label = t(look.label);
+        const line = t(look.line, { center: community });
+        return (
+          <RailTile ctx={ctx} label={`${label}. ${line}`} onPress={() => router.push(look.href)}>
+            <View style={{ flexGrow: 1, borderRadius: radii.xl, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: space.cardX, gap: space.sm }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: look.bg, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name={look.icon} size={22} color={look.fg} />
+              </View>
+              <Txt variant="bodyStrong" numberOfLines={2}>
+                {label}
+              </Txt>
+              <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+                {line}
+              </Txt>
+            </View>
+          </RailTile>
+        );
+      }}
     />
   );
 }
 
-function PhotoTileView({ tile, ctx, url, onPress }: { tile: PhotoTile; ctx: TileCtx; url: string | null; onPress: () => void }) {
+// ---------------------------------------------------------------------------
+// Row 6: Learn & listen
+// ---------------------------------------------------------------------------
+
+type LearnListenData = {
+  cards: LearnListenCard[];
+  /** Pictures of the latest podcast and recipe, by item id. */
+  pictures: Record<string, string>;
+  /** The latest album's cover, signed. */
+  photoUrls: Record<string, string>;
+  /** My playlist (all of it): what a tap on the My playlist tile queues. */
+  playlist: Part<MediaItem[]>;
+  /** Why part of the row could not load (the tiles that could do without it still show). */
+  errors: string[];
+};
+
+/** One load of the row: its value, or why it failed (kept apart so one failure never takes the rest of the row with it). */
+async function attempt<T>(action: string, run: () => Promise<T>): Promise<{ part: Part<T>; error: string | null }> {
+  try {
+    return { part: { ok: true, value: await run() }, error: null };
+  } catch (err) {
+    return { part: { ok: false }, error: report(err, action).userMessage };
+  }
+}
+
+/**
+ * The old shortcut buttons as tiles: Continue learning (the next Gyan Path level, with its progress), My playlist
+ * (plays all of it), Podcasts, Fully Jain recipes and Photos. A tile shows only when the community's Home shortcut,
+ * its module and the access level of its area all allow it; one that is not allowed is not shown, not shown
+ * locked, and with none left the row is gone.
+ */
+function LearnListenRow({ shown, onPlace, accessProblem }: RailSlot & { accessProblem: { error: AppError; retry: () => void } | null }) {
   const t = useT();
-  const pal = paletteFor(tile.albumId);
-  const sub = [tile.date, tile.onlineUrl ? t('photos.onlineCount') : null].filter(Boolean).join(' · ');
+  const { center, member } = useApp();
+  const { map } = useModules();
+  const learn = useFeature('learn');
+  const listen = useFeature('listen');
+  const look = useFeature('look');
+  const order = center ? learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed } }) : [];
+  const tz = center?.time_zone ?? null;
+  const state = useRailLoad(
+    shown,
+    async (): Promise<LearnListenData> => {
+      const none: LearnListenData = { cards: [], pictures: {}, photoUrls: {}, playlist: { ok: false }, errors: [] };
+      if (!center || !member) return none;
+      const me = member.person.id;
+      const want = (tile: LearnListenTile) => order.includes(tile);
+      const [learning, playlist, podcasts, recipes, photos] = await Promise.all([
+        want('learning')
+          ? attempt('load your Gyan Path', async () => {
+              const g = await loadGyan(center, [me]);
+              const last = lastActivityByGoal(g, me);
+              return learningTiles(
+                g.goals.map((goal) => {
+                  const p = goalProgress(goal, g.progress, me);
+                  return {
+                    id: goal.id,
+                    name: goal.name,
+                    tint: goal.tint,
+                    mark: goalMark(goal),
+                    recommended: goal.recommended,
+                    levelsDone: p.levelsDone,
+                    levelsTotal: p.levelsTotal,
+                    stepsDone: p.stepsDone,
+                    stepsTotal: p.stepsTotal,
+                    complete: p.complete,
+                    currentLevel: p.currentLevel ? { id: p.currentLevel.id, name: p.currentLevel.name } : null,
+                    lastActivity: last.get(goal.id) ?? null,
+                  };
+                }),
+              );
+            })
+          : undefined,
+        want('playlist')
+          ? attempt('load your playlist', async () => {
+              const items = await loadMyPlaylist(center.id);
+              // An empty playlist opens the most-liked stavans (the playlist screen offers them): worth a tile only if the library has something.
+              const fallback = items.length === 0 && (await listMedia(center.id, ['stavan', 'podcast', 'video'], { sort: 'liked', limit: 1 })).length > 0;
+              return { items, fallback };
+            })
+          : undefined,
+        want('podcasts') ? attempt('load the podcasts', () => listMedia(center.id, ['podcast'], { sort: 'recent', limit: 1 })) : undefined,
+        want('recipes') ? attempt('load the recipes', () => listMedia(center.id, ['recipe'], { sort: 'recent' })) : undefined,
+        want('photos')
+          ? attempt('load photo albums', async () => {
+              const { albums, urls, urlError } = await loadAlbumPreviewsWithCovers(center.id, 1);
+              return { tiles: photoTiles(albums, tz), urls, urlError };
+            })
+          : undefined,
+      ]);
+      const parts: LearnListenParts = {
+        learning: learning?.part,
+        playlist: playlist?.part,
+        podcasts: podcasts?.part,
+        recipes: recipes?.part,
+        photos: photos ? (photos.part.ok ? { ok: true, value: photos.part.value.tiles } : { ok: false }) : undefined,
+      };
+      const cards = learnListenCards(order, parts);
+      const withPictures = cards.flatMap((c) => (c.kind === 'podcasts' || c.kind === 'recipes') && c.latest ? [c.latest] : []);
+      const pictures = withPictures.length ? await attempt('load the pictures', () => mediaPictures(withPictures)) : { part: { ok: true, value: {} as Record<string, string> } as Part<Record<string, string>>, error: null };
+      const photoUrls = photos?.part.ok ? photos.part.value.urls : {};
+      const errors = [learning?.error, playlist?.error, podcasts?.error, recipes?.error, photos?.error, photos?.part.ok ? photos.part.value.urlError : null, pictures.error].filter((e): e is string => !!e);
+      const queue: Part<MediaItem[]> = playlist?.part.ok ? { ok: true, value: playlist.part.value.items } : { ok: false };
+      return { cards, pictures: pictures.part.ok ? pictures.part.value : {}, photoUrls, playlist: queue, errors };
+    },
+    [center?.id, member?.person.id, tz, order.join(',')],
+    'load learn and listen',
+  );
+  const d = state.data;
+  const title = t('home.row.learnListen');
+  const notice = (
+    <>
+      {accessProblem ? <ErrorState error={accessProblem.error} onRetry={accessProblem.retry} /> : null}
+      {d && d.errors.length > 0 ? <Banner tone="error" title={t('home.ll.partFailed')} message={d.errors[0]} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
+    </>
+  );
   return (
-    <RailTile ctx={ctx} label={[tile.title, sub].filter(Boolean).join('. ')} hint={tile.onlineUrl ? t('home.rail.onlineAlbumHint') : t('home.rail.albumHint')} onPress={onPress}>
-      <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, overflow: 'hidden', backgroundColor: pal.tiles[0], alignItems: 'center', justifyContent: 'center' }}>
+    <Rail
+      title={title}
+      label={title}
+      shape="wide"
+      captionLines={2}
+      loading={shown}
+      items={d?.cards}
+      error={state.error}
+      reload={state.reload}
+      keyOf={(c) => c.key}
+      onPlace={onPlace}
+      notice={notice}
+      renderTile={(card, ctx) => <LearnListenTileView card={card} ctx={ctx} d={d} />}
+    />
+  );
+}
+
+/** Learn & listen when what the person may use could not be read: the row says so, with Try again, instead of its tiles quietly missing. */
+function LearnListenAccessError({ error, onRetry }: { error: AppError; onRetry: () => void }) {
+  const t = useT();
+  return (
+    <View style={{ gap: 2 }}>
+      <Txt variant="subhead" accessibilityRole="header" style={{ fontFamily: fonts.bodyBold, minHeight: 44, paddingTop: 10 }}>
+        {t('home.row.learnListen')}
+      </Txt>
+      <ErrorState error={error} onRetry={onRetry} />
+    </View>
+  );
+}
+
+function LearnListenTileView({ card, ctx, d }: { card: LearnListenCard; ctx: TileCtx; d: LearnListenData | undefined }) {
+  switch (card.kind) {
+    case 'learning':
+      return <LearningTileView tile={card.tile} ctx={ctx} />;
+    case 'playlist':
+      return <PlaylistTileView count={card.count} playlist={d?.playlist ?? { ok: false }} ctx={ctx} />;
+    case 'podcasts':
+      return <PodcastsTileView latest={card.latest} picture={card.latest ? (d?.pictures[card.latest.id] ?? null) : null} ctx={ctx} />;
+    case 'recipes':
+      return <RecipesTileView latest={card.latest} picture={card.latest ? (d?.pictures[card.latest.id] ?? null) : null} ctx={ctx} />;
+    case 'photos':
+      return <PhotosTileView latest={card.latest} url={card.latest?.coverPath ? (sizedPhotoUrl(d?.photoUrls[card.latest.coverPath], 'thumb') ?? null) : null} ctx={ctx} />;
+  }
+}
+
+type CardOf<K extends LearnListenCard['kind']> = Extract<LearnListenCard, { kind: K }>;
+
+/** The picture of a Learn & listen tile: 16:9, the designed background or the picture, and whatever the tile draws on it. */
+function TileFrame({ ctx, bg, children }: { ctx: TileCtx; bg: string; children: ReactNode }) {
+  return <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, overflow: 'hidden', backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>{children}</View>;
+}
+
+function LearningTileView({ tile, ctx }: { tile: LearningTile; ctx: TileCtx }) {
+  const t = useT();
+  const router = useRouter();
+  const tint = tile.tint ?? colors.navy;
+  const level = t('learn.levelOf', { level: tile.levelNumber, n: tile.levelsTotal });
+  const pct = Math.round(tile.progress * 100);
+  const sub = `${tile.goalName} · ${level}`;
+  const label = [t('home.ll.learning'), tile.goalName, tile.recommended ? t('learn.forYou') : null, `${level}: ${tile.levelName}`, t('home.rail.percentDone', { n: pct })].filter(Boolean).join('. ');
+  return (
+    <RailTile ctx={ctx} label={label} hint={t('home.rail.startHint')} onPress={() => router.push({ pathname: '/gyan/[goalId]/level/[levelId]', params: { goalId: tile.goalId, levelId: tile.levelId } })}>
+      <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, backgroundColor: tint, overflow: 'hidden', padding: space.md, justifyContent: 'space-between' }}>
+        <Decor />
+        {tile.recommended ? <TileBadge label={t('learn.forYou')} bg={colors.white} fg="navy" /> : <View />}
+        <Txt variant="hero" color="white" numberOfLines={1}>
+          {tile.mark}
+        </Txt>
+        {/* Steps done of the whole goal: the bar along the bottom, like a show half watched. */}
+        <View style={{ height: 5, borderRadius: 3, backgroundColor: colors.scrimFaint, overflow: 'hidden' }}>
+          <View style={{ width: `${pct}%`, height: 5, borderRadius: 3, backgroundColor: colors.white }} />
+        </View>
+      </View>
+      <TileCaption title={t('home.ll.learning')} sub={sub} />
+    </RailTile>
+  );
+}
+
+function PlaylistTileView({ count, playlist, ctx }: { count: number | null; playlist: LearnListenData['playlist']; ctx: TileCtx }) {
+  const t = useT();
+  const router = useRouter();
+  const player = usePlayer();
+  const sub = count === null ? t('home.ll.playlistLine') : count === 0 ? t('home.ll.playlistEmpty') : count === 1 ? t('threeL.itemsOne') : t('threeL.items', { n: count });
+  // Plays the whole of My playlist, from its first item that can play (not only what a tile could show), and opens it. An empty playlist,
+  // or one that could not be read here, opens the playlist screen playing, which offers the most-liked stavans or reads the list itself.
+  const play = () => {
+    const queue = playlist.ok ? playlistQueue(playlist.value).map((item) => toQueueItem(t, item)) : [];
+    if (queue.some((q) => q.playable)) {
+      player.playQueue(queue);
+      router.push('/listen/playlist');
+    } else {
+      router.push({ pathname: '/listen/playlist', params: { autoplay: '1' } });
+    }
+  };
+  return (
+    <RailTile ctx={ctx} label={[t('home.ll.playlist'), sub].join('. ')} hint={t('home.ll.playlistHint')} onPress={play}>
+      <TileFrame ctx={ctx} bg={colors.purple}>
+        <Decor />
+        <Icon name="musical-notes-outline" size={44} color={colors.white} />
+        <View style={{ position: 'absolute', right: 8, bottom: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <Icon name="play" size={18} color={colors.navy} />
+        </View>
+      </TileFrame>
+      <TileCaption title={t('home.ll.playlist')} sub={sub} />
+    </RailTile>
+  );
+}
+
+function PodcastsTileView({ latest, picture, ctx }: { latest: CardOf<'podcasts'>['latest']; picture: string | null; ctx: TileCtx }) {
+  const t = useT();
+  const router = useRouter();
+  const sub = latest ? t('home.ll.latest', { title: latest.title }) : t('home.ll.podcastsLine');
+  return (
+    <RailTile ctx={ctx} label={[t('home.ll.podcasts'), sub, latest ? mediaSubtitle(t, latest) : null].filter(Boolean).join('. ')} hint={t('home.rail.openHint')} onPress={() => router.push({ pathname: '/media/[kind]', params: { kind: 'podcast' } })}>
+      <TileFrame ctx={ctx} bg={colors.store}>
+        <TilePicture
+          uri={picture}
+          fit="contain"
+          what={`the picture of ${latest?.title ?? 'the podcasts'}`}
+          fallback={
+            <>
+              <Decor />
+              <Icon name={KIND_ICON.podcast} size={44} color={colors.white} />
+            </>
+          }
+        />
+      </TileFrame>
+      <TileCaption title={t('home.ll.podcasts')} sub={sub} />
+    </RailTile>
+  );
+}
+
+function RecipesTileView({ latest, picture, ctx }: { latest: CardOf<'recipes'>['latest']; picture: string | null; ctx: TileCtx }) {
+  const t = useT();
+  const router = useRouter();
+  const sub = latest ? t('home.ll.latest', { title: latest.title }) : t('home.ll.recipesLine');
+  return (
+    <RailTile ctx={ctx} label={[t('home.ll.recipes'), sub].join('. ')} hint={t('home.rail.openHint')} onPress={() => router.push({ pathname: '/media/[kind]', params: { kind: 'recipe', fullyJain: '1' } })}>
+      <TileFrame ctx={ctx} bg={colors.greenTint}>
+        <TilePicture uri={picture} what={`the photo of ${latest?.title ?? 'the recipes'}`} fallback={<Icon name={KIND_ICON.recipe} size={44} color={colors.green} />} />
+      </TileFrame>
+      <TileCaption title={t('home.ll.recipes')} sub={sub} />
+    </RailTile>
+  );
+}
+
+function PhotosTileView({ latest, url, ctx }: { latest: CardOf<'photos'>['latest']; url: string | null; ctx: TileCtx }) {
+  const t = useT();
+  const router = useRouter();
+  const pal = paletteFor(latest?.albumId ?? 'photos');
+  const sub = latest ? [latest.title, latest.date].filter(Boolean).join(' · ') : t('home.ll.photosLine');
+  return (
+    <RailTile ctx={ctx} label={[t('home.ll.photos'), sub].join('. ')} hint={t('home.ll.photosHint')} onPress={() => router.push({ pathname: '/events', params: { view: 'photos' } })}>
+      <TileFrame ctx={ctx} bg={pal.tiles[0]}>
         <TilePicture
           uri={url}
-          what={`the cover of ${tile.title}`}
+          what={`the cover of ${latest?.title ?? 'the latest album'}`}
           fallback={
             <>
               <Decor />
@@ -1047,60 +937,8 @@ function PhotoTileView({ tile, ctx, url, onPress }: { tile: PhotoTile; ctx: Tile
             </>
           }
         />
-      </View>
-      <TileCaption title={tile.title} sub={sub} />
-    </RailTile>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Fully Jain recipes
-// ---------------------------------------------------------------------------
-
-function RecipesRail({ shown, onPlace }: RailSlot) {
-  const t = useT();
-  const router = useRouter();
-  const { center, member } = useApp();
-  const state = useRailLoad(
-    shown,
-    async (): Promise<PicturesData<MediaItem>> => {
-      if (!center) return { tiles: [], pictures: {}, pictureError: null };
-      return withPictures(recipeTiles(await listMedia(center.id, ['recipe'], { sort: 'recent' })), (x) => x);
-    },
-    [center?.id, member?.person.id],
-    'load the recipes',
-  );
-  const d = state.data;
-  return (
-    <Rail
-      title={t('home.rail.recipes')}
-      shape="square"
-      captionLines={2}
-      loading={shown}
-      onSeeAll={() => router.push({ pathname: '/media/[kind]', params: { kind: 'recipe', fullyJain: '1' } })}
-      items={d?.tiles}
-      error={state.error}
-      reload={state.reload}
-      keyOf={(x) => `recipe:${x.id}`}
-      onPlace={onPlace}
-      notice={d?.pictureError ? <Banner tone="error" title={t('home.rail.picturesFailed')} message={d.pictureError} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
-      renderTile={(item, ctx) => <RecipeTileView item={item} ctx={ctx} picture={d?.pictures[item.id] ?? null} />}
-    />
-  );
-}
-
-function RecipeTileView({ item, ctx, picture }: { item: MediaItem; ctx: TileCtx; picture: string | null }) {
-  const t = useT();
-  const router = useRouter();
-  // Every tile here is fully Jain (the rail's title says so), so the line is the time and the servings.
-  const total = (item.meta.prepMinutes ?? 0) + (item.meta.cookMinutes ?? 0);
-  const sub = [total > 0 ? t('media.minutes', { n: total }) : null, item.meta.servings ? t('media.serves', { n: item.meta.servings }) : null].filter(Boolean).join(' · ');
-  return (
-    <RailTile ctx={ctx} label={[item.title, sub].filter(Boolean).join('. ')} hint={t('home.rail.openHint')} onPress={() => openItem(router, item)}>
-      <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, overflow: 'hidden', backgroundColor: colors.greenTint, alignItems: 'center', justifyContent: 'center' }}>
-        <TilePicture uri={picture} what={`the photo of ${item.title}`} fallback={<Icon name={KIND_ICON.recipe} size={40} color={colors.green} />} />
-      </View>
-      <TileCaption title={item.title} sub={sub} />
+      </TileFrame>
+      <TileCaption title={t('home.ll.photos')} sub={sub} />
     </RailTile>
   );
 }

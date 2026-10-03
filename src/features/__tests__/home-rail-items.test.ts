@@ -1,26 +1,44 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { translate, type Translate } from '@/i18n';
+import type { FamilyMember } from '@/lib/api/member';
 import { FLYER_RESIGN_AFTER_MS } from '@/lib/flyer';
 import { parseMediaRow, type MediaItem } from '@/lib/media-library';
 
 import {
-  eventMark,
+  eventCards,
+  eventChip,
+  eventChipSpoken,
+  eventChipText,
+  eventTarget,
   eventTiles,
   flyersToSign,
   giveTiles,
+  inConfirmWindow,
+  jainWayLabel,
   learningTiles,
-  listenQueue,
-  listenTiles,
+  learnListenCards,
+  needsReply,
   opensTickets,
-  PHOTO_TILES,
   photoTiles,
+  playlistQueue,
   RAIL_LIMIT,
   recipeTiles,
+  specialDayTitle,
+  specialDayWhen,
   type AlbumPreviewFields,
+  type EventChip,
+  type EventTile,
   type EventTileFields,
   type GivingOpportunity,
   type LearningGoalInput,
+  type LearningTile,
+  type LearnListenParts,
+  type PhotoTile,
+  type RsvpFacts,
 } from '../home-rail-items';
+
+const t: Translate = (key, vars) => translate('en', key, vars);
 
 describe('learningTiles (Continue learning)', () => {
   const goal = (id: string, over: Partial<LearningGoalInput> = {}): LearningGoalInput => ({
@@ -66,7 +84,7 @@ describe('learningTiles (Continue learning)', () => {
       mark: 'A',
     });
   });
-  it('leaves out finished goals and goals without levels yet (the rail hides when nothing is left)', () => {
+  it('leaves out finished goals and goals without levels yet (the tile is left out when nothing is left)', () => {
     expect(learningTiles([goal('done', { complete: true, levelsDone: 4, currentLevel: null }), goal('empty', { levelsTotal: 0, stepsTotal: 0, currentLevel: null })])).toEqual([]);
     expect(learningTiles([])).toEqual([]);
   });
@@ -82,7 +100,7 @@ describe('learningTiles (Continue learning)', () => {
   });
 });
 
-describe('eventTiles (Upcoming events)', () => {
+describe('eventTiles (the events the row can show)', () => {
   const NOW = new Date('2026-10-02T15:00:00Z');
   const ev = (id: string, over: Partial<EventTileFields> = {}): EventTileFields => ({
     id,
@@ -92,6 +110,9 @@ describe('eventTiles (Upcoming events)', () => {
     ends_at: '2026-10-11T03:00:00Z',
     status: 'published',
     flyer_path: null,
+    rsvp_block: null,
+    rsvp_opens_at: null,
+    confirmation_hours_before: 24,
     ...over,
   });
 
@@ -113,40 +134,221 @@ describe('eventTiles (Upcoming events)', () => {
     expect(eventTiles([ev('c', { status: 'completed' }), ev('nodate', { starts_at: null, ends_at: null })], NOW)).toEqual([]);
   });
   it('keeps an event whose RSVPs have closed (it is still to come)', () => {
-    expect(eventTiles([ev('closed', { status: 'rsvp_closed' })], NOW).map((x) => x.eventId)).toEqual(['closed']);
+    expect(eventTiles([ev('closed', { status: 'rsvp_closed', rsvp_block: 'closed' })], NOW).map((x) => x.eventId)).toEqual(['closed']);
   });
   it('carries the flyer for a poster tile, and the designed tile when there is none', () => {
     const [withFlyer, without] = eventTiles([ev('f', { flyer_path: '  c1/events/f/flyer.png ' }), ev('n', { flyer_path: '   ', venue: '  ' })], NOW);
-    expect(withFlyer).toEqual({ key: 'event:f', eventId: 'f', name: 'Event f', venue: 'Jain Center Hall', startsAt: '2026-10-10T23:00:00Z', flyerPath: 'c1/events/f/flyer.png', live: false });
+    expect(withFlyer).toEqual({
+      key: 'event:f',
+      eventId: 'f',
+      name: 'Event f',
+      venue: 'Jain Center Hall',
+      startsAt: '2026-10-10T23:00:00Z',
+      flyerPath: 'c1/events/f/flyer.png',
+      live: false,
+      rsvpBlock: null,
+      rsvpOpensAt: null,
+      confirmHoursBefore: 24,
+    });
     expect(without.flyerPath).toBeNull();
     expect(without.venue).toBeNull();
   });
-  it('shows at most the limit', () => {
-    expect(eventTiles(Array.from({ length: 30 }, (_, i) => ev(`e${i}`)), NOW)).toHaveLength(RAIL_LIMIT);
+  it('does not cut the list: the row caps it after the RSVPs are known, so an event that wants a reply is never lost', () => {
+    expect(eventTiles(Array.from({ length: 30 }, (_, i) => ev(`e${i}`)), NOW)).toHaveLength(30);
   });
 });
 
-describe('eventMark and opensTickets (what the family’s RSVP does to a poster)', () => {
-  it('says "going" for an RSVP that is in, "waitlisted" on the waitlist, and nothing otherwise', () => {
-    expect(eventMark('rsvpd')).toBe('going');
-    expect(eventMark('confirmed')).toBe('going');
-    expect(eventMark('attended')).toBe('going');
-    expect(eventMark('waitlisted')).toBe('waitlisted');
-    expect(eventMark('cancelled')).toBeNull();
-    expect(eventMark('invited')).toBeNull();
-    expect(eventMark(null)).toBeNull();
-    expect(eventMark(undefined)).toBeNull();
+describe('eventChip (what the family’s RSVP says on a poster)', () => {
+  const NOW = new Date('2026-10-02T15:00:00Z');
+  const tile = (over: Partial<EventTile> = {}): EventTile => ({
+    key: 'event:e1',
+    eventId: 'e1',
+    name: 'Navpad Puja',
+    venue: null,
+    startsAt: '2026-10-10T23:00:00Z',
+    flyerPath: null,
+    live: false,
+    rsvpBlock: null,
+    rsvpOpensAt: null,
+    confirmHoursBefore: 24,
+    ...over,
   });
-  it('opens the tickets for any RSVP that is not cancelled (as the Events tab does), else the event', () => {
+  const rsvp = (status: string, count = 3): RsvpFacts => ({ status, count });
+  const chip = (e: EventTile, r: RsvpFacts | null, adult = true) => eventChip(e, r, { now: NOW, adult });
+
+  it('asks for a reply when the family has not RSVPd and RSVPs are open: RSVP, the highlighted one', () => {
+    expect(chip(tile(), null)).toEqual({ kind: 'rsvp' });
+    // An invitation not answered yet is no reply either.
+    expect(chip(tile(), rsvp('invited'))).toEqual({ kind: 'rsvp' });
+  });
+  it('says Going with the number of people for an RSVP that is in (rsvpd, confirmed)', () => {
+    expect(chip(tile(), rsvp('rsvpd', 3))).toEqual({ kind: 'going', count: 3 });
+    expect(chip(tile(), rsvp('confirmed', 2))).toEqual({ kind: 'going', count: 2 });
+  });
+  it('asks to Confirm once the event is inside its confirmation window and the RSVP is not confirmed yet (the old "RSVP to confirm")', () => {
+    // 24 hours before the start, less a minute.
+    const soon = tile({ startsAt: '2026-10-03T14:59:00Z' });
+    expect(chip(soon, rsvp('rsvpd'))).toEqual({ kind: 'confirm' });
+    // Confirmed already: Going.
+    expect(chip(soon, rsvp('confirmed', 3))).toEqual({ kind: 'going', count: 3 });
+    // Not yet inside the window.
+    expect(chip(tile({ startsAt: '2026-10-03T15:01:00Z' }), rsvp('rsvpd'))).toEqual({ kind: 'going', count: 3 });
+    // The event has started: nothing left to confirm.
+    expect(chip(tile({ startsAt: '2026-10-02T14:00:00Z' }), rsvp('rsvpd'))).toEqual({ kind: 'going', count: 3 });
+  });
+  it('uses each event’s own confirmation window', () => {
+    expect(chip(tile({ startsAt: '2026-10-04T14:00:00Z', confirmHoursBefore: 48 }), rsvp('rsvpd'))).toEqual({ kind: 'confirm' });
+    expect(chip(tile({ startsAt: '2026-10-04T14:00:00Z', confirmHoursBefore: 24 }), rsvp('rsvpd'))).toEqual({ kind: 'going', count: 3 });
+  });
+  it('says Waitlisted, Not going and You attended for those RSVPs', () => {
+    expect(chip(tile(), rsvp('waitlisted'))).toEqual({ kind: 'waitlisted' });
+    expect(chip(tile(), rsvp('cancelled'))).toEqual({ kind: 'notGoing' });
+    expect(chip(tile(), rsvp('no_show'))).toEqual({ kind: 'notGoing' });
+    expect(chip(tile(), rsvp('attended'))).toEqual({ kind: 'attended' });
+  });
+  it('a cancelled RSVP says Not going even while RSVPs are still open (the event screen lets them RSVP again)', () => {
+    expect(chip(tile({ rsvpBlock: null }), rsvp('cancelled'))).toEqual({ kind: 'notGoing' });
+  });
+  it('says when no reply can be made: RSVPs closed, or the date they open', () => {
+    expect(chip(tile({ rsvpBlock: 'closed' }), null)).toEqual({ kind: 'closed' });
+    expect(chip(tile({ rsvpBlock: 'past' }), null)).toEqual({ kind: 'closed' });
+    expect(chip(tile({ rsvpBlock: 'not_open_yet', rsvpOpensAt: '2026-10-05T14:00:00Z' }), null)).toEqual({ kind: 'opens', on: '2026-10-05T14:00:00Z' });
+    expect(chip(tile({ rsvpBlock: 'closed' }), rsvp('invited'))).toEqual({ kind: 'closed' });
+  });
+  it('asks a child to ask a parent instead of to RSVP (RSVPs are made by adults), but still shows the family’s status', () => {
+    expect(chip(tile(), null, false)).toEqual({ kind: 'adultsOnly' });
+    expect(chip(tile(), rsvp('confirmed', 4), false)).toEqual({ kind: 'going', count: 4 });
+    expect(chip(tile({ rsvpBlock: 'closed' }), null, false)).toEqual({ kind: 'closed' });
+  });
+  it('knows the confirmation window', () => {
+    expect(inConfirmWindow({ startsAt: '2026-10-03T00:00:00Z', confirmHoursBefore: 24 }, NOW)).toBe(true);
+    expect(inConfirmWindow({ startsAt: '2026-10-02T15:00:00Z', confirmHoursBefore: 24 }, NOW)).toBe(false);
+    expect(inConfirmWindow({ startsAt: null, confirmHoursBefore: 24 }, NOW)).toBe(false);
+    expect(inConfirmWindow({ startsAt: 'not a date', confirmHoursBefore: 24 }, NOW)).toBe(false);
+  });
+});
+
+describe('eventCards (the Events row: status on every tile, replies wanted first)', () => {
+  const NOW = new Date('2026-10-02T15:00:00Z');
+  const tile = (id: string, over: Partial<EventTile> = {}): EventTile => ({
+    key: `event:${id}`,
+    eventId: id,
+    name: `Event ${id}`,
+    venue: null,
+    startsAt: '2026-10-10T23:00:00Z',
+    flyerPath: null,
+    live: false,
+    rsvpBlock: null,
+    rsvpOpensAt: null,
+    confirmHoursBefore: 24,
+    ...over,
+  });
+  const member = { now: NOW, adult: true };
+
+  it('puts the events that want a reply first (RSVP and Confirm), each group in date order', () => {
+    // In date order, as listUpcomingEvents returns them.
+    const tiles = [tile('soon', { startsAt: '2026-10-03T10:00:00Z' }), tile('going1'), tile('open1'), tile('going2'), tile('open2'), tile('closed', { rsvpBlock: 'closed' })];
+    const rsvps = { going1: { status: 'confirmed', count: 2 }, going2: { status: 'rsvpd', count: 4 }, soon: { status: 'rsvpd', count: 3 } };
+    const cards = eventCards(tiles, rsvps, member);
+    expect(cards.map((c) => [c.tile.eventId, c.chip?.kind])).toEqual([
+      ['soon', 'confirm'],
+      ['open1', 'rsvp'],
+      ['open2', 'rsvp'],
+      ['going1', 'going'],
+      ['going2', 'going'],
+      ['closed', 'closed'],
+    ]);
+  });
+  it('gives every tile the family’s status, and carries the RSVP so the tile opens the tickets', () => {
+    const cards = eventCards([tile('a'), tile('b')], { a: { status: 'waitlisted', count: 1 } }, member);
+    expect(cards.map((c) => c.rsvpStatus)).toEqual([null, 'waitlisted']);
+    expect(cards.every((c) => c.chip !== null)).toBe(true);
+  });
+  it('shows a guest the public events in date order with no status at all', () => {
+    const cards = eventCards([tile('a'), tile('b', { rsvpBlock: 'closed' })], null, null);
+    expect(cards.map((c) => c.tile.eventId)).toEqual(['a', 'b']);
+    expect(cards.every((c) => c.chip === null && c.rsvpStatus === null)).toBe(true);
+  });
+  it('shows no status when the family’s RSVPs could not be read (a guess would say RSVP on an event they are going to)', () => {
+    const cards = eventCards([tile('a')], null, null);
+    expect(cards[0].chip).toBeNull();
+  });
+  it('shows at most the limit, counted after sorting, so a reply wanted from a later event still shows', () => {
+    const tiles = Array.from({ length: 30 }, (_, i) => tile(`e${i}`));
+    const rsvps = Object.fromEntries(tiles.slice(0, 29).map((x) => [x.eventId, { status: 'confirmed', count: 2 }]));
+    const cards = eventCards(tiles, rsvps, member);
+    expect(cards).toHaveLength(RAIL_LIMIT);
+    expect(cards[0].tile.eventId).toBe('e29');
+    expect(eventCards(tiles, rsvps, member, 3)).toHaveLength(3);
+  });
+  it('sorts a reply wanted on an event that is on now like any other', () => {
+    const cards = eventCards([tile('live', { live: true, startsAt: '2026-10-02T13:00:00Z' }), tile('later')], { live: { status: 'confirmed', count: 2 } }, member);
+    expect(cards.map((c) => c.tile.eventId)).toEqual(['later', 'live']);
+  });
+  it('knows which chips want a reply', () => {
+    expect(needsReply({ kind: 'rsvp' })).toBe(true);
+    expect(needsReply({ kind: 'confirm' })).toBe(true);
+    for (const kind of ['waitlisted', 'notGoing', 'attended', 'closed', 'adultsOnly'] as const) expect(needsReply({ kind })).toBe(false);
+    expect(needsReply({ kind: 'going', count: 2 })).toBe(false);
+    expect(needsReply(null)).toBe(false);
+  });
+});
+
+describe('eventTarget and opensTickets (where an event tile goes)', () => {
+  it('opens the confirmation while a reply to "Still coming?" is wanted', () => {
+    expect(eventTarget({ kind: 'confirm' }, 'rsvpd')).toBe('confirm');
+  });
+  it('opens the tickets for any RSVP that is not cancelled (as the Events tab does), else the event, to RSVP', () => {
     for (const status of ['rsvpd', 'confirmed', 'waitlisted', 'invited', 'attended']) expect(opensTickets(status)).toBe(true);
     expect(opensTickets('cancelled')).toBe(false);
     expect(opensTickets(null)).toBe(false);
     expect(opensTickets(undefined)).toBe(false);
     expect(opensTickets('')).toBe(false);
+    expect(eventTarget({ kind: 'going', count: 2 }, 'confirmed')).toBe('tickets');
+    expect(eventTarget({ kind: 'rsvp' }, null)).toBe('event');
+    expect(eventTarget({ kind: 'notGoing' }, 'cancelled')).toBe('event');
+    // A guest has no chip and no RSVP: the event.
+    expect(eventTarget(null, null)).toBe('event');
   });
 });
 
-describe('flyersToSign (the rail keeps a flyer link while it is fresh)', () => {
+describe('eventChipText and eventChipSpoken (the chip in words, and for a screen reader)', () => {
+  const text = (chip: EventChip) => eventChipText(t, chip, 'America/Chicago');
+  const spoken = (chip: EventChip) => eventChipSpoken(t, chip, 'America/Chicago');
+
+  it('writes the chips the owner asked for: RSVP, Confirm, Going · N, Waitlisted, Not going', () => {
+    expect(text({ kind: 'rsvp' })).toBe('RSVP');
+    expect(text({ kind: 'confirm' })).toBe('Confirm');
+    expect(text({ kind: 'going', count: 3 })).toBe('Going · 3');
+    expect(text({ kind: 'waitlisted' })).toBe('Waitlisted');
+    expect(text({ kind: 'notGoing' })).toBe('Not going');
+  });
+  it('writes the rest plainly', () => {
+    expect(text({ kind: 'going', count: 0 })).toBe('Going');
+    expect(text({ kind: 'attended' })).toBe('You attended');
+    expect(text({ kind: 'closed' })).toBe('RSVPs closed');
+    expect(text({ kind: 'adultsOnly' })).toBe('Ask a parent');
+    expect(text({ kind: 'opens', on: '2026-10-12T15:00:00Z' })).toBe('RSVP opens Oct 12');
+    expect(text({ kind: 'opens', on: null })).toBe('RSVP opens soon');
+  });
+  it('reads each chip as a sentence a screen reader can use', () => {
+    expect(spoken({ kind: 'rsvp' })).toBe('RSVP: your family has not replied yet');
+    expect(spoken({ kind: 'confirm' })).toBe('Please confirm that your family is still coming');
+    expect(spoken({ kind: 'going', count: 3 })).toBe('Your family is going, 3 people');
+    expect(spoken({ kind: 'going', count: 1 })).toBe('Your family is going, 1 person');
+    expect(spoken({ kind: 'going', count: 0 })).toBe('Your family is going');
+    expect(spoken({ kind: 'waitlisted' })).toBe('Your family is on the waitlist');
+    expect(spoken({ kind: 'notGoing' })).toBe('Your family is not going');
+    expect(spoken({ kind: 'closed' })).toBe('RSVPs are closed');
+    expect(spoken({ kind: 'opens', on: '2026-10-12T15:00:00Z' })).toBe('RSVPs open on Mon, Oct 12');
+  });
+  it('never says "bid"', () => {
+    const kinds: EventChip[] = [{ kind: 'rsvp' }, { kind: 'confirm' }, { kind: 'going', count: 2 }, { kind: 'waitlisted' }, { kind: 'notGoing' }, { kind: 'attended' }, { kind: 'closed' }, { kind: 'adultsOnly' }, { kind: 'opens', on: null }];
+    for (const chip of kinds) expect(`${text(chip)} ${spoken(chip)}`).not.toMatch(/\bbid/i);
+  });
+});
+
+describe('flyersToSign (the row keeps a flyer link while it is fresh)', () => {
   const NOW = 50_000_000;
   const tile = (flyerPath: string | null) => ({ flyerPath });
 
@@ -170,76 +372,55 @@ describe('flyersToSign (the rail keeps a flyer link while it is fresh)', () => {
   });
 });
 
-const media =(id: string, kind: MediaItem['kind'], metadata: Record<string, unknown> = {}): MediaItem => {
+describe('specialDayTitle and specialDayWhen (a Plan a special day tile)', () => {
+  const member = (id: string, first: string, dob: string | null, preferred: string | null = null) => ({ person: { id, first_name: first, preferred_name: preferred, date_of_birth: dob } }) as unknown as FamilyMember;
+  const members = [member('p1', 'Malav', '1981-10-22'), member('p2', 'Anya', '2016-10-26', 'Annie')];
+  const day = (over: Record<string, unknown> = {}) => ({ label: null, person_id: null, kind: 'birthday', calendar_date: '1981-10-22', tithi: null, ...over }) as never;
+
+  it('says how old a family member turns on a birthday', () => {
+    expect(specialDayTitle(t, day({ person_id: 'p1' }), '2026-10-22', members)).toBe('Malav turns 45');
+    expect(specialDayTitle(t, day({ person_id: 'p2' }), '2026-10-26', members)).toBe('Annie turns 10');
+  });
+  it('falls back to the day’s own name: the label the family gave it, or "Anya’s birthday"', () => {
+    expect(specialDayTitle(t, day({ kind: 'anniversary', label: 'Our wedding anniversary' }), '2026-11-02', members)).toBe('Our wedding anniversary');
+    expect(specialDayTitle(t, day({ person_id: 'p2', kind: 'anniversary' }), '2026-11-02', members)).toBe("Annie's anniversary");
+    // A date of birth that is not known cannot say an age.
+    expect(specialDayTitle(t, day({ person_id: 'p3' }), '2026-10-22', [...members, member('p3', 'Priya', null)])).toBe("Priya's birthday");
+  });
+  it('gives the date and how far off it is while that is under two months', () => {
+    expect(specialDayWhen(t, '2026-10-02', '2026-10-22', 20)).toBe('Thu, Oct 22 · in 20 days');
+    expect(specialDayWhen(t, '2026-10-02', '2026-10-03', 1)).toBe('Sat, Oct 3 · Tomorrow');
+    expect(specialDayWhen(t, '2026-10-02', '2026-10-02', 0)).toBe('Fri, Oct 2 · Today');
+    expect(specialDayWhen(t, '2026-10-02', '2026-12-01', 60)).toBe('Tue, Dec 1');
+  });
+});
+
+const media = (id: string, kind: MediaItem['kind'], metadata: Record<string, unknown> = {}): MediaItem => {
   const parsed = parseMediaRow({ id, kind, title: `${kind} ${id}`, metadata, like_count: 0 });
   if (!parsed) throw new Error('bad fixture');
   return parsed;
 };
 
-describe('listenTiles (Listen)', () => {
-  it('starts with My playlist in its order, then the stavans and podcasts not on it', () => {
-    const tiles = listenTiles([media('p2', 'podcast'), media('s1', 'stavan'), media('v1', 'video')], [media('s1', 'stavan'), media('s3', 'stavan'), media('v9', 'video'), media('p4', 'podcast')]);
-    expect(tiles.map((x) => [x.item.id, x.queue])).toEqual([
-      ['p2', 'playlist'],
-      ['s1', 'playlist'],
-      ['v1', 'playlist'],
-      ['s3', 'library'],
-      ['p4', 'library'],
-    ]);
-    expect(tiles[0].key).toBe('playlist:p2');
-  });
-  it('is the library alone when the playlist is empty, and empty when there is nothing', () => {
-    expect(listenTiles([], [media('s1', 'stavan'), media('r1', 'recipe')]).map((x) => x.item.id)).toEqual(['s1']);
-    expect(listenTiles([], [])).toEqual([]);
-  });
-  it('shows at most the limit', () => {
-    const lib = Array.from({ length: 30 }, (_, i) => media(`s${i}`, 'stavan'));
-    expect(listenTiles([media('p', 'podcast')], lib, 5).map((x) => x.item.id)).toEqual(['p', 's0', 's1', 's2', 's3']);
-  });
-});
-
-describe('listenQueue (what a tap on a Listen tile plays)', () => {
-  // A long playlist (every fifth item a video) and a library that repeats one of its items.
+describe('playlistQueue (what a tap on the My playlist tile plays)', () => {
+  // A long playlist, every fifth item a video.
   const playlist = Array.from({ length: 20 }, (_, i) => media(`pl${i + 1}`, i % 5 === 4 ? 'video' : 'stavan'));
-  const library = [media('pl2', 'stavan'), ...Array.from({ length: 25 }, (_, i) => media(`s${i + 1}`, i % 2 ? 'podcast' : 'stavan'))];
 
-  it('carries a playlist tile on through the whole of My playlist, not just the tiles the rail has room for', () => {
-    const tiles = listenTiles(playlist, library);
-    expect(tiles).toHaveLength(RAIL_LIMIT);
-    expect(tiles.every((x) => x.queue === 'playlist')).toBe(true);
-    const queue = listenQueue('playlist', playlist, library);
-    // All 20 in the member's order: videos stay in (the player skips them), as in Play all on the playlist screen.
+  it('is the whole of My playlist in the member’s order, not just the few items a tile could name', () => {
+    const queue = playlistQueue(playlist);
+    // All 20: videos stay in (the player skips them), as in Play all on the playlist screen.
     expect(queue.map((x) => x.id)).toEqual(playlist.map((x) => x.id));
-    expect(queue.length).toBeGreaterThan(tiles.length);
+    expect(queue).toHaveLength(20);
+    expect(queue.length).toBeGreaterThan(RAIL_LIMIT);
   });
-  it('carries a library tile on through the stavans and podcasts that are not on the playlist', () => {
-    const queue = listenQueue('library', playlist, library);
-    expect(queue.map((x) => x.id)).not.toContain('pl2');
-    expect(queue).toHaveLength(25);
-    expect(queue.slice(0, 3).map((x) => x.id)).toEqual(['s1', 's2', 's3']);
-  });
-  it('leaves recipes out of the playlist queue, as the tiles do', () => {
-    expect(listenQueue('playlist', [media('s1', 'stavan'), media('r1', 'recipe'), media('s2', 'stavan')], []).map((x) => x.id)).toEqual(['s1', 's2']);
-  });
-  it('always has the tapped tile in its queue, so the player starts on that tile', () => {
-    const cases: { playlist: MediaItem[]; library: MediaItem[]; limit: number }[] = [
-      { playlist, library, limit: RAIL_LIMIT },
-      { playlist: [], library, limit: 5 },
-      { playlist: playlist.slice(0, 2), library, limit: 5 },
-    ];
-    for (const c of cases) {
-      for (const tile of listenTiles(c.playlist, c.library, c.limit)) {
-        expect(listenQueue(tile.queue, c.playlist, c.library).map((x) => x.id)).toContain(tile.item.id);
-      }
-    }
+  it('leaves recipes out of the queue', () => {
+    expect(playlistQueue([media('s1', 'stavan'), media('r1', 'recipe'), media('s2', 'stavan')]).map((x) => x.id)).toEqual(['s1', 's2']);
   });
   it('is empty when there is nothing to play', () => {
-    expect(listenQueue('playlist', [], [])).toEqual([]);
-    expect(listenQueue('library', [], [])).toEqual([]);
+    expect(playlistQueue([])).toEqual([]);
   });
 });
 
-describe('giveTiles (Give)', () => {
+describe('giveTiles (Giving opportunities)', () => {
   const opp = (id: string, extra: Partial<GivingOpportunity> = {}): GivingOpportunity => ({ id, name: `Opp ${id}`, kind: 'open', options: [], amount_cents: null, min_amount_cents: null, subtitle: null, campaign: { name: 'Paryushan' }, ...extra });
 
   it('makes one tile per open opportunity, in the portal order, each opening that opportunity', () => {
@@ -258,12 +439,15 @@ describe('giveTiles (Give)', () => {
     expect(giveTiles([opp('a', { subtitle: '  Sponsor a day of Paryushan  ' })])[0].detail).toBe('Sponsor a day of Paryushan');
     expect(giveTiles([opp('a', { campaign: null })])[0].detail).toBeNull();
   });
+  it('keeps the amounts in integer cents', () => {
+    for (const tile of giveTiles([opp('a', { kind: 'fixed', amount_cents: 5100 }), opp('b', { min_amount_cents: 2500 })])) expect(tile.fromCents === null || Number.isInteger(tile.fromCents)).toBe(true);
+  });
   it('is empty when nothing is open', () => {
     expect(giveTiles([])).toEqual([]);
   });
 });
 
-describe('photoTiles (Photos)', () => {
+describe('photoTiles (the newest album for the Photos tile)', () => {
   const album = (id: string, over: Partial<AlbumPreviewFields> & { external_url?: string | null } = {}): AlbumPreviewFields => ({
     album: { id, title: `Album ${id}`, created_at: '2025-12-05T12:00:00Z', external_url: over.external_url ?? null },
     event: over.event ?? null,
@@ -278,15 +462,10 @@ describe('photoTiles (Photos)', () => {
   it("dates an album by when it was made when it has no event", () => {
     expect(photoTiles([album('a')], null)[0].date).toBe('Dec 2025');
   });
-  it('opens an online album straight away when its photos live there and none are here', () => {
+  it('keeps an online album whose photos live there and none are here', () => {
     const [tile] = photoTiles([album('g', { hasMedia: false, coverPath: null, external_url: 'https://photos.app.goo.gl/abc' })], null);
     expect(tile.onlineUrl).toBe('https://photos.app.goo.gl/abc');
     expect(tile.coverPath).toBeNull();
-  });
-  it('opens the album here when it has photos here, even when it also has an online link', () => {
-    expect(photoTiles([album('g', { external_url: 'https://photos.app.goo.gl/abc' })], null)[0].onlineUrl).toBeNull();
-    // A video-only album has no cover but still has photos of its own here.
-    expect(photoTiles([album('v', { coverPath: null, external_url: 'https://photos.app.goo.gl/abc' })], null)[0]).toMatchObject({ coverPath: null, onlineUrl: null });
   });
   it('leaves out an album with nothing to open: no photo here and no online album to go to', () => {
     const tiles = photoTiles(
@@ -298,17 +477,14 @@ describe('photoTiles (Photos)', () => {
         album('online', { hasMedia: false, coverPath: null, external_url: 'https://photos.app.goo.gl/abc' }),
       ],
       null,
+      4,
     );
     expect(tiles.map((x) => x.albumId)).toEqual(['real', 'online']);
   });
-  it('counts the limit after leaving those out, so empty albums never take a place', () => {
-    const many = [...Array.from({ length: 3 }, (_, i) => album(`e${i}`, { hasMedia: false, coverPath: null })), ...Array.from({ length: 6 }, (_, i) => album(`a${i}`))];
-    expect(photoTiles(many, null, 4).map((x) => x.albumId)).toEqual(['a0', 'a1', 'a2', 'a3']);
-  });
-  it('shows at most the limit (8 albums unless asked)', () => {
-    expect(photoTiles(Array.from({ length: 20 }, (_, i) => album(`a${i}`)), null)).toHaveLength(PHOTO_TILES);
-    expect(PHOTO_TILES).toBe(8);
+  it('shows the newest one unless asked for more', () => {
+    expect(photoTiles(Array.from({ length: 20 }, (_, i) => album(`a${i}`)), null).map((x) => x.albumId)).toEqual(['a0']);
     expect(photoTiles(Array.from({ length: 20 }, (_, i) => album(`a${i}`)), null, 4)).toHaveLength(4);
+    expect(photoTiles([album('x', { hasMedia: false, coverPath: null }), album('y')], null).map((x) => x.albumId)).toEqual(['y']);
   });
 });
 
@@ -322,5 +498,62 @@ describe('recipeTiles (Fully Jain recipes)', () => {
   });
   it('shows at most the limit', () => {
     expect(recipeTiles(Array.from({ length: 20 }, (_, i) => media(`r${i}`, 'recipe', { fully_jain: true })))).toHaveLength(RAIL_LIMIT);
+    expect(recipeTiles(Array.from({ length: 20 }, (_, i) => media(`r${i}`, 'recipe', { fully_jain: true })), 1)).toHaveLength(1);
+  });
+});
+
+describe('learnListenCards (the Learn & listen row from what it loaded)', () => {
+  const goalTile = (id: string): LearningTile => ({ key: `goal:${id}`, goalId: id, levelId: `${id}-l1`, goalName: `Goal ${id}`, levelName: 'One', levelNumber: 1, levelsTotal: 3, progress: 0.2, started: true, recommended: false, tint: null, mark: id });
+  const album = (id: string): PhotoTile => ({ key: `album:${id}`, albumId: id, title: `Album ${id}`, coverPath: null, onlineUrl: null, date: 'Sep 2026' });
+  const ALL = ['learning', 'playlist', 'podcasts', 'recipes', 'photos'] as const;
+  const full: LearnListenParts = {
+    learning: { ok: true, value: [goalTile('a'), goalTile('b')] },
+    playlist: { ok: true, value: { items: [media('s1', 'stavan'), media('v1', 'video'), media('r1', 'recipe')], fallback: false } },
+    podcasts: { ok: true, value: [media('p1', 'podcast'), media('p2', 'podcast')] },
+    recipes: { ok: true, value: [media('r2', 'recipe', { fully_jain: false }), media('r3', 'recipe', { fully_jain: true })] },
+    photos: { ok: true, value: [album('a1')] },
+  };
+
+  it('makes one card per tile, in order: the first goal to continue, the playlist, the newest podcast, the newest fully Jain recipe, the newest album', () => {
+    const cards = learnListenCards(ALL, full);
+    expect(cards.map((c) => c.kind)).toEqual(['learning', 'playlist', 'podcasts', 'recipes', 'photos']);
+    expect(cards[0]).toMatchObject({ kind: 'learning', tile: { goalId: 'a' } });
+    // The playlist counts what a tap queues: the stavan and the video, not the recipe.
+    expect(cards[1]).toEqual({ kind: 'playlist', key: 'playlist', count: 2 });
+    expect(cards[2]).toMatchObject({ kind: 'podcasts', latest: { id: 'p1' } });
+    expect(cards[3]).toMatchObject({ kind: 'recipes', latest: { id: 'r3' } });
+    expect(cards[4]).toMatchObject({ kind: 'photos', latest: { albumId: 'a1' } });
+  });
+  it('only makes the cards for the tiles it is asked for', () => {
+    expect(learnListenCards(['recipes', 'photos'], full).map((c) => c.kind)).toEqual(['recipes', 'photos']);
+    expect(learnListenCards([], full)).toEqual([]);
+  });
+  it('leaves out a tile with nothing behind it: nothing to continue, no podcast, no fully Jain recipe, no album', () => {
+    const empty: LearnListenParts = { learning: { ok: true, value: [] }, playlist: { ok: true, value: { items: [], fallback: false } }, podcasts: { ok: true, value: [] }, recipes: { ok: true, value: [media('r2', 'recipe', { fully_jain: false })] }, photos: { ok: true, value: [] } };
+    expect(learnListenCards(ALL, empty)).toEqual([]);
+    // An empty playlist stays while the library has something to play instead: the playlist screen offers the most-liked stavans.
+    expect(learnListenCards(ALL, { ...empty, playlist: { ok: true, value: { items: [], fallback: true } } })).toEqual([{ kind: 'playlist', key: 'playlist', count: 0 }]);
+  });
+  it('never takes a tile away because a load failed (a feature is not hidden by our own error), except Continue learning, which has no level to open without it', () => {
+    const failed: LearnListenParts = { learning: { ok: false }, playlist: { ok: false }, podcasts: { ok: false }, recipes: { ok: false }, photos: { ok: false } };
+    const cards = learnListenCards(ALL, failed);
+    expect(cards.map((c) => c.kind)).toEqual(['playlist', 'podcasts', 'recipes', 'photos']);
+    expect(cards[0]).toEqual({ kind: 'playlist', key: 'playlist', count: null });
+    expect(cards[1]).toMatchObject({ latest: null });
+  });
+  it('treats a load that was not asked for like one that failed', () => {
+    expect(learnListenCards(['podcasts'], {}).map((c) => c.kind)).toEqual(['podcasts']);
+  });
+});
+
+describe('jainWayLabel (the spoken label of the My Jain Way tile)', () => {
+  const words = { done: 0, total: 2, points: 1264, community: 'JSH', streak: '2-day streak', next: 'Navkar Mantra on waking' };
+
+  it('says the numbers the navy card shows, then what is next', () => {
+    expect(jainWayLabel(t, words)).toBe('My Jain Way. 0 of 2 done. 1,264 JSH points. 2-day streak. Next: Navkar Mantra on waking');
+  });
+  it('says so when everything is done, and asks to choose practices when there are none', () => {
+    expect(jainWayLabel(t, { ...words, done: 2, next: null })).toContain('All practices done today');
+    expect(jainWayLabel(t, { ...words, total: 0, done: 0, next: null })).toContain('Choose the practices');
   });
 });

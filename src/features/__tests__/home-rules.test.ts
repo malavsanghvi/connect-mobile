@@ -1,34 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { specialDayDismissKey } from '../event-rules';
-import { homeSpecialDays, nextSpecialDay, reminderSpecialDay, upNextItems, type UpNextInput } from '../home-rules';
-
-describe('upNextItems', () => {
-  const all = { confirm: true, lunch: true, nextEvent: true, specialDay: true };
-  const base: UpNextInput = { confirmEventId: null, lunchEventId: null, nextEventId: null, specialDayId: null, show: all };
-
-  it('is empty when nothing is coming (the card is hidden)', () => {
-    expect(upNextItems(base)).toEqual([]);
-  });
-  it('lists the confirm, lunch, next event and special day, in that order', () => {
-    expect(upNextItems({ ...base, confirmEventId: 'e1', lunchEventId: 'e2', nextEventId: 'e3', specialDayId: 'd1' })).toEqual(['confirm', 'lunch', 'nextEvent', 'specialDay']);
-    expect(upNextItems({ ...base, nextEventId: 'e3', specialDayId: 'd1' })).toEqual(['nextEvent', 'specialDay']);
-    expect(upNextItems({ ...base, specialDayId: 'd1' })).toEqual(['specialDay']);
-  });
-  it('shows an event once: the next event is left out when it is the one to confirm or with lunch times', () => {
-    expect(upNextItems({ ...base, confirmEventId: 'e1', nextEventId: 'e1' })).toEqual(['confirm']);
-    expect(upNextItems({ ...base, lunchEventId: 'e1', nextEventId: 'e1' })).toEqual(['lunch']);
-    expect(upNextItems({ ...base, confirmEventId: 'e1', nextEventId: 'e2' })).toEqual(['confirm', 'nextEvent']);
-  });
-  it('follows the community modules and the adults-only rules (show)', () => {
-    const items = { ...base, confirmEventId: 'e1', lunchEventId: 'e2', nextEventId: 'e1', specialDayId: 'd1' };
-    // A child or a guest: no confirm, lunch or special day, so the next event shows even when it is the one to confirm.
-    expect(upNextItems({ ...items, show: { nextEvent: true } })).toEqual(['nextEvent']);
-    // Events switched off: only the special day.
-    expect(upNextItems({ ...items, show: { specialDay: true } })).toEqual(['specialDay']);
-    expect(upNextItems({ ...items, show: {} })).toEqual([]);
-  });
-});
+import { SPECIAL_DAY_LIMIT, SPECIAL_DAY_WINDOW_DAYS } from '../home-rail-items';
+import { homeSpecialDays, upcomingSpecialDays } from '../home-rules';
 
 type Day = { id: string; show_on_home: boolean; reminder_days_before: number };
 const day = (id: string, extra: Partial<Day> = {}): Day => ({ id, show_on_home: true, reminder_days_before: 14, ...extra });
@@ -46,30 +20,66 @@ describe('special days on Home', () => {
   it('keeps the days shown on Home with a known date, soonest first', () => {
     expect(homeSpecialDays(rows, []).map((r) => r.day.id)).toEqual(['soon', 'later', 'far']);
   });
-  it('leaves out an occurrence hidden with "Not this year"', () => {
+  it('leaves out an occurrence hidden with "Not this year" (a choice made earlier on this device)', () => {
     expect(homeSpecialDays(rows, [specialDayDismissKey('soon', '2026-10-08')]).map((r) => r.day.id)).toEqual(['later', 'far']);
     // Last year's choice does not hide this year's.
     expect(homeSpecialDays(rows, [specialDayDismissKey('soon', '2025-10-08')]).map((r) => r.day.id)).toEqual(['soon', 'later', 'far']);
   });
+});
 
-  it('Up next reminds about the soonest day whose reminder window has started', () => {
-    expect(reminderSpecialDay(rows, TODAY, [])?.day.id).toBe('soon');
-    expect(reminderSpecialDay([{ day: day('a', { reminder_days_before: 3 }), next: '2026-10-08' }], TODAY, [])).toBeNull();
-    expect(reminderSpecialDay([{ day: day('a', { reminder_days_before: 0 }), next: TODAY }], TODAY, [])?.day.id).toBe('a');
-    expect(reminderSpecialDay(rows, TODAY, [specialDayDismissKey('soon', '2026-10-08')])).toBeNull();
-    expect(reminderSpecialDay([], TODAY, [])).toBeNull();
+describe('upcomingSpecialDays (the Plan a special day row)', () => {
+  it('shows the days of the next two months, soonest first, and nothing further off', () => {
+    expect(SPECIAL_DAY_WINDOW_DAYS).toBe(60);
+    const rows = [
+      { day: day('december'), next: '2026-12-15' },
+      { day: day('soon'), next: '2026-10-08' },
+      { day: day('november'), next: '2026-11-20' },
+      { day: day('edge'), next: '2026-12-01' },
+      { day: day('just-over'), next: '2026-12-02' },
+    ];
+    expect(upcomingSpecialDays(rows, [], TODAY).map((r) => [r.day.id, r.inDays])).toEqual([
+      ['soon', 6],
+      ['november', 49],
+      ['edge', 60],
+    ]);
   });
-
-  it('the Plan card offers the next day however far off', () => {
-    expect(nextSpecialDay(rows, [])?.day.id).toBe('soon');
-    expect(nextSpecialDay([{ day: day('far'), next: '2027-03-14' }], [])?.next).toBe('2027-03-14');
+  it('counts today, and leaves out a day already gone', () => {
+    const rows = [
+      { day: day('today'), next: TODAY },
+      { day: day('yesterday'), next: '2026-10-01' },
+    ];
+    expect(upcomingSpecialDays(rows, [], TODAY).map((r) => r.day.id)).toEqual(['today']);
   });
-  it('the Plan card skips the day Up next already shows, and is empty when that was the only one', () => {
-    expect(nextSpecialDay(rows, [], 'soon')?.day.id).toBe('later');
-    expect(nextSpecialDay([{ day: day('soon'), next: '2026-10-08' }], [], 'soon')).toBeNull();
-    expect(nextSpecialDay([], [])).toBeNull();
+  it('is empty when nothing is coming, which hides the whole row', () => {
+    expect(upcomingSpecialDays([], [], TODAY)).toEqual([]);
+    expect(upcomingSpecialDays([{ day: day('far'), next: '2027-03-14' }], [], TODAY)).toEqual([]);
   });
-  it('the Plan card skips a day hidden with "Not this year"', () => {
-    expect(nextSpecialDay(rows, [specialDayDismissKey('soon', '2026-10-08')])?.day.id).toBe('later');
+  it('leaves out a day the family does not show on Home, one whose date is not known yet, and one hidden with "Not this year"', () => {
+    const rows = [
+      { day: day('off', { show_on_home: false }), next: '2026-10-08' },
+      { day: day('tithi'), next: null },
+      { day: day('hidden'), next: '2026-10-09' },
+      { day: day('shown'), next: '2026-10-10' },
+    ];
+    expect(upcomingSpecialDays(rows, [specialDayDismissKey('hidden', '2026-10-09')], TODAY).map((r) => r.day.id)).toEqual(['shown']);
+  });
+  it('shows at most ten, the soonest', () => {
+    expect(SPECIAL_DAY_LIMIT).toBe(10);
+    const rows = Array.from({ length: 14 }, (_, i) => ({ day: day(`d${String(i).padStart(2, '0')}`), next: `2026-10-${String(i + 3).padStart(2, '0')}` }));
+    const shown = upcomingSpecialDays(rows, [], TODAY);
+    expect(shown).toHaveLength(10);
+    expect(shown[0].day.id).toBe('d00');
+    expect(shown[9].day.id).toBe('d09');
+    expect(upcomingSpecialDays(rows, [], TODAY, 60, 3)).toHaveLength(3);
+  });
+  it('lists two days on the same date in a steady order', () => {
+    const rows = [
+      { day: day('b'), next: '2026-10-08' },
+      { day: day('a'), next: '2026-10-08' },
+    ];
+    expect(upcomingSpecialDays(rows, [], TODAY).map((r) => r.day.id)).toEqual(['a', 'b']);
+  });
+  it('shows nothing before the community’s date is known', () => {
+    expect(upcomingSpecialDays([{ day: day('a'), next: '2026-10-08' }], [], '')).toEqual([]);
   });
 });

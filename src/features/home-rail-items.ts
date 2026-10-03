@@ -1,20 +1,27 @@
 /**
- * The tiles of each Home rail, built from the data the rail loads (pure: no
+ * The tiles of each Home row, built from the data the row loads (pure: no
  * React, no Supabase; unit-tested in src/features/__tests__/home-rail-items.test.ts).
- * Which rails show and how big their tiles are: src/lib/home-rails.ts.
+ * Which rows show and how big their tiles are: src/lib/home-rails.ts.
  */
+import type { Translate } from '@/i18n';
 import { albumLeadsSomewhere, onlineAlbumUrl } from '@/lib/album-open';
+import type { SpecialDay } from '@/lib/api/family';
+import type { FamilyMember } from '@/lib/api/member';
 import { needsResign } from '@/lib/flyer';
+import { formatDate, formatDay, monthName, parseISODate, zonedParts } from '@/lib/format';
+import type { LearnListenTile } from '@/lib/home-rails';
 import { onlyFullyJain, type MediaItem } from '@/lib/media-library';
 
-import { albumDate } from './event-rules';
+import { albumDate, turnsAge } from './event-rules';
 import { fromAmountCents, opportunityKind } from './give/rules';
+import { listDisplayName, whenText } from './special-days';
 
-/** At most this many tiles in a rail ("See all" has the rest). */
+/** At most this many tiles in a row ("See all" has the rest). */
 export const RAIL_LIMIT = 12;
 
-/** Photos shows fewer: each album's cover is a request of its own (api/photos listAlbumPreviews). */
-export const PHOTO_TILES = 8;
+/** Plan a special day shows the days of the next two months, at most this many. */
+export const SPECIAL_DAY_LIMIT = 10;
+export const SPECIAL_DAY_WINDOW_DAYS = 60;
 
 // ---------------------------------------------------------------------------
 // Continue learning (Gyan Path)
@@ -60,10 +67,11 @@ export type LearningTile = {
 /**
  * "Continue learning": the member's unfinished goals, each opening its next
  * level. The goals they are working on come first, the most recent first
- * (so the first tile is the level the old Learn shortcut opened: api/gyan
+ * (so the first one is the level the old Learn shortcut opened: api/gyan
  * nextGyanLevel), then the recommended ones, then the rest in the
  * community's order. Finished goals, and goals without levels yet, are left
- * out; with nothing left the rail is hidden.
+ * out; with nothing left there is no Continue learning tile. The Learn &
+ * listen row shows the first one.
  */
 export function learningTiles(goals: readonly LearningGoalInput[], limit = RAIL_LIMIT): LearningTile[] {
   const open = goals
@@ -93,10 +101,29 @@ export function learningTiles(goals: readonly LearningGoalInput[], limit = RAIL_
 }
 
 // ---------------------------------------------------------------------------
-// Upcoming events
+// Plan a special day
 // ---------------------------------------------------------------------------
 
-/** The event fields a tile is built from (app.events). */
+/** "Malav turns 45" for a birthday of a family member whose date of birth is known, else the day's own name ("Anya's birthday", the label the family gave it). */
+export function specialDayTitle(t: Translate, day: Pick<SpecialDay, 'label' | 'person_id' | 'kind' | 'calendar_date' | 'tithi'>, next: string, members: FamilyMember[]): string {
+  const person = day.person_id ? (members.find((m) => m.person.id === day.person_id)?.person ?? null) : null;
+  const age = day.kind === 'birthday' && person ? turnsAge(person.date_of_birth, next) : null;
+  return person && age != null ? t('home.turns', { name: person.preferred_name || person.first_name, age }) : listDisplayName(t, day, members);
+}
+
+/** "Thu, Oct 22 · in 20 days": the date, with how far off it is while that is under two months (a far day shows the date alone). */
+export function specialDayWhen(t: Translate, today: string, next: string, inDays: number): string {
+  return inDays < SPECIAL_DAY_WINDOW_DAYS ? `${formatDay(next)} · ${whenText(t, today, next)}` : formatDay(next);
+}
+
+// ---------------------------------------------------------------------------
+// Events, with the family's RSVP
+// ---------------------------------------------------------------------------
+
+/** Why an RSVP cannot be made right now (api/events rsvpBlockReason), or null when it can. */
+export type RsvpBlock = 'not_open_yet' | 'closed' | 'past' | null;
+
+/** The event fields a tile is built from (app.events, plus the RSVP block that api/events rsvpBlockReason works out). */
 export type EventTileFields = {
   id: string;
   name: string;
@@ -105,6 +132,11 @@ export type EventTileFields = {
   ends_at: string | null;
   status: string;
   flyer_path: string | null;
+  rsvp_block: RsvpBlock;
+  /** When RSVPs open: "RSVP opens Oct 12" while they have not opened yet. */
+  rsvp_opens_at: string | null;
+  /** How long before the start the family is asked "Still coming?" (hours). */
+  confirmation_hours_before: number;
 };
 
 export type EventTile = {
@@ -116,15 +148,19 @@ export type EventTile = {
   /** events.flyer_path, trimmed; null for the designed tile. */
   flyerPath: string | null;
   live: boolean;
+  rsvpBlock: RsvpBlock;
+  rsvpOpensAt: string | null;
+  confirmHoursBefore: number;
 };
 
 /**
- * "Upcoming events", soonest first (the order listUpcomingEvents returns):
- * an event on now (live, or started and not over yet) or still to come.
- * Finished events are left out, as are any the list still carries from the
- * last twelve hours. RLS has already narrowed a guest's list to public events.
+ * The events the row can show, soonest first (the order listUpcomingEvents
+ * returns): an event on now (live, or started and not over yet) or still to
+ * come. Finished events are left out, as are any the list still carries from
+ * the last twelve hours. RLS has already narrowed a guest's list to public
+ * events. The row's own cap comes after the RSVPs are known (eventCards).
  */
-export function eventTiles(events: readonly EventTileFields[], now: Date, limit = RAIL_LIMIT): EventTile[] {
+export function eventTiles(events: readonly EventTileFields[], now: Date): EventTile[] {
   const t = now.getTime();
   const at = (s: string | null) => (s ? new Date(s).getTime() : NaN);
   return events
@@ -135,7 +171,6 @@ export function eventTiles(events: readonly EventTileFields[], now: Date, limit 
       const end = at(e.ends_at);
       return (Number.isFinite(start) && start >= t) || (Number.isFinite(end) && end >= t);
     })
-    .slice(0, Math.max(0, limit))
     .map((e) => ({
       key: `event:${e.id}`,
       eventId: e.id,
@@ -144,6 +179,9 @@ export function eventTiles(events: readonly EventTileFields[], now: Date, limit 
       startsAt: e.starts_at,
       flyerPath: e.flyer_path?.trim() || null,
       live: e.status === 'live',
+      rsvpBlock: e.rsvp_block,
+      rsvpOpensAt: e.rsvp_opens_at,
+      confirmHoursBefore: e.confirmation_hours_before,
     }));
 }
 
@@ -154,7 +192,7 @@ export type SignedFlyer = { url: string; signedAt: number };
  * The flyers that need a signed link now: those with none kept, or one too old
  * to rely on (flyer.ts needsResign). The flyer behind a path never changes, so a
  * link that is still fresh is kept rather than signed again: a new token makes
- * a browser download the whole image again on every reload of the rail
+ * a browser download the whole image again on every reload of the row
  * (expo-image's cacheKey only works on a phone). Each path once.
  */
 export function flyersToSign(tiles: readonly Pick<EventTile, 'flyerPath'>[], kept: ReadonlyMap<string, SignedFlyer>, now: number): string[] {
@@ -167,13 +205,107 @@ export function flyersToSign(tiles: readonly Pick<EventTile, 'flyerPath'>[], kep
   return [...paths];
 }
 
-/** What the family's RSVP says on an event's poster. */
-export type EventMark = 'going' | 'waitlisted' | null;
+/** The household's RSVP to one event: its status (app.rsvps.status) and how many people are on it (attendees not cancelled). */
+export type RsvpFacts = { status: string; count: number };
 
-/** "You're going" for an RSVP that is in (rsvpd, confirmed or attended), "waitlisted" on the waitlist; nothing for no RSVP, a cancelled one or an invitation not yet answered. */
-export function eventMark(rsvpStatus: string | null | undefined): EventMark {
-  if (rsvpStatus === 'rsvpd' || rsvpStatus === 'confirmed' || rsvpStatus === 'attended') return 'going';
-  return rsvpStatus === 'waitlisted' ? 'waitlisted' : null;
+/**
+ * What the family's RSVP says on an event's tile:
+ *
+ * - `rsvp`: no reply yet and RSVPs are open (an invitation not answered counts as no reply); the highlighted
+ *   one, and the tiles with it come first;
+ * - `confirm`: RSVP made, and the event is inside its confirmation window (the old Up next "Please confirm"),
+ *   also first;
+ * - `going` (with the number of people), `waitlisted`, `notGoing`, `attended`;
+ * - `opens` (RSVPs not open yet) and `closed` for no RSVP when none can be made;
+ * - `adultsOnly`: a child's login with no RSVP; RSVPs are made by an adult in the family.
+ */
+export type EventChip =
+  | { kind: 'rsvp' | 'confirm' | 'waitlisted' | 'notGoing' | 'attended' | 'closed' | 'adultsOnly' }
+  | { kind: 'going'; count: number }
+  | { kind: 'opens'; on: string | null };
+
+export type EventChipKind = EventChip['kind'];
+
+/** Whether the event starts within its confirmation window (more than 0 and at most `confirmHoursBefore` hours away). */
+export function inConfirmWindow(tile: Pick<EventTile, 'startsAt' | 'confirmHoursBefore'>, now: Date): boolean {
+  if (!tile.startsAt) return false;
+  const hoursLeft = (new Date(tile.startsAt).getTime() - now.getTime()) / 3600000;
+  return Number.isFinite(hoursLeft) && hoursLeft > 0 && hoursLeft <= tile.confirmHoursBefore;
+}
+
+export function eventChip(tile: EventTile, rsvp: RsvpFacts | null, who: { now: Date; adult: boolean }): EventChip {
+  switch (rsvp?.status) {
+    case 'waitlisted':
+      return { kind: 'waitlisted' };
+    case 'cancelled':
+    case 'no_show':
+      return { kind: 'notGoing' };
+    case 'attended':
+      return { kind: 'attended' };
+    case 'confirmed':
+      return { kind: 'going', count: rsvp.count };
+    case 'rsvpd':
+      return inConfirmWindow(tile, who.now) ? { kind: 'confirm' } : { kind: 'going', count: rsvp.count };
+    default:
+      if (tile.rsvpBlock === 'not_open_yet') return { kind: 'opens', on: tile.rsvpOpensAt };
+      if (tile.rsvpBlock === 'closed' || tile.rsvpBlock === 'past') return { kind: 'closed' };
+      return { kind: who.adult ? 'rsvp' : 'adultsOnly' };
+  }
+}
+
+/** "Oct 12" at the center: the date alone, where formatDate also names the weekday and a small chip has no room for it. */
+function monthDay(ts: string | null | undefined, tz: string | null): string {
+  if (!ts) return '';
+  const p = parseISODate(zonedParts(new Date(ts), tz).iso);
+  return p ? `${monthName(p.m)} ${p.d}` : '';
+}
+
+/** The chip on an event tile: "RSVP", "Confirm", "Going · 3", "Waitlisted", "Not going", "You attended", "RSVPs closed", "RSVP opens Oct 12", "Ask a parent". */
+export function eventChipText(t: Translate, chip: EventChip, tz: string | null): string {
+  switch (chip.kind) {
+    case 'rsvp':
+      return t('home.event.rsvp');
+    case 'confirm':
+      return t('home.event.confirm');
+    case 'going':
+      return chip.count > 0 ? t('home.event.going', { n: chip.count }) : t('home.event.goingNone');
+    case 'waitlisted':
+      return t('home.event.waitlisted');
+    case 'notGoing':
+      return t('home.event.notGoing');
+    case 'attended':
+      return t('home.event.attended');
+    case 'closed':
+      return t('home.event.closed');
+    case 'opens':
+      return chip.on ? t('home.event.opens', { date: monthDay(chip.on, tz) }) : t('home.event.opensSoon');
+    case 'adultsOnly':
+      return t('home.event.adultsOnly');
+  }
+}
+
+/** The same chip as a sentence for a screen reader ("Your family is going, 3 people"), so the tile is read with its status. */
+export function eventChipSpoken(t: Translate, chip: EventChip, tz: string | null): string {
+  switch (chip.kind) {
+    case 'rsvp':
+      return t('home.event.rsvpSpoken');
+    case 'confirm':
+      return t('home.event.confirmSpoken');
+    case 'going':
+      return chip.count > 0 ? t('home.event.goingSpoken', { people: chip.count === 1 ? t('home.person') : t('home.people', { n: chip.count }) }) : t('home.event.goingNoneSpoken');
+    case 'waitlisted':
+      return t('home.event.waitlistedSpoken');
+    case 'notGoing':
+      return t('home.event.notGoingSpoken');
+    case 'attended':
+      return t('home.event.attendedSpoken');
+    case 'closed':
+      return t('home.event.closedSpoken');
+    case 'opens':
+      return chip.on ? t('home.event.opensSpoken', { date: formatDate(chip.on, tz) }) : t('home.event.opensSoon');
+    case 'adultsOnly':
+      return t('home.event.adultsOnlySpoken');
+  }
 }
 
 /** Whether the family has tickets to open (any RSVP that is not cancelled, as the Events tab decides): the tile then opens the tickets, else the event, to RSVP. */
@@ -181,50 +313,43 @@ export function opensTickets(rsvpStatus: string | null | undefined): boolean {
   return !!rsvpStatus && rsvpStatus !== 'cancelled';
 }
 
-// ---------------------------------------------------------------------------
-// Listen
-// ---------------------------------------------------------------------------
+/** Where an event tile goes: the confirm screen while a reply is wanted, the family's tickets once it has an RSVP, else the event (to RSVP, or to read, for a guest). */
+export type EventTarget = 'event' | 'tickets' | 'confirm';
 
-export type ListenTile = {
-  key: string;
-  item: MediaItem;
-  /** Which queue a tap plays: the member's playlist, or the stavans and podcasts after it. */
-  queue: 'playlist' | 'library';
+export function eventTarget(chip: EventChip | null, rsvpStatus: string | null | undefined): EventTarget {
+  if (chip?.kind === 'confirm') return 'confirm';
+  return opensTickets(rsvpStatus) ? 'tickets' : 'event';
+}
+
+export type EventCard = {
+  tile: EventTile;
+  /** null for a guest: no RSVP status. */
+  chip: EventChip | null;
+  rsvpStatus: string | null;
 };
 
-/**
- * "Listen": My playlist first, in the member's order, then the community's
- * newest stavans and podcasts that are not on it. Each tile plays its own
- * queue from that tile (a playlist tile carries on through the playlist).
- */
-export function listenTiles(playlist: readonly MediaItem[], library: readonly MediaItem[], limit = RAIL_LIMIT): ListenTile[] {
-  const seen = new Set<string>();
-  const out: ListenTile[] = [];
-  const add = (item: MediaItem, queue: ListenTile['queue']) => {
-    if (seen.has(item.id) || out.length >= limit) return;
-    seen.add(item.id);
-    out.push({ key: `${queue}:${item.id}`, item, queue });
-  };
-  for (const item of playlist) if (item.kind !== 'recipe') add(item, 'playlist');
-  for (const item of library) if (item.kind === 'stavan' || item.kind === 'podcast') add(item, 'library');
-  return out;
+/** Whether a reply is wanted from the family: they come first. */
+export function needsReply(chip: EventChip | null): boolean {
+  return chip?.kind === 'rsvp' || chip?.kind === 'confirm';
 }
 
 /**
- * What a tap on a Listen tile plays, from that tile on: for a playlist tile the
- * whole of My playlist (as Play all there does), for the others the stavans and
- * podcasts that are not on it. These come from the full lists the rail loaded,
- * not from its tiles: the rail has room for twelve, and a tap must not leave
- * the player stopping after them. (The tile's own item is always in it.)
+ * The cards of the Events row. A signed-in member (`who`) gets the family's RSVP status on every tile, and the
+ * events that want a reply (RSVP, Confirm) come first, each group in date order. A guest (`who` null, no
+ * `rsvps`) gets the public events in date order with no status. At most `limit` cards, counted after sorting.
  */
-export function listenQueue(queue: ListenTile['queue'], playlist: readonly MediaItem[], library: readonly MediaItem[]): MediaItem[] {
-  if (queue === 'playlist') return playlist.filter((item) => item.kind !== 'recipe');
-  const onPlaylist = new Set(playlist.map((item) => item.id));
-  return library.filter((item) => (item.kind === 'stavan' || item.kind === 'podcast') && !onPlaylist.has(item.id));
+export function eventCards(tiles: readonly EventTile[], rsvps: Readonly<Record<string, RsvpFacts>> | null, who: { now: Date; adult: boolean } | null, limit = RAIL_LIMIT): EventCard[] {
+  const cards = tiles.map((tile): EventCard => {
+    const rsvp = who ? (rsvps?.[tile.eventId] ?? null) : null;
+    return { tile, chip: who ? eventChip(tile, rsvp, who) : null, rsvpStatus: rsvp?.status ?? null };
+  });
+  const first = cards.filter((c) => needsReply(c.chip));
+  const rest = cards.filter((c) => !needsReply(c.chip));
+  return [...first, ...rest].slice(0, Math.max(0, limit));
 }
 
 // ---------------------------------------------------------------------------
-// Give
+// Giving opportunities
 // ---------------------------------------------------------------------------
 
 /** The fields of an open opportunity (with its published campaign) a tile is built from. */
@@ -253,8 +378,8 @@ export type GiveTile = {
 };
 
 /**
- * "Give": every open opportunity in the portal's order, one tile each,
- * showing the amount the Give list shows (fromAmountCents).
+ * "Giving opportunities": every open opportunity in the portal's order, one
+ * tile each, showing the amount the Give list shows (fromAmountCents).
  */
 export function giveTiles(opps: readonly GivingOpportunity[], limit = RAIL_LIMIT): GiveTile[] {
   return opps.slice(0, Math.max(0, limit)).map((opp) => {
@@ -271,8 +396,17 @@ export function giveTiles(opps: readonly GivingOpportunity[], limit = RAIL_LIMIT
 }
 
 // ---------------------------------------------------------------------------
-// Photos
+// Learn & listen
 // ---------------------------------------------------------------------------
+
+/**
+ * What a tap on the My playlist tile queues: the whole of My playlist in the member's order, as Play all on
+ * the playlist screen does (videos stay in, the player skips them; recipes are not part of it). It comes from
+ * the full list the row loaded, not from any smaller set of tiles.
+ */
+export function playlistQueue(playlist: readonly MediaItem[]): MediaItem[] {
+  return playlist.filter((item) => item.kind !== 'recipe');
+}
 
 /** The fields of an album a tile is built from (api/photos AlbumPreview). */
 export type AlbumPreviewFields = {
@@ -289,18 +423,18 @@ export type PhotoTile = {
   albumId: string;
   title: string;
   coverPath: string | null;
-  /** The online album (Google Photos, https) the tile opens when its photos live there; null opens the album here. */
+  /** The online album (Google Photos, https) when its photos live there; null when the album opens here. */
   onlineUrl: string | null;
   /** "Sep 12, 2026" (event-rules albumDate). */
   date: string;
 };
 
 /**
- * "Photos": the newest albums, in the Photos grid's order, each with its
- * first photo as the cover. An album with nothing to open (no photo here and
- * no online album to go to) is left out: a tile must lead somewhere.
+ * The newest albums, in the Photos grid's order, each with its first photo
+ * as the cover. An album with nothing to open (no photo here and no online
+ * album to go to) is left out. The Learn & listen row shows the first one.
  */
-export function photoTiles(albums: readonly AlbumPreviewFields[], tz: string | null, limit = PHOTO_TILES): PhotoTile[] {
+export function photoTiles(albums: readonly AlbumPreviewFields[], tz: string | null, limit = 1): PhotoTile[] {
   return albums
     .map((a) => ({ a, like: { album: a.album, photos: a.hasMedia ? 1 : 0, videos: 0 } }))
     .filter(({ like }) => albumLeadsSomewhere(like))
@@ -315,11 +449,106 @@ export function photoTiles(albums: readonly AlbumPreviewFields[], tz: string | n
     }));
 }
 
-// ---------------------------------------------------------------------------
-// Recipes
-// ---------------------------------------------------------------------------
-
-/** "Recipes": fully Jain recipes only (no root vegetables, onion, garlic…), in the order given (newest first). */
+/** Fully Jain recipes only (no root vegetables, onion, garlic…), in the order given (newest first). */
 export function recipeTiles(items: readonly MediaItem[], limit = RAIL_LIMIT): MediaItem[] {
   return onlyFullyJain(items.filter((i) => i.kind === 'recipe')).slice(0, Math.max(0, limit));
+}
+
+/** What one of the row's loads found: its value, or that it could not be had. A load that was not asked for (its tile is not shown) is absent. */
+export type Part<T> = { ok: true; value: T } | { ok: false };
+
+export type LearnListenParts = {
+  /** learningTiles(…): the goals to continue. */
+  learning?: Part<LearningTile[]>;
+  /** My playlist, in the member's order; `fallback` says the library has something to play when it is empty (the playlist screen offers the most-liked stavans then). */
+  playlist?: Part<{ items: MediaItem[]; fallback: boolean }>;
+  /** The community's podcasts, newest first. */
+  podcasts?: Part<MediaItem[]>;
+  /** The community's recipes, newest first (the fully Jain ones are picked here). */
+  recipes?: Part<MediaItem[]>;
+  /** photoTiles(…): the newest album that opens somewhere. */
+  photos?: Part<PhotoTile[]>;
+};
+
+export type LearnListenCard =
+  | { kind: 'learning'; key: string; tile: LearningTile }
+  | { kind: 'playlist'; key: string; count: number | null }
+  | { kind: 'podcasts'; key: string; latest: MediaItem | null }
+  | { kind: 'recipes'; key: string; latest: MediaItem | null }
+  | { kind: 'photos'; key: string; latest: PhotoTile | null };
+
+/**
+ * The cards of the Learn & listen row, for the tiles this person may use (`order`, from learnListenTiles).
+ * A tile with nothing behind it is left out: no goal left to continue, no podcast, no fully Jain recipe, no album, and
+ * no playlist when it is empty and the library has nothing to offer instead.
+ * A load that failed never takes its tile away (a feature is not hidden because of our own error, and the row
+ * says what went wrong): the tile shows without the details it could not get. Continue learning is the one
+ * exception, because without the goals there is no level to open; the row's notice carries the error.
+ */
+export function learnListenCards(order: readonly LearnListenTile[], parts: LearnListenParts): LearnListenCard[] {
+  const out: LearnListenCard[] = [];
+  for (const kind of order) {
+    switch (kind) {
+      case 'learning': {
+        const tile = parts.learning?.ok ? parts.learning.value[0] : undefined;
+        if (tile) out.push({ kind, key: 'learning', tile });
+        break;
+      }
+      case 'playlist': {
+        const p = parts.playlist;
+        if (p?.ok) {
+          const count = playlistQueue(p.value.items).length;
+          if (count > 0 || p.value.fallback) out.push({ kind, key: 'playlist', count });
+        } else out.push({ kind, key: 'playlist', count: null });
+        break;
+      }
+      case 'podcasts': {
+        const p = parts.podcasts;
+        if (p?.ok) {
+          const latest = p.value.find((i) => i.kind === 'podcast') ?? null;
+          if (latest) out.push({ kind, key: 'podcasts', latest });
+        } else out.push({ kind, key: 'podcasts', latest: null });
+        break;
+      }
+      case 'recipes': {
+        const p = parts.recipes;
+        if (p?.ok) {
+          const latest = recipeTiles(p.value, 1)[0] ?? null;
+          if (latest) out.push({ kind, key: 'recipes', latest });
+        } else out.push({ kind, key: 'recipes', latest: null });
+        break;
+      }
+      case 'photos': {
+        const p = parts.photos;
+        if (p?.ok) {
+          const latest = p.value[0] ?? null;
+          if (latest) out.push({ kind, key: 'photos', latest });
+        } else out.push({ kind, key: 'photos', latest: null });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// My Jain Way tile
+// ---------------------------------------------------------------------------
+
+/** What the spoken label of the My Jain Way tile says (the numbers the navy card shows). */
+export type JainWayWords = {
+  done: number;
+  total: number;
+  points: number;
+  community: string;
+  /** The streak, in words ("2-day streak"). */
+  streak: string;
+  /** The first practice not done yet, with its time ("Navkar Mantra on waking"), or null. */
+  next: string | null;
+};
+
+/** "My Jain Way. 0 of 2 done. 264 JSH points. 2-day streak. Next: Navkar Mantra on waking." */
+export function jainWayLabel(t: Translate, w: JainWayWords): string {
+  const status = w.total === 0 ? t('home.choosePractices') : w.next ? t('home.nextPractice', { name: w.next }) : t('home.allDone');
+  return [t('home.myWay'), t('home.doneOf', { done: w.done, n: w.total }), t('home.centerPoints', { points: w.points.toLocaleString('en-US'), center: w.community }), w.streak, status].join('. ');
 }

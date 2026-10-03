@@ -1,58 +1,145 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { GUEST_RAILS, HOME_RAILS, homeRails, keyTarget, pageTarget, RAIL_CARD, RAIL_PRELOAD, RAIL_SHORTCUTS, railEdges, railGeometry, railTileSize, railTop, revealRails, TILE_GAP, TILE_SHAPES, tileCutOff, type HomeRail } from '../home-rails';
+import {
+  HERO_PEEK,
+  HOME_ROWS,
+  homeRows,
+  keyTarget,
+  LEARN_LISTEN_AREA,
+  LEARN_LISTEN_CARD,
+  LEARN_LISTEN_SHORTCUT,
+  LEARN_LISTEN_TILES,
+  learnListenTiles,
+  LEFT_SLIVER,
+  lifeTiles,
+  LIFE_TILES,
+  pageTarget,
+  RAIL_PRELOAD,
+  railEdges,
+  railGeometry,
+  railRestOffset,
+  railSnapOffsets,
+  railSnapShift,
+  railTileSize,
+  railTop,
+  revealRails,
+  TILE_GAP,
+  TILE_SHAPES,
+  tileCutOff,
+  type HomeAccess,
+  type HomeRow,
+  type TileShape,
+} from '../home-rails';
 import { HOME_SHORTCUT_KEYS } from '../home-shortcuts';
 import { ALL_ON, HOME_CARD_MODULE, MODULE_KEYS, type ModuleMap } from '../modules';
 
 const off = (...keys: (typeof MODULE_KEYS)[number][]): ModuleMap => Object.fromEntries(keys.map((k) => [k, false]));
-const adult = { isAdult: true };
-const child = { isAdult: false };
+const adult = { isAdult: true, hasHousehold: true };
+const child = { isAdult: false, hasHousehold: true };
+const allowed: HomeAccess = { guide: true, learn: true, listen: true, look: true };
+const rows = (over: { rules?: unknown; modules?: ModuleMap; member?: typeof adult | null; access?: Partial<HomeAccess> } = {}) =>
+  homeRows({ rules: over.rules ?? null, modules: over.modules ?? ALL_ON, member: over.member === undefined ? adult : over.member, access: { ...allowed, ...over.access } });
 
-describe('homeRails (which rails show)', () => {
-  it('shows every rail, in Home order, to an adult when everything is on', () => {
-    expect(homeRails({ rules: null, modules: ALL_ON, member: adult })).toEqual(['learning', 'events', 'listen', 'give', 'photos', 'recipes']);
-    expect(HOME_RAILS).toEqual(['learning', 'events', 'listen', 'give', 'photos', 'recipes']);
+describe('homeRows (which rows show)', () => {
+  it('shows all six rows, in Home order, to an adult when everything is on', () => {
+    expect(rows()).toEqual(['today', 'specialDays', 'events', 'give', 'life', 'learnListen']);
+    expect(HOME_ROWS).toEqual(['today', 'specialDays', 'events', 'give', 'life', 'learnListen']);
   });
-  it('gates every rail with a Home card that has a module, and names only real shortcuts', () => {
-    for (const rail of HOME_RAILS) {
-      expect(Object.keys(HOME_CARD_MODULE)).toContain(RAIL_CARD[rail]);
-      expect(HOME_CARD_MODULE[RAIL_CARD[rail]]).not.toBeNull();
-      for (const key of RAIL_SHORTCUTS[rail] ?? []) expect(HOME_SHORTCUT_KEYS).toContain(key);
+  it('gives a guest Today, the public events and the guide tiles, never a personal row', () => {
+    expect(rows({ member: null })).toEqual(['today', 'events', 'life']);
+    expect(rows({ member: null, modules: off('events') })).toEqual(['today', 'life']);
+  });
+  it('keeps giving for adults only, and Plan a special day for a member with a household', () => {
+    expect(rows({ member: child })).toEqual(['today', 'specialDays', 'events', 'life', 'learnListen']);
+    expect(rows({ member: { isAdult: true, hasHousehold: false } })).toEqual(['today', 'events', 'give', 'life', 'learnListen']);
+  });
+  it("hides a row whose module is off (or whose module's dependency is)", () => {
+    expect(rows({ modules: off('events') })).toEqual(['today', 'specialDays', 'give', 'life', 'learnListen']);
+    expect(rows({ modules: off('giving') })).toEqual(['today', 'specialDays', 'events', 'life', 'learnListen']);
+    // Content and Gyan Path are the two modules the Learn & listen tiles come from.
+    expect(rows({ modules: off('content') })).toEqual(['today', 'specialDays', 'events', 'give', 'life', 'learnListen']);
+    expect(rows({ modules: off('content', 'gyan_path') })).toEqual(['today', 'specialDays', 'events', 'give', 'life']);
+  });
+  it('keeps special days with giving off (they offer See special days instead of a labh) and with every module off', () => {
+    expect(rows({ modules: off(...MODULE_KEYS) })).toEqual(['today', 'specialDays', 'life']);
+  });
+  it('hides Learn & listen when nothing is left in it', () => {
+    expect(rows({ access: { learn: false, listen: false, look: false }, rules: { home: { shortcuts: ['learn', 'playlist', 'podcast', 'recipe'] } } })).not.toContain('learnListen');
+    expect(rows({ rules: { home: { shortcuts: [] } } })).not.toContain('learnListen');
+  });
+});
+
+describe('lifeTiles (Life@JSH)', () => {
+  const life = (over: { modules?: ModuleMap; guideAllowed?: boolean; member?: typeof adult | null } = {}) =>
+    lifeTiles({ modules: over.modules ?? ALL_ON, guideAllowed: over.guideAllowed ?? true, member: over.member === undefined ? adult : over.member });
+
+  it('has New here, the guide sections the old My JSH card named, and Special days, in order', () => {
+    expect(life()).toEqual(['guide', 'whatsapp', 'zone', 'timings', 'volunteer', 'admin', 'specialDays']);
+    expect(LIFE_TILES).toEqual(['guide', 'whatsapp', 'zone', 'timings', 'volunteer', 'admin', 'specialDays']);
+  });
+  it('gives a visitor the guide tiles, not Special days', () => {
+    expect(life({ member: null })).toEqual(['guide', 'whatsapp', 'zone', 'timings', 'volunteer', 'admin']);
+  });
+  it("follows the guide's access level: where the guide is closed to this person only Today's timings (public) and Special days stay", () => {
+    expect(life({ guideAllowed: false, member: null })).toEqual(['timings']);
+    expect(life({ guideAllowed: false })).toEqual(['timings', 'specialDays']);
+  });
+  it('leaves out a section whose module is off, as the guide does', () => {
+    expect(life({ modules: off('comms') })).not.toContain('whatsapp');
+    expect(life({ modules: off('volunteers') })).not.toContain('volunteer');
+    expect(life({ modules: off('comms', 'volunteers') })).toEqual(['guide', 'zone', 'timings', 'admin', 'specialDays']);
+  });
+  it('needs a household for Special days, and keeps it with giving off', () => {
+    expect(life({ member: { isAdult: true, hasHousehold: false } })).not.toContain('specialDays');
+    expect(life({ modules: off('giving') })).toContain('specialDays');
+  });
+});
+
+describe('learnListenTiles (the old shortcut buttons as tiles)', () => {
+  const tiles = (over: { rules?: unknown; modules?: ModuleMap; signedIn?: boolean; access?: Partial<HomeAccess> } = {}) =>
+    learnListenTiles({ rules: over.rules ?? null, modules: over.modules ?? ALL_ON, signedIn: over.signedIn ?? true, access: { ...allowed, ...over.access } });
+
+  it('has Continue learning, My playlist, Podcasts, Recipes and Photos, in the owner’s order', () => {
+    expect(tiles()).toEqual(['learning', 'playlist', 'podcasts', 'recipes', 'photos']);
+    expect(LEARN_LISTEN_TILES).toEqual(['learning', 'playlist', 'podcasts', 'recipes', 'photos']);
+  });
+  it('names only real shortcuts, real Home cards with a module, and areas the access levels know', () => {
+    for (const tile of LEARN_LISTEN_TILES) {
+      expect(HOME_SHORTCUT_KEYS).toContain(LEARN_LISTEN_SHORTCUT[tile]);
+      expect(Object.keys(HOME_CARD_MODULE)).toContain(LEARN_LISTEN_CARD[tile]);
+      expect(HOME_CARD_MODULE[LEARN_LISTEN_CARD[tile]]).not.toBeNull();
+      expect([null, 'learn', 'listen', 'look']).toContain(LEARN_LISTEN_AREA[tile]);
     }
   });
-  it('gives a guest only the public upcoming events, never a personal rail', () => {
-    expect(GUEST_RAILS).toEqual(['events']);
-    expect(homeRails({ rules: null, modules: ALL_ON, member: null })).toEqual(['events']);
-    expect(homeRails({ rules: null, modules: off('events'), member: null })).toEqual([]);
-    // Not even when the community's shortcuts name them.
-    expect(homeRails({ rules: { home: { shortcuts: ['learn', 'playlist', 'photos', 'recipe'] } }, modules: ALL_ON, member: null })).toEqual(['events']);
+  it('is for a signed-in member: every tile leads to a screen that asks a visitor to sign in', () => {
+    expect(tiles({ signedIn: false })).toEqual([]);
   });
-  it('keeps giving for adults only', () => {
-    expect(homeRails({ rules: null, modules: ALL_ON, member: child })).toEqual(['learning', 'events', 'listen', 'photos', 'recipes']);
+  it("follows the community's Home shortcuts: each tile still needs its shortcut", () => {
+    const only = (shortcuts: string[]) => tiles({ rules: { home: { shortcuts } } });
+    expect(only([])).toEqual([]);
+    expect(only(['learn'])).toEqual(['learning']);
+    expect(only(['playlist'])).toEqual(['playlist']);
+    expect(only(['podcast', 'recipe'])).toEqual(['podcasts', 'recipes']);
+    expect(only(['photos'])).toEqual(['photos']);
+    // "New here" is not a tile of this row (the guide has Life@JSH), and the order is Home's, whatever order the shortcuts are in.
+    expect(only(['guide'])).toEqual([]);
+    expect(only(['recipe', 'learn'])).toEqual(['learning', 'recipes']);
   });
-  it("hides a rail whose module is off (or whose module's dependency is)", () => {
-    expect(homeRails({ rules: null, modules: off('gyan_path'), member: adult })).toEqual(['events', 'listen', 'give', 'photos', 'recipes']);
-    expect(homeRails({ rules: null, modules: off('content'), member: adult })).toEqual(['learning', 'events', 'give']);
-    expect(homeRails({ rules: null, modules: off('giving'), member: adult })).toEqual(['learning', 'events', 'listen', 'photos', 'recipes']);
-    expect(homeRails({ rules: null, modules: off('events'), member: adult })).toEqual(['learning', 'listen', 'give', 'photos', 'recipes']);
-    expect(homeRails({ rules: null, modules: off(...MODULE_KEYS), member: adult })).toEqual([]);
+  it('hides a tile whose module is off: a shortcut cannot bring it back', () => {
+    expect(tiles({ modules: off('gyan_path') })).toEqual(['playlist', 'podcasts', 'recipes', 'photos']);
+    expect(tiles({ modules: off('content') })).toEqual(['learning']);
+    expect(tiles({ modules: off('gyan_path', 'content') })).toEqual([]);
   });
-  it("follows the community's Home shortcuts: each one brings its rail", () => {
-    const only = (shortcuts: string[]) => homeRails({ rules: { home: { shortcuts } }, modules: ALL_ON, member: adult });
-    // Upcoming events and Give are not shortcuts: they stay.
-    expect(only([])).toEqual(['events', 'give']);
-    expect(only(['learn'])).toEqual(['learning', 'events', 'give']);
-    // My playlist or Podcast brings Listen.
-    expect(only(['playlist'])).toEqual(['events', 'listen', 'give']);
-    expect(only(['podcast'])).toEqual(['events', 'listen', 'give']);
-    expect(only(['photos', 'recipe'])).toEqual(['events', 'give', 'photos', 'recipes']);
-    // "New here" has no rail (the guide keeps its own card).
-    expect(only(['guide'])).toEqual(['events', 'give']);
-    // The rails keep Home's order whatever order the shortcuts are in.
-    expect(only(['recipe', 'learn'])).toEqual(['learning', 'events', 'give', 'recipes']);
+  it('hides a tile the access levels do not allow, area by area, not shown locked', () => {
+    expect(tiles({ access: { learn: false } })).toEqual(['playlist', 'podcasts', 'recipes', 'photos']);
+    expect(tiles({ access: { listen: false } })).toEqual(['learning', 'recipes', 'photos']);
+    expect(tiles({ access: { look: false } })).toEqual(['learning', 'playlist', 'podcasts', 'photos']);
+    // Photos belong to no area: they stay for a member whatever the levels say.
+    expect(tiles({ access: { learn: false, listen: false, look: false } })).toEqual(['photos']);
   });
-  it('needs both the shortcut and the module: a shortcut cannot bring back a rail whose module is off', () => {
-    expect(homeRails({ rules: { home: { shortcuts: ['learn', 'photos'] } }, modules: off('gyan_path', 'content'), member: adult })).toEqual(['events', 'give']);
+  it('needs the shortcut, the module and the area together', () => {
+    expect(tiles({ rules: { home: { shortcuts: ['podcast', 'photos'] } }, modules: off('content'), access: { listen: true } })).toEqual([]);
+    expect(tiles({ rules: { home: { shortcuts: ['podcast', 'photos'] } }, access: { listen: false } })).toEqual(['photos']);
   });
 });
 
@@ -79,32 +166,36 @@ describe('railTileSize (big enough to read, the next tile peeking in)', () => {
     const tablet = railTileSize('poster', 640 - 20);
     expect(tablet.whole).toBe(4);
     expect(tablet.width).toBeLessThanOrEqual(TILE_SHAPES.poster.max);
-    expect(railTileSize('square', 2000).width).toBeLessThanOrEqual(TILE_SHAPES.square.max);
+    expect(railTileSize('feature', 2000).width).toBeLessThanOrEqual(TILE_SHAPES.feature.max);
   });
-  it('shows one wide tile (goals, albums) with the next peeking in on a phone', () => {
+  it('shows one wide tile (Learn & listen) with the next peeking in on a phone', () => {
     const s = railTileSize('wide', phone);
     expect(s.whole).toBe(1);
     expect(s.width).toBe(264);
     expect(s.height).toBe(Math.round(264 * (9 / 16)));
     expect(visible(phone, s.width)).toBeGreaterThan(1.2);
   });
-  it('caps a giving card and leaves its height to its words', () => {
+  it('caps a card (a special day, a giving opportunity) and leaves its height to its words', () => {
     const s = railTileSize('card', phone);
     expect(s.width).toBe(TILE_SHAPES.card.max);
     expect(s.height).toBeNull();
     expect(s.interval).toBe(s.width + TILE_GAP);
   });
+  it('fits two Life@JSH tiles and a peek of the third on a phone', () => {
+    const s = railTileSize('feature', phone);
+    expect(s).toEqual({ width: 138, height: null, interval: 150, whole: 2 });
+  });
   it('makes tiles larger with a larger text size (up to 1.3×), still with a peek', () => {
-    const standard = railTileSize('square', phone);
-    const largest = railTileSize('square', phone, 1.3);
+    const standard = railTileSize('feature', phone);
+    const largest = railTileSize('feature', phone, 1.3);
     expect(largest.width).toBeGreaterThan(standard.width);
-    expect(largest.width).toBeGreaterThanOrEqual(Math.round(TILE_SHAPES.square.min * 1.3));
-    expect(railTileSize('square', phone, 3).width).toBe(railTileSize('square', phone, 1.3).width);
-    expect(railTileSize('square', phone, 0.5)).toEqual(standard);
+    expect(largest.width).toBeGreaterThanOrEqual(Math.round(TILE_SHAPES.feature.min * 1.3));
+    expect(railTileSize('feature', phone, 3).width).toBe(railTileSize('feature', phone, 1.3).width);
+    expect(railTileSize('feature', phone, 0.5)).toEqual(standard);
     expect(visible(phone, largest.width) % 1).toBeGreaterThan(0.2);
   });
-  it('shows a peek of the next tile on every phone width from 320 to 430, for every shape', () => {
-    for (const shape of ['poster', 'square', 'wide', 'card'] as const) {
+  it('shows a peek of the next tile on every phone width from 320 to 430, for every shape but the hero', () => {
+    for (const shape of ['poster', 'wide', 'card', 'feature'] as const) {
       for (const screen of [320, 360, 375, 390, 414, 430]) {
         const room = screen - 20;
         const s = railTileSize(shape, room);
@@ -118,12 +209,50 @@ describe('railTileSize (big enough to read, the next tile peeking in)', () => {
     }
   });
   it('never breaks on a width it cannot use', () => {
-    for (const w of [0, -10, Number.NaN, Number.POSITIVE_INFINITY]) {
-      const s = railTileSize('poster', w);
-      expect(Number.isFinite(s.width)).toBe(true);
-      expect(s.width).toBeGreaterThanOrEqual(TILE_SHAPES.poster.min);
-      expect(s.whole).toBeGreaterThanOrEqual(1);
+    for (const shape of ['hero', 'poster', 'wide', 'card', 'feature'] as TileShape[]) {
+      for (const w of [0, -10, Number.NaN, Number.POSITIVE_INFINITY]) {
+        const s = railTileSize(shape, w);
+        expect(Number.isFinite(s.width)).toBe(true);
+        expect(s.width).toBeGreaterThanOrEqual(0);
+        expect(s.whole).toBeGreaterThanOrEqual(1);
+      }
     }
+  });
+});
+
+describe('railTileSize for the hero tiles (Today and My Jain Way)', () => {
+  const room = (screen: number) => screen - 20;
+  /** How much of the next tile shows at the right edge when the row starts. */
+  const peekOf = (screen: number) => {
+    const s = railTileSize('hero', room(screen), 1, TILE_GAP, { count: 2, bleed: 20 });
+    return room(screen) - s.width - TILE_GAP;
+  };
+
+  it('leaves a 32 px sliver of My Jain Way at the right edge on phones from 360 to 430', () => {
+    expect(HERO_PEEK).toBe(32);
+    for (const screen of [360, 375, 390, 414, 430]) expect(peekOf(screen)).toBe(HERO_PEEK);
+    expect(railTileSize('hero', 355, 1, TILE_GAP, { count: 2, bleed: 20 })).toEqual({ width: 311, height: null, interval: 323, whole: 1 });
+  });
+  it('keeps the tile wide enough for its timings (280) on the smallest phones, where the sliver shrinks instead', () => {
+    expect(TILE_SHAPES.hero.min).toBe(280);
+    expect(railTileSize('hero', room(320), 1, TILE_GAP, { count: 2, bleed: 20 }).width).toBe(280);
+    // 320 px: the 8 px the gutter alone would leave. A little wider and the sliver grows back to 32.
+    expect(peekOf(320)).toBe(8);
+    expect(peekOf(335)).toBe(23);
+    expect(peekOf(344)).toBe(HERO_PEEK);
+    expect(peekOf(340)).toBeGreaterThan(24);
+  });
+  it('never makes a hero wider than the shape allows', () => {
+    expect(railTileSize('hero', 2000, 1, TILE_GAP, { count: 2, bleed: 20 }).width).toBe(TILE_SHAPES.hero.max);
+  });
+  it('does not use the text size: Today keeps its width and its words wrap instead', () => {
+    expect(railTileSize('hero', 355, 1.3, TILE_GAP, { count: 2, bleed: 20 })).toEqual(railTileSize('hero', 355, 1, TILE_GAP, { count: 2, bleed: 20 }));
+  });
+  it('is as wide as the cards when it is alone (a guest sees Today alone, exactly as the card was)', () => {
+    expect(railTileSize('hero', 355, 1, TILE_GAP, { count: 1, bleed: 20 }).width).toBe(335);
+    expect(railTileSize('hero', 410, 1, TILE_GAP, { count: 1, bleed: 20 }).width).toBe(390);
+    // On a tablet the cards are 600 wide inside a 640 column; the row reaches the screen's edge, the lone tile does not.
+    expect(railTileSize('hero', 812, 1, TILE_GAP, { count: 1, bleed: 212 }).width).toBe(600);
   });
 });
 
@@ -159,6 +288,41 @@ describe('railGeometry (from the cards’ left edge to the screen’s right edge
   });
 });
 
+describe('railSnapShift, railRestOffset and railSnapOffsets (where a row comes to rest)', () => {
+  const interval = 150;
+
+  it('rests a moved row a sliver of the previous tile before its natural place on a phone', () => {
+    // The gutter (20) less the gap (12) leaves only 8 px of the previous tile; resting 8 px earlier makes it LEFT_SLIVER.
+    expect(LEFT_SLIVER).toBe(16);
+    const shift = railSnapShift(20);
+    expect(shift).toBe(-8);
+    // Tile 1 rests at its natural 150, less 8: tile 0 (138 wide, starting at 20) then ends LEFT_SLIVER px in.
+    expect(railRestOffset(1, interval, shift)).toBe(142);
+    expect(20 + 138 - railRestOffset(1, interval, shift)).toBe(LEFT_SLIVER);
+  });
+  it('rests the first tile on the gutter, scrolled by nothing', () => {
+    expect(railRestOffset(0, interval, -8)).toBe(0);
+    expect(railRestOffset(-3, interval, -8)).toBe(0);
+  });
+  it('rests every tile on the column’s left edge on a tablet, where the row starts further in than any sliver needs', () => {
+    expect(railSnapShift(212)).toBe(0);
+    expect(railRestOffset(2, 300, 0)).toBe(600);
+  });
+  it('lists every resting place for snapToOffsets, one per tile', () => {
+    expect(railSnapOffsets(4, interval, -8)).toEqual([0, 142, 292, 442]);
+    expect(railSnapOffsets(0, interval, -8)).toEqual([]);
+    expect(railSnapOffsets(1, interval, -8)).toEqual([0]);
+    expect(railSnapOffsets(Number.NaN, interval, -8)).toEqual([]);
+  });
+  it('never rests before the start or on a shift it cannot use', () => {
+    expect(railRestOffset(1, 5, -8)).toBe(0);
+    expect(railRestOffset(1, interval, Number.NaN)).toBe(150);
+    expect(railRestOffset(1, interval, 30)).toBe(150);
+    expect(railSnapShift(Number.NaN)).toBe(-28);
+    expect(railSnapShift(0)).toBe(-28);
+  });
+});
+
 describe('pageTarget, keyTarget and railEdges (the ‹ › buttons and arrow keys on the web)', () => {
   it('moves a screenful from the tile at the left edge, inside the row', () => {
     expect(pageTarget(0, 150, 2, 8)).toBe(2);
@@ -166,6 +330,14 @@ describe('pageTarget, keyTarget and railEdges (the ‹ › buttons and arrow key
     expect(pageTarget(290, 150, -2, 8)).toBe(0);
     expect(pageTarget(900, 150, 2, 8)).toBe(7);
     expect(pageTarget(-40, 150, -2, 8)).toBe(0);
+  });
+  it('finds the tile at the left edge of a row at rest, where it rests before its natural place', () => {
+    // Tile 3 rests at 3 × 150 − 8.
+    expect(pageTarget(442, 150, 1, 8, -8)).toBe(4);
+    expect(pageTarget(442, 150, -1, 8, -8)).toBe(2);
+    // The first tile rests at 0, which is also "tile 0" with a shift.
+    expect(pageTarget(0, 150, 1, 8, -8)).toBe(1);
+    expect(pageTarget(0, 150, -1, 8, -8)).toBe(0);
   });
   it('is 0 when there is nothing to move', () => {
     expect(pageTarget(300, 0, 2, 8)).toBe(0);
@@ -210,6 +382,12 @@ describe('tileCutOff (a tile the keyboard reached that must be brought into view
     expect(cut(1, 162)).toBe(false);
     expect(cut(2, 162)).toBe(false);
   });
+  it('is false for a tile at its resting place, a sliver before its natural one', () => {
+    // Tile 2 rests at 2 × 162 − 8.
+    expect(cut(2, 316)).toBe(false);
+    expect(cut(3, 316)).toBe(false);
+    expect(cut(4, 316)).toBe(true);
+  });
   it('is true for a tile the right edge cuts off (the third and later ones from the start)', () => {
     expect(cut(2, 0)).toBe(true);
     expect(cut(3, 0)).toBe(true);
@@ -234,63 +412,66 @@ describe('tileCutOff (a tile the keyboard reached that must be brought into view
   });
 });
 
-describe('railTop (where a rail is, or that its layout is no position)', () => {
-  it('is the top of a rail that has a box', () => {
+describe('railTop (where a row is, or that its layout is no position)', () => {
+  it('is the top of a row that has a box', () => {
     expect(railTop({ y: 640, width: 350, height: 210 })).toBe(640);
-    // A rail at the very top of Home is at 0, which is a position.
+    // A row at the very top of Home is at 0, which is a position.
     expect(railTop({ y: 0, width: 350, height: 210 })).toBe(0);
+  });
+  it('is a position for a row that has no height yet (Plan a special day draws nothing until it has days)', () => {
+    expect(railTop({ y: 640, width: 350, height: 0 })).toBe(640);
+    expect(railTop({ y: 640, width: 350 })).toBe(640);
   });
   it('is null for the 0 x 0 the web reports for a screen that another one covers', () => {
     expect(railTop({ y: 0, width: 0, height: 0 })).toBeNull();
     expect(railTop({ y: 640, width: 0, height: 210 })).toBeNull();
-    expect(railTop({ y: 640, width: 350, height: 0 })).toBeNull();
     expect(railTop({ y: Number.NaN, width: 350, height: 210 })).toBeNull();
   });
-  it('keeps a hidden Home from loading every rail: 0 x 0 taken as "at the top" would reveal them all', () => {
+  it('keeps a hidden Home from loading every row: 0 x 0 taken as "at the top" would reveal them all', () => {
     const hidden = { y: 0, width: 0, height: 0 };
     const reveal = (place: (layout: typeof hidden) => number | null) => {
-      const tops: Partial<Record<HomeRail, number>> = {};
-      for (const rail of HOME_RAILS) {
+      const tops: Partial<Record<HomeRow, number>> = {};
+      for (const row of HOME_ROWS) {
         const top = place(hidden);
-        if (top !== null) tops[rail] = top;
+        if (top !== null) tops[row] = top;
       }
-      // Home's own cards fill the screen, so only rails near its top would load.
+      // Home's own first row fills the screen, so only rows near its top would load.
       return revealRails(tops, [], 700, 350);
     };
-    expect(reveal((l) => l.y)).toEqual([...HOME_RAILS]);
+    expect(reveal((l) => l.y)).toEqual([...HOME_ROWS]);
     expect(reveal(railTop)).toEqual([]);
   });
 });
 
-describe('revealRails (a rail loads as it comes near the screen)', () => {
-  const tops: Partial<Record<HomeRail, number>> = { learning: 700, events: 1000, listen: 1300, give: 1600, photos: 1900 };
+describe('revealRails (a row loads as it comes near the screen)', () => {
+  const tops: Partial<Record<HomeRow, number>> = { specialDays: 700, events: 1000, give: 1300, life: 1600, learnListen: 1900 };
 
-  it('loads the rails above the bottom of the screen plus one more screen', () => {
-    expect(revealRails(tops, [], 800, 800)).toEqual(['learning', 'events', 'listen', 'give']);
-    expect(revealRails(tops, [], 800, 0)).toEqual(['learning']);
+  it('loads the rows above the bottom of the screen plus one more screen', () => {
+    expect(revealRails(tops, [], 800, 800)).toEqual(['specialDays', 'events', 'give', 'life']);
+    expect(revealRails(tops, [], 800, 0)).toEqual(['specialDays']);
   });
-  it('on a phone loads only the rails near the screen at first, half a screen ahead (the rest wait until the member scrolls)', () => {
-    // 660 px of visible Home, the cards taking about 600 px: the first two rails are near, the others are not.
-    const phoneTops: Partial<Record<HomeRail, number>> = { learning: 620, events: 900, listen: 1180, give: 1450, photos: 1700, recipes: 2000 };
+  it('on a phone loads only the rows near the screen at first, half a screen ahead (the rest wait until the member scrolls)', () => {
+    // 660 px of visible Home, the first row taking about 330 px: the first two rows are near, the others are not.
+    const phoneTops: Partial<Record<HomeRow, number>> = { specialDays: 420, events: 680, give: 1010, life: 1300, learnListen: 1600 };
     expect(RAIL_PRELOAD).toBeGreaterThan(0);
     expect(RAIL_PRELOAD).toBeLessThan(1);
-    expect(revealRails(phoneTops, [], 660, 660 * RAIL_PRELOAD)).toEqual(['learning', 'events']);
+    expect(revealRails(phoneTops, [], 660, 660 * RAIL_PRELOAD)).toEqual(['specialDays', 'events']);
     // A little scrolling brings the next one in before it reaches the screen.
-    expect(revealRails(phoneTops, ['learning', 'events'], 660 + 200, 660 * RAIL_PRELOAD)).toEqual(['learning', 'events', 'listen']);
+    expect(revealRails(phoneTops, ['specialDays', 'events'], 660 + 200, 660 * RAIL_PRELOAD)).toEqual(['specialDays', 'events', 'give']);
   });
-  it('adds rails as the member scrolls and never drops one', () => {
+  it('adds rows as the member scrolls and never drops one', () => {
     const first = revealRails(tops, [], 800, 0);
     const later = revealRails(tops, first, 1400, 0);
-    expect(later).toEqual(['learning', 'events', 'listen']);
+    expect(later).toEqual(['specialDays', 'events', 'give']);
     expect(revealRails(tops, later, 200, 0)).toBe(later);
   });
   it('returns the same list when nothing new is near (no re-render)', () => {
     const now = revealRails(tops, [], 2000, 0);
     expect(revealRails(tops, now, 2000, 800)).toBe(now);
   });
-  it('waits for a rail that is not laid out yet, and for a screen it cannot measure', () => {
-    expect(revealRails({ learning: Number.NaN }, [], 800, 800)).toEqual([]);
+  it('waits for a row that is not laid out yet, and for a screen it cannot measure', () => {
+    expect(revealRails({ specialDays: Number.NaN }, [], 800, 800)).toEqual([]);
     expect(revealRails(tops, [], Number.NaN, 800)).toEqual([]);
-    expect(revealRails(tops, [], 800, -50)).toEqual(['learning']);
+    expect(revealRails(tops, [], 800, -50)).toEqual(['specialDays']);
   });
 });

@@ -1,87 +1,175 @@
 /**
- * Home rails (owner, 2026-10-02: a Netflix-style Home): rows of large tiles
- * that scroll sideways under the Today, alerts, Up next and Plan a special
- * day cards. This file holds the pure parts, unit-tested in
- * src/lib/__tests__/home-rails.test.ts:
+ * Home in rows (owner, 2026-10-02): every row is a Netflix-style strip of tiles that scrolls sideways, with the
+ * next tile peeking in at the right edge and, once the row has been moved, a sliver of the previous one at the
+ * left. This file holds the pure parts, unit-tested in src/lib/__tests__/home-rails.test.ts:
  *
- * - which rails show (homeRails): the community's modules (the same Home
- *   gating as the cards, src/lib/modules.ts HOME_CARD_MODULE), its Home
- *   shortcuts (centers.rules.home.shortcuts, still edited in the portal as
- *   "Home shortcuts": each shortcut now brings its rail), signed in or a
- *   guest, and the adults-only rule for giving;
- * - how big a tile is for the room there is (railTileSize) and where the
- *   rail starts and ends on the screen (railGeometry): large enough to read
- *   on a phone, with the next tile peeking in at the right edge;
- * - where the ‹ › buttons and the arrow keys take the rail (pageTarget,
- *   keyTarget, railEdges), and whether a tile the keyboard reached is cut off
- *   (tileCutOff);
- * - which rails are near enough to the screen to load (revealRails, with
- *   railTop for where a rail is), so a rail loads only when the member
- *   scrolls towards it.
+ * - which rows show (homeRows) and which tiles the two rows made of fixed tiles have (lifeTiles for Life@JSH,
+ *   learnListenTiles for Learn & listen): the community's modules (the same Home gating as the cards, see
+ *   src/lib/modules.ts HOME_CARD_MODULE), its Home shortcuts (centers.rules.home.shortcuts), the access levels
+ *   (src/lib/access.ts), signed in or a guest, and the adults-only rule for giving;
+ * - how big a tile is for the room there is (railTileSize) and where the rail starts and ends on the screen
+ *   (railGeometry): large enough to read on a phone, with the next tile peeking in;
+ * - where a swipe, the ‹ › buttons and the arrow keys take the rail (railSnapShift, railRestOffset, pageTarget,
+ *   keyTarget, railEdges), and whether a tile the keyboard reached is cut off (tileCutOff);
+ * - which rows are near enough to the screen to load (revealRails, with railTop for where a row is), so a row
+ *   loads only when the member scrolls towards it.
  *
- * The rails themselves are drawn in src/features/home-rails.tsx; their tiles
- * are built from the data in src/features/home-rail-items.ts.
+ * The rows themselves are drawn in src/features/home-rails.tsx; their tiles are built from the data in
+ * src/features/home-rail-items.ts.
  */
 import { configuredShortcuts, type HomeShortcut } from './home-shortcuts';
-import { isHomeCardVisible, type HomeCard, type ModuleMap } from './modules';
+import { isGuideSectionVisible, isHomeCardVisible, type GuideSection, type HomeCard, type ModuleMap } from './modules';
 
 // ---------------------------------------------------------------------------
-// Which rails show
+// Which rows show
 // ---------------------------------------------------------------------------
 
-/** The rails, in the order they show on Home. */
-export const HOME_RAILS = ['learning', 'events', 'listen', 'give', 'photos', 'recipes'] as const;
-export type HomeRail = (typeof HOME_RAILS)[number];
+/** The rows, in the order they show on Home. */
+export const HOME_ROWS = ['today', 'specialDays', 'events', 'give', 'life', 'learnListen'] as const;
+export type HomeRow = (typeof HOME_ROWS)[number];
 
-/** The Home card (modules.ts HOME_CARD_MODULE) that gates each rail through its module: off means the rail is not shown. */
-export const RAIL_CARD: Record<HomeRail, HomeCard> = {
-  learning: 'railLearning',
-  events: 'railEvents',
-  listen: 'railListen',
-  give: 'giving',
-  photos: 'railPhotos',
-  recipes: 'railRecipes',
-};
+/** The areas of the access levels (src/lib/access.ts) the Learn & listen tiles and the guide tiles depend on. */
+export type HomeAccess = { guide: boolean; learn: boolean; listen: boolean; look: boolean };
 
-/**
- * The Home shortcuts that bring each rail (the old shortcuts grid became the
- * rails): Learn → Continue learning, My playlist or Podcast → Listen, Photos →
- * Photos, Recipe → Recipes. null: not a shortcut, the rail shows whenever its
- * module is on (Upcoming events, Give). The "New here" shortcut has no rail:
- * the welcome guide keeps its own card further down Home.
- */
-export const RAIL_SHORTCUTS: Record<HomeRail, readonly HomeShortcut[] | null> = {
-  learning: ['learn'],
-  events: null,
-  listen: ['playlist', 'podcast'],
-  give: null,
-  photos: ['photos'],
-  recipes: ['recipe'],
-};
+/** Who is looking: null for a guest (signed out, browsing a community). */
+export type HomeMember = { isAdult: boolean; hasHousehold: boolean } | null;
 
-/** Rails that make sense for a guest (signed out, browsing a community): its public upcoming events. Albums are for signed-in members (Events › Photos asks a guest to sign in). */
-export const GUEST_RAILS: readonly HomeRail[] = ['events'];
-
-/** Rails for adults only (money: RLS enforces it too). */
-export const ADULT_RAILS: readonly HomeRail[] = ['give'];
-
-export type HomeRailsInput = {
+export type HomeRowsInput = {
   /** `centers.rules` of the community (its Home shortcuts). */
   rules: unknown;
   modules: ModuleMap;
-  /** null for a guest. */
-  member: { isAdult: boolean } | null;
+  member: HomeMember;
+  access: HomeAccess;
 };
 
-/** The rails to show, in Home order. */
-export function homeRails({ rules, modules, member }: HomeRailsInput): HomeRail[] {
+/**
+ * The rows to show, in Home order. A row can still turn out to have nothing in it (no special day in the next
+ * two months, no open opportunity): it is then left out once it has loaded.
+ *
+ * - Today (with My Jain Way beside it for a member) is always there.
+ * - Plan a special day: a member with a household, unless the community switched special days off.
+ * - Events: the Events module; a guest sees the public ones.
+ * - Giving opportunities: adults only (money), and only with the Giving module on.
+ * - Life@JSH and Learn & listen: those with at least one tile.
+ */
+export function homeRows({ rules, modules, member, access }: HomeRowsInput): HomeRow[] {
+  return HOME_ROWS.filter((row) => {
+    switch (row) {
+      case 'today':
+        return isHomeCardVisible(modules, 'today');
+      case 'specialDays':
+        return !!member?.hasHousehold && isHomeCardVisible(modules, 'specialDay');
+      case 'events':
+        return isHomeCardVisible(modules, 'railEvents');
+      case 'give':
+        return !!member?.isAdult && isHomeCardVisible(modules, 'giving');
+      case 'life':
+        return lifeTiles({ modules, guideAllowed: access.guide, member }).length > 0;
+      case 'learnListen':
+        return learnListenTiles({ rules, modules, signedIn: !!member, access }).length > 0;
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Life@{community}
+// ---------------------------------------------------------------------------
+
+/** The tiles of the Life@JSH row, in order. */
+export const LIFE_TILES = ['guide', 'whatsapp', 'zone', 'timings', 'volunteer', 'admin', 'specialDays'] as const;
+export type LifeTile = (typeof LIFE_TILES)[number];
+
+/** The section of the community guide (modules.ts GUIDE_SECTION_MODULE) behind each tile; null: not one. */
+export const LIFE_TILE_SECTION: Record<LifeTile, GuideSection | null> = {
+  guide: null,
+  whatsapp: 'whatsapp',
+  zone: 'zones',
+  timings: 'timings',
+  volunteer: 'volunteer',
+  admin: 'admin',
+  specialDays: null,
+};
+
+export type LifeInput = {
+  modules: ModuleMap;
+  /** The access level for the community guide lets this person in (useFeature('guide')). */
+  guideAllowed: boolean;
+  member: HomeMember;
+};
+
+/**
+ * The Life@JSH tiles this person gets. The guide tiles (New here and the sections of the guide) follow the
+ * guide's access level and the modules behind each section, so a visitor gets the ones the organization lets
+ * them see. Today's timings are public (the app does not gate them), so that tile stays. "Special days" is for
+ * a member with a household and keeps "Add a special day" a tap away when the Plan a special day row is hidden
+ * because nothing is coming up.
+ */
+export function lifeTiles({ modules, guideAllowed, member }: LifeInput): LifeTile[] {
+  return LIFE_TILES.filter((tile) => {
+    if (tile === 'specialDays') return !!member?.hasHousehold && isHomeCardVisible(modules, 'specialDay');
+    const section = LIFE_TILE_SECTION[tile];
+    if (tile === 'timings') return section !== null && isGuideSectionVisible(modules, section);
+    if (!guideAllowed || !isHomeCardVisible(modules, 'guide')) return false;
+    return section === null || isGuideSectionVisible(modules, section);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Learn & listen
+// ---------------------------------------------------------------------------
+
+/** The tiles of the Learn & listen row, in order (the old shortcut buttons, now tiles). */
+export const LEARN_LISTEN_TILES = ['learning', 'playlist', 'podcasts', 'recipes', 'photos'] as const;
+export type LearnListenTile = (typeof LEARN_LISTEN_TILES)[number];
+
+/** The Home shortcut (centers.rules.home.shortcuts, edited in the portal) that brings each tile. */
+export const LEARN_LISTEN_SHORTCUT: Record<LearnListenTile, HomeShortcut> = {
+  learning: 'learn',
+  playlist: 'playlist',
+  podcasts: 'podcast',
+  recipes: 'recipe',
+  photos: 'photos',
+};
+
+/** The Home card (modules.ts HOME_CARD_MODULE) that gates each tile through its module: off means no tile. */
+export const LEARN_LISTEN_CARD: Record<LearnListenTile, HomeCard> = {
+  learning: 'railLearning',
+  playlist: 'railListen',
+  podcasts: 'railListen',
+  recipes: 'railRecipes',
+  photos: 'railPhotos',
+};
+
+/** The area of the access levels each tile belongs to: Gyan Path is Learn, the playlist and podcasts Listen, recipes Look. Photos have no area. */
+export const LEARN_LISTEN_AREA: Record<LearnListenTile, 'learn' | 'listen' | 'look' | null> = {
+  learning: 'learn',
+  playlist: 'listen',
+  podcasts: 'listen',
+  recipes: 'look',
+  photos: null,
+};
+
+export type LearnListenInput = {
+  rules: unknown;
+  modules: ModuleMap;
+  /** Signed in. Every tile leads to a screen that is for signed-in members today (the library lists, the playlist, albums, Gyan Path progress). */
+  signedIn: boolean;
+  access: Pick<HomeAccess, 'learn' | 'listen' | 'look'>;
+};
+
+/**
+ * The Learn & listen tiles this person may use, in order. A tile needs all three: the community's Home
+ * shortcut for it (still the portal's setting), its module on (a module off means no tile), and the access
+ * level of its area. One the person may not use is left out, not shown locked.
+ */
+export function learnListenTiles({ rules, modules, signedIn, access }: LearnListenInput): LearnListenTile[] {
+  if (!signedIn) return [];
   const shortcuts = configuredShortcuts(rules);
-  return HOME_RAILS.filter((rail) => {
-    if (!isHomeCardVisible(modules, RAIL_CARD[rail])) return false;
-    if (!member) return GUEST_RAILS.includes(rail);
-    if (ADULT_RAILS.includes(rail) && !member.isAdult) return false;
-    const keys = RAIL_SHORTCUTS[rail];
-    return keys === null || keys.some((k) => shortcuts.includes(k));
+  return LEARN_LISTEN_TILES.filter((tile) => {
+    if (!shortcuts.includes(LEARN_LISTEN_SHORTCUT[tile])) return false;
+    if (!isHomeCardVisible(modules, LEARN_LISTEN_CARD[tile])) return false;
+    const area = LEARN_LISTEN_AREA[tile];
+    return area === null || access[area];
   });
 }
 
@@ -90,56 +178,77 @@ export function homeRails({ rules, modules, member }: HomeRailsInput): HomeRail[
 // ---------------------------------------------------------------------------
 
 /**
- * Tile shapes. `poster` 2:3 (event flyers), `square` (stavans, podcasts,
- * recipes), `wide` 16:9 (Gyan Path goals, photo albums), `card` (giving: as
- * tall as its words).
+ * Tile shapes. `hero` is Today and My Jain Way (as wide as the room allows, the next tile peeking in a fixed
+ * sliver), `poster` 2:3 (event flyers), `wide` 16:9 (Learn & listen), `card` (special days and giving: as tall
+ * as their words), `feature` (Life@JSH: an icon, a label and a line).
  */
-export type TileShape = 'poster' | 'square' | 'wide' | 'card';
+export type TileShape = 'hero' | 'poster' | 'wide' | 'card' | 'feature';
 
 type ShapeSpec = {
   /** Height ÷ width of the picture; null when the words set the height. */
   ratio: number | null;
-  /** Narrowest and widest a tile may be (px, at the standard text size). */
+  /** Narrowest and widest a tile may be (px, at the standard text size; a hero is never scaled). */
   min: number;
   max: number;
-  /** How much of the next tile peeks in at the right edge (a share of one tile). */
+  /** How much of the next tile peeks in at the right edge (a share of one tile; a hero uses HERO_PEEK). */
   peek: number;
 };
 
 export const TILE_SHAPES: Record<TileShape, ShapeSpec> = {
+  // A hero is never narrower than 280: that is what Today's three timings need to show whole ("8:03 AM", "Chauvihar" in a third
+  // of the card), as the old card had on the smallest phone. Where the room is less than that plus the sliver, the sliver shrinks.
+  hero: { ratio: null, min: 280, max: 440, peek: 0 },
   poster: { ratio: 1.5, min: 112, max: 168, peek: 0.4 },
-  square: { ratio: 1, min: 112, max: 160, peek: 0.4 },
   wide: { ratio: 9 / 16, min: 200, max: 280, peek: 0.3 },
   card: { ratio: null, min: 200, max: 260, peek: 0.3 },
+  feature: { ratio: null, min: 128, max: 176, peek: 0.4 },
 };
 
 /** Space between two tiles (px). */
 export const TILE_GAP = 12;
 
+/** How much of the next hero tile shows at the right edge when the row starts (px). */
+export const HERO_PEEK = 32;
+
+/** How much of the previous tile shows at the left edge once a row has been moved (px). */
+export const LEFT_SLIVER = 16;
+
 export type TileSize = {
   width: number;
-  /** The picture's height; null for `card` tiles (as tall as the tallest tile's words). */
+  /** The picture's height; null for tiles whose words set the height. */
   height: number | null;
-  /** One tile plus the gap: where a swipe comes to rest (snapToInterval). */
+  /** One tile plus the gap: how far one tile moves the row. */
   interval: number;
-  /** Whole tiles in view: how far the ‹ › buttons move the rail. */
+  /** Whole tiles in view: how far the ‹ › buttons move the row. */
   whole: number;
 };
 
+export type TileSizeOptions = {
+  /** How many tiles the row has. A hero that is alone has nothing to peek at and is as wide as the cards (default: more than one). */
+  count?: number;
+  /** The row's padding at each side (railGeometry bleed): the room beyond the cards' own width, which a lone hero does not use. */
+  bleed?: number;
+};
+
 /**
- * The size of a rail's tiles. `available` is the room from the cards' left
- * edge to the right edge of the screen (the rail bleeds into the right
- * gutter, railGeometry). As many whole tiles as fit between the shape's
- * narrowest and widest, then a part of the next one peeking in, so it is
- * clear the row goes on. A larger text size counts as larger tiles (up to
- * 1.3×), so the words under them keep their room.
+ * The size of a row's tiles. `available` is the room from the cards' left edge to the right edge of the
+ * screen (the row bleeds into the right gutter, railGeometry). As many whole tiles as fit between the shape's
+ * narrowest and widest, then a part of the next one peeking in, so it is clear the row goes on. A larger text
+ * size counts as larger tiles (up to 1.3×), so the words under them keep their room. A hero is one tile wide
+ * plus a sliver of the next, at most `max` wide: Today keeps the height its timings and buttons give it.
  */
-export function railTileSize(shape: TileShape, available: number, textScale = 1, gap: number = TILE_GAP): TileSize {
+export function railTileSize(shape: TileShape, available: number, textScale = 1, gap: number = TILE_GAP, options: TileSizeOptions = {}): TileSize {
   const spec = TILE_SHAPES[shape];
+  const room = Number.isFinite(available) && available > 0 ? available : 0;
+  if (shape === 'hero') {
+    const alone = options.count !== undefined && options.count <= 1;
+    const bleed = Number.isFinite(options.bleed) && (options.bleed ?? 0) > 0 ? (options.bleed as number) : 0;
+    const width = Math.round(alone ? Math.max(0, room - bleed) : Math.max(spec.min, Math.min(spec.max, room - gap - HERO_PEEK)));
+    return { width, height: null, interval: width + gap, whole: 1 };
+  }
   const scale = Number.isFinite(textScale) && textScale > 1 ? Math.min(textScale, 1.3) : 1;
   const min = spec.min * scale;
   const max = spec.max * scale;
-  const room = Number.isFinite(available) && available > 0 ? available : 0;
   const widthFor = (whole: number) => (room - gap * whole) / (whole + spec.peek);
   let whole = 1;
   while (whole < 12 && widthFor(whole) > max) whole += 1;
@@ -188,17 +297,42 @@ export function railGeometry(i: RailGeometryInput): RailGeometry {
 }
 
 // ---------------------------------------------------------------------------
-// Paging
+// Resting places and paging
 // ---------------------------------------------------------------------------
+
+/**
+ * How far before its natural place a row rests once it has been moved (px, zero or negative). The first tile
+ * rests on the page gutter (the cards' left edge). A later tile rests a little further left, so that the
+ * previous tile shows as a sliver of LEFT_SLIVER px at the screen's edge ("there is more this way"): on a phone
+ * the gutter (20) is only 8 px more than the gap between tiles, which is too thin to notice. On a tablet the
+ * row starts further in than that, and every tile rests on the column's left edge as the first one did.
+ */
+export function railSnapShift(bleed: number, gap: number = TILE_GAP): number {
+  const b = Number.isFinite(bleed) && bleed > 0 ? bleed : 0;
+  return Math.min(0, b - gap - LEFT_SLIVER);
+}
+
+/** The scroll position where tile `index` rests: 0 for the first, `index × interval` less the shift for the rest. */
+export function railRestOffset(index: number, interval: number, shift: number): number {
+  if (!(index > 0) || !(interval > 0)) return 0;
+  return Math.max(0, Math.round(index * interval + (Number.isFinite(shift) ? Math.min(0, shift) : 0)));
+}
+
+/** Every resting place of a row of `count` tiles, for snapToOffsets on a phone. */
+export function railSnapOffsets(count: number, interval: number, shift: number): number[] {
+  return Array.from({ length: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)) }, (_, i) => railRestOffset(i, interval, shift));
+}
 
 /**
  * Where the ‹ › buttons and the arrow keys take the rail: `step` tiles on
  * from the tile now at the left edge (−1 / +1 per page), kept inside the
- * row. Returns the tile to bring to the left edge.
+ * row. Returns the tile to bring to the left edge. `shift` is railSnapShift:
+ * a row at rest is that much before the tile's natural place.
  */
-export function pageTarget(scrollX: number, interval: number, step: number, count: number): number {
+export function pageTarget(scrollX: number, interval: number, step: number, count: number, shift = 0): number {
   if (!(interval > 0) || count < 1) return 0;
-  const at = Math.round(Math.max(0, Number.isFinite(scrollX) ? scrollX : 0) / interval);
+  const x = Number.isFinite(scrollX) ? scrollX : 0;
+  const at = Math.max(0, Math.round((Math.max(0, x) - Math.min(0, Number.isFinite(shift) ? shift : 0)) / interval));
   return Math.max(0, Math.min(count - 1, at + Math.trunc(step)));
 }
 
@@ -220,13 +354,13 @@ export function railEdges(scrollX: number, viewWidth: number, contentWidth: numb
 
 /**
  * Whether tile `index` is cut off by an edge of the rail, so it should be
- * brought to the left edge when the keyboard puts the focus on it: the rail
- * has been scrolled past the tile's resting place, or the tile ends beyond the
- * right edge (`bleed` is the padding the row starts with). The browser's own
- * scroll-into-view can lose to the scroll snapping, so Tab can land on a tile
- * that is half out of view and the rail has to bring it in itself. False until
- * the rail has a width (nothing is known to be cut off), and for a hair's
- * difference (`slack` px: sub-pixel scroll positions).
+ * brought to its resting place when the keyboard puts the focus on it: the
+ * rail has been scrolled past the tile's resting place, or the tile ends
+ * beyond the right edge (`bleed` is the padding the row starts with). The
+ * browser's own scroll-into-view can lose to the scroll snapping, so Tab can
+ * land on a tile that is half out of view and the rail has to bring it in
+ * itself. False until the rail has a width (nothing is known to be cut off),
+ * and for a hair's difference (`slack` px: sub-pixel scroll positions).
  */
 export function tileCutOff(index: number, scrollX: number, viewWidth: number, tile: Pick<TileSize, 'width' | 'interval'>, bleed: number, slack = 2): boolean {
   if (!(viewWidth > 0) || !Number.isFinite(index)) return false;
@@ -240,29 +374,31 @@ export function tileCutOff(index: number, scrollX: number, viewWidth: number, ti
 // ---------------------------------------------------------------------------
 
 /**
- * How far ahead of the screen a rail starts to load, as a share of the
- * screen's height: a rail half a screen below is on its way (it is ready by
- * the time it scrolls in), one further down waits, so Home's own cards are
- * never competing with rails the member may never reach.
+ * How far ahead of the screen a row starts to load, as a share of the
+ * screen's height: a row half a screen below is on its way (it is ready by
+ * the time it scrolls in), one further down waits, so Home's own first row
+ * is never competing with rows the member may never reach.
  */
 export const RAIL_PRELOAD = 0.5;
 
 /**
- * Where a rail really is on Home: the top of its box (px down Home's content),
+ * Where a row really is on Home: the top of its box (px down Home's content),
  * or null when its layout is not a position at all. The web hides a screen
  * that another one covers (display: none) and then reports every view on it as
- * 0 × 0 at 0, 0; taken as a position, that would put every rail at the top of
+ * 0 × 0 at 0, 0; taken as a position, that would put every row at the top of
  * Home and load them all (revealRails) while the member is on another screen.
+ * A row that has no height yet (Plan a special day draws nothing until it knows it has days)
+ * still has a position, so only a width of 0 means there is none.
  */
-export function railTop(layout: { y: number; width: number; height: number }): number | null {
-  const { y, width, height } = layout;
-  return Number.isFinite(y) && width > 0 && height > 0 ? y : null;
+export function railTop(layout: { y: number; width: number; height?: number }): number | null {
+  const { y, width } = layout;
+  return Number.isFinite(y) && width > 0 ? y : null;
 }
 
 /**
- * The rails that may load now: those already loading, plus every rail whose
+ * The rows that may load now: those already loading, plus every row whose
  * top (px down the Home content) is above the bottom of the screen plus
- * `preload` px (RAIL_PRELOAD of a screen). A rail not laid out yet waits. The
+ * `preload` px (RAIL_PRELOAD of a screen). A row not laid out yet waits. The
  * same list comes back (same object) when nothing new is near, so callers can
  * skip a re-render.
  */
