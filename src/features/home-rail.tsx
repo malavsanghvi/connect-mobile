@@ -283,9 +283,10 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
 
   return (
     <View onLayout={onRootLayout} style={[{ gap: 2 }, held ? { opacity: 0, pointerEvents: 'none' } : null]} {...(held ? heldProps : null)}>
-      {title ? <RailHeader title={title} onSeeAll={onSeeAll} /> : null}
-      {error ? <ErrorState error={error} onRetry={reload} /> : null}
-      {notice}
+      {/* A held row has nothing to press or focus yet: its title and skeleton only. */}
+      {title ? <RailHeader title={title} onSeeAll={held ? undefined : onSeeAll} /> : null}
+      {error && !held ? <ErrorState error={error} onRetry={reload} /> : null}
+      {held ? null : notice}
       {mode === 'loading' ? (
         <RailSkeleton label={label} size={size} bleed={bleed} captionLines={captionLines} animate={loading} />
       ) : mode !== 'tiles' || !items ? null : (
