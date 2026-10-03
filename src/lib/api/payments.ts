@@ -6,7 +6,6 @@ import { AppError, logError, must, report } from '../errors';
 import { isMissingRpcError } from '../modules';
 import { supabase } from '../supabase';
 
-import { paymentRpc } from './payment-rpc';
 
 /**
  * Online payment, "how to give" and Zelle reports:
@@ -22,6 +21,9 @@ import { paymentRpc } from './payment-rpc';
 
 export type OfflineMethod = { method: string; instructions: Record<string, string> };
 
+/** The generated types mark every text argument of these functions non-null; they accept null (a missing value). */
+const NO_TEXT = null as unknown as string;
+
 let loggedMissingMethods = false;
 
 /**
@@ -30,7 +32,7 @@ let loggedMissingMethods = false;
  * other failure is a plain-English error; the caller shows it with a retry.
  */
 export async function loadPaymentMethods(centerId: string): Promise<PaymentMethods> {
-  const res = await paymentRpc('member_payment_methods', { p_center: centerId });
+  const res = await supabase.rpc('member_payment_methods', { p_center: centerId });
   if (res.error) {
     if (!isMissingRpcError(res.error)) throw report(res.error, 'load how to give');
     if (!loggedMissingMethods) {
@@ -154,16 +156,16 @@ export type ReportReceipt = { reportId: string; dueOn: string | null; isTest: bo
 export async function reportZelle(args: { centerId: string; householdId: string; value: ReportValue }): Promise<ReportReceipt> {
   const v = args.value;
   if (!Number.isInteger(v.amountCents) || v.amountCents < 1) throw new AppError('Please enter the amount you sent.', `report amount is not whole cents: ${v.amountCents}`);
-  const res = await paymentRpc('report_payment', {
+  const res = await supabase.rpc('report_payment', {
     p_center: args.centerId,
     p_household: args.householdId,
     p_method: 'zelle',
     p_amount_cents: v.amountCents,
     p_sent_on: v.sentOn,
-    p_confirmation: v.confirmation,
-    p_sender_name: v.senderName,
+    p_confirmation: v.confirmation ?? NO_TEXT,
+    p_sender_name: v.senderName ?? NO_TEXT,
     p_pledge_ids: v.pledgeIds,
-    p_note: null,
+    p_note: NO_TEXT,
   });
   if (res.error) throw actionError('Could not send your report', 'send your report', res.error);
   const d = res.data;
@@ -181,7 +183,7 @@ export async function reportZelle(args: { centerId: string; householdId: string;
 
 /** Withdraw a report that is still waiting for the treasurer. */
 export async function withdrawZelleReport(reportId: string): Promise<void> {
-  const res = await paymentRpc('withdraw_payment_report', { p_report: reportId, p_reason: null });
+  const res = await supabase.rpc('withdraw_payment_report', { p_report: reportId, p_reason: NO_TEXT });
   if (res.error) throw actionError('Could not withdraw your report', 'withdraw your report', res.error);
 }
 
@@ -194,7 +196,7 @@ let loggedMissingReports = false;
  * `available: false`, logged once, never an error. Any other failure is a plain-English error with a retry.
  */
 export async function listPaymentReports(centerId: string, householdId: string): Promise<ReportsAnswer> {
-  const res = await paymentRpc('my_payment_reports', { p_center: centerId, p_household: householdId });
+  const res = await supabase.rpc('my_payment_reports', { p_center: centerId, p_household: householdId });
   if (res.error) {
     if (isMissingRpcError(res.error)) {
       if (!loggedMissingReports) {
