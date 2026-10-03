@@ -7,7 +7,7 @@ import { ErrorState } from '@/components/states';
 import { Row, Txt } from '@/components/ui';
 import { usePulse, useReduceMotion } from '@/features/gyan/motion';
 import { logError, type AppError } from '@/lib/errors';
-import { keyTarget, pageTarget, RAIL_PRELOAD, railEdges, railGeometry, railRestOffset, railSnapOffsets, railSnapShift, railTileSize, railTop, railView, revealRails, TILE_GAP, tileCutOff, type TileShape, type TileSize } from '@/lib/home-rails';
+import { IMAGE_AHEAD, imageReach, keyTarget, pageTarget, RAIL_PRELOAD, railEdges, railGeometry, railRestOffset, railSnapOffsets, railSnapShift, railTileSize, railTop, railView, revealRails, TILE_GAP, tileCutOff, type TileShape, type TileSize } from '@/lib/home-rails';
 import { useLoad } from '@/lib/use-load';
 import { useSettings, useT } from '@/providers/settings';
 import { colors, fonts, layout, radii, shadows, space, touch, type ColorName } from '@/theme';
@@ -130,9 +130,13 @@ export function useRailLoad<T>(shown: boolean, loader: () => Promise<T>, deps: r
 // The row itself
 // ---------------------------------------------------------------------------
 
-export type TileCtx = { index: number; count: number; size: TileSize };
+/** What a tile is told about its place in the row. `near`: it is in view or just ahead of it, so it may mount its pictures (the rest wait until the row is moved towards them). */
+export type TileCtx = { index: number; count: number; size: TileSize; near: boolean };
 
-type DomNode = { contains?: (node: unknown) => boolean; firstElementChild?: { focus?: (opts?: { preventScroll?: boolean }) => void } | null };
+type DomNode = { contains?: (node: unknown) => boolean; querySelector?: (selector: string) => { focus?: (opts?: { preventScroll?: boolean }) => void } | null };
+
+/** What a keyboard can land on inside a tile (web). A tile is usually one button; Today's is a card with several controls and no button of its own. */
+const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 type RailProps<T> = {
   /** The row's visible title (a heading). Left out for the first row, whose tiles carry their own words. */
@@ -168,6 +172,8 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
   const [edges, setEdges] = useState({ prev: false, next: false });
   const [hover, setHover] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
+  // How far along the row the pictures are mounted (imageReach): the tiles in view and two more, then more as the row is moved.
+  const [reach, setReach] = useState(0);
   const scroller = useRef<ScrollView>(null);
   const wrapper = useRef<View>(null);
   // Web: each tile's list item, so the arrow keys can move the focus from tile to tile.
@@ -180,6 +186,7 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
   const size = railTileSize(shape, room, scale, TILE_GAP, { count: items === undefined ? undefined : count, bleed });
   // A row at rest after a swipe shows a sliver of the previous tile: its tiles rest a little before their natural place.
   const shift = railSnapShift(bleed);
+  const mounted = Math.min(count, Math.max(reach, size.whole + IMAGE_AHEAD));
 
   const onRootLayout = (e: LayoutChangeEvent) => {
     const { y, width, height } = e.nativeEvent.layout;
@@ -203,8 +210,9 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
     if (tileCutOff(i, x, view, size, bleed)) scrollToTile(i);
   };
   const tileAt = (target: unknown) => tiles.current.findIndex((node) => !!(node as unknown as DomNode | null)?.contains?.(target));
+  // The arrow keys move the focus to the first control inside the next tile: a tile whose root is not itself focusable (Today's card) would otherwise leave the focus where it was.
   const focusTile = (i: number) => {
-    (tiles.current[i] as unknown as DomNode | null)?.firstElementChild?.focus?.({ preventScroll: true });
+    (tiles.current[i] as unknown as DomNode | null)?.querySelector?.(FOCUSABLE)?.focus?.({ preventScroll: true });
     bringIn(i);
   };
   const onKeyDown = (e: { key: string; target?: unknown; preventDefault: () => void }) => {
@@ -238,14 +246,16 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
       }
     : null) as unknown as ViewProps | null;
   const listWeb = (isWeb ? { role: 'list', 'aria-label': label, onKeyDown, onFocus: onListFocus } : null) as unknown as ViewProps | null;
-  // Only the web needs to know how far the row has moved (for the ‹ › buttons).
+  // How far the row has moved: the web needs it for the ‹ › buttons, and every platform for which pictures to mount.
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    metrics.current = { x: contentOffset.x, view: layoutMeasurement.width, content: contentSize.width };
+    if (isWeb) updateEdges();
+    const next = imageReach(contentOffset.x, layoutMeasurement.width, size.interval, count);
+    setReach((r) => (next > r ? next : r));
+  };
   const scrollWeb = isWeb
     ? {
-        scrollEventThrottle: 50,
-        onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-          metrics.current = { x: e.nativeEvent.contentOffset.x, view: e.nativeEvent.layoutMeasurement.width, content: e.nativeEvent.contentSize.width };
-          updateEdges();
-        },
         onLayout: (e: LayoutChangeEvent) => {
           metrics.current = { ...metrics.current, view: e.nativeEvent.layout.width };
           updateEdges();
@@ -289,6 +299,8 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
             decelerationRate="fast"
             style={webSnap(bleed - shift, bleed)}
             contentContainerStyle={{ paddingHorizontal: bleed, paddingVertical: 4 }}
+            onScroll={onScroll}
+            scrollEventThrottle={50}
             {...scrollWeb}>
             <View accessibilityRole={isWeb ? undefined : 'list'} style={{ flexDirection: 'row', alignItems: 'stretch', gap: TILE_GAP }} {...listWeb}>
               {items.map((item, i) => (
@@ -299,7 +311,7 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
                   }}
                   style={[{ width: size.width }, WEB_SNAP_TILE]}
                   {...webProps({ role: 'listitem', 'aria-posinset': i + 1, 'aria-setsize': count })}>
-                  {renderTile(item, { index: i, count, size })}
+                  {renderTile(item, { index: i, count, size, near: i < mounted })}
                 </View>
               ))}
             </View>

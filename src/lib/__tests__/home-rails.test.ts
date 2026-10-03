@@ -4,6 +4,8 @@ import {
   HERO_PEEK,
   HOME_ROWS,
   homeRows,
+  IMAGE_AHEAD,
+  imageReach,
   keyTarget,
   LEARN_LISTEN_AREA,
   LEARN_LISTEN_CARD,
@@ -423,6 +425,42 @@ describe('pageTarget, keyTarget and railEdges (the ‹ › buttons and arrow key
     expect(railEdges(0, 300, 300)).toEqual({ prev: false, next: false });
     expect(railEdges(0, 0, 900)).toEqual({ prev: false, next: false });
     expect(railEdges(Number.NaN, 300, 900)).toEqual({ prev: false, next: true });
+  });
+});
+
+describe('imageReach (how many tiles of a row have their pictures mounted)', () => {
+  // A phone: tiles 138 wide, 12 apart, 355 px of row in view.
+  const interval = 150;
+  const view = 355;
+
+  it('mounts the tiles in view and two more ahead of them when the row has not moved: 5 of 12 flyers, not all 12', () => {
+    expect(IMAGE_AHEAD).toBe(2);
+    expect(imageReach(0, view, interval, 12)).toBe(5);
+  });
+  it('mounts more as the row is moved towards them', () => {
+    expect(imageReach(142, view, interval, 12)).toBe(6);
+    expect(imageReach(442, view, interval, 12)).toBe(8);
+    expect(imageReach(1500, view, interval, 12)).toBe(12);
+  });
+  it('never mounts more than the row has, nor fewer than none', () => {
+    expect(imageReach(0, view, interval, 3)).toBe(3);
+    expect(imageReach(0, view, interval, 0)).toBe(0);
+    expect(imageReach(-40, view, interval, 12)).toBe(5);
+  });
+  it('mounts nothing it cannot place (a row that has no width or interval yet, a scroll position it cannot read)', () => {
+    expect(imageReach(0, 0, interval, 12)).toBe(0);
+    expect(imageReach(0, view, 0, 12)).toBe(0);
+    expect(imageReach(Number.NaN, view, interval, 12)).toBe(5);
+    expect(imageReach(0, Number.NaN, interval, 12)).toBe(0);
+  });
+  it('is the tile that has just come into view at the right edge plus two, for any phone width', () => {
+    for (const screen of [320, 375, 430]) {
+      const s = railTileSize('poster', screen - 20);
+      const reach = imageReach(0, screen - 20, s.interval, 12);
+      // Everything the row shows, with its peek, is inside the reach.
+      expect(reach).toBeGreaterThanOrEqual(Math.ceil((screen - 20) / s.interval) + IMAGE_AHEAD);
+      expect(reach).toBeLessThan(12);
+    }
   });
 });
 

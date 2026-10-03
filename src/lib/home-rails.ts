@@ -365,6 +365,21 @@ export function railSnapOffsets(count: number, interval: number, shift: number):
   return Array.from({ length: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)) }, (_, i) => railRestOffset(i, interval, shift));
 }
 
+/** A row mounts the pictures of the tiles in view and this many more ahead of them (imageReach). */
+export const IMAGE_AHEAD = 2;
+
+/**
+ * How many tiles, counted from the start of a row, have their pictures mounted: those in view and IMAGE_AHEAD more. A row
+ * with twelve event flyers used to mount all twelve at once (two image views each, all downloading) although two and a bit
+ * are on the screen; the others now mount as the row is moved towards them. `count` caps it.
+ */
+export function imageReach(scrollX: number, viewWidth: number, interval: number, count: number): number {
+  if (!(interval > 0) || !(viewWidth > 0)) return 0;
+  const x = Number.isFinite(scrollX) ? Math.max(0, scrollX) : 0;
+  const lastInView = Math.ceil((x + viewWidth) / interval);
+  return Math.max(0, Math.min(Math.floor(Number.isFinite(count) ? count : 0), lastInView + IMAGE_AHEAD));
+}
+
 /**
  * Where the ‹ › buttons and the arrow keys take the rail: `step` tiles on
  * from the tile now at the left edge (−1 / +1 per page), kept inside the

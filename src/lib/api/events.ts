@@ -1,6 +1,7 @@
 import type { Tables, TablesInsert } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
 import { isUuid } from '../flyer';
+import { shareWhileRunning } from '../in-flight';
 import { withAuditReason } from '../request-context';
 import { supabase } from '../supabase';
 
@@ -15,20 +16,26 @@ export type LunchSlot = Tables<'lunch_slots'>;
 
 const VISIBLE_STATUSES = ['published', 'rsvp_closed', 'live', 'completed'];
 
-/** Upcoming and in-progress events the caller can see (RLS narrows guests to public events). */
+/**
+ * Upcoming and in-progress events the caller can see (RLS narrows guests to public events). Home asks for them from two
+ * places at about the same time (the Events row and the "Still coming?" load): a request already on its way is shared.
+ */
 export async function listUpcomingEvents(centerId: string): Promise<EventRow[]> {
-  const since = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
-  return must(
-    await supabase
-      .from('events')
-      .select('*')
-      .eq('center_id', centerId)
-      .in('status', VISIBLE_STATUSES)
-      .or(`starts_at.gte.${since},ends_at.gte.${new Date().toISOString()}`)
-      .order('starts_at', { ascending: true })
-      .limit(60),
-    'load upcoming events',
-  );
+  const rows = await shareWhileRunning(`upcoming-events:${centerId}`, async () => {
+    const since = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
+    return must(
+      await supabase
+        .from('events')
+        .select('*')
+        .eq('center_id', centerId)
+        .in('status', VISIBLE_STATUSES)
+        .or(`starts_at.gte.${since},ends_at.gte.${new Date().toISOString()}`)
+        .order('starts_at', { ascending: true })
+        .limit(60),
+      'load upcoming events',
+    );
+  });
+  return [...rows];
 }
 
 /** Recent past events (for "Share feedback on a recent event"). */
@@ -58,7 +65,10 @@ export async function findEvent(id: string): Promise<EventRow | null> {
 export async function listHouseholdRsvps(householdId: string, eventIds: string[]): Promise<Map<string, Rsvp>> {
   const out = new Map<string, Rsvp>();
   if (eventIds.length === 0) return out;
-  const rows = must(await supabase.from('rsvps').select('*').eq('household_id', householdId).in('event_id', eventIds).order('created_at', { ascending: false }), 'load your RSVPs');
+  // Asked for the same events from two places at about the same time (see listUpcomingEvents): one request.
+  const rows = await shareWhileRunning(`household-rsvps:${householdId}:${eventIds.join(',')}`, async () =>
+    must(await supabase.from('rsvps').select('*').eq('household_id', householdId).in('event_id', eventIds).order('created_at', { ascending: false }), 'load your RSVPs'),
+  );
   for (const r of rows) {
     const prev = out.get(r.event_id);
     if (!prev || (prev.status === 'cancelled' && r.status !== 'cancelled')) out.set(r.event_id, r);

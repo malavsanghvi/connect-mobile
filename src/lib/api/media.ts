@@ -1,5 +1,5 @@
 import { AppError, logError, report } from '../errors';
-import { mostLikedQueue, parseMediaRows, pictureOf, searchQuery, type AudioRef, type MediaItem, type MediaKind, type MediaSort } from '../media-library';
+import { mostLikedQueue, onlyFullyJain, parseMediaRows, pictureOf, searchQuery, type AudioRef, type MediaItem, type MediaKind, type MediaSort } from '../media-library';
 import { isMissingRpcError } from '../modules';
 import { supabase } from '../supabase';
 
@@ -43,6 +43,20 @@ export async function listMedia(centerId: string, kinds: readonly MediaKind[], o
     ...(query ? { p_query: query } : {}),
   });
   return parseMediaRows(unwrap(res, query ? `search the ${what}` : `load the ${what}`));
+}
+
+/** How many of the newest recipes Home asks for first (RECIPE_PAGE); enough that one of them is nearly always fully Jain. */
+export const RECIPE_PAGE = 12;
+
+/**
+ * The newest recipes, for Home's Fully Jain recipes tile (it shows the first one marked fully Jain, with its picture). A
+ * small page is asked for first, not the library's default 100 rows to show one thumbnail; only when that page is full and
+ * none of it is fully Jain is the full list asked for, so the tile is never lost to a short page.
+ */
+export async function listNewestRecipes(centerId: string): Promise<MediaItem[]> {
+  const page = await listMedia(centerId, ['recipe'], { sort: 'recent', limit: RECIPE_PAGE });
+  if (page.length < RECIPE_PAGE || onlyFullyJain(page).length > 0) return page;
+  return listMedia(centerId, ['recipe'], { sort: 'recent' });
 }
 
 /*

@@ -14,7 +14,7 @@ import { listOpportunities } from '@/lib/api/giving';
 import { loadGyanSummary } from '@/lib/api/gyan';
 import { countAttendees, type TodayInfo } from '@/lib/api/home';
 import { loadJainWayToday } from '@/lib/api/jainway';
-import { listMedia, loadMyPlaylist, mediaPictures } from '@/lib/api/media';
+import { listMedia, listNewestRecipes, loadMyPlaylist, mediaPictures } from '@/lib/api/media';
 import type { FamilyMember } from '@/lib/api/member';
 import { logError, report, type AppError } from '@/lib/errors';
 import { needsResign } from '@/lib/flyer';
@@ -22,7 +22,7 @@ import { formatCents, formatCentsCompact, formatDateTime, monthShortUpper, parse
 import { homeRows, learnListenTiles, lifeTiles, SPECIAL_DAYS_HOLD_MS, type HomeMember, type HomeRow, type LearnListenTile, type LifeTile } from '@/lib/home-rails';
 import { communityName } from '@/lib/learning';
 import { isHomeCardVisible } from '@/lib/modules';
-import type { MediaItem } from '@/lib/media-library';
+import { pictureOf, type MediaItem } from '@/lib/media-library';
 import { sizedPhotoUrl } from '@/lib/photo-size';
 import { streakDisplay, streakLabel } from '@/lib/rules';
 import { useLoad, type LoadState } from '@/lib/use-load';
@@ -329,10 +329,10 @@ async function signFlyers(tiles: readonly EventTile[]): Promise<{ urls: Record<s
 }
 
 /** The family's RSVP to each of these events, with how many people are on it; a failure is returned, not thrown. */
-async function readRsvps(householdId: string, tiles: readonly EventTile[]): Promise<{ facts: Record<string, RsvpFacts>; error: string | null }> {
-  if (tiles.length === 0) return { facts: {}, error: null };
+async function readRsvps(householdId: string, eventIds: readonly string[]): Promise<{ facts: Record<string, RsvpFacts>; error: string | null }> {
+  if (eventIds.length === 0) return { facts: {}, error: null };
   try {
-    const rsvps = await listHouseholdRsvps(householdId, tiles.map((x) => x.eventId));
+    const rsvps = await listHouseholdRsvps(householdId, [...eventIds]);
     const counts = await countAttendees([...rsvps.values()].filter((r) => r.status !== 'cancelled').map((r) => r.id));
     const facts: Record<string, RsvpFacts> = {};
     rsvps.forEach((r, eventId) => {
@@ -378,8 +378,8 @@ function EventsRow({ shown, onPlace, held }: RailSlot & { held: boolean }) {
         })),
         now,
       );
-      // The RSVPs and the flyers only need the events: ask for both at once.
-      const [rsvps, flyers] = await Promise.all([signedIn && householdId ? readRsvps(householdId, tiles) : Promise.resolve({ facts: null, error: null }), signFlyers(tiles)]);
+      // The RSVPs and the flyers only need the events: ask for both at once. The RSVPs are asked for every event the list returned, not only the ones with a tile: that is what the "Still coming?" load asks too, so a request already on its way is shared (api/events listHouseholdRsvps).
+      const [rsvps, flyers] = await Promise.all([signedIn && householdId ? readRsvps(householdId, tiles.length > 0 ? events.map((e) => e.id) : []) : Promise.resolve({ facts: null, error: null }), signFlyers(tiles)]);
       // Without the family's RSVPs there is no status to show (a guess would say "RSVP" on an event they are going to): the tiles carry none, and the row says why.
       const who = signedIn && rsvps.facts ? { now, adult } : null;
       return { cards: eventCards(tiles, rsvps.facts, who), rsvpError: rsvps.error, flyers: flyers.urls, flyerError: flyers.error };
@@ -457,7 +457,7 @@ function EventTileView({ card, ctx, tz, flyerUrl }: { card: EventCard; ctx: Tile
   return (
     <RailTile ctx={ctx} label={label} hint={chip?.kind === 'confirm' ? t('home.event.confirmHint') : t('home.rail.openHint')} onPress={open}>
       <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, overflow: 'hidden', backgroundColor: bandFor(tile.eventId) }}>
-        {flyerUrl ? <FlyerPoster url={flyerUrl} cacheKey={tile.flyerPath ?? undefined} fallback={designed} /> : designed}
+        {flyerUrl ? <FlyerPoster url={flyerUrl} cacheKey={tile.flyerPath ?? undefined} near={ctx.near} fallback={designed} /> : designed}
         {tile.live ? (
           <View style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none' }}>
             <TileBadge label={t('home.rail.liveNow')} bg={colors.live} fg="white" />
@@ -469,25 +469,38 @@ function EventTileView({ card, ctx, tz, flyerUrl }: { card: EventCard; ctx: Tile
   );
 }
 
+/** A 2:3 flyer (width ÷ height) fills the poster exactly; a flyer this far from it gets the blurred copy behind it. */
+const POSTER_WIDTH_OVER_HEIGHT = 2 / 3;
+
 /**
- * The event's flyer, whole (a flyer is made to be read): drawn over a
- * blurred, darkened copy of itself, so a flyer of another shape than 2:3
- * still fills the poster.
+ * The event's flyer, whole (a flyer is made to be read). A flyer of another shape than 2:3 is drawn over a blurred,
+ * darkened copy of itself, so it still fills the poster; a 2:3 flyer needs no copy, so none is mounted (it would be a
+ * second image view and a second decode for nothing). A tile that is not near the screen yet (`near`: the row mounts the
+ * pictures of the tiles in view and two more) shows its colour only; the flyer mounts as the row is moved towards it.
  */
-function FlyerPoster({ url, cacheKey, fallback }: { url: string; cacheKey?: string; fallback: ReactNode }) {
+function FlyerPoster({ url, cacheKey, near, fallback }: { url: string; cacheKey?: string; near: boolean; fallback: ReactNode }) {
   const [broken, setBroken] = useState<string | null>(null);
+  // The loaded flyer's width over its height (null until it has loaded).
+  const [shape, setShape] = useState<number | null>(null);
   if (broken === url) return <>{fallback}</>;
+  if (!near) return null;
   const source = cacheKey ? { uri: url, cacheKey } : { uri: url };
+  const copy = shape !== null && Number.isFinite(shape) && Math.abs(shape - POSTER_WIDTH_OVER_HEIGHT) > 0.02;
   return (
     <>
-      <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={16} accessibilityIgnoresInvertColors />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrimFaint }]} />
+      {copy ? (
+        <>
+          <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={16} accessibilityIgnoresInvertColors />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrimFaint }]} />
+        </>
+      ) : null}
       <Image
         source={source}
         style={StyleSheet.absoluteFill}
         contentFit="contain"
         transition={150}
         accessibilityIgnoresInvertColors
+        onLoad={(e) => setShape(e.source.height > 0 ? e.source.width / e.source.height : null)}
         onError={(e) => {
           logError('showing an event flyer on Home (showing the designed poster instead)', e.error);
           setBroken(url);
@@ -740,7 +753,7 @@ function LearnListenRow({ shown, onPlace, held, accessProblem }: RailSlot & { he
             })
           : undefined,
         want('podcasts') ? attempt('load the podcasts', () => listMedia(center.id, ['podcast'], { sort: 'recent', limit: 1 })) : undefined,
-        want('recipes') ? attempt('load the recipes', () => listMedia(center.id, ['recipe'], { sort: 'recent' })) : undefined,
+        want('recipes') ? attempt('load the recipes', () => listNewestRecipes(center.id)) : undefined,
         want('photos')
           ? attempt('load photo albums', async () => {
               const { albums, urls, urlError } = await loadAlbumPreviewsWithCovers(center.id, 1);
@@ -906,6 +919,12 @@ function PlaylistTileView({ count, playlist, ctx }: { count: number | null; play
   );
 }
 
+/** A stable name for an uploaded picture, so a phone keeps it between reloads although the signed link changes every time (YouTube's thumbnails have a link that never changes). */
+function pictureKey(item: MediaItem | null): string | undefined {
+  const pic = item ? pictureOf(item) : null;
+  return pic && 'path' in pic ? `media:${pic.path}` : undefined;
+}
+
 function PodcastsTileView({ latest, picture, ctx }: { latest: CardOf<'podcasts'>['latest']; picture: string | null; ctx: TileCtx }) {
   const t = useT();
   const router = useRouter();
@@ -915,6 +934,7 @@ function PodcastsTileView({ latest, picture, ctx }: { latest: CardOf<'podcasts'>
       <TileFrame ctx={ctx} bg={colors.store}>
         <TilePicture
           uri={picture}
+          cacheKey={pictureKey(latest)}
           fit="contain"
           what={`the picture of ${latest?.title ?? 'the podcasts'}`}
           fallback={
@@ -937,7 +957,7 @@ function RecipesTileView({ latest, picture, ctx }: { latest: CardOf<'recipes'>['
   return (
     <RailTile ctx={ctx} label={[t('home.ll.recipes'), sub].join('. ')} hint={t('home.rail.openHint')} onPress={() => router.push({ pathname: '/media/[kind]', params: { kind: 'recipe', fullyJain: '1' } })}>
       <TileFrame ctx={ctx} bg={colors.greenTint}>
-        <TilePicture uri={picture} what={`the photo of ${latest?.title ?? 'the recipes'}`} fallback={<Icon name={KIND_ICON.recipe} size={44} color={colors.green} />} />
+        <TilePicture uri={picture} cacheKey={pictureKey(latest)} what={`the photo of ${latest?.title ?? 'the recipes'}`} fallback={<Icon name={KIND_ICON.recipe} size={44} color={colors.green} />} />
       </TileFrame>
       <TileCaption title={t('home.ll.recipes')} sub={sub} />
     </RailTile>
@@ -954,6 +974,7 @@ function PhotosTileView({ latest, url, ctx }: { latest: CardOf<'photos'>['latest
       <TileFrame ctx={ctx} bg={pal.tiles[0]}>
         <TilePicture
           uri={url}
+          cacheKey={latest?.coverPath ? `photo:${latest.coverPath}:thumb` : undefined}
           what={`the cover of ${latest?.title ?? 'the latest album'}`}
           fallback={
             <>
