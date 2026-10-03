@@ -32,8 +32,8 @@ import { colors, fonts, layout, radii, shadows, space, touch, type ColorName } f
 
 const isWeb = Platform.OS === 'web';
 
-/** A held row is out of reach of assistive technology too (it is not there yet for anyone). */
-const heldProps = { accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants', ...(isWeb ? { 'aria-hidden': true } : null) } as unknown as ViewProps;
+/** A held row is out of reach of assistive technology too (it is not there yet for anyone): aria-hidden on the web, the two native props on a phone (react-native-web does not know them). */
+const heldProps = (isWeb ? { 'aria-hidden': true } : { accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' }) as unknown as ViewProps;
 
 /** Web only: props React Native's types do not know (react-native-web forwards them to the element). */
 function webProps(props: Record<string, unknown>): ViewProps {
