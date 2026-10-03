@@ -153,18 +153,26 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   exactly as issued (leading zeros kept), labelled from
   `centers.rules.identifiers.org_member_label` / `org_household_label`.
 - **Modules** (`src/lib/modules.ts`): the community can switch modules off
-  (`app.my_modules`). Tabs, Home cards and rails, drawer entries, Give / Events / Jain Way
+  (`app.my_modules`). Tabs, Home rows and tiles, drawer entries, Give / Events / Jain Way
   segments and guide sections of a switched-off module are hidden, and a deep link to
   one shows "{module} isn't offered by {center} right now". If `app.my_modules` is
   missing or fails, everything is shown and the reason is logged once.
-- **Home** (`src/app/(app)/(tabs)/index.tsx`): Today, alerts, Up next and Plan a special
-  day on top, then **rails** (`src/features/home-rails.tsx`): rows of large tiles that
-  scroll sideways — Continue learning, Upcoming events, Listen, Give, Photos, Fully Jain
-  recipes — each with its "See all". Which rails show is pure and unit-tested
-  (`src/lib/home-rails.ts`): the community's modules, its Home shortcuts
-  (`centers.rules.home.shortcuts`; each shortcut brings its rail) and, for a guest, only
-  the public events. A rail loads only as it nears the screen, shows its own plain-English
-  error with Try again, and is left out when it has nothing to show.
+- **Home** (`src/app/(app)/(tabs)/index.tsx`): six Netflix-style **rows** of big tiles
+  (`src/features/home-rails.tsx`, the scrolling row itself in `src/features/home-rail.tsx`), each
+  scrolling sideways with no scrollbar, the next tile peeking in at the right edge and a sliver of the
+  previous one at the left once it has moved. 1 **Today at {center}** (unchanged) beside **My Jain Way**
+  (the navy progress card of the My Jain Way tab, `src/features/jain-way-progress.tsx`; it opens that tab;
+  a guest sees Today alone), 2 **Plan a special day** (the household's days in the next 60 days, hidden
+  with none), 3 **Events** (a poster each, flyer or designed, with the family's RSVP status as a chip:
+  RSVP and Confirm first), 4 **Giving opportunities**, 5 **Life@{center}** (the guide's features and
+  Special days), 6 **Learn & listen** (Continue learning, My playlist, Podcasts, Recipes, Photos). Above
+  the first row, only when something needs you: the deactivated notice, alerts, feedback requested,
+  today's lunch times (the "Still coming?" pop-up opens by itself 24 hours before an event). Which rows and
+  tiles show is pure and unit-tested (`src/lib/home-rails.ts`): the community's modules, its Home shortcuts
+  (`centers.rules.home.shortcuts`; each is a tile of Learn & listen), the access levels (a tile the person
+  may not use is left out, not shown locked), and, for a guest, only Today, the public events and the
+  guide tiles. A row loads only as it nears the screen, shows its own plain-English error with Try again,
+  and is left out when it has nothing to show.
 - **Access levels** (`src/lib/access.ts`; the model is connect-crm `docs/ACCESS_LEVELS.md`):
   each organization sets, for each area (Live darshan, Virtual puja, Listen, Look,
   Learn, Ask Niva, the guide), the lowest level that may use it: public (anyone, not

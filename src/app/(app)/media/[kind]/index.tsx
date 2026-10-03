@@ -27,7 +27,7 @@ const SORTS: { value: MediaSort; label: 'media.sortTitle' | 'media.sortLiked' | 
  * One shelf of the 3L library in full (stavans, videos, podcasts or recipes):
  * search (title, singer or speaker, other spellings, tags), A–Z / most liked
  * / newest, "Fully Jain only" for recipes (already on with `?fullyJain=1`,
- * Home's "Fully Jain recipes" rail), play all for audio.
+ * Home's "Fully Jain recipes" tile), play all for audio.
  */
 export default function MediaLibraryScreen() {
   const t = useT();

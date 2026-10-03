@@ -81,7 +81,7 @@ export type ScreenProps = {
   /**
    * Where the scrolled content is: how far down it has scrolled (`y`) and how
    * tall the visible part is, on layout and while scrolling. Home uses it to
-   * load each rail only as it comes near (src/lib/home-rails.ts revealRails).
+   * load each row only as it comes near (src/lib/home-rails.ts revealRails).
    */
   onViewport?: (viewport: { y: number; height: number }) => void;
 };

@@ -18,7 +18,7 @@ export function albumOpenTarget(a: AlbumLike): AlbumOpen {
   return onlineAlbumUrl(a) ? 'online' : 'photos';
 }
 
-/** Whether tapping the album leads anywhere: it has a photo or video in the app, or an online album (https) to go to. Home's Photos rail shows only albums that do. */
+/** Whether tapping the album leads anywhere: it has a photo or video in the app, or an online album (https) to go to. Home's Photos tile shows only an album that does. */
 export function albumLeadsSomewhere(a: AlbumLike): boolean {
   return a.photos + a.videos > 0 || onlineAlbumUrl(a) !== null;
 }

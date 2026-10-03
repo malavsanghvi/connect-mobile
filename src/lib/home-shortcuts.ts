@@ -2,8 +2,9 @@
  * Home shortcuts: the community's choice of what Home offers, edited in the
  * portal (Settings › Member app › Home shortcuts) and stored in
  * `centers.rules.home.shortcuts`. Since the Netflix-style Home (2026-10-02)
- * each shortcut brings a rail of tiles instead of a round button
- * (src/lib/home-rails.ts RAIL_SHORTCUTS):
+ * each shortcut is a tile of the Learn & listen row instead of a round button
+ * (src/lib/home-rails.ts LEARN_LISTEN_SHORTCUT; "New here" is the first tile of Life@JSH, which
+ * does not depend on it):
  *
  * - key absent (or not a list) → all six, in the default order;
  * - an empty list → none;

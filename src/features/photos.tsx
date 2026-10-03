@@ -47,7 +47,7 @@ export async function loadAlbumsWithCovers(centerId: string): Promise<AlbumsData
 
 export type AlbumPreviewsData = { albums: AlbumPreview[]; urls: Record<string, string>; urlError: string | null };
 
-/** The newest `limit` albums with the signed link of each one's cover (Home's Photos rail); a storage failure keeps the tiles (without pictures) and says so. */
+/** The newest `limit` albums with the signed link of each one's cover (Home's Photos tile in Learn & listen); a storage failure keeps the tiles (without pictures) and says so. */
 export async function loadAlbumPreviewsWithCovers(centerId: string, limit: number): Promise<AlbumPreviewsData> {
   const albums = await listAlbumPreviews(centerId, limit);
   try {

@@ -34,7 +34,7 @@ export type AlbumSummary = {
   coverPaths: string[];
 };
 
-/** Newest first: by when the album's event starts, else by when the album was made (the order of the Photos grid and of Home's Photos rail). */
+/** Newest first: by when the album's event starts, else by when the album was made (the order of the Photos grid and of Home's Photos tile). */
 function newestFirst<T extends { album: Album; event: { starts_at: string | null } | null }>(list: T[]): T[] {
   const when = (s: T) => s.event?.starts_at ?? s.album.created_at;
   return [...list].sort((a, b) => when(b).localeCompare(when(a)));
@@ -73,7 +73,7 @@ export async function listAlbums(centerId: string): Promise<AlbumSummary[]> {
   return newestFirst(out);
 }
 
-/** What a tile on Home's Photos rail needs of an album: not the counts and the three-picture collage the Photos grid has. */
+/** What Home's Photos tile needs of an album: not the counts and the three-picture collage the Photos grid has. */
 export type AlbumPreview = {
   album: Album;
   event: AlbumSummary['event'];
@@ -90,7 +90,7 @@ const PREVIEW_PHOTOS = 8;
 const PREVIEW_ROUNDS = 3;
 
 /**
- * The newest `limit` albums that lead somewhere, for Home's Photos rail, in the
+ * The newest `limit` albums that lead somewhere, for Home's Photos tile, in the
  * Photos grid's order. Unlike listAlbums it does not read every approved photo
  * of every album (up to 10,000 rows): once the albums are in order, one small
  * request per album reads its first photos, in parallel, so a Home that
@@ -98,7 +98,7 @@ const PREVIEW_ROUNDS = 3;
  * photo here and no online album: staff often make one for an event before its
  * photos arrive, and it sorts first while the event is still to come) is passed
  * over and the next newest takes its place in a further round, so a few empty
- * albums at the top never leave the rail short, or hide it altogether.
+ * albums at the top never leave the tile without an album, or hide it altogether.
  */
 export async function listAlbumPreviews(centerId: string, limit: number): Promise<AlbumPreview[]> {
   const want = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
@@ -116,7 +116,7 @@ export async function listAlbumPreviews(centerId: string, limit: number): Promis
   const previews: AlbumPreview[] = [];
   let next = 0;
   for (let round = 0; round < PREVIEW_ROUNDS && next < newest.length && previews.length < want; round += 1) {
-    // Only as many albums as are still needed: usually the first round fills the rail and that is all.
+    // Only as many albums as are still needed: usually the first round fills the list and that is all.
     const batch = newest.slice(next, next + (want - previews.length));
     next += batch.length;
     const firstPhotos = await Promise.all(
