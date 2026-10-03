@@ -23,18 +23,24 @@ export type TryState =
   | { status: 'saved'; success: boolean; line: Line }
   | { status: 'error'; message: string; code: string | null; pending: Pending };
 
-/** What recording tries needs from its screen: a lesson step, or the virtual puja (src/app/(app)/puja.tsx). */
-export type TryContext = Pick<StepContext, 'centerId' | 'personId' | 'timeZone' | 'rules' | 'step' | 'addPracticePoints' | 'burst' | 'reloadLesson'>;
+/**
+ * What recording tries needs from its screen: a lesson step, or the virtual puja (src/app/(app)/puja.tsx).
+ * `personId` is null for a visitor who is not signed in (the virtual puja is open to the public): they have no
+ * tries to count and none are recorded.
+ */
+export type TryContext = Pick<StepContext, 'centerId' | 'timeZone' | 'rules' | 'step' | 'addPracticePoints' | 'burst' | 'reloadLesson'> & { personId: string | null };
 
 /**
  * Practice tries for one step: today's "N of 10" counter and recording each
  * try through app.record_gyan_attempt (which awards the repeat points).
  * A try that could not be saved says so, with Try again (the same try id, so
- * a try the server did record is never paid twice).
+ * a try the server did record is never paid twice). Without a person (a
+ * visitor who is not signed in) nothing is counted and `record` does nothing:
+ * the screen asks them to sign in to earn points instead.
  */
 export function usePracticeTries(ctx: TryContext) {
   const t = useT();
-  const counter = useLoad(() => loadTriesToday(ctx.personId, ctx.step.id, ctx.timeZone), [ctx.personId, ctx.step.id], 'load your practice tries for today');
+  const counter = useLoad(() => (ctx.personId ? loadTriesToday(ctx.personId, ctx.step.id, ctx.timeZone) : Promise.resolve(0)), [ctx.personId, ctx.step.id], 'load your practice tries for today');
   const [latest, setLatest] = useState<AttemptResult | null>(null);
   const [state, setState] = useState<TryState>({ status: 'idle' });
   // Best score of a saved successful try: the server has then completed the step with stars from it.
@@ -44,6 +50,8 @@ export function usePracticeTries(ctx: TryContext) {
   const repeatPoints = Math.max(0, ctx.step.repeat_points || 0);
 
   const record = async (attempt: Omit<Pending, 'tryId'> & { tryId?: string }) => {
+    // No person, no try: a visitor who is not signed in earns and records nothing (puja.tsx says so).
+    if (!ctx.personId) return;
     const pending: Pending = { ...attempt, tryId: attempt.tryId ?? newRequestId() };
     setState({ status: 'saving' });
     try {

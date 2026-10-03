@@ -23,6 +23,7 @@ import { PayHost } from '@/features/pay';
 import { ReopenEventLink } from '@/features/return-to-event';
 import { logError } from '@/lib/errors';
 import { setClientScreen } from '@/lib/request-context';
+import { AccessProvider } from '@/providers/access';
 import { AppProvider, useApp } from '@/providers/app';
 import { DataVersionProvider } from '@/providers/data-version';
 import { FeedbackProvider } from '@/providers/feedback';
@@ -61,12 +62,15 @@ export default function RootLayout() {
           <DataVersionProvider>
             <AppProvider>
               <ModulesProvider>
-                <FeedbackProvider>
-                  <StatusBar style="dark" />
-                  <ScreenTracker />
-                  <RootNavigator />
-                  <PayHost />
-                </FeedbackProvider>
+                {/* What this person may use (access levels): read for a visitor who is not signed in too, so it sits above the (auth) screens. */}
+                <AccessProvider>
+                  <FeedbackProvider>
+                    <StatusBar style="dark" />
+                    <ScreenTracker />
+                    <RootNavigator />
+                    <PayHost />
+                  </FeedbackProvider>
+                </AccessProvider>
               </ModulesProvider>
             </AppProvider>
           </DataVersionProvider>

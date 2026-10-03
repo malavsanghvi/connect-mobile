@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { FeatureNotice } from '@/components/feature-notice';
 import { EmptyState, Loaded } from '@/components/states';
 import { Banner, Button, Card, Chevron, Row, Txt, VStack } from '@/components/ui';
 import { PlayGlyph } from '@/features/gyan-ui';
@@ -11,6 +12,7 @@ import { clockLabel, type MediaItem } from '@/lib/media-library';
 import { LEARN_PART_MODULE } from '@/lib/modules';
 import type { QueueItem } from '@/lib/player-queue';
 import { useLoad } from '@/lib/use-load';
+import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
 import { useModules } from '@/providers/modules';
 import { usePlayer } from '@/providers/player';
@@ -41,22 +43,25 @@ function lessonQueueItem(t: T, c: ContentItem): QueueItem {
 /**
  * 3L › Listen: My playlist, stavans, podcasts, the "Listen and learn" audio
  * lessons and the pachchakhan library. Everything plays in the app-wide
- * queue (mini player above the tab bar). Guests see the pachchakhan library.
+ * queue (mini player above the tab bar). Listen (all but the pachchakhan
+ * library) is an area of the organization's access levels: a visitor is asked
+ * to sign in, a member below the level it asks for is told which level it
+ * takes. The pachchakhan library is open to guests.
  */
 export function ListenSection() {
-  const t = useT();
   const { member } = useApp();
   const { isOn } = useModules();
+  const listen = useFeature('listen');
   return (
     <VStack gap={18}>
-      {member ? (
-        <ListenShelves />
+      {listen.allowed && member ? (
+        <>
+          <ListenShelves />
+          {isOn(LEARN_PART_MODULE.lessons) ? <LessonsShelf /> : null}
+        </>
       ) : (
-        <Txt variant="small" color="muted">
-          {t('threeL.guestListen')}
-        </Txt>
+        <FeatureNotice feature="listen" />
       )}
-      {member && isOn(LEARN_PART_MODULE.lessons) ? <LessonsShelf /> : null}
       <PachchakhanShelf />
     </VStack>
   );

@@ -3,12 +3,15 @@ import type { ReactElement, ReactNode } from 'react';
 import { View } from 'react-native';
 
 import type { StringKey } from '@/i18n/en';
-import { blockingModule, type ModuleKey } from '@/lib/modules';
+import { AREA_LABEL, FEATURE_MODULE, type FeatureKey } from '@/lib/access';
+import { blockingModule, routeFeature, type ModuleKey } from '@/lib/modules';
+import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
 import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, space } from '@/theme';
 
+import { FeatureNotice } from './feature-notice';
 import { Screen } from './screen';
 import { StrokeIcon } from './stroke-icon';
 import { Button, Txt, VStack } from './ui';
@@ -55,17 +58,50 @@ export function ModuleOffScreen({ module, root }: { module: ModuleKey; root?: bo
   );
 }
 
-/** Renders the route, or the "not offered" screen when its module is switched off. */
-function ModuleRouteGate({ routeName, root, children }: { routeName: string; root?: boolean; children: ReactNode }) {
+/**
+ * Renders a screen that belongs to an access area (Live darshan, Virtual puja, Listen, Look, Learn, Ask Niva,
+ * the guide) only while the person may use the area: a visitor is asked to sign in, a member below the
+ * organization's minimum level is told which level it takes, and while the answer is loading or could not be
+ * had the screen says so (with Try again). The guide stays open until the answer says otherwise.
+ */
+function FeatureRouteGate({ feature, root, children }: { feature: FeatureKey; root?: boolean; children: ReactNode }) {
+  const t = useT();
+  const access = useFeature(feature);
+  if (access.allowed) return <>{children}</>;
+  const offModule = access.reason === 'module_off' ? FEATURE_MODULE[feature] : null;
+  if (offModule) return <ModuleOffScreen module={offModule} root={root} />;
+  return (
+    <Screen title={t(AREA_LABEL[feature])} root={root}>
+      <FeatureNotice feature={feature} />
+    </Screen>
+  );
+}
+
+/**
+ * Renders the route, or the "not offered" screen when its module is switched off, or the notice for the
+ * access area it belongs to when the person may not use it (`params` are the route's parameters: the 3L
+ * library screens need `kind` to know whether they are Listen or Look).
+ */
+function ModuleRouteGate({ routeName, params, root, children }: { routeName: string; params?: object | null; root?: boolean; children: ReactNode }) {
   const { map } = useModules();
   const blocked = blockingModule(map, routeName);
   if (blocked) return <ModuleOffScreen module={blocked} root={root} />;
-  return <>{children}</>;
+  const feature = routeFeature(routeName, params);
+  if (!feature) return <>{children}</>;
+  return (
+    <FeatureRouteGate feature={feature} root={root}>
+      {children}
+    </FeatureRouteGate>
+  );
 }
 
-/** `screenLayout` for the `(app)` stack: every pushed screen passes the module gate. */
-export function moduleStackLayout({ route, children }: { route: { name: string }; children: ReactElement }): ReactElement {
-  return <ModuleRouteGate routeName={route.name}>{children}</ModuleRouteGate>;
+/** `screenLayout` for the `(app)` stack: every pushed screen passes the module gate, then the access gate. */
+export function moduleStackLayout({ route, children }: { route: { name: string; params?: object }; children: ReactElement }): ReactElement {
+  return (
+    <ModuleRouteGate routeName={route.name} params={route.params}>
+      {children}
+    </ModuleRouteGate>
+  );
 }
 
 /** `screenLayout` for the tabs: a tab whose modules are all off can't be opened by a link either. */

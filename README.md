@@ -165,6 +165,29 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   (`centers.rules.home.shortcuts`; each shortcut brings its rail) and, for a guest, only
   the public events. A rail loads only as it nears the screen, shows its own plain-English
   error with Try again, and is left out when it has nothing to show.
+- **Access levels** (`src/lib/access.ts`; the model is connect-crm `docs/ACCESS_LEVELS.md`):
+  each organization sets, for each area (Live darshan, Virtual puja, Listen, Look,
+  Learn, Ask Niva, the guide), the lowest level that may use it: public (anyone, not
+  signed in), community (signed in and linked to it) or one of the organization's own
+  membership levels (Member, Life member…). The app asks `app.feature_access_for_me`
+  once the community is known (a signed-in person's first read waits until their link
+  to it is known, and is made again when the login is linked at the end of onboarding),
+  for a visitor who is not signed in too, and `useFeature(area)` decides what to show:
+  Home's "Watch live darshan" and "Do puja" (`src/features/today-doors.tsx`), Welcome ›
+  Without signing in (only the doors that lead somewhere here: a stream or an aarti
+  time, the Navang puja lesson; `useGuestDoors`), the 3L sections, the Niva button and
+  the screens of each area (`ROUTE_FEATURE` in `src/lib/modules.ts`; a library item is
+  gated by its own kind, `MediaItemView`). Today's timings are in the portal's list but
+  the app does not gate them (public in the database, shown on Home, the darshan
+  screens, the day plan and the guide). What is not available gets `FeatureNotice`
+  instead: "Sign in to use …" with a Sign in button, or "… is available to Member and
+  above. Ask the office about membership.".
+  The app only decides what to show; the database itself enforces Live darshan (RLS),
+  and for the other areas the app is the only guard until connect-crm B45. The virtual
+  puja runs without signing in and records nothing then ("Sign in to earn puja
+  points"). If the function is missing (an older portal) the rules from before apply
+  (members: everything; visitors: the guide and today's timings) and the reason is
+  logged once; if it fails, the screens that need it say so with Try again.
 - **Traceability** (`src/lib/request-context.ts`): every PostgREST request sends
   `x-client-app` (`member`, or `kiosk` while the volunteer board is in kiosk mode), a
   fresh `x-request-id` and `x-client-screen` (the current route). Writes the member
@@ -254,3 +277,4 @@ changed. The app works around each one as noted.
 | 25 | A person in several households | App uses the household they are primary in |
 | 24 | `app.my_modules(p_center)` is not in the generated types yet (wave 2, schema stream) | Hand-typed call in `src/lib/api/modules.ts`; missing RPC → everything on, logged once |
 | 29 | The push worker (`worker/src/messaging.ts`) sends Expo only `{ message_id, center_id, purpose }`; it does not forward `messages.payload` (`survey_id`, `deep_link`, …) or a `type`, so a tapped push cannot say which survey it is about | App routes `data.type = 'event_survey'` / `'event_survey_reminder'` (or a `deep_link` of `survey/<id>`, with `survey_id`) to the survey (`src/lib/notification-routes.ts`). Until the worker forwards them, a tap only opens the app; the Home pop-up and card still ask for the feedback |
+| 30 | ~~`app.feature_access_for_me(p_center)` (access levels, connect-crm 0586) is not in the generated types yet~~ — the types are copied from connect-crm after 0586 | A typed `supabase.rpc('feature_access_for_me', { p_center })` in `src/lib/api/access.ts`; the jsonb answer is still parsed defensively (`src/lib/access.ts`). Missing RPC (an older portal) → the rules from before access levels (members: everything; visitors: the guide and timings), logged once |
