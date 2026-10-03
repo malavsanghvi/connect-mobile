@@ -134,9 +134,11 @@ export function HomeRows({ reveal }: { reveal: RailReveal<LazyRow> }) {
 type TodayTileKey = 'today' | 'jainWay';
 
 /**
- * Today at {center}, unchanged in height and content, with My Jain Way beside it for a member (the navy
- * progress tile; it opens the My Jain Way tab with the full list of practices). A guest gets Today alone.
- * When the member has hidden Today, its greeting line stands in for it above whatever tiles are left.
+ * Today at {center}, with the height and content it has always had, and My Jain Way beside it for a member (the navy
+ * progress tile; it opens the My Jain Way tab with the full list of practices). A guest gets Today alone. Beside My Jain Way
+ * the card is 24 px narrower than the old one, so its three timing tiles have 4 px of padding at each side instead of 8
+ * (TIME_TILE_PAD_X) and each time keeps the room for its words the old card gave it, at every text size. When the member
+ * has hidden Today, its greeting line stands in for it above whatever tiles are left.
  */
 function TodayRow() {
   const t = useT();
@@ -370,12 +372,14 @@ function EventsRow({ shown, onPlace }: RailSlot) {
     'load upcoming events',
   );
   const d = state.data;
-  const notice = (
-    <>
-      {d?.flyerError ? <Banner tone="error" title={t('home.rail.flyersFailed')} message={d.flyerError} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
-      {d?.rsvpError ? <Banner tone="error" title={t('home.rail.rsvpsFailed')} message={d.rsvpError} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
-    </>
-  );
+  // Banners about part of the row; none at all when everything loaded (the row then has nothing to say if it has no events).
+  const notice =
+    d?.flyerError || d?.rsvpError ? (
+      <>
+        {d.flyerError ? <Banner tone="error" title={t('home.rail.flyersFailed')} message={d.flyerError} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
+        {d.rsvpError ? <Banner tone="error" title={t('home.rail.rsvpsFailed')} message={d.rsvpError} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
+      </>
+    ) : null;
   return (
     <Rail
       title={t('home.row.events')}
@@ -766,12 +770,15 @@ function LearnListenRow({ shown, onPlace, accessProblem }: RailSlot & { accessPr
   );
   const d = state.data;
   const title = t('home.row.learnListen');
-  const notice = (
-    <>
-      {accessProblem ? <ErrorState error={accessProblem.error} onRetry={accessProblem.retry} /> : null}
-      {d && d.errors.length > 0 ? <Banner tone="error" title={t('home.ll.partFailed')} message={d.errors[0]} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
-    </>
-  );
+  // What could not be had (or read): said inside the row with Try again, also when that leaves the row without a tile (railView).
+  const failed = d && d.errors.length > 0 ? d.errors[0] : null;
+  const notice =
+    accessProblem || failed ? (
+      <>
+        {accessProblem ? <ErrorState error={accessProblem.error} onRetry={accessProblem.retry} /> : null}
+        {failed ? <Banner tone="error" title={t('home.ll.partFailed')} message={failed} action={{ label: t('common.retry'), onPress: state.reload }} /> : null}
+      </>
+    ) : null;
   return (
     <Rail
       title={title}

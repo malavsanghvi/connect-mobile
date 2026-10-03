@@ -11,6 +11,7 @@ import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type FeedbackH
 import { reactivateAccount } from '@/lib/api/settings';
 import { logError, report } from '@/lib/errors';
 import { formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt } from '@/lib/format';
+import { TIME_TILE_PAD_X } from '@/lib/home-rails';
 import { communityName } from '@/lib/learning';
 import { lunchLines, nextOccurrence, tithiLabel } from '@/lib/rules';
 import { readPref, writePref } from '@/lib/storage';
@@ -127,9 +128,10 @@ export function DeactivatedBanner() {
 // Today at {center}
 // ---------------------------------------------------------------------------
 
+/** One of Today's timings. Its side padding is TIME_TILE_PAD_X (4), not the 8 it was: the card is narrower beside My Jain Way and each time keeps the room for its words that the old card gave it. */
 function TimeTile({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ flex: 1, backgroundColor: colors.panel, borderRadius: radii.md, paddingVertical: 6, paddingHorizontal: space.sm }}>
+    <View style={{ flex: 1, backgroundColor: colors.panel, borderRadius: radii.md, paddingVertical: 6, paddingHorizontal: TIME_TILE_PAD_X }}>
       <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
         {label}
       </Txt>

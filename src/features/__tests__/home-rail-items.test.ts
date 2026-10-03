@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { translate, type Translate } from '@/i18n';
 import type { FamilyMember } from '@/lib/api/member';
 import { FLYER_RESIGN_AFTER_MS } from '@/lib/flyer';
+import { railView } from '@/lib/home-rails';
 import { parseMediaRow, type MediaItem } from '@/lib/media-library';
 
 import {
@@ -543,6 +544,14 @@ describe('learnListenCards (the Learn & listen row from what it loaded)', () => 
   });
   it('treats a load that was not asked for like one that failed', () => {
     expect(learnListenCards(['podcasts'], {}).map((c) => c.kind)).toEqual(['podcasts']);
+  });
+  it('leaves the row with nothing to draw but a message when its only tile (Continue learning) failed to load: the row is kept, not silently gone', () => {
+    // ?shortcuts=learn with Gyan Path failing: no card, one error for the row to say.
+    const cards = learnListenCards(['learning'], { learning: { ok: false } });
+    expect(cards).toEqual([]);
+    expect(railView({ tiles: cards.length, error: false, notice: true })).toBe('message');
+    // Nothing failed and nothing is left to continue: the row really is left out.
+    expect(railView({ tiles: learnListenCards(['learning'], { learning: { ok: true, value: [] } }).length, error: false, notice: false })).toBe('hidden');
   });
 });
 

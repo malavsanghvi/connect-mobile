@@ -19,6 +19,7 @@
  */
 import { configuredShortcuts, type HomeShortcut } from './home-shortcuts';
 import { isGuideSectionVisible, isHomeCardVisible, type GuideSection, type HomeCard, type ModuleMap } from './modules';
+import { space } from '../theme';
 
 // ---------------------------------------------------------------------------
 // Which rows show
@@ -213,6 +214,23 @@ export const HERO_PEEK = 32;
 /** How much of the previous tile shows at the left edge once a row has been moved (px). */
 export const LEFT_SLIVER = 16;
 
+/** Today's card is a hero Card: its border on each side (px). */
+const TODAY_CARD_BORDER = 1;
+
+/**
+ * The padding inside each of Today's three timing tiles (Sunrise, Navkarsi, Chauvihar), at each side (px). It was
+ * space.sm (8). Beside My Jain Way the card is 24 px narrower than the old one, which takes 8 px of room for its words from
+ * each of the three tiles ("8:03 AM" wrapped at larger text sizes, "Chauvihar" at the largest); 4 px at each side gives the 8 px
+ * back, so a time has exactly the room the old card gave it.
+ */
+export const TIME_TILE_PAD_X = 4;
+
+/** The room (px) one of Today's timing tiles leaves for its words in a Today card `cardWidth` wide: the card less its border and padding, shared by the tiles and the gaps between them, less the padding inside each tile. */
+export function todayTimeRoom(cardWidth: number, padX: number = TIME_TILE_PAD_X, tiles = 3): number {
+  const inner = cardWidth - 2 * TODAY_CARD_BORDER - 2 * space.cardX;
+  return (inner - (tiles - 1) * space.sm) / tiles - 2 * padX;
+}
+
 export type TileSize = {
   width: number;
   /** The picture's height; null for tiles whose words set the height. */
@@ -294,6 +312,30 @@ export function railGeometry(i: RailGeometryInput): RailGeometry {
   const content = positive(i.measured) > 0 ? i.measured + 2 * i.gutter : Math.min(screen, i.maxContentWidth);
   const side = i.web ? 0 : Math.max(0, (screen - content) / 2);
   return { bleed: i.gutter + side, room: Math.max(0, content - i.gutter + side) };
+}
+
+// ---------------------------------------------------------------------------
+// What a row draws
+// ---------------------------------------------------------------------------
+
+/**
+ * What a row draws (src/features/home-rail.tsx):
+ *
+ * - `loading`: its tiles are not known yet (skeleton tiles);
+ * - `tiles`: it has tiles;
+ * - `message`: it has no tile but has something to say (an error, or a notice such as "part of it could not be
+ *   loaded"): it keeps its title and says so, with Try again;
+ * - `hidden`: nothing to show and nothing wrong, so the row is left out.
+ *
+ * A row never vanishes because everything in it failed to load: the member would never know it was meant to be there
+ * (CLAUDE.md: errors are always shown, never a silent fallback).
+ */
+export type RailView = 'loading' | 'tiles' | 'message' | 'hidden';
+
+export function railView({ tiles, error, notice }: { tiles: number | undefined; error: boolean; notice: boolean }): RailView {
+  if (tiles === undefined) return error ? 'message' : 'loading';
+  if (tiles > 0) return 'tiles';
+  return error || notice ? 'message' : 'hidden';
 }
 
 // ---------------------------------------------------------------------------

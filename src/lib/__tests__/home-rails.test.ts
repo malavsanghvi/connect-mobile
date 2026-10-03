@@ -22,10 +22,13 @@ import {
   railSnapShift,
   railTileSize,
   railTop,
+  railView,
   revealRails,
   TILE_GAP,
   TILE_SHAPES,
+  TIME_TILE_PAD_X,
   tileCutOff,
+  todayTimeRoom,
   type HomeAccess,
   type HomeRow,
   type TileShape,
@@ -143,6 +146,30 @@ describe('learnListenTiles (the old shortcut buttons as tiles)', () => {
   });
 });
 
+describe('railView (what a row draws)', () => {
+  it('draws skeleton tiles while it does not know its tiles yet', () => {
+    expect(railView({ tiles: undefined, error: false, notice: false })).toBe('loading');
+    // A notice does not stop the skeleton: the row is still on its way.
+    expect(railView({ tiles: undefined, error: false, notice: true })).toBe('loading');
+  });
+  it('draws its tiles when it has some, with or without something to say about part of them', () => {
+    expect(railView({ tiles: 3, error: false, notice: false })).toBe('tiles');
+    expect(railView({ tiles: 1, error: false, notice: true })).toBe('tiles');
+  });
+  it('is left out when it has no tile and nothing is wrong', () => {
+    expect(railView({ tiles: 0, error: false, notice: false })).toBe('hidden');
+  });
+  it('keeps its title and says what is wrong when it has no tile because its loads failed', () => {
+    // The row loaded, found nothing to show, and part of it failed (a notice with Try again): never a silently missing row.
+    expect(railView({ tiles: 0, error: false, notice: true })).toBe('message');
+    expect(railView({ tiles: 0, error: true, notice: false })).toBe('message');
+    expect(railView({ tiles: 0, error: true, notice: true })).toBe('message');
+  });
+  it('says so when the load failed before any tile was known', () => {
+    expect(railView({ tiles: undefined, error: true, notice: false })).toBe('message');
+  });
+});
+
 describe('railTileSize (big enough to read, the next tile peeking in)', () => {
   const phone = 375 - 20; // from the cards' left edge to the right edge of a 375 phone
   const visible = (room: number, w: number) => (room + TILE_GAP) / (w + TILE_GAP);
@@ -245,8 +272,37 @@ describe('railTileSize for the hero tiles (Today and My Jain Way)', () => {
   it('never makes a hero wider than the shape allows', () => {
     expect(railTileSize('hero', 2000, 1, TILE_GAP, { count: 2, bleed: 20 }).width).toBe(TILE_SHAPES.hero.max);
   });
-  it('does not use the text size: Today keeps its width and its words wrap instead', () => {
+  it('does not use the text size: Today keeps its width, and its times have the room they had', () => {
     expect(railTileSize('hero', 355, 1.3, TILE_GAP, { count: 2, bleed: 20 })).toEqual(railTileSize('hero', 355, 1, TILE_GAP, { count: 2, bleed: 20 }));
+  });
+  describe('the room Today’s three times have for their words (the old card wrapped nothing at any text size)', () => {
+    // The old card was as wide as the cards (screen less two gutters), with 8 px of padding inside each timing tile.
+    const OLD_TILE_PAD = 8;
+    const oldRoom = (screen: number) => todayTimeRoom(screen - 40, OLD_TILE_PAD);
+    const heroRoom = (screen: number, scale: number) => todayTimeRoom(railTileSize('hero', room(screen), scale, TILE_GAP, { count: 2, bleed: 20 }).width);
+
+    it('is at least what the old card gave, at 360 / 375 / 390 / 412 and at every text size', () => {
+      for (const screen of [360, 375, 390, 412]) {
+        for (const scale of [1, 1.15, 1.3]) expect(heroRoom(screen, scale)).toBeGreaterThanOrEqual(oldRoom(screen) - 1e-9);
+      }
+    });
+    it('is exactly what the old card gave wherever the tile is narrower than the cards only by the peeking sliver', () => {
+      for (const screen of [360, 375, 390, 412, 430]) expect(heroRoom(screen, 1)).toBeCloseTo(oldRoom(screen), 6);
+    });
+    it('is more than before on the smallest phones, where the tile keeps its 280', () => {
+      expect(heroRoom(320, 1)).toBeCloseTo(oldRoom(320) + 2 * (OLD_TILE_PAD - TIME_TILE_PAD_X), 6);
+    });
+    it('would be 8 px short at 375 with the old padding inside a tile 24 px narrower (the wrapping the review found)', () => {
+      const narrow = railTileSize('hero', room(375), 1, TILE_GAP, { count: 2, bleed: 20 }).width;
+      expect(narrow).toBe(311);
+      expect(todayTimeRoom(narrow, OLD_TILE_PAD)).toBeCloseTo(oldRoom(375) - 8, 6);
+      expect(todayTimeRoom(narrow)).toBeCloseTo(oldRoom(375), 6);
+    });
+    it('is as roomy alone (a guest sees Today at the old width) as it was, and a little more', () => {
+      const alone = railTileSize('hero', room(375), 1, TILE_GAP, { count: 1, bleed: 20 }).width;
+      expect(alone).toBe(335);
+      expect(todayTimeRoom(alone)).toBeGreaterThan(oldRoom(375));
+    });
   });
   it('is as wide as the cards when it is alone (a guest sees Today alone, exactly as the card was)', () => {
     expect(railTileSize('hero', 355, 1, TILE_GAP, { count: 1, bleed: 20 }).width).toBe(335);

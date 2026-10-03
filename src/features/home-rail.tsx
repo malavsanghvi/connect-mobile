@@ -7,7 +7,7 @@ import { ErrorState } from '@/components/states';
 import { Row, Txt } from '@/components/ui';
 import { usePulse, useReduceMotion } from '@/features/gyan/motion';
 import { logError, type AppError } from '@/lib/errors';
-import { keyTarget, pageTarget, RAIL_PRELOAD, railEdges, railGeometry, railRestOffset, railSnapOffsets, railSnapShift, railTileSize, railTop, revealRails, TILE_GAP, tileCutOff, type TileShape, type TileSize } from '@/lib/home-rails';
+import { keyTarget, pageTarget, RAIL_PRELOAD, railEdges, railGeometry, railRestOffset, railSnapOffsets, railSnapShift, railTileSize, railTop, railView, revealRails, TILE_GAP, tileCutOff, type TileShape, type TileSize } from '@/lib/home-rails';
 import { useLoad } from '@/lib/use-load';
 import { useSettings, useT } from '@/providers/settings';
 import { colors, fonts, layout, radii, shadows, space, touch, type ColorName } from '@/theme';
@@ -237,10 +237,12 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
       }
     : null;
 
-  if (items !== undefined && items.length === 0 && !error) return null;
+  // A row with no tile still shows when there is something to say about it (an error, a notice): it is only left out when nothing is wrong.
+  const mode = railView({ tiles: items === undefined ? undefined : count, error: !!error, notice: notice !== undefined && notice !== null && notice !== false });
+  if (mode === 'hidden') return null;
   // A quiet row draws nothing until it knows it has tiles. Its empty box is there only so Home knows where it is (and when to load it); the
   // negative margin takes back the gap Home leaves between its rows (space.lg), so the rows below do not move when it turns out to be empty.
-  if (quiet && items === undefined && !error) return <View onLayout={onRootLayout} style={{ height: 0, marginTop: -space.lg }} />;
+  if (quiet && mode === 'loading') return <View onLayout={onRootLayout} style={{ height: 0, marginTop: -space.lg }} />;
 
   // The buttons sit at the middle of the pictures (the words under them do not count); a tile that is all words has the middle of the row.
   const chevronTop = size.height === null ? null : 4 + size.height / 2 - 20;
@@ -251,11 +253,9 @@ export function Rail<T>({ title, label, shape, captionLines, loading, quiet, onS
       {title ? <RailHeader title={title} onSeeAll={onSeeAll} /> : null}
       {error ? <ErrorState error={error} onRetry={reload} /> : null}
       {notice}
-      {items === undefined ? (
-        error ? null : (
-          <RailSkeleton label={label} size={size} bleed={bleed} captionLines={captionLines} animate={loading} />
-        )
-      ) : count === 0 ? null : (
+      {mode === 'loading' ? (
+        <RailSkeleton label={label} size={size} bleed={bleed} captionLines={captionLines} animate={loading} />
+      ) : mode !== 'tiles' || !items ? null : (
         <View ref={wrapper} style={{ marginHorizontal: -bleed }} {...wrapperWeb}>
           <ScrollView
             ref={scroller}
