@@ -452,6 +452,8 @@ export const en = {
   'home.life.specialDays': 'Special days',
   'home.life.specialDaysLine': 'Birthdays and anniversaries, with a labh',
   'home.ll.learning': 'Continue learning',
+  'home.ll.learningDone': 'Every level done',
+  'home.ll.learningDoneHint': 'Opens your learning goals',
   'home.ll.playlist': 'My playlist',
   'home.ll.playlistLine': 'Play your favorite stavans',
   'home.ll.playlistEmpty': 'Add stavans you like',

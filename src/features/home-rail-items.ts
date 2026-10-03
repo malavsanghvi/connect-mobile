@@ -9,7 +9,9 @@ import type { SpecialDay } from '@/lib/api/family';
 import type { FamilyMember } from '@/lib/api/member';
 import { needsResign } from '@/lib/flyer';
 import { formatDate, formatDay, monthName, parseISODate, zonedParts } from '@/lib/format';
+import { goalProgress, lastActivityByGoal, type ProgressMark } from '@/lib/gyan-progress';
 import type { LearnListenTile } from '@/lib/home-rails';
+import { goalMark } from '@/lib/learning';
 import { onlyFullyJain, type MediaItem } from '@/lib/media-library';
 
 import { albumDate, turnsAge } from './event-rules';
@@ -64,14 +66,42 @@ export type LearningTile = {
   mark: string;
 };
 
+/** The goals of Gyan Path as the full load (api/gyan loadGyan) or the summary Home reads (loadGyanSummary) has them: the same answers from either. */
+export type GyanGoalsLike = {
+  goals: readonly { id: string; name: string; tint: string | null; mark: string | null; recommended: boolean; levels: readonly { id: string; name: string; steps: readonly { id: string }[] }[] }[];
+  progress: readonly ProgressMark[];
+};
+
+/** Each goal with the person's progress and when they last finished a step of it: what Continue learning is built from. */
+export function learningGoalInputs(g: GyanGoalsLike, personId: string): LearningGoalInput[] {
+  const last = lastActivityByGoal(g, personId);
+  return g.goals.map((goal) => {
+    const p = goalProgress(goal, g.progress, personId);
+    return {
+      id: goal.id,
+      name: goal.name,
+      tint: goal.tint,
+      mark: goalMark(goal),
+      recommended: goal.recommended,
+      levelsDone: p.levelsDone,
+      levelsTotal: p.levelsTotal,
+      stepsDone: p.stepsDone,
+      stepsTotal: p.stepsTotal,
+      complete: p.complete,
+      currentLevel: p.currentLevel ? { id: p.currentLevel.id, name: p.currentLevel.name } : null,
+      lastActivity: last.get(goal.id) ?? null,
+    };
+  });
+}
+
 /**
  * "Continue learning": the member's unfinished goals, each opening its next
  * level. The goals they are working on come first, the most recent first
  * (so the first one is the level the old Learn shortcut opened: api/gyan
  * nextGyanLevel), then the recommended ones, then the rest in the
  * community's order. Finished goals, and goals without levels yet, are left
- * out; with nothing left there is no Continue learning tile. The Learn &
- * listen row shows the first one.
+ * out. The Learn & listen row shows the first one (learningState says what it
+ * shows when there is none).
  */
 export function learningTiles(goals: readonly LearningGoalInput[], limit = RAIL_LIMIT): LearningTile[] {
   const open = goals
@@ -98,6 +128,19 @@ export function learningTiles(goals: readonly LearningGoalInput[], limit = RAIL_
         mark: g.mark,
       };
     });
+}
+
+/**
+ * What Continue learning has: the goals still to do (its tiles) and, when there are none, whether that is because
+ * every goal is finished. The old Learn shortcut then still opened Gyan Path (the list of goals, from where another goal
+ * can be chosen), so the tile stays for it, saying so, instead of vanishing. A community whose goals have no levels yet has
+ * nothing to open and no tile.
+ */
+export type LearningState = { tiles: LearningTile[]; allDone: boolean };
+
+export function learningState(goals: readonly LearningGoalInput[], limit = RAIL_LIMIT): LearningState {
+  const tiles = learningTiles(goals, limit);
+  return { tiles, allDone: tiles.length === 0 && goals.some((g) => g.complete) };
 }
 
 // ---------------------------------------------------------------------------
@@ -468,8 +511,8 @@ export function recipeTiles(items: readonly MediaItem[], limit = RAIL_LIMIT): Me
 export type Part<T> = { ok: true; value: T } | { ok: false };
 
 export type LearnListenParts = {
-  /** learningTiles(…): the goals to continue. */
-  learning?: Part<LearningTile[]>;
+  /** learningState(…): the goals to continue, or that every goal is done. */
+  learning?: Part<LearningState>;
   /** My playlist, in the member's order; `fallback` says the library has something to play when it is empty (the playlist screen offers the most-liked stavans then). */
   playlist?: Part<{ items: MediaItem[]; fallback: boolean }>;
   /** The community's podcasts, newest first. */
@@ -481,7 +524,8 @@ export type LearnListenParts = {
 };
 
 export type LearnListenCard =
-  | { kind: 'learning'; key: string; tile: LearningTile }
+  /** `tile` null: every goal is done, and the card opens the list of goals. */
+  | { kind: 'learning'; key: string; tile: LearningTile | null }
   | { kind: 'playlist'; key: string; count: number | null }
   | { kind: 'podcasts'; key: string; latest: MediaItem | null }
   | { kind: 'recipes'; key: string; latest: MediaItem | null }
@@ -489,8 +533,9 @@ export type LearnListenCard =
 
 /**
  * The cards of the Learn & listen row, for the tiles this person may use (`order`, from learnListenTiles).
- * A tile with nothing behind it is left out: no goal left to continue, no podcast, no fully Jain recipe, no album, and
- * no playlist when it is empty and the library has nothing to offer instead.
+ * A tile with nothing behind it is left out: no goal at all to continue (every goal finished is not that: the tile stays and
+ * opens the goals), no podcast, no fully Jain recipe, no album, and no playlist when it is empty and the library has nothing
+ * to offer instead.
  * A load that failed never takes its tile away (a feature is not hidden because of our own error, and the row
  * says what went wrong): the tile shows without the details it could not get. Continue learning is the one
  * exception, because without the goals there is no level to open; the row's notice carries the error.
@@ -500,8 +545,12 @@ export function learnListenCards(order: readonly LearnListenTile[], parts: Learn
   for (const kind of order) {
     switch (kind) {
       case 'learning': {
-        const tile = parts.learning?.ok ? parts.learning.value[0] : undefined;
-        if (tile) out.push({ kind, key: 'learning', tile });
+        const l = parts.learning;
+        if (l?.ok) {
+          const tile = l.value.tiles[0];
+          if (tile) out.push({ kind, key: 'learning', tile });
+          else if (l.value.allDone) out.push({ kind, key: 'learning', tile: null });
+        }
         break;
       }
       case 'playlist': {

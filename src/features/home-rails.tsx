@@ -11,7 +11,7 @@ import { listHouseholdRsvps, listUpcomingEvents, rsvpBlockReason } from '@/lib/a
 import type { SpecialDay } from '@/lib/api/family';
 import { BUCKETS, signedUrls } from '@/lib/api/files';
 import { listOpportunities } from '@/lib/api/giving';
-import { goalProgress, lastActivityByGoal, loadGyan } from '@/lib/api/gyan';
+import { loadGyanSummary } from '@/lib/api/gyan';
 import { countAttendees, type TodayInfo } from '@/lib/api/home';
 import { loadJainWayToday } from '@/lib/api/jainway';
 import { listMedia, loadMyPlaylist, mediaPictures } from '@/lib/api/media';
@@ -20,7 +20,7 @@ import { logError, report, type AppError } from '@/lib/errors';
 import { needsResign } from '@/lib/flyer';
 import { formatCents, formatCentsCompact, formatDateTime, monthShortUpper, parseISODate, zonedParts } from '@/lib/format';
 import { homeRows, learnListenTiles, lifeTiles, SPECIAL_DAYS_HOLD_MS, type HomeMember, type HomeRow, type LearnListenTile, type LifeTile } from '@/lib/home-rails';
-import { communityName, goalMark } from '@/lib/learning';
+import { communityName } from '@/lib/learning';
 import { isHomeCardVisible } from '@/lib/modules';
 import type { MediaItem } from '@/lib/media-library';
 import { sizedPhotoUrl } from '@/lib/photo-size';
@@ -46,7 +46,8 @@ import {
   flyersToSign,
   giveTiles,
   jainWayLabel,
-  learningTiles,
+  learningGoalInputs,
+  learningState,
   learnListenCards,
   playlistQueue,
   photoTiles,
@@ -727,29 +728,8 @@ function LearnListenRow({ shown, onPlace, held, accessProblem }: RailSlot & { he
       const want = (tile: LearnListenTile) => order.includes(tile);
       const [learning, playlist, podcasts, recipes, photos] = await Promise.all([
         want('learning')
-          ? attempt('load your Gyan Path', async () => {
-              const g = await loadGyan(center, [me]);
-              const last = lastActivityByGoal(g, me);
-              return learningTiles(
-                g.goals.map((goal) => {
-                  const p = goalProgress(goal, g.progress, me);
-                  return {
-                    id: goal.id,
-                    name: goal.name,
-                    tint: goal.tint,
-                    mark: goalMark(goal),
-                    recommended: goal.recommended,
-                    levelsDone: p.levelsDone,
-                    levelsTotal: p.levelsTotal,
-                    stepsDone: p.stepsDone,
-                    stepsTotal: p.stepsTotal,
-                    complete: p.complete,
-                    currentLevel: p.currentLevel ? { id: p.currentLevel.id, name: p.currentLevel.name } : null,
-                    lastActivity: last.get(goal.id) ?? null,
-                  };
-                }),
-              );
-            })
+          ? // The summary, not loadGyan: Home needs the goals, the levels and the number of steps, not every lesson's quiz and activity.
+            attempt('load your Gyan Path', async () => learningState(learningGoalInputs(await loadGyanSummary(center, me), me)))
           : undefined,
         want('playlist')
           ? attempt('load your playlist', async () => {
@@ -832,7 +812,7 @@ function LearnListenAccessError({ error, onRetry }: { error: AppError; onRetry: 
 function LearnListenTileView({ card, ctx, d }: { card: LearnListenCard; ctx: TileCtx; d: LearnListenData | undefined }) {
   switch (card.kind) {
     case 'learning':
-      return <LearningTileView tile={card.tile} ctx={ctx} />;
+      return card.tile ? <LearningTileView tile={card.tile} ctx={ctx} /> : <LearningDoneView ctx={ctx} />;
     case 'playlist':
       return <PlaylistTileView count={card.count} playlist={d?.playlist ?? { ok: false }} ctx={ctx} />;
     case 'podcasts':
@@ -873,6 +853,25 @@ function LearningTileView({ tile, ctx }: { tile: LearningTile; ctx: TileCtx }) {
         </View>
       </View>
       <TileCaption title={t('home.ll.learning')} sub={sub} />
+    </RailTile>
+  );
+}
+
+/** Every goal is done: the old Learn shortcut still opened Gyan Path then, so the tile stays, says so, and opens the goals (from where another can be chosen). */
+function LearningDoneView({ ctx }: { ctx: TileCtx }) {
+  const t = useT();
+  const router = useRouter();
+  return (
+    <RailTile ctx={ctx} label={[t('learn.gyanPath'), t('home.ll.learningDone')].join('. ')} hint={t('home.ll.learningDoneHint')} onPress={() => router.push('/gyan')}>
+      <View style={{ height: ctx.size.height ?? undefined, borderRadius: radii.xl, backgroundColor: colors.navy, overflow: 'hidden', padding: space.md, justifyContent: 'space-between' }}>
+        <Decor />
+        <View />
+        <View style={{ alignItems: 'flex-start' }}>
+          <Icon name="checkmark-circle-outline" size={44} color={colors.white} />
+        </View>
+        <View style={{ height: 5, borderRadius: 3, backgroundColor: colors.white }} />
+      </View>
+      <TileCaption title={t('learn.gyanPath')} sub={t('home.ll.learningDone')} />
     </RailTile>
   );
 }

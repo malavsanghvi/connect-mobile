@@ -17,6 +17,8 @@ import {
   giveTiles,
   inConfirmWindow,
   jainWayLabel,
+  learningGoalInputs,
+  learningState,
   learningTiles,
   learnListenCards,
   needsConfirmation,
@@ -97,6 +99,69 @@ describe('learningTiles (Continue learning)', () => {
     const many = Array.from({ length: 20 }, (_, i) => goal(`g${i}`));
     expect(learningTiles(many)).toHaveLength(RAIL_LIMIT);
     expect(learningTiles(many, 3)).toHaveLength(3);
+  });
+});
+
+describe('learningState (Continue learning, or that every goal is done)', () => {
+  const goal = (id: string, over: Partial<LearningGoalInput> = {}): LearningGoalInput => ({
+    id,
+    name: `Goal ${id}`,
+    tint: null,
+    mark: id,
+    recommended: false,
+    levelsDone: 0,
+    levelsTotal: 3,
+    stepsDone: 0,
+    stepsTotal: 9,
+    complete: false,
+    currentLevel: { id: `${id}-l1`, name: 'One' },
+    lastActivity: null,
+    ...over,
+  });
+  const finished = (id: string) => goal(id, { complete: true, levelsDone: 3, stepsDone: 9, currentLevel: null, lastActivity: '2026-09-30T10:00:00Z' });
+  const noLevels = (id: string) => goal(id, { levelsTotal: 0, stepsTotal: 0, currentLevel: null });
+
+  it('has the tiles of the goals still to do, and is not "all done" while there are any', () => {
+    const state = learningState([finished('a'), goal('b')]);
+    expect(state.tiles.map((x) => x.goalId)).toEqual(['b']);
+    expect(state.allDone).toBe(false);
+  });
+  it('is all done when every goal with levels is finished (a goal without levels yet does not count against it)', () => {
+    expect(learningState([finished('a'), finished('b')])).toEqual({ tiles: [], allDone: true });
+    expect(learningState([finished('a'), noLevels('c')])).toEqual({ tiles: [], allDone: true });
+  });
+  it('is not all done when there is nothing to do and nothing was ever finished: no goals, or goals without levels', () => {
+    expect(learningState([])).toEqual({ tiles: [], allDone: false });
+    expect(learningState([noLevels('c')])).toEqual({ tiles: [], allDone: false });
+  });
+});
+
+describe('learningGoalInputs (Continue learning from the goals and the person’s progress)', () => {
+  const goals = [
+    { id: 'g1', name: 'Navkar Mantra', tint: '#1B2C5C', mark: 'ન', recommended: true, levels: [{ id: 'l1', name: 'Listen', steps: [{ id: 's1' }, { id: 's2' }] }, { id: 'l2', name: 'Say it', steps: [{ id: 's3' }] }] },
+    { id: 'g2', name: 'Learn Pratikraman', tint: null, mark: null, recommended: false, levels: [{ id: 'l3', name: 'Ichhami', steps: [{ id: 's4' }] }] },
+  ];
+  const progress = [
+    { person_id: 'me', step_id: 's1', completed_at: '2026-09-29T10:00:00Z' },
+    { person_id: 'me', step_id: 's2', completed_at: '2026-09-30T10:00:00Z' },
+    { person_id: 'me', step_id: 's4', completed_at: '2026-09-01T10:00:00Z' },
+    { person_id: 'someone', step_id: 's3', completed_at: '2026-10-01T10:00:00Z' },
+  ];
+
+  it('works out each goal’s progress, its next level and its last activity for this person', () => {
+    const [a, b] = learningGoalInputs({ goals, progress }, 'me');
+    expect(a).toEqual({ id: 'g1', name: 'Navkar Mantra', tint: '#1B2C5C', mark: 'ન', recommended: true, levelsDone: 1, levelsTotal: 2, stepsDone: 2, stepsTotal: 3, complete: false, currentLevel: { id: 'l2', name: 'Say it' }, lastActivity: '2026-09-30T10:00:00Z' });
+    // The mark of a goal without one is the first letter after "Learn ", as the Gyan Path screens do; a finished goal has no next level.
+    expect(b).toMatchObject({ id: 'g2', mark: 'P', levelsDone: 1, complete: true, currentLevel: null, lastActivity: '2026-09-01T10:00:00Z' });
+  });
+  it('feeds Continue learning: the goal in progress comes first and opens its next level', () => {
+    const state = learningState(learningGoalInputs({ goals, progress }, 'me'));
+    expect(state.tiles.map((x) => [x.goalId, x.levelId])).toEqual([['g1', 'l2']]);
+    expect(state.allDone).toBe(false);
+  });
+  it('does not count anybody else’s progress', () => {
+    const [a] = learningGoalInputs({ goals, progress }, 'someone');
+    expect(a).toMatchObject({ levelsDone: 0, stepsDone: 1, currentLevel: { id: 'l1', name: 'Listen' } });
   });
 });
 
@@ -557,7 +622,7 @@ describe('learnListenCards (the Learn & listen row from what it loaded)', () => 
   const album = (id: string): PhotoTile => ({ key: `album:${id}`, albumId: id, title: `Album ${id}`, coverPath: null, onlineUrl: null, date: 'Sep 2026' });
   const ALL = ['learning', 'playlist', 'podcasts', 'recipes', 'photos'] as const;
   const full: LearnListenParts = {
-    learning: { ok: true, value: [goalTile('a'), goalTile('b')] },
+    learning: { ok: true, value: { tiles: [goalTile('a'), goalTile('b')], allDone: false } },
     playlist: { ok: true, value: { items: [media('s1', 'stavan'), media('v1', 'video'), media('r1', 'recipe')], fallback: false } },
     podcasts: { ok: true, value: [media('p1', 'podcast'), media('p2', 'podcast')] },
     recipes: { ok: true, value: [media('r2', 'recipe', { fully_jain: false }), media('r3', 'recipe', { fully_jain: true })] },
@@ -579,7 +644,7 @@ describe('learnListenCards (the Learn & listen row from what it loaded)', () => 
     expect(learnListenCards([], full)).toEqual([]);
   });
   it('leaves out a tile with nothing behind it: nothing to continue, no podcast, no fully Jain recipe, no album', () => {
-    const empty: LearnListenParts = { learning: { ok: true, value: [] }, playlist: { ok: true, value: { items: [], fallback: false } }, podcasts: { ok: true, value: [] }, recipes: { ok: true, value: [media('r2', 'recipe', { fully_jain: false })] }, photos: { ok: true, value: [] } };
+    const empty: LearnListenParts = { learning: { ok: true, value: { tiles: [], allDone: false } }, playlist: { ok: true, value: { items: [], fallback: false } }, podcasts: { ok: true, value: [] }, recipes: { ok: true, value: [media('r2', 'recipe', { fully_jain: false })] }, photos: { ok: true, value: [] } };
     expect(learnListenCards(ALL, empty)).toEqual([]);
     // An empty playlist stays while the library has something to play instead: the playlist screen offers the most-liked stavans.
     expect(learnListenCards(ALL, { ...empty, playlist: { ok: true, value: { items: [], fallback: true } } })).toEqual([{ kind: 'playlist', key: 'playlist', count: 0 }]);
@@ -594,13 +659,21 @@ describe('learnListenCards (the Learn & listen row from what it loaded)', () => 
   it('treats a load that was not asked for like one that failed', () => {
     expect(learnListenCards(['podcasts'], {}).map((c) => c.kind)).toEqual(['podcasts']);
   });
+  it('keeps Continue learning when every goal is done: the tile opens the goals instead of vanishing (the old Learn shortcut did)', () => {
+    const done: LearnListenParts = { learning: { ok: true, value: { tiles: [], allDone: true } } };
+    expect(learnListenCards(['learning'], done)).toEqual([{ kind: 'learning', key: 'learning', tile: null }]);
+    // Still the first card of the row, ahead of the others.
+    expect(learnListenCards(['learning', 'podcasts'], { ...done, podcasts: { ok: true, value: [media('p1', 'podcast')] } }).map((c) => c.kind)).toEqual(['learning', 'podcasts']);
+    // A goal still to do wins over the done tile.
+    expect(learnListenCards(['learning'], { learning: { ok: true, value: { tiles: [goalTile('a')], allDone: false } } })[0]).toMatchObject({ tile: { goalId: 'a' } });
+  });
   it('leaves the row with nothing to draw but a message when its only tile (Continue learning) failed to load: the row is kept, not silently gone', () => {
     // ?shortcuts=learn with Gyan Path failing: no card, one error for the row to say.
     const cards = learnListenCards(['learning'], { learning: { ok: false } });
     expect(cards).toEqual([]);
     expect(railView({ tiles: cards.length, error: false, notice: true })).toBe('message');
     // Nothing failed and nothing is left to continue: the row really is left out.
-    expect(railView({ tiles: learnListenCards(['learning'], { learning: { ok: true, value: [] } }).length, error: false, notice: false })).toBe('hidden');
+    expect(railView({ tiles: learnListenCards(['learning'], { learning: { ok: true, value: { tiles: [], allDone: false } } }).length, error: false, notice: false })).toBe('hidden');
   });
 });
 
