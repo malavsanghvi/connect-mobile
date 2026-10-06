@@ -2543,7 +2543,7 @@ export const en = {
   'hw.voiceStart': 'Tap to start recording',
   'hw.voiceListening': 'Recording… tap to stop',
   'hw.voiceMax': 'Up to 10 minutes',
-  'hw.voiceStopped': 'Stopped at 10 minutes. The voice note is being added.',
+  'hw.voiceStopped': "Stopped at 10 minutes, the longest a voice note can be. It's been added to your answer.",
   'hw.voiceLabel': 'Start recording a voice note',
   'hw.voiceStopLabel': 'Stop recording',
   'hw.voiceDenied': 'Microphone access is off for Community Connect. Turn it on in your phone settings to record a voice note.',
