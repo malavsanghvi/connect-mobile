@@ -216,8 +216,11 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   library; Record a voice note with the lesson's recorder, up to 10 minutes; Write, 2,000 characters; Attach a file is
   shown disabled until the next APK brings the file picker), Save draft and Hand in. A part is uploaded the moment it
   is added (bucket `homework`, `<center>/<person>/<submission>/<id>.<ext>`, 25 MB; the draft is created first so the
-  path has a submission) and registered with the draft, so leaving the screen never loses it; one that fails stays
-  "Not uploaded" with Try again and Remove, and nothing is handed in until every part is uploaded. Statuses: Not
+  path has a submission) and registered with the draft, so leaving the screen never loses it. The type is checked
+  against the bucket's list before anything is sent (photos png, jpeg, webp, heic, heif; voice notes the common audio
+  types; files pdf, txt, docx, xlsx, pptx: the old .doc, .xls and .ppt can carry macros and are refused, like a GIF or
+  an AVIF, with a plain sentence); a part that fails stays "Not uploaded" with Try again and Remove (a file that can
+  never go through has Remove only), and nothing is handed in until every part is uploaded. Statuses: Not
   started, Draft, Needs a parent's OK, With the teacher, Accepted (the points, with confetti the first time this device
   sees it), Sent back (the teacher's note, Edit and hand in again). A child's own hand-in waits for a household adult
   when the assignment asks for it ("A parent will check this before the teacher sees it"): the adult sees the answer

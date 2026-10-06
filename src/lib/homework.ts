@@ -429,7 +429,8 @@ export function keptFiles(sub: Submission | null): SubmissionFile[] {
 /**
  * The content types the `homework` bucket takes (connect-crm 0587 `allowed_mime_types`). A photo must be one of the
  * images, a voice note one of the audio types, a file any of them (`app.gyan_homework_mime_ok`); anything else is
- * refused by the bucket with a 415, so the app checks first and says so in plain words.
+ * refused by the bucket with a 415, so the app checks first and says so in plain words. The old Word, Excel and
+ * PowerPoint types (.doc, .xls, .ppt) are not on the list: they can carry macros. The newer .docx, .xlsx and .pptx are.
  */
 export const BUCKET_TYPES: readonly string[] = [
   'image/png',
@@ -448,11 +449,8 @@ export const BUCKET_TYPES: readonly string[] = [
   'audio/ogg',
   'audio/3gpp',
   'audio/x-caf',
-  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'text/plain',
 ];
@@ -475,13 +473,11 @@ export function partTypeAllowed(kind: PartKind, contentType: string): boolean {
 
 const IMAGE_EXT: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif' };
 const AUDIO_EXT: Record<string, string> = { m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', caf: 'audio/x-caf', wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', '3gp': 'audio/3gpp', mp3: 'audio/mpeg' };
+// Only what the bucket takes: a .doc, .xls or .ppt file has no extension here, so its name says nothing and it is refused like any other type the bucket does not take.
 const FILE_EXT: Record<string, string> = {
   pdf: 'application/pdf',
-  doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   txt: 'text/plain',
 };

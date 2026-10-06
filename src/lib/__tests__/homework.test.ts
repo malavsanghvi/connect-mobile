@@ -327,7 +327,47 @@ describe('the ways to answer', () => {
     expect(partTypeAllowed('file', 'text/plain')).toBe(true);
     expect(partTypeAllowed('file', 'application/zip')).toBe(false);
     expect(partTypeAllowed('file', 'application/octet-stream')).toBe(false);
-    expect(BUCKET_TYPES).toHaveLength(23);
+    expect(BUCKET_TYPES).toHaveLength(20);
+  });
+
+  it('takes exactly the types the bucket lists: the newer Word, Excel and PowerPoint formats, not the old ones that can carry macros', () => {
+    expect([...BUCKET_TYPES].sort()).toEqual(
+      [
+        'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif', 'application/pdf',
+        'audio/mp4', 'audio/x-m4a', 'audio/mpeg', 'audio/aac', 'audio/webm', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/3gpp', 'audio/x-caf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain',
+      ].sort(),
+    );
+    for (const t of ['application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint']) {
+      expect(BUCKET_TYPES).not.toContain(t);
+      expect(partTypeAllowed('file', t)).toBe(false);
+    }
+  });
+
+  it('refuses an old Word, Excel or PowerPoint file (.doc, .xls, .ppt) like any other type the bucket does not take, by its type or by its name; the newer formats are named and taken', () => {
+    const taken = (hints: Parameters<typeof partFile>[1]) => partTypeAllowed('file', partFile('file', hints).contentType);
+    // What the picker says: refused before the file is read.
+    for (const [fileName, mimeType] of [['old.doc', 'application/msword'], ['old.xls', 'application/vnd.ms-excel'], ['old.ppt', 'application/vnd.ms-powerpoint']] as const) {
+      expect(hasTypeHint('file', { fileName, mimeType })).toBe(true);
+      expect(taken({ fileName, mimeType })).toBe(false);
+    }
+    // By its name alone the old extensions say nothing the bucket takes, so the file counts as an anonymous one: refused too.
+    for (const fileName of ['old.doc', 'OLD.XLS', 'slides.ppt']) {
+      expect(hasTypeHint('file', { fileName })).toBe(false);
+      expect(taken({ fileName })).toBe(false);
+    }
+    // The macro-enabled new formats are not on the list either.
+    expect(taken({ fileName: 'a.docm', mimeType: 'application/vnd.ms-word.document.macroEnabled.12' })).toBe(false);
+    // The newer formats, by name alone and by type.
+    expect(partFile('file', { fileName: 'essay.docx' })).toEqual({ ext: 'docx', contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    expect(partFile('file', { fileName: 'budget.XLSX' })).toEqual({ ext: 'xlsx', contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    expect(partFile('file', { fileName: 'talk.pptx' })).toEqual({ ext: 'pptx', contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+    expect(partFile('file', { fileName: 'notes.txt' })).toEqual({ ext: 'txt', contentType: 'text/plain' });
+    expect(partFile('file', { fileName: 'form.pdf' })).toEqual({ ext: 'pdf', contentType: 'application/pdf' });
+    for (const fileName of ['essay.docx', 'budget.xlsx', 'talk.pptx', 'notes.txt', 'form.pdf']) expect(taken({ fileName })).toBe(true);
   });
 
   it('refuses what the picker says is a GIF or an AVIF, by its type or by its name', () => {

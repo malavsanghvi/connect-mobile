@@ -208,6 +208,40 @@ describe('uploading a part', () => {
       expect(mockUpload.mock.calls.length).toBe(uploads);
     });
 
+    it('refuses an old Word, Excel or PowerPoint file (they can carry macros) before reading it, with the sentence for files; the newer formats go through', async () => {
+      const sentence = "That kind of file can't be used for homework. Choose a PDF, a text file, or a Word, Excel or PowerPoint file saved as .docx, .xlsx or .pptx.";
+      const reads = fetchSpy.mock.calls.length;
+      const uploads = mockUpload.mock.calls.length;
+      const makeDraft = jest.fn<() => Promise<string>>().mockResolvedValue(S1);
+      for (const [fileName, mimeType] of [['old.doc', 'application/msword'], ['old.xls', 'application/vnd.ms-excel'], ['old.ppt', 'application/vnd.ms-powerpoint']] as const) {
+        const err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: makeDraft, kind: 'file', uri: `file:///docs/${fileName}`, fileName, mimeType }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(PartRefused);
+        expect((err as AppError).userMessage).toBe(sentence);
+      }
+      expect(fetchSpy.mock.calls.length).toBe(reads);
+      expect(mockUpload.mock.calls.length).toBe(uploads);
+      // With no type from the picker the file is read once to see what it is, and is still refused before any draft or upload.
+      fetchSpy.mockResolvedValueOnce(sized(6, 'application/msword'));
+      const unknown = await uploadPart({ centerId: 'c1', personId: P1, submissionId: makeDraft, kind: 'file', uri: 'file:///docs/old.doc', fileName: 'old.doc' }).catch((e: unknown) => e);
+      expect(unknown).toBeInstanceOf(PartRefused);
+      expect((unknown as AppError).userMessage).toBe(sentence);
+      expect(makeDraft).not.toHaveBeenCalled();
+      expect(mockUpload.mock.calls.length).toBe(uploads);
+      // The newer formats are uploaded under their own name and type.
+      for (const [fileName, type, ext] of [
+        ['essay.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'],
+        ['budget.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'],
+        ['talk.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx'],
+      ] as const) {
+        fetchSpy.mockResolvedValueOnce(sized(8));
+        mockUpload.mockResolvedValueOnce({ error: null });
+        const part = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'file', uri: `file:///docs/${fileName}`, fileName, mimeType: type });
+        expect(part).toMatchObject({ kind: 'file', mime_type: type, bytes: 8 });
+        expect(part.storage_path).toMatch(new RegExp(`^c1/${P1}/${S1}/[0-9a-f-]{36}\\.${ext}$`));
+        expect(mockUpload).toHaveBeenLastCalledWith(part.storage_path, expect.any(ArrayBuffer), { contentType: type, upsert: false });
+      }
+    });
+
     it('makes the draft only after the checks that need no network (a refused part leaves no empty draft)', async () => {
       const makeDraft = jest.fn<() => Promise<string>>().mockResolvedValue(S1);
       let err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: makeDraft, kind: 'photo', uri: 'file:///a.gif', mimeType: 'image/gif' }).catch((e: unknown) => e);
