@@ -1,4 +1,3 @@
-import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { useState } from 'react';
 import { Animated, Pressable, View } from 'react-native';
 
@@ -6,23 +5,23 @@ import { Banner, LinkText, Txt, VStack } from '@/components/ui';
 import { clock } from '@/features/audio';
 import { MicGlyph } from '@/features/gyan-ui';
 import { uploadRecitation } from '@/lib/api/gyan';
-import { logError, report } from '@/lib/errors';
+import { report } from '@/lib/errors';
 import { useT } from '@/providers/settings';
 import { colors } from '@/theme';
 
 import { ListenButton } from './learn-step';
 import { LessonFrame, StepFooter } from './lesson-frame';
 import { haptic, usePulse, useReduceMotion } from './motion';
+import { useVoiceRecorder } from './recorder';
 import type { StepProps } from './step-types';
 
 type Recording = { path: string | null; uploaded: boolean };
 
-/** Recite: a real recording, uploaded for the teacher (gyan_progress.recording_path, 90-day retention). */
+/** Recite: a real recording (the app's voice recorder, ./recorder.ts), uploaded for the teacher (gyan_progress.recording_path, 90-day retention). */
 export function ReciteStep({ ctx }: StepProps) {
   const t = useT();
   const reduce = useReduceMotion();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const rec = useAudioRecorderState(recorder, 250);
+  const voice = useVoiceRecorder();
   const [phase, setPhase] = useState<'idle' | 'listening' | 'saving'>('idle');
   const [recording, setRecording] = useState<Recording | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,46 +31,28 @@ export function ReciteStep({ ctx }: StepProps) {
 
   const start = async () => {
     setError(null);
-    try {
-      ctx.audio.stop();
-      const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        setError(t('learn.micDenied'));
-        return;
-      }
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-      setRecording(null);
-      setPhase('listening');
-    } catch (err) {
-      logError('starting a recitation recording', err);
-      setError(t('learn.micFailed'));
+    ctx.audio.stop();
+    const started = await voice.start();
+    if (!started.ok) {
+      setError(started.reason === 'denied' ? t('learn.micDenied') : t('learn.micFailed'));
       setPhase('idle');
+      return;
     }
+    setRecording(null);
+    setPhase('listening');
   };
 
   const stop = async () => {
-    setDuration(rec.durationMillis / 1000);
-    try {
-      await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch((err: unknown) => logError('leaving recording mode (continuing)', err));
-    } catch (err) {
-      logError('stopping a recitation recording', err);
+    const stopped = await voice.stop();
+    if (!stopped.ok) {
       setError(t('learn.micFailed'));
       setPhase('idle');
       return;
     }
-    const uri = recorder.uri;
-    if (!uri) {
-      logError('recitation recording has no file', new Error(`uri=${String(uri)}`));
-      setError(t('learn.micFailed'));
-      setPhase('idle');
-      return;
-    }
+    setDuration(stopped.seconds);
     setPhase('saving');
     try {
-      const path = await uploadRecitation({ centerId: ctx.centerId, personId: ctx.personId, stepId: ctx.step.id, uri, existing: ctx.data.progress });
+      const path = await uploadRecitation({ centerId: ctx.centerId, personId: ctx.personId, stepId: ctx.step.id, uri: stopped.uri, existing: ctx.data.progress });
       setRecording({ path, uploaded: true });
       haptic('right');
     } catch (err) {
@@ -142,7 +123,7 @@ export function ReciteStep({ ctx }: StepProps) {
           </Pressable>
         </View>
         <Txt variant="bodyStrong" color={recording?.uploaded ? 'green' : 'muted'} accessibilityLiveRegion="polite">
-          {listening ? `${micText} · ${clock(rec.durationMillis / 1000)}` : micText}
+          {listening ? `${micText} · ${clock(voice.seconds)}` : micText}
         </Txt>
         {recording && !listening ? <LinkText label={t('learn.recordAgain')} onPress={() => void start()} /> : null}
         {error ? (
