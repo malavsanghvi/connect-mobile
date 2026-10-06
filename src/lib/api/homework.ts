@@ -1,3 +1,4 @@
+import { translate } from '../../i18n';
 import { en } from '../../i18n/en';
 import { AppError, logError, report } from '../errors';
 import { HOMEWORK_BUCKET, hasTypeHint, MAX_FILE_BYTES, parseHomework, parseSubmission, partFile, partTypeAllowed, storagePath, storageProblem, type FileArg, type Homework, type PartKind, type Submission } from '../homework';
@@ -79,7 +80,7 @@ export async function loadHomework(centerId: string): Promise<HomeworkAnswer> {
   }
   const homework = parseHomework(res.data);
   if (!homework) {
-    const err = new AppError("We couldn't load your homework — the answer was not what we expected. Please try again.", `my_gyan_homework returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'}`);
+    const err = new AppError(en['hw.err.unreadableLoad'], `my_gyan_homework returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'}`);
     logError('load your homework', err);
     throw err;
   }
@@ -100,7 +101,7 @@ async function writeSubmission(fn: string, args: Record<string, unknown>, action
   }
   const sub = parseSubmission(res.data);
   if (!sub) {
-    const err = new AppError(`We couldn't ${action} — the answer was not what we expected. Please try again.`, `${fn} returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'}`);
+    const err = new AppError(translate('en', 'hw.err.unreadable', { action }), `${fn} returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'}`);
     logError(action, err);
     throw err;
   }

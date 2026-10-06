@@ -2624,6 +2624,8 @@ export const en = {
   'hw.err.rejectedType': "That kind of file can't be used for homework.",
   'hw.err.tooBig': 'That file is over 25 MB.',
   'hw.err.locked': "This answer can't be changed any more — reload to see where it is.",
+  'hw.err.unreadableLoad': "We couldn't load your homework — the answer was not what we expected. Please try again.",
+  'hw.err.unreadable': "We couldn't {action} — the answer was not what we expected. Please try again.",
 } as const;
 
 export type StringKey = keyof typeof en;
