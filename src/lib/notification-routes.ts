@@ -43,7 +43,7 @@ export function notificationTarget(data: unknown): NotificationTarget | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const d = data as NotificationData;
   const type = str(d.type);
-  if (!type) return surveyTarget(d) ?? homeworkLinkTarget(d);
+  if (!type) return surveyTarget(d) ?? homeworkLinkTarget(d, false);
   const route = routes.get(type);
   if (!route) return null;
   return route.open(d);
@@ -118,28 +118,48 @@ registerNotificationRoute(EVENT_SURVEY_REMINDER, { open: surveyTarget });
 // ---------------------------------------------------------------------------
 // Homework (connect-crm 0587): "homework" to the learner (assigned, sent back,
 // accepted) and "homework_parent" to the household adults (a child's answer
-// waits for their OK; the teacher's decision). Both carry deep_link
-// "/gyan/homework/<assignment id>?person=<person id>" once the worker forwards
-// the payload (README gap 29); until then a tap opens the homework list.
+// waits for their OK; the teacher's decision). The worker forwards `type`,
+// `deep_link` ("/gyan/homework/<assignment id>?person=<learner id>"),
+// `assignment_id`, `submission_id` and `learner_id`; `person_id` is the
+// RECIPIENT and is never forwarded (a parent's push must not open the parent's
+// own item). A "homework_review" push (teachers, who review in the portal) has
+// no route here: a tap just opens the app.
 // ---------------------------------------------------------------------------
 
 export const HOMEWORK = 'homework';
 export const HOMEWORK_PARENT = 'homework_parent';
 
-/** The homework a push points at: its deep link, else assignment_id (+ person_id) fields. Null when neither is usable. */
-function homeworkLinkTarget(d: NotificationData): NotificationTarget | null {
+function uuidField(v: unknown): string | null {
+  const s = str(v);
+  return s && UUID.test(s) ? s : null;
+}
+
+/**
+ * The homework a push points at: its deep link, else `assignment_id` with `learner_id` (the person whose answer it is).
+ * `person_id` is read as an alias of `learner_id` only when the recipient is the learner (`homework` pushes); for any
+ * other push it names someone else. Null when there is no usable assignment.
+ */
+function homeworkLinkTarget(d: NotificationData, recipientIsLearner: boolean): NotificationTarget | null {
   const link = parseHomeworkLink(str(d.deep_link));
-  const assignmentId = link?.assignmentId ?? (UUID.test(str(d.assignment_id) ?? '') ? (str(d.assignment_id) as string) : null);
+  const assignmentId = link?.assignmentId ?? uuidField(d.assignment_id);
   if (!assignmentId) return null;
-  const fromField = str(d.person_id);
-  const personId = link?.personId ?? (fromField && UUID.test(fromField) ? fromField : null);
+  const personId = link?.personId ?? uuidField(d.learner_id) ?? (recipientIsLearner ? uuidField(d.person_id) : null);
   return { pathname: '/gyan/homework/[assignmentId]', params: { assignmentId, ...(personId ? { person: personId } : {}) } };
 }
 
-/** The item when the push says which; otherwise the homework list, so a tap still lands on the homework. */
+/** To the learner: the item when the push says which (without a person it is their own), else the homework list. */
 function homeworkTarget(d: NotificationData): NotificationTarget {
-  return homeworkLinkTarget(d) ?? { pathname: '/gyan/homework' };
+  return homeworkLinkTarget(d, true) ?? { pathname: '/gyan/homework' };
+}
+
+/**
+ * To a household adult: the child's item when the push names the child. Without the child there is nothing right to
+ * open (the adult's own item does not exist), so null: the app opens, and Home shows the "Needs your OK" strip.
+ */
+function homeworkParentTarget(d: NotificationData): NotificationTarget | null {
+  const target = homeworkLinkTarget(d, false);
+  return target?.params?.person ? target : null;
 }
 
 registerNotificationRoute(HOMEWORK, { open: homeworkTarget });
-registerNotificationRoute(HOMEWORK_PARENT, { open: homeworkTarget });
+registerNotificationRoute(HOMEWORK_PARENT, { open: homeworkParentTarget });
