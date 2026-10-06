@@ -8,8 +8,12 @@ import { EmptyState, Loaded } from '@/components/states';
 import { Banner, ProgressBar, Txt } from '@/components/ui';
 import { GyanHeaderChips } from '@/features/gyan-header';
 import { Button3D } from '@/features/gyan-ui';
+import { HomeworkSection } from '@/features/homework/cards';
+import { useHomework } from '@/features/homework/use-homework';
 import { goalProgress, isLevelDone, loadGyan, type GyanData, type GyanGoal } from '@/lib/api/gyan';
 import { logError } from '@/lib/errors';
+import { todayAt } from '@/lib/format';
+import { itemsForGoal, toDoCount } from '@/lib/homework';
 import { currentChapter, levelStars, mapLayout, tintBackground } from '@/lib/learning';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -59,9 +63,13 @@ export default function GyanGoalScreen() {
 function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; personId: string }) {
   const t = useT();
   const router = useRouter();
-  const { member } = useApp();
+  const { center, member } = useApp();
   const { toast } = useFeedback();
   const [width, setWidth] = useState(360);
+  // This goal's homework for the person: a line in the strip, and the cards under the map.
+  const homework = useHomework();
+  const homeworkItems = homework.homework ? itemsForGoal(homework.homework.items, goal.id, personId) : [];
+  const toDo = toDoCount(homeworkItems);
   const p = goalProgress(goal, data.progress, personId);
   const total = goal.levels.length;
   const current = p.levelsDone;
@@ -91,7 +99,7 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
         <View style={[{ backgroundColor: colors.card, borderRadius: radii.row, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadows.strip]}>
           <View style={{ flex: 1, gap: 4 }}>
             <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-              {chapter ? t('learn.mapStrip', { chapter, min: minutes }) : t('learn.mapStripNoChapter', { min: minutes })}
+              {[chapter ? t('learn.mapStrip', { chapter, min: minutes }) : t('learn.mapStripNoChapter', { min: minutes }), toDo > 0 ? t('hw.goalStrip', { n: toDo }) : null].filter(Boolean).join(' · ')}
             </Txt>
             <ProgressBar value={total ? current / total : 0} color={colors.green} track={colors.divider} height={8} label={t('learn.progress', { done: current, n: total })} />
           </View>
@@ -145,7 +153,10 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
             )}
           </View>
         )}
-        <Txt variant="fine" color="muted" center style={{ paddingHorizontal: 20 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <HomeworkSection load={homework} items={homeworkItems} title={t('hw.section')} today={todayAt(center?.time_zone)} viewer="learner" />
+        </View>
+        <Txt variant="fine" color="muted" center style={{ paddingHorizontal: 20, paddingTop: 12 }}>
           {t('learn.contentNote')}
         </Txt>
       </View>

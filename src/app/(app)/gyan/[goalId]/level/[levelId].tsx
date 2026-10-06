@@ -15,10 +15,14 @@ import { quizStars } from '@/features/gyan/quiz-logic';
 import { lessonScreens, STEP_COMPONENTS, stepKindLabel, stepRenderer } from '@/features/gyan/registry';
 import type { Burst, StepContext, StepResult } from '@/features/gyan/step-types';
 import { GyanHeaderChips } from '@/features/gyan-header';
+import { HomeworkSection } from '@/features/homework/cards';
+import { useHomework } from '@/features/homework/use-homework';
 import { completesLevel, handLearned, learnedLine, RETURN_TO_PUJA, stepRun } from '@/features/puja/puja-logic';
 import { completeStep, isLevelDone, isStepDone, loadGyan, loadLevelAwards, type GyanData, type GyanGoal, type GyanLevel } from '@/lib/api/gyan';
 import type { ContentItem } from '@/lib/api/jainway';
 import { must, report } from '@/lib/errors';
+import { todayAt } from '@/lib/format';
+import { itemsForLevel } from '@/lib/homework';
 import { supabase } from '@/lib/supabase';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -104,6 +108,8 @@ function Lesson({ data, goal, level, content, startStepId, backToPuja }: { data:
   const [startedAt] = useState(() => Date.now());
   const audio = useInAppAudio(t('learn.audioFailed'));
   const router = useRouter();
+  // The level's homework, under every step (one load for the whole lesson; the cards open the homework screen).
+  const homework = useHomework();
   const index = goal.levels.findIndex((l) => l.id === level.id);
   const levelAudio = level.steps.map((s) => content.find((c) => c.id === s.content_item_id)?.media_url).find((u): u is string => !!u) ?? null;
   // Questions, cards, spots or lines that can't be shown are left out of the lesson; the log names them for the office.
@@ -225,7 +231,15 @@ function Lesson({ data, goal, level, content, startStepId, backToPuja }: { data:
     item: content.find((c) => c.id === step.content_item_id) ?? null,
     levelAudio,
     audio,
-    frame: { title: goal.name, index: single ? i - single.start : i, total: single ? single.count : screens.length, kindLabel: t(label.key, label.vars), saving, saveError },
+    frame: {
+      title: goal.name,
+      index: single ? i - single.start : i,
+      total: single ? single.count : screens.length,
+      kindLabel: t(label.key, label.vars),
+      saving,
+      saveError,
+      below: single ? null : <HomeworkSection load={homework} items={homework.homework ? itemsForLevel(homework.homework.items, level.id, me) : []} title={t('hw.sectionLevel')} today={todayAt(center.time_zone)} viewer="learner" />,
+    },
     finish: (r) => void finish(r),
     burst: showBurst,
     addPracticePoints: (n) => setRun((r) => ({ ...r, practicePoints: r.practicePoints + n })),

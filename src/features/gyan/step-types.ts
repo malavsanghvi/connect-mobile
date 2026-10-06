@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { InAppAudio } from '@/features/audio';
 import type { GyanData, GyanGoal, GyanLevel, GyanStep } from '@/lib/api/gyan';
 import type { ContentItem } from '@/lib/api/jainway';
@@ -13,6 +15,8 @@ export type FrameInfo = {
   saving: boolean;
   /** A failed save, in plain English (the step's Continue retries it). */
   saveError: string | null;
+  /** Under every step's body: the level's homework (src/features/homework), when the community set some. */
+  below?: ReactNode;
 };
 
 /**
