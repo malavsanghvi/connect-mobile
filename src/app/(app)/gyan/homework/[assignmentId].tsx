@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/screen';
-import { EmptyState, Loaded } from '@/components/states';
+import { EmptyState, Loaded, LoadingState } from '@/components/states';
 import { Button, Card, Txt } from '@/components/ui';
 import { GyanHeaderChips } from '@/features/gyan-header';
 import { useHomework } from '@/features/homework/use-homework';
@@ -35,7 +35,9 @@ export default function HomeworkScreen() {
     <Screen title={t('hw.title')} tabBar={false} niva={false} headerRight={personId === member.person.id ? <GyanHeaderChips /> : undefined}>
       <Loaded state={load.state}>
         {(answer) => {
-          if (!answer || answer.kind === 'missing') return <EmptyState icon="school-outline" title={t('hw.notOffered', { center: communityName(center) })} body={t('hw.notOfferedBody')} />;
+          // No answer yet: the load before the access check answered gave nothing; the real one follows (Loaded says so when it failed).
+          if (!answer) return load.state.error ? null : <LoadingState />;
+          if (answer.kind === 'missing') return <EmptyState icon="school-outline" title={t('hw.notOffered', { center: communityName(center) })} body={t('hw.notOfferedBody')} />;
           const item = answer.homework.items.find((i) => i.assignment.id === assignmentId && i.personId === personId);
           if (!item) return <EmptyState icon="school-outline" title={t('hw.notFound')} body={t('hw.notFoundBody')} />;
           return <HomeworkView key={`${item.assignment.id}:${item.personId}`} item={item} people={answer.homework.people} />;
