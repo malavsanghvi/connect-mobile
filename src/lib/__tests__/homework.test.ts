@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { en } from '../../i18n/en';
 import {
   answerButtons,
   canDecide,
@@ -18,6 +19,7 @@ import {
   itemsForLevel,
   itemsForPerson,
   keptFiles,
+  levelPointsWait,
   normalizeMime,
   BUCKET_TYPES,
   MAX_FILE_BYTES,
@@ -398,6 +400,20 @@ describe('lists', () => {
     expect(sortByLevel([a, b, c, d, e], ['lvl-1', 'lvl-2', 'lvl-3']).map((i) => i.assignment.title)).toEqual(['b', 'a', 'c', 'd', 'e']);
     expect(sortByLevel([], ['lvl-1'])).toEqual([]);
     expect(sortByLevel([a], [])).toEqual([a]);
+  });
+
+  it("says what a level's points wait for: the required homework not accepted yet (0587 gyan_award_level_bonus)", () => {
+    const required = (title: string, status: Submission['status'] | null) => item({ title, status, assignment: { ...parseAssignment({ ...rawAssignment, id: title, title, required_for_level: true })! } });
+    const optional = (title: string, status: Submission['status'] | null) => item({ title, status, assignment: { ...parseAssignment({ ...rawAssignment, id: title, title, required_for_level: false })! } });
+    expect(levelPointsWait([])).toBeNull();
+    expect(levelPointsWait([optional('Draw it', null), optional('Say it', 'draft')])).toBeNull();
+    expect(levelPointsWait([required('Record it', 'accepted'), optional('Draw it', null)])).toBeNull();
+    expect(levelPointsWait([required('Record it', null)])).toMatchObject({ key: 'hw.levelWaits', vars: { title: 'Record it' } });
+    // Handed in is not accepted: the points still wait (with the teacher, a parent, or sent back).
+    for (const status of ['draft', 'awaiting_parent', 'submitted', 'needs_work'] as const) expect(levelPointsWait([required('Record it', status)])).toMatchObject({ key: 'hw.levelWaits' });
+    expect(levelPointsWait([required('Record it', 'accepted'), required('Write it', 'submitted'), optional('Draw it', null)])).toMatchObject({ key: 'hw.levelWaits', vars: { title: 'Write it' } });
+    expect(levelPointsWait([required('Record it', null), required('Write it', 'draft'), required('Sing it', 'accepted')])).toMatchObject({ key: 'hw.levelWaitsMany', vars: { title: 'Record it', n: 1 } });
+    expect(en['hw.levelWaits'].replace('{title}', 'Record it')).toBe('Your level points arrive when your teacher accepts Record it.');
   });
 
   it('counts a person\'s homework and words the Family tab line', () => {

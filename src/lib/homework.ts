@@ -593,6 +593,19 @@ export function sortByLevel(items: readonly HomeworkItem[], levelIds: readonly s
   return items.map((item, n) => ({ item, n })).sort((a, b) => place(a.item) - place(b.item) || a.n - b.n).map((x) => x.item);
 }
 
+/**
+ * What a level's points wait for. The app counts a level as done when every step is done, but the database (0587
+ * gyan_award_level_bonus) pays the level's points and its treasure only once every published required-for-level
+ * homework that applies to the learner is accepted. `items` are the person's homework for ONE level. Null when
+ * nothing is required or it is all accepted; else the words: the one title, or the first and how many more.
+ */
+export function levelPointsWait(items: readonly HomeworkItem[]): { key: StringKey; vars: { title: string; n: number } } | null {
+  const waiting = items.filter((i) => i.assignment.requiredForLevel && homeworkState(i.submission) !== 'accepted');
+  if (waiting.length === 0) return null;
+  const title = waiting[0].assignment.title;
+  return waiting.length === 1 ? { key: 'hw.levelWaits', vars: { title, n: 0 } } : { key: 'hw.levelWaitsMany', vars: { title, n: waiting.length - 1 } };
+}
+
 /** Still to do by this learner: not started, a draft, or sent back. */
 export function toDoCount(items: readonly HomeworkItem[]): number {
   return items.filter((i) => canEdit(homeworkState(i.submission), 'learner')).length;

@@ -2603,6 +2603,8 @@ export const en = {
   'hw.strip.hint': 'Opens the answer to check it',
   'hw.goalStrip': 'Homework: {n} to do',
   'hw.levelLabel': 'Level {n}: {name}',
+  'hw.levelWaits': 'Your level points arrive when your teacher accepts {title}.',
+  'hw.levelWaitsMany': 'Your level points arrive when your teacher accepts {title} and {n} more.',
   'hw.openHint': 'Opens this homework',
   // Said by the homework calls themselves (src/lib/api/homework.ts), which have no screen to translate for them.
   'hw.err.unavailable': "Homework isn't available in your community yet. Ask the office to update the portal.",

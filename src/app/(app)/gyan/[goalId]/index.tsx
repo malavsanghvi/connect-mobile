@@ -13,7 +13,7 @@ import { useHomework } from '@/features/homework/use-homework';
 import { goalProgress, isLevelDone, loadGyan, type GyanData, type GyanGoal } from '@/lib/api/gyan';
 import { logError } from '@/lib/errors';
 import { todayAt } from '@/lib/format';
-import { itemsForGoal, sortByLevel, toDoCount, type HomeworkItem } from '@/lib/homework';
+import { homeworkState, itemsForGoal, itemsForLevel, levelPointsWait, sortByLevel, toDoCount, type HomeworkItem } from '@/lib/homework';
 import { currentChapter, levelStars, mapLayout, tintBackground } from '@/lib/learning';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -74,6 +74,13 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
   const levelLabelOf = (item: HomeworkItem) => {
     const at = item.assignment.levelId ? levelIds.indexOf(item.assignment.levelId) : -1;
     return at < 0 ? null : t('hw.levelLabel', { n: at + 1, name: goal.levels[at].name });
+  };
+  // A level whose steps are all done but whose required homework is not accepted yet has no points: the database pays them when the teacher accepts it.
+  const waitNoteOf = (item: HomeworkItem) => {
+    const at = item.assignment.levelId ? levelIds.indexOf(item.assignment.levelId) : -1;
+    if (at < 0 || !item.assignment.requiredForLevel || homeworkState(item.submission) === 'accepted' || !isLevelDone(goal.levels[at], data.progress, personId)) return null;
+    const wait = levelPointsWait(itemsForLevel(homework.homework?.items ?? [], goal.levels[at].id, personId));
+    return wait ? t(wait.key, wait.vars) : null;
   };
   const toDo = toDoCount(homeworkItems);
   const p = goalProgress(goal, data.progress, personId);
@@ -160,7 +167,7 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
           </View>
         )}
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          <HomeworkSection load={homework} items={homeworkItems} title={t('hw.section')} today={todayAt(center?.time_zone)} viewer="learner" levelLabelOf={levelLabelOf} />
+          <HomeworkSection load={homework} items={homeworkItems} title={t('hw.section')} today={todayAt(center?.time_zone)} viewer="learner" levelLabelOf={levelLabelOf} waitNoteOf={waitNoteOf} />
         </View>
         <Txt variant="fine" color="muted" center style={{ paddingHorizontal: 20, paddingTop: 12 }}>
           {t('learn.contentNote')}
