@@ -60,6 +60,12 @@ export type HomeworkAssignment = {
   dueOn: string | null;
   parentCheck: ParentCheck;
   classId: string | null;
+  /**
+   * The community has closed this homework. The database (0587) still lists it for a person who has an answer to it, so
+   * the answer and what the teacher said can be read; it is read-only (nothing to edit, hand in or decide) and never
+   * a to-do. Absent means open.
+   */
+  archived: boolean;
 };
 
 export type SubmissionFile = {
@@ -163,6 +169,7 @@ export function parseAssignment(raw: unknown): HomeworkAssignment | null {
     dueOn: isoDate(raw.due_on),
     parentCheck,
     classId: str(raw.class_id),
+    archived: raw.archived === true,
   };
 }
 
@@ -219,8 +226,9 @@ function parseItem(raw: unknown): HomeworkItem | null {
 }
 
 /**
- * Read the `app.my_gyan_homework(p_center)` answer: `{ people: [{person_id, name, is_child}] (is_child is not used), items: [{assignment, person_id,
- * submission, needs_parent, can_parent_decide}] }`. Null when it is not an answer at all (no `items` list); an item that cannot
+ * Read the `app.my_gyan_homework(p_center)` answer: `{ people: [{person_id, name, is_child}] (is_child is not used), items: [{assignment
+ * (with `archived: true` when closed), person_id, submission, needs_parent, can_parent_decide}] }`. `needs_parent` and `can_parent_decide`
+ * are the database's word and are never worked out here. Null when it is not an answer at all (no `items` list); an item that cannot
  * be read is counted in `skipped` and left out.
  */
 export function parseHomework(raw: unknown): Homework | null {
@@ -325,9 +333,9 @@ export function dueLine(dueOn: string | null, today: string): DueLine | null {
   return { key: 'hw.wasDue', vars: { date: shortDate(dueOn) } };
 }
 
-/** Not handed in and past its due date (a handed-in answer carries the server's own `late` mark instead). */
-export function isOverdue(item: { assignment: { dueOn: string | null }; submission: Submission | null }, today: string): boolean {
-  if (!item.assignment.dueOn || isHandedIn(homeworkState(item.submission))) return false;
+/** Not handed in and past its due date (a handed-in answer carries the server's own `late` mark instead). Closed homework is never overdue: nothing is owed on it any more. */
+export function isOverdue(item: { assignment: { dueOn: string | null; archived: boolean }; submission: Submission | null }, today: string): boolean {
+  if (item.assignment.archived || !item.assignment.dueOn || isHandedIn(homeworkState(item.submission))) return false;
   return daysBetween(today, item.assignment.dueOn) < 0;
 }
 
@@ -349,15 +357,21 @@ export function viewerFor(personId: string, me: { personId: string; isAdult: boo
   return me.isAdult && people.some((p) => p.personId === personId) ? 'parent' : 'none';
 }
 
-/** The answer can be worked on: by the learner or a household adult, while it is not started, a draft, or sent back. */
-export function canEdit(state: HomeworkState, viewer: Viewer): boolean {
-  if (viewer === 'none') return false;
+/**
+ * The answer can be worked on: by the learner or a household adult, while it is not started, a draft, or sent back, and
+ * the homework is open (`archived`: closed homework is only read).
+ */
+export function canEdit(state: HomeworkState, viewer: Viewer, archived = false): boolean {
+  if (viewer === 'none' || archived) return false;
   return state === 'not_started' || state === 'draft' || state === 'needs_work';
 }
 
-/** A household adult may send this waiting answer on to the teacher or back to the child. */
-export function canDecide(item: { canParentDecide: boolean; submission: Submission | null }, viewer: Viewer): boolean {
-  return viewer === 'parent' && item.canParentDecide && homeworkState(item.submission) === 'awaiting_parent';
+/**
+ * A household adult may send this waiting answer on to the teacher or back to the child: when the database says so
+ * (`canParentDecide`, never worked out here), and the homework is not closed.
+ */
+export function canDecide(item: { canParentDecide: boolean; submission: Submission | null; assignment: { archived: boolean } }, viewer: Viewer): boolean {
+  return viewer === 'parent' && !item.assignment.archived && item.canParentDecide && homeworkState(item.submission) === 'awaiting_parent';
 }
 
 /**
@@ -551,9 +565,10 @@ export function partLabel(part: { kind: PartKind; durationSeconds: number | null
 // Lists: per person, per level, per goal
 // ---------------------------------------------------------------------------
 
-/** Lower comes first: what needs this reader first, then what is still to do, then what is waiting elsewhere, then what is done. */
+/** Lower comes first: what needs this reader first, then what is still to do, then what is waiting elsewhere, then what is done, then what is closed. */
 function priority(item: HomeworkItem): number {
   const state = homeworkState(item.submission);
+  if (item.assignment.archived) return 7;
   if (state === 'awaiting_parent') return item.canParentDecide ? 0 : 4;
   return { needs_work: 1, draft: 2, not_started: 3, submitted: 5, accepted: 6 }[state];
 }
@@ -594,19 +609,20 @@ export function sortByLevel(items: readonly HomeworkItem[], levelIds: readonly s
 /**
  * What a level's points wait for. The app counts a level as done when every step is done, but the database (0587
  * gyan_award_level_bonus) pays the level's points and its treasure only once every published required-for-level
- * homework that applies to the learner is accepted. `items` are the person's homework for ONE level. Null when
- * nothing is required or it is all accepted; else the words: the one title, or the first and how many more.
+ * homework that applies to the learner is accepted (closed homework is not published, so it never holds a level back).
+ * `items` are the person's homework for ONE level. Null when nothing is required or it is all accepted; else the words:
+ * the one title, or the first and how many more.
  */
 export function levelPointsWait(items: readonly HomeworkItem[]): { key: StringKey; vars: { title: string; n: number } } | null {
-  const waiting = items.filter((i) => i.assignment.requiredForLevel && homeworkState(i.submission) !== 'accepted');
+  const waiting = items.filter((i) => !i.assignment.archived && i.assignment.requiredForLevel && homeworkState(i.submission) !== 'accepted');
   if (waiting.length === 0) return null;
   const title = waiting[0].assignment.title;
   return waiting.length === 1 ? { key: 'hw.levelWaits', vars: { title, n: 0 } } : { key: 'hw.levelWaitsMany', vars: { title, n: waiting.length - 1 } };
 }
 
-/** Still to do by this learner: not started, a draft, or sent back. */
+/** Still to do by this learner: not started, a draft, or sent back, on homework that is still open. */
 export function toDoCount(items: readonly HomeworkItem[]): number {
-  return items.filter((i) => canEdit(homeworkState(i.submission), 'learner')).length;
+  return items.filter((i) => canEdit(homeworkState(i.submission), 'learner', i.assignment.archived)).length;
 }
 
 export type PersonCounts = {
@@ -621,12 +637,17 @@ export type PersonCounts = {
   total: number;
 };
 
+/** Closed homework is history: it counts only for the one thing it ended as (accepted), never as something to do, to decide or waiting. */
 export function countsFor(items: readonly HomeworkItem[], personId: string): PersonCounts {
   const counts: PersonCounts = { toDo: 0, needsOk: 0, waitingParent: 0, withTeacher: 0, accepted: 0, total: 0 };
   for (const item of items) {
     if (item.personId !== personId) continue;
     counts.total += 1;
     const state = homeworkState(item.submission);
+    if (item.assignment.archived) {
+      if (state === 'accepted') counts.accepted += 1;
+      continue;
+    }
     if (state === 'awaiting_parent') {
       if (item.canParentDecide) counts.needsOk += 1;
       else counts.waitingParent += 1;
@@ -648,10 +669,10 @@ export function homeworkLineParts(counts: PersonCounts): { key: StringKey; vars:
   return out;
 }
 
-/** The waiting answers of the family's children that this adult may decide, oldest hand-in first (Home's "Needs your OK" strip). */
+/** The waiting answers of the family's children that this adult may decide, oldest hand-in first (Home's "Needs your OK" strip). Closed homework is not decided any more, so it is never listed. */
 export function needsYourOk(items: readonly HomeworkItem[], myPersonId: string): HomeworkItem[] {
   return items
-    .filter((i) => i.personId !== myPersonId && i.canParentDecide && homeworkState(i.submission) === 'awaiting_parent')
+    .filter((i) => i.personId !== myPersonId && !i.assignment.archived && i.canParentDecide && homeworkState(i.submission) === 'awaiting_parent')
     .sort((a, b) => (a.submission?.submittedAt ?? '').localeCompare(b.submission?.submittedAt ?? '') || a.assignment.title.localeCompare(b.assignment.title));
 }
 

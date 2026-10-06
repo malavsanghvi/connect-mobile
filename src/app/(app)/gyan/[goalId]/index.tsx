@@ -78,7 +78,7 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
   // A level whose steps are all done but whose required homework is not accepted yet has no points: the database pays them when the teacher accepts it.
   const waitNoteOf = (item: HomeworkItem) => {
     const at = item.assignment.levelId ? levelIds.indexOf(item.assignment.levelId) : -1;
-    if (at < 0 || !item.assignment.requiredForLevel || homeworkState(item.submission) === 'accepted' || !isLevelDone(goal.levels[at], data.progress, personId)) return null;
+    if (at < 0 || item.assignment.archived || !item.assignment.requiredForLevel || homeworkState(item.submission) === 'accepted' || !isLevelDone(goal.levels[at], data.progress, personId)) return null;
     const wait = levelPointsWait(itemsForLevel(homework.homework?.items ?? [], goal.levels[at].id, personId));
     return wait ? t(wait.key, wait.vars) : null;
   };

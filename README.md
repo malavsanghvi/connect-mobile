@@ -209,8 +209,9 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
 - **Homework** (`src/lib/homework.ts` pure rules, `src/lib/api/homework.ts` calls, `src/features/homework`,
   `src/app/(app)/gyan/homework`; connect-crm migration 0587 and `docs/LEARNING_ASSIGNMENTS_PLAN.md` there): a
   community attaches homework to a Gyan Path level. Its cards (title, due, points, status chip, the note when it was
-  sent back) show under every step of the lesson, on the goal map and on the level-complete screen; the Family tab
-  says "Homework: 1 needs your OK · 2 with the teacher" under each person. The homework screen
+  sent back) show under the first step of a lesson, on the goal map (level by level) and on the level-complete screen
+  (which says a level's points wait when its steps are done but its required homework is not accepted yet); the
+  Family tab says "Homework: 1 needs your OK · 2 with the teacher" under each person. The homework screen
   (`/gyan/homework/<assignment>?person=<person>`) has the instructions, the answer as parts (Choose a photo from the
   library; Record a voice note with the lesson's recorder, up to 10 minutes; Write, 2,000 characters; Attach a file is
   shown disabled until the next APK brings the file picker), Save draft and Hand in. A part is uploaded the moment it
@@ -222,11 +223,18 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   when the assignment asks for it ("A parent will check this before the teacher sees it"): the adult sees the answer
   read-only with "It's ready — send to the teacher" / "Send back to <name>" (a note sheet), finds it on Home as a
   "Needs your OK" strip between rows 1 and 2, and may do the homework for the child from the same screen (no parent
-  step then). Gating: module `gyan_path` and the Learn area like the rest of Gyan Path; a visitor sees nothing; a
-  child only their own. Every write goes through the 0587 functions and every refusal is shown as the database said
-  it, with Try again. Pushes of type `homework` / `homework_parent` open the item (`deep_link`), or the homework list
-  when the payload is missing (gap 29). A portal without 0587 (`app.my_gyan_homework` missing) means homework is not
-  offered: every entry point stays hidden and the reason is logged once (Schema gaps #31).
+  step then). Whether a parent checks first (`needs_parent`) and who may decide (`can_parent_decide`) are the
+  database's word and are never worked out in the app. Closed homework (`assignment.archived: true`, which
+  `my_gyan_homework` still lists for a person who answered it) is read-only everywhere: the answer, its status and
+  any note under "This homework is closed.", with no editor, no Hand in and no parent buttons, and it never counts as
+  something to do, to decide or to wait for. Gating: module `gyan_path` and the Learn area like the rest of Gyan Path;
+  a visitor sees nothing; a child only their own. Every write goes through the 0587 functions and every refusal is
+  shown as the database said it, with Try again; a failed write loads the answer again so the screen shows where it
+  really is. Pushes of type `homework` open the learner's item (`deep_link`, else `assignment_id` with `learner_id`) or
+  the homework list; `homework_parent` opens the child's item, or just the app when the child is not named (Home has
+  the strip); `homework_review` is for teachers, in the portal (gap 29). A portal without 0587
+  (`app.my_gyan_homework` missing) means homework is not offered: every entry point stays hidden and the reason is
+  logged once (Schema gaps #31).
 - **Traceability** (`src/lib/request-context.ts`): every PostgREST request sends
   `x-client-app` (`member`, or `kiosk` while the volunteer board is in kiosk mode), a
   fresh `x-request-id` and `x-client-screen` (the current route). Writes the member

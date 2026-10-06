@@ -77,11 +77,13 @@ export function HomeworkView({ item, people }: { item: HomeworkItem; people: Hom
   const due = dueLine(a.dueOn, today);
   const overdue = isOverdue({ assignment: a, submission: sub }, today);
   const onSaved = (next: Submission) => setWritten({ sub: next, over: item.submission });
-  const editing = canEdit(state, viewer) && (state !== 'needs_work' || editingAgain);
+  // Closed (archived) homework is only read: the database lists it because this person answered it.
+  const editing = canEdit(state, viewer, a.archived) && (state !== 'needs_work' || editingAgain);
   const comeback = comebackNote(sub);
   const answerTitle = viewer === 'parent' ? t('hw.answerOf', { name: learnerName }) : t('hw.yourAnswer');
   const teacherNoteTitle = viewer === 'learner' ? t('hw.teacherNote') : t('hw.teacherNoteOther');
   const parentNoteTitle = viewer === 'learner' ? t('hw.parentNote') : t('hw.parentNoteOther');
+  const acceptedBanner = <Banner tone="success" title={sub && sub.pointsAwarded > 0 ? t('hw.acceptedPoints', { n: sub.pointsAwarded, center: communityName(center) }) : t('hw.acceptedTitle')} message={sub?.reviewNote ? `${teacherNoteTitle}: ${sub.reviewNote}` : t('hw.status.accepted')} />;
 
   return (
     <View style={{ gap: space.lg }}>
@@ -96,6 +98,7 @@ export function HomeworkView({ item, people }: { item: HomeworkItem; people: Hom
           <Pill label={t(STATE_LABEL[state])} tone={STATE_TONE[state]} />
           {overdue ? <Pill label={t('hw.overdue')} tone="red" /> : sub?.late ? <Pill label={t('hw.late')} tone="amber" /> : null}
           {a.requiredForLevel ? <Pill label={t('hw.requiredForLevel')} tone="navy" /> : null}
+          {a.archived ? <Pill label={t('hw.closedChip')} tone="grey" /> : null}
         </Row>
       </View>
 
@@ -114,6 +117,15 @@ export function HomeworkView({ item, people }: { item: HomeworkItem; people: Hom
 
       {viewer === 'none' ? (
         <Banner tone="info" message={t('hw.noAccess')} />
+      ) : a.archived ? (
+        // Closed: the answer, its status (the chip above) and any note, read-only: no editor, no Hand in, no parent buttons.
+        <>
+          <Txt variant="small" color="muted">
+            {t('hw.closed')}
+          </Txt>
+          {state === 'accepted' ? acceptedBanner : comeback ? <Banner tone="warning" title={comeback.from === 'teacher' ? teacherNoteTitle : parentNoteTitle} message={comeback.note} /> : null}
+          <AnswerReadOnly sub={sub} audio={audio} title={answerTitle} />
+        </>
       ) : editing ? (
         <>
           {comeback ? <Banner tone="warning" title={comeback.from === 'teacher' ? teacherNoteTitle : parentNoteTitle} message={comeback.note} /> : null}
@@ -138,7 +150,7 @@ export function HomeworkView({ item, people }: { item: HomeworkItem; people: Hom
         </>
       ) : state === 'awaiting_parent' ? (
         <>
-          {sub && canDecide({ canParentDecide: item.canParentDecide, submission: sub }, viewer) ? <ParentDecision submissionId={sub.id} childName={learnerName} onDecided={onSaved} /> : <Banner tone="info" title={t('hw.status.awaitingParent')} message={viewer === 'learner' ? t('hw.waitingParent') : t('hw.waitingParentOther')} />}
+          {sub && canDecide({ canParentDecide: item.canParentDecide, submission: sub, assignment: a }, viewer) ? <ParentDecision submissionId={sub.id} childName={learnerName} onDecided={onSaved} /> : <Banner tone="info" title={t('hw.status.awaitingParent')} message={viewer === 'learner' ? t('hw.waitingParent') : t('hw.waitingParentOther')} />}
           <AnswerReadOnly sub={sub} audio={audio} title={answerTitle} />
         </>
       ) : state === 'submitted' ? (
@@ -148,7 +160,7 @@ export function HomeworkView({ item, people }: { item: HomeworkItem; people: Hom
         </>
       ) : (
         <>
-          <Banner tone="success" title={sub && sub.pointsAwarded > 0 ? t('hw.acceptedPoints', { n: sub.pointsAwarded, center: communityName(center) }) : t('hw.acceptedTitle')} message={sub?.reviewNote ? `${teacherNoteTitle}: ${sub.reviewNote}` : t('hw.status.accepted')} />
+          {acceptedBanner}
           <AnswerReadOnly sub={sub} audio={audio} title={answerTitle} />
         </>
       )}

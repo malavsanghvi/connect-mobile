@@ -32,7 +32,7 @@ export function HomeworkCard({ item, today, viewer, levelLabel, waitNote }: { it
   const note = comebackNote(sub);
   const noteTitle = note ? (note.from === 'teacher' ? (viewer === 'learner' ? t('hw.teacherNote') : t('hw.teacherNoteOther')) : viewer === 'learner' ? t('hw.parentNote') : t('hw.parentNoteOther')) : null;
   const status = t(STATE_LABEL[state]);
-  const label = [a.title, meta, status, overdue ? t('hw.overdue') : sub?.late ? t('hw.late') : null, note ? `${noteTitle}: ${note.note}` : null, waitNote ?? null].filter(Boolean).join('. ');
+  const label = [a.title, meta, status, overdue ? t('hw.overdue') : sub?.late ? t('hw.late') : null, a.archived ? t('hw.closedChip') : null, note ? `${noteTitle}: ${note.note}` : null, waitNote ?? null].filter(Boolean).join('. ');
   return (
     <Pressable
       onPress={() => openHomework(router, item)}
@@ -55,6 +55,7 @@ export function HomeworkCard({ item, today, viewer, levelLabel, waitNote }: { it
         <Pill label={status} tone={STATE_TONE[state]} />
         {overdue ? <Pill label={t('hw.overdue')} tone="red" /> : sub?.late ? <Pill label={t('hw.late')} tone="amber" /> : null}
         {a.requiredForLevel ? <Pill label={t('hw.requiredForLevel')} tone="navy" /> : null}
+        {a.archived ? <Pill label={t('hw.closedChip')} tone="grey" /> : null}
       </Row>
       {waitNote ? (
         <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>

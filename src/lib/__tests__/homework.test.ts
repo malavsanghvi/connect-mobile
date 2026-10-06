@@ -106,8 +106,8 @@ const rawAnswer = {
   ],
 };
 
-function item(over: Partial<HomeworkItem> & { status?: Submission['status'] | null; dueOn?: string | null; title?: string; submittedAt?: string | null }): HomeworkItem {
-  const assignment = parseAssignment({ ...rawAssignment, due_on: over.dueOn === undefined ? rawAssignment.due_on : over.dueOn, title: over.title ?? rawAssignment.title })!;
+function item(over: Partial<HomeworkItem> & { status?: Submission['status'] | null; dueOn?: string | null; title?: string; submittedAt?: string | null; archived?: boolean }): HomeworkItem {
+  const assignment = parseAssignment({ ...rawAssignment, due_on: over.dueOn === undefined ? rawAssignment.due_on : over.dueOn, title: over.title ?? rawAssignment.title, archived: over.archived })!;
   const submission = over.status === null ? null : over.status ? parseSubmission({ ...rawSubmission, status: over.status, submitted_at: over.submittedAt ?? null }) : null;
   return { assignment, personId: P_ME, submission, needsParent: false, canParentDecide: false, ...over };
 }
@@ -122,6 +122,17 @@ describe('reading the my_gyan_homework answer', () => {
     expect(parseAssignment({ ...rawAssignment, id: '' })).toBeNull();
     expect(parseAssignment({ ...rawAssignment, title: '  ' })).toBeNull();
     expect(parseAssignment('nope')).toBeNull();
+  });
+
+  it('reads "archived" defensively: only a real true closes the homework; absent or anything else is open', () => {
+    expect(parseAssignment(rawAssignment)!.archived).toBe(false);
+    expect(parseAssignment({ ...rawAssignment, archived: true })!.archived).toBe(true);
+    for (const v of [false, null, undefined, 'true', 'yes', 1, 0, {}, []]) expect(parseAssignment({ ...rawAssignment, archived: v })!.archived).toBe(false);
+    // Inside the whole answer, and the database's own words about parents are passed through, never worked out here.
+    const hw = parseHomework({ people: [], items: [{ assignment: { ...rawAssignment, archived: true }, person_id: P_ME, submission: { ...rawSubmission, status: 'awaiting_parent' }, needs_parent: false, can_parent_decide: true }] })!;
+    expect(hw.items[0].assignment.archived).toBe(true);
+    expect(hw.items[0]).toMatchObject({ needsParent: false, canParentDecide: true });
+    expect(parseHomework({ people: [], items: [{ assignment: rawAssignment, person_id: P_ME, submission: null }] })!.items[0].assignment.archived).toBe(false);
   });
 
   it('reads a submission and its parts in order, dropping parts it cannot read', () => {
@@ -183,6 +194,8 @@ describe('status', () => {
     expect(isOverdue(item({ status: 'submitted', dueOn: '2026-10-01' }), '2026-10-05')).toBe(false);
     expect(isOverdue(item({ status: 'awaiting_parent', dueOn: '2026-10-01' }), '2026-10-05')).toBe(false);
     expect(isOverdue(item({ status: null, dueOn: null }), '2026-10-05')).toBe(false);
+    // Closed homework is owed no more.
+    expect(isOverdue(item({ status: 'draft', dueOn: '2026-10-01', archived: true }), '2026-10-05')).toBe(false);
   });
 
   it('explains how the answer came back, and only for the latest round', () => {
@@ -230,11 +243,19 @@ describe('who is looking', () => {
     expect(canEdit('accepted', 'learner')).toBe(false);
     expect(canEdit('draft', 'none')).toBe(false);
   });
+  it('lets nobody work on closed homework', () => {
+    for (const state of ['not_started', 'draft', 'needs_work', 'awaiting_parent', 'submitted', 'accepted'] as const) {
+      for (const viewer of ['learner', 'parent', 'none'] as const) expect(canEdit(state, viewer, true)).toBe(false);
+    }
+    expect(canEdit('draft', 'learner', false)).toBe(true);
+  });
   it('lets only a household adult the database named decide a waiting answer', () => {
     expect(canDecide(item({ status: 'awaiting_parent', canParentDecide: true }), 'parent')).toBe(true);
     expect(canDecide(item({ status: 'awaiting_parent', canParentDecide: false }), 'parent')).toBe(false);
     expect(canDecide(item({ status: 'awaiting_parent', canParentDecide: true }), 'learner')).toBe(false);
     expect(canDecide(item({ status: 'submitted', canParentDecide: true }), 'parent')).toBe(false);
+    // Even when the database still says so, closed homework has no parent buttons.
+    expect(canDecide(item({ status: 'awaiting_parent', canParentDecide: true, archived: true }), 'parent')).toBe(false);
   });
   it('explains what handing in means for this reader', () => {
     expect(handInNote({ needsParent: true }, 'learner')).toBe('parent_checks_first');
@@ -437,6 +458,32 @@ describe('lists', () => {
   it('lists the children\'s answers waiting for this adult, oldest hand-in first, never the adult\'s own', () => {
     expect(needsYourOk(items, P_ME).map((i) => i.assignment.title)).toEqual(['H waiting first', 'G waiting']);
     expect(needsYourOk(items, P_KID)).toEqual([]);
+  });
+
+  it('keeps closed homework out of everything that asks for something: last in the list, never to do, to decide, waiting or holding a level back', () => {
+    const closed = (title: string, status: Submission['status'] | null, over: Parameters<typeof item>[0] = {}) => item({ title, status, archived: true, ...over });
+    const open = [item({ status: 'accepted', title: 'A accepted' }), item({ status: 'draft', title: 'E draft' })];
+    const shut = [
+      closed('K closed draft', 'draft'),
+      closed('L closed not started', null),
+      closed('M closed sent back', 'needs_work'),
+      closed('N closed waiting', 'awaiting_parent', { personId: P_KID, canParentDecide: true, submittedAt: '2026-10-03T12:00:00Z' }),
+      closed('O closed with teacher', 'submitted'),
+      closed('P closed accepted', 'accepted'),
+    ];
+    const all = [...shut, ...open];
+    // Last, whatever they are waiting for.
+    expect(sortItems(all).map((i) => i.assignment.title).slice(0, 2)).toEqual(['E draft', 'A accepted']);
+    expect(sortItems(all).slice(2).every((i) => i.assignment.archived)).toBe(true);
+    expect(toDoCount(all)).toBe(1);
+    expect(needsYourOk(all, P_ME)).toEqual([]);
+    // Only what it ended as is counted: an accepted answer; not a draft, a send-back, a wait or a hand-in.
+    expect(countsFor(all, P_ME)).toEqual({ toDo: 1, needsOk: 0, waitingParent: 0, withTeacher: 0, accepted: 2, total: 7 });
+    expect(countsFor(all, P_KID)).toEqual({ toDo: 0, needsOk: 0, waitingParent: 0, withTeacher: 0, accepted: 0, total: 1 });
+    // Required homework that is closed is not published, so the level's points do not wait for it.
+    const required = (title: string, status: Submission['status'] | null, archived: boolean) => item({ title, status, archived, assignment: { ...parseAssignment({ ...rawAssignment, id: title, title, required_for_level: true, archived })! } });
+    expect(levelPointsWait([required('Record it', 'draft', true)])).toBeNull();
+    expect(levelPointsWait([required('Record it', 'draft', true), required('Write it', null, false)])).toMatchObject({ key: 'hw.levelWaits', vars: { title: 'Write it' } });
   });
 
   it('takes a first name', () => {

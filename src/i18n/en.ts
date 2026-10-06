@@ -2500,6 +2500,8 @@ export const en = {
   'hw.status.needsWork': 'Sent back',
   'hw.overdue': 'Overdue',
   'hw.late': 'Handed in late',
+  'hw.closedChip': 'Closed',
+  'hw.closed': 'This homework is closed.',
   'hw.dueToday': 'Due today',
   'hw.dueTomorrow': 'Due tomorrow',
   'hw.dueOn': 'Due {date}',
