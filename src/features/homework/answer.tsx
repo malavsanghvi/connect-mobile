@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { Banner, Button, Card, Row, TextField, Txt, VStack } from '@/components/ui';
 import type { InAppAudio } from '@/features/audio';
-import { handIn, isRefusal, removePart as removeUpload, saveDraft, uploadPart } from '@/lib/api/homework';
+import { handIn, isRefusal, PartRefused, removePart as removeUpload, saveDraft, uploadPart } from '@/lib/api/homework';
 import { AppError, logError, report } from '@/lib/errors';
 import { answerButtons, handInBlock, handInNote, keptFiles, MAX_TEXT_CHARS, type FileArg, type HandInBlock, type HomeworkItem, type PartKind, type Submission, type Viewer } from '@/lib/homework';
 import { newRequestId } from '@/lib/request-context';
@@ -21,7 +21,7 @@ function fileArgsOf(parts: readonly LocalPart[]): FileArg[] {
 }
 
 function initialParts(sub: Submission | null): LocalPart[] {
-  return keptFiles(sub).map((f) => ({ key: f.id, kind: f.kind, uri: null, storagePath: f.storagePath, mimeType: f.mimeType, fileName: null, bytes: f.bytes, durationSeconds: f.durationSeconds, state: 'uploaded', error: null }));
+  return keptFiles(sub).map((f) => ({ key: f.id, kind: f.kind, uri: null, storagePath: f.storagePath, mimeType: f.mimeType, fileName: null, bytes: f.bytes, durationSeconds: f.durationSeconds, state: 'uploaded', error: null, retryable: true }));
 }
 
 const BLOCK_KEY: Record<HandInBlock, 'hw.block.uploading' | 'hw.block.notUploaded' | 'hw.block.tooMany' | 'hw.block.textTooLong' | 'hw.block.empty'> = {
@@ -138,7 +138,9 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
         const refused = isRefusal(err);
         if (refused && stored) await removeUpload(stored.storagePath);
         const message = report(err, 'upload this part').userMessage;
-        setParts((prev) => prev.map((p) => (p.key === key ? { ...p, ...(refused ? { storagePath: null } : {}), state: 'failed', error: message } : p)));
+        // A part turned away for what it is (its type, its size, an empty recording) can never go through as it is: no Try again for it.
+        const retryable = !(err instanceof PartRefused);
+        setParts((prev) => prev.map((p) => (p.key === key ? { ...p, ...(refused ? { storagePath: null } : {}), state: 'failed', error: message, retryable } : p)));
         // The server may know better than this screen (the answer was handed in elsewhere): load it again, so what is shown is what is true.
         if (askedServer) invalidate();
       }
@@ -148,7 +150,7 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
     const key = newRequestId();
     setNotice(null);
     setError(null);
-    setParts((prev) => [...prev, { key, storagePath: null, state: 'uploading', error: null, ...part }]);
+    setParts((prev) => [...prev, { key, storagePath: null, state: 'uploading', error: null, retryable: true, ...part }]);
     void upload(key);
   };
 

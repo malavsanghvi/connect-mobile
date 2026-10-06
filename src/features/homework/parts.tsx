@@ -30,6 +30,8 @@ export type LocalPart = {
   state: PartState;
   /** Why it is not uploaded, in plain English. */
   error: string | null;
+  /** False when this same file can never go through (a type the bucket does not take, over 25 MB, empty): Remove, or another file, not Try again. */
+  retryable: boolean;
 };
 
 const KIND_ICON: Record<PartKind, IconName> = { photo: 'image-outline', voice: 'mic-outline', file: 'document-outline' };
@@ -86,7 +88,7 @@ export function PartRow({ part, editable, audio, onRemove, onRetry }: { part: Lo
         ) : null}
         {editable && part.state !== 'uploading' ? <IconButton icon="trash-outline" label={t('hw.part.remove', { part: name })} onPress={() => onRemove?.(part.key)} color={colors.danger} /> : null}
       </Row>
-      {part.state === 'failed' && part.uri && onRetry ? <Button label={t('common.retry')} tone="secondary" size="sm" fill={false} onPress={() => onRetry(part.key)} /> : null}
+      {part.state === 'failed' && part.uri && part.retryable && onRetry ? <Button label={t('common.retry')} tone="secondary" size="sm" fill={false} onPress={() => onRetry(part.key)} /> : null}
       {link.error ? <Banner tone="error" message={t('hw.part.linkFailed')} action={{ label: t('common.retry'), onPress: () => void link.reload() }} /> : null}
     </View>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { handIn, isRefusal, loadHomework, parentDecide, partUrl, saveDraft, uploadPart } from '../api/homework';
+import { handIn, isRefusal, loadHomework, parentDecide, PartRefused, partUrl, saveDraft, uploadPart } from '../api/homework';
 import { AppError } from '../errors';
 
 type Result = { data: unknown; error: unknown };
@@ -275,6 +275,28 @@ describe('uploading a part', () => {
       expect(await failWith({ message: 'Bucket not found', statusCode: '404' })).toMatch(/aren't set up for your community yet/);
       expect(await failWith({ message: 'fetch failed' })).toBe("We couldn't upload this part. Please check your connection and try again.");
     });
+  });
+
+  it('tells a part turned away for what it is (type, size, empty, a locked answer) from one a second try could help (a read, the connection, a missing bucket)', async () => {
+    const refused = async (over: Partial<Parameters<typeof uploadPart>[0]>, next: () => void) => {
+      next();
+      return (await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a.jpg', ...over }).catch((e: unknown) => e)) instanceof PartRefused;
+    };
+    const read = (n: number) => () => fetchSpy.mockResolvedValueOnce({ arrayBuffer: async () => new ArrayBuffer(n) } as unknown as Response);
+    // By its type, before anything is read; once big, once empty.
+    expect(await refused({ mimeType: 'image/gif' }, () => undefined)).toBe(true);
+    expect(await refused({}, read(25 * 1024 * 1024 + 1))).toBe(true);
+    expect(await refused({}, read(0))).toBe(true);
+    // The bucket's own refusals: a type, a size, an answer that moved on.
+    for (const error of [{ message: 'mime type is not supported', statusCode: '415' }, { message: 'too large', statusCode: '413' }, { message: 'new row violates row-level security policy', statusCode: '403' }]) {
+      expect(await refused({}, () => { read(3)(); mockUpload.mockResolvedValueOnce({ error }); })).toBe(true);
+    }
+    // A second try could help: the file could not be read now, the connection, a bucket not set up yet.
+    expect(await refused({}, () => { fetchSpy.mockRejectedValueOnce(new Error('ENOENT')); })).toBe(false);
+    expect(await refused({}, () => { read(3)(); mockUpload.mockResolvedValueOnce({ error: { message: 'fetch failed' } }); })).toBe(false);
+    expect(await refused({}, () => { read(3)(); mockUpload.mockResolvedValueOnce({ error: { message: 'Bucket not found', statusCode: '404' } }); })).toBe(false);
+    // Still an AppError, shown the same way.
+    expect(new PartRefused('x', 'y')).toBeInstanceOf(AppError);
   });
 
   it('says when the bucket is not set up, or the upload failed', async () => {

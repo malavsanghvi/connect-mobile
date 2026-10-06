@@ -128,6 +128,13 @@ export async function parentDecide(submissionId: string, decision: 'ok' | 'send_
   return writeSubmission('parent_decide_gyan_submission', { p_submission: submissionId, p_decision: decision, p_note: note }, decision === 'ok' ? 'send it to the teacher' : 'send it back');
 }
 
+/**
+ * A part turned away for what it is, by the app before anything was sent or by the bucket: a type the bucket does not
+ * take, over 25 MB, an empty recording, or an answer that can no longer be changed. The same file can never go
+ * through, so the screen offers Remove (or another file), not Try again.
+ */
+export class PartRefused extends AppError {}
+
 const SIZE_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.sizePhoto'], voice: en['hw.err.sizeVoice'], file: en['hw.err.sizeFile'] };
 
 const READ_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.readPhoto'], voice: en['hw.err.readVoice'], file: en['hw.err.readFile'] };
@@ -151,7 +158,7 @@ function uploadMessage(error: { message?: string; status?: number | string; stat
  */
 export async function uploadPart(args: { centerId: string; personId: string; submissionId: string | (() => Promise<string>); kind: PartKind; uri: string; fileName?: string | null; mimeType?: string | null; durationSeconds?: number | null }): Promise<FileArg> {
   const hints = { fileName: args.fileName, mimeType: args.mimeType, uri: args.uri };
-  const refuseType = (contentType: string) => new AppError(TYPE_MESSAGE[args.kind], `${args.kind} of type ${contentType} is not one the ${HOMEWORK_BUCKET} bucket takes`);
+  const refuseType = (contentType: string) => new PartRefused(TYPE_MESSAGE[args.kind], `${args.kind} of type ${contentType} is not one the ${HOMEWORK_BUCKET} bucket takes`);
   if (hasTypeHint(args.kind, hints)) {
     const early = partFile(args.kind, hints);
     if (!partTypeAllowed(args.kind, early.contentType)) throw refuseType(early.contentType);
@@ -164,8 +171,8 @@ export async function uploadPart(args: { centerId: string; personId: string; sub
   } catch (err) {
     throw new AppError(READ_MESSAGE[args.kind], `reading ${args.kind} ${args.uri}: ${err instanceof Error ? err.message : String(err)}`);
   }
-  if (body.byteLength === 0) throw new AppError(args.kind === 'voice' ? en['hw.err.emptyVoice'] : en['hw.err.emptyFile'], `empty ${args.kind}`);
-  if (body.byteLength > MAX_FILE_BYTES) throw new AppError(SIZE_MESSAGE[args.kind], `${args.kind} is ${body.byteLength} bytes (limit ${MAX_FILE_BYTES})`);
+  if (body.byteLength === 0) throw new PartRefused(args.kind === 'voice' ? en['hw.err.emptyVoice'] : en['hw.err.emptyFile'], `empty ${args.kind}`);
+  if (body.byteLength > MAX_FILE_BYTES) throw new PartRefused(SIZE_MESSAGE[args.kind], `${args.kind} is ${body.byteLength} bytes (limit ${MAX_FILE_BYTES})`);
   // A recording made in a browser has no extension or type of its own: the fetched file says what it is (WebM there), and that names it.
   const { ext, contentType } = partFile(args.kind, { ...hints, reported: res.headers?.get?.('content-type') });
   if (!partTypeAllowed(args.kind, contentType)) throw refuseType(contentType);
@@ -175,7 +182,9 @@ export async function uploadPart(args: { centerId: string; personId: string; sub
   const up = await supabase.storage.from(HOMEWORK_BUCKET).upload(path, body, { contentType, upsert: false });
   if (up.error) {
     const e = up.error as { message: string; status?: number | string; statusCode?: number | string; code?: string };
-    throw new AppError(uploadMessage(e), `storage upload to ${HOMEWORK_BUCKET}/${path}: ${e.message} | status=${String(e.status ?? '')} statusCode=${String(e.statusCode ?? '')} code=${String(e.code ?? '')}`);
+    const detail = `storage upload to ${HOMEWORK_BUCKET}/${path}: ${e.message} | status=${String(e.status ?? '')} statusCode=${String(e.statusCode ?? '')} code=${String(e.code ?? '')}`;
+    // The bucket said no for what the file is (type, size) or for where the answer stands (locked): trying it again cannot work.
+    throw storageProblem(e) ? new PartRefused(uploadMessage(e), detail) : new AppError(uploadMessage(e), detail);
   }
   return { kind: args.kind, storage_path: path, mime_type: contentType, bytes: body.byteLength, duration_seconds: args.durationSeconds ?? null };
 }
