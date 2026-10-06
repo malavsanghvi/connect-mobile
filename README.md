@@ -125,7 +125,7 @@ src/app/            expo-router routes
   (onboarding)/     family match → about you → your family → contact & mail → done
   (app)/(tabs)/     Home · Events · Give · Jain Way · Family
   (app)/…           event RSVP / tickets / confirm, survey, opportunity, pledges, bolis,
-                    recurring, gyan path, pachchakhan, person, special days, member card,
+                    recurring, gyan path (+ homework), pachchakhan, person, special days, member card,
                     settings, preferences, legal, guide (+ zones, WhatsApp, ask), store,
                     cart, volunteer (scanner), niva
 src/lib/            supabase client, env, storage, errors, format + rules (pure), api/*
@@ -206,6 +206,27 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   points"). If the function is missing (an older portal) the rules from before apply
   (members: everything; visitors: the guide and today's timings) and the reason is
   logged once; if it fails, the screens that need it say so with Try again.
+- **Homework** (`src/lib/homework.ts` pure rules, `src/lib/api/homework.ts` calls, `src/features/homework`,
+  `src/app/(app)/gyan/homework`; connect-crm migration 0587 and `docs/LEARNING_ASSIGNMENTS_PLAN.md` there): a
+  community attaches homework to a Gyan Path level. Its cards (title, due, points, status chip, the note when it was
+  sent back) show under every step of the lesson, on the goal map and on the level-complete screen; the Family tab
+  says "Homework: 1 needs your OK · 2 with the teacher" under each person. The homework screen
+  (`/gyan/homework/<assignment>?person=<person>`) has the instructions, the answer as parts (Choose a photo from the
+  library; Record a voice note with the lesson's recorder, up to 10 minutes; Write, 2,000 characters; Attach a file is
+  shown disabled until the next APK brings the file picker), Save draft and Hand in. A part is uploaded the moment it
+  is added (bucket `homework`, `<center>/<person>/<submission>/<id>.<ext>`, 25 MB; the draft is created first so the
+  path has a submission) and registered with the draft, so leaving the screen never loses it; one that fails stays
+  "Not uploaded" with Try again and Remove, and nothing is handed in until every part is uploaded. Statuses: Not
+  started, Draft, Needs a parent's OK, With the teacher, Accepted (the points, with confetti the first time this device
+  sees it), Sent back (the teacher's note, Edit and hand in again). A child's own hand-in waits for a household adult
+  when the assignment asks for it ("A parent will check this before the teacher sees it"): the adult sees the answer
+  read-only with "It's ready — send to the teacher" / "Send back to <name>" (a note sheet), finds it on Home as a
+  "Needs your OK" strip between rows 1 and 2, and may do the homework for the child from the same screen (no parent
+  step then). Gating: module `gyan_path` and the Learn area like the rest of Gyan Path; a visitor sees nothing; a
+  child only their own. Every write goes through the 0587 functions and every refusal is shown as the database said
+  it, with Try again. Pushes of type `homework` / `homework_parent` open the item (`deep_link`), or the homework list
+  when the payload is missing (gap 29). A portal without 0587 (`app.my_gyan_homework` missing) means homework is not
+  offered: every entry point stays hidden and the reason is logged once (Schema gaps #31).
 - **Traceability** (`src/lib/request-context.ts`): every PostgREST request sends
   `x-client-app` (`member`, or `kiosk` while the volunteer board is in kiosk mode), a
   fresh `x-request-id` and `x-client-screen` (the current route). Writes the member
@@ -296,3 +317,4 @@ changed. The app works around each one as noted.
 | 24 | `app.my_modules(p_center)` is not in the generated types yet (wave 2, schema stream) | Hand-typed call in `src/lib/api/modules.ts`; missing RPC → everything on, logged once |
 | 29 | The push worker (`worker/src/messaging.ts`) sends Expo only `{ message_id, center_id, purpose }`; it does not forward `messages.payload` (`survey_id`, `deep_link`, …) or a `type`, so a tapped push cannot say which survey it is about | App routes `data.type = 'event_survey'` / `'event_survey_reminder'` (or a `deep_link` of `survey/<id>`, with `survey_id`) to the survey (`src/lib/notification-routes.ts`). Until the worker forwards them, a tap only opens the app; the Home pop-up and card still ask for the feedback |
 | 30 | ~~`app.feature_access_for_me(p_center)` (access levels, connect-crm 0586) is not in the generated types yet~~ — the types are copied from connect-crm after 0586 | A typed `supabase.rpc('feature_access_for_me', { p_center })` in `src/lib/api/access.ts`; the jsonb answer is still parsed defensively (`src/lib/access.ts`). Missing RPC (an older portal) → the rules from before access levels (members: everything; visitors: the guide and timings), logged once |
+| 31 | Homework (connect-crm 0587: `app.my_gyan_homework`, `save_gyan_submission_draft`, `hand_in_gyan_submission`, `parent_decide_gyan_submission`, bucket `homework`) is not in the generated types yet | One narrow cast per call in `src/lib/api/homework.ts` (nothing else in the app touches these functions); every answer is parsed defensively in `src/lib/homework.ts` (an item with an unknown status is left out and logged, never shown half-read). Missing function (an older portal) → homework is not offered: no cards, strip or lines, logged once; a stale link says "Homework isn't available in {center} yet". "Attach a file" and "Take a photo" wait for the APK with the native pickers (plan F6, H10) |
