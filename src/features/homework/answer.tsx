@@ -94,14 +94,28 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
     enqueue(async () => {
       const part = partsRef.current.find((p) => p.key === key);
       if (!part || !part.uri) return;
+      // Set once the server has been asked anything (the draft, the bucket, the draft again): only then can a failure mean the answer has moved on.
+      let askedServer = false;
       try {
-        const id = await ensureSubmission();
-        const file = await uploadPart({ centerId, personId: item.personId, submissionId: id, kind: part.kind, uri: part.uri, fileName: part.fileName, mimeType: part.mimeType, durationSeconds: part.durationSeconds });
+        const file = await uploadPart({
+          centerId,
+          personId: item.personId,
+          submissionId: () => {
+            askedServer = true;
+            return ensureSubmission();
+          },
+          kind: part.kind,
+          uri: part.uri,
+          fileName: part.fileName,
+          mimeType: part.mimeType,
+          durationSeconds: part.durationSeconds,
+        });
         const uploaded: LocalPart = { ...part, state: 'uploaded', storagePath: file.storage_path, mimeType: file.mime_type, bytes: file.bytes, error: null };
         const next = partsRef.current.map((p) => (p.key === key ? uploaded : p));
         let saved: Submission;
         try {
           saved = await saveDraft({ assignmentId: assignment.id, personId: item.personId, text: textArg(), files: fileArgsOf(next) });
+          askedServer = true;
         } catch (err) {
           // The part is not on the draft, so it must not stay in the bucket either (as photo albums do).
           await removeUpload(file.storage_path);
@@ -113,6 +127,8 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
       } catch (err) {
         const message = report(err, 'upload this part').userMessage;
         setParts((prev) => prev.map((p) => (p.key === key ? { ...p, state: 'failed', error: message } : p)));
+        // The server may know better than this screen (the answer was handed in elsewhere): load it again, so what is shown is what is true.
+        if (askedServer) invalidate();
       }
     });
 
@@ -147,6 +163,7 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
         // Not taken off the draft: it comes back to the list, and the reason is shown.
         setParts((prev) => (prev.some((p) => p.key === key) ? prev : [...prev, part]));
         setError({ message: report(err, 'remove this part').userMessage, retry: () => removePart(key) });
+        invalidate();
       }
     });
   };
@@ -190,24 +207,29 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
       toast(t('hw.draftSaved'));
     } catch (err) {
       setError({ message: report(err, 'save your draft').userMessage, retry: () => void save() });
+      // A refusal usually means the answer is no longer a draft (handed in or decided elsewhere): load it again, so Try again never repeats a doomed call.
+      invalidate();
     } finally {
       setBusy(null);
     }
   };
 
   const note = handInNote(item, viewer);
-  const handInNow = async () => {
+  /** `confirmed`: Try again after a failed hand-in, which the learner already confirmed, so the question is not asked twice. */
+  const handInNow = async (confirmed = false) => {
     setError(null);
     setNotice(null);
     const block = blockFor(true);
     if (block) return say(block);
-    const ok = await confirm({
-      title: t('hw.handInTitle', { title: assignment.title }),
-      body: note === 'parent_checks_first' ? t('hw.handInParentFirst') : note === 'parent_hands_in' ? t('hw.handInForChild', { name: learnerName }) : t('hw.handInTeacher'),
-      confirmLabel: t('hw.handIn'),
-      tone: 'primary',
-    });
-    if (!ok) return;
+    if (!confirmed) {
+      const ok = await confirm({
+        title: t('hw.handInTitle', { title: assignment.title }),
+        body: note === 'parent_checks_first' ? t('hw.handInParentFirst') : note === 'parent_hands_in' ? t('hw.handInForChild', { name: learnerName }) : t('hw.handInTeacher'),
+        confirmLabel: t('hw.handIn'),
+        tone: 'primary',
+      });
+      if (!ok) return;
+    }
     setBusy('handing');
     try {
       const result = await enqueue(async () => {
@@ -219,7 +241,8 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
       invalidate();
       toast(result.status === 'awaiting_parent' ? t('hw.handedInParent') : t('hw.handedInTeacher'));
     } catch (err) {
-      setError({ message: report(err, 'hand in your homework').userMessage, retry: () => void handInNow() });
+      setError({ message: report(err, 'hand in your homework').userMessage, retry: () => void handInNow(true) });
+      invalidate();
     } finally {
       setBusy(null);
     }

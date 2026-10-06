@@ -8,6 +8,7 @@ import { useHomework } from '@/features/homework/use-homework';
 import { HomeworkView } from '@/features/homework/view';
 import { communityName } from '@/lib/learning';
 import { useApp } from '@/providers/app';
+import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 
 /**
@@ -19,6 +20,7 @@ export default function HomeworkScreen() {
   const t = useT();
   const { assignmentId, person } = useLocalSearchParams<{ assignmentId: string; person?: string }>();
   const { center, member, setGuest } = useApp();
+  const { invalidate } = useDataVersion();
   const load = useHomework();
   const personId = typeof person === 'string' && person ? person : (member?.person.id ?? '');
   if (!member) {
@@ -32,7 +34,7 @@ export default function HomeworkScreen() {
     );
   }
   return (
-    <Screen title={t('hw.title')} tabBar={false} niva={false} headerRight={personId === member.person.id ? <GyanHeaderChips /> : undefined}>
+    <Screen title={t('hw.title')} tabBar={false} niva={false} headerRight={personId === member.person.id ? <GyanHeaderChips /> : undefined} onRefresh={async () => invalidate()}>
       <Loaded state={load.state}>
         {(answer) => {
           // No answer yet: the load before the access check answered gave nothing; the real one follows (Loaded says so when it failed).

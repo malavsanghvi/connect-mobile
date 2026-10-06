@@ -21,7 +21,8 @@ export function ParentDecision({ submissionId, childName, onDecided }: { submiss
   const { confirm, toast } = useFeedback();
   const { invalidate } = useDataVersion();
   const [busy, setBusy] = useState<'ok' | 'send_back' | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  /** The last refusal and which button it belongs to: "Send back" opens a sheet that covers the card, so its refusal is shown there. */
+  const [error, setError] = useState<{ decision: 'ok' | 'send_back'; message: string } | null>(null);
   const [sheet, setSheet] = useState(false);
 
   const decide = async (decision: 'ok' | 'send_back', note: string | null): Promise<boolean> => {
@@ -34,7 +35,9 @@ export function ParentDecision({ submissionId, childName, onDecided }: { submiss
       toast(decision === 'ok' ? t('hw.sentToTeacher') : t('hw.sentBackTo', { name: childName }));
       return true;
     } catch (err) {
-      setError(report(err, decision === 'ok' ? 'send it to the teacher' : 'send it back').userMessage);
+      setError({ decision, message: report(err, decision === 'ok' ? 'send it to the teacher' : 'send it back').userMessage });
+      // Usually another adult decided first, or the child took it back: load it again, so Try again never repeats a doomed call.
+      invalidate();
       return false;
     } finally {
       setBusy(null);
@@ -51,14 +54,24 @@ export function ParentDecision({ submissionId, childName, onDecided }: { submiss
       <Txt variant="bodyStrong">{t('hw.parentCheckIntro', { name: childName })}</Txt>
       <Button label={t('hw.parentReady')} tone="green" onPress={() => void ready()} busy={busy === 'ok'} disabled={busy !== null} />
       <Button label={t('hw.parentSendBack', { name: childName })} tone="outlineBrown" size="md" onPress={() => setSheet(true)} disabled={busy !== null} />
-      {error ? <Banner tone="error" message={error} /> : null}
-      <NoteSheet visible={sheet} childName={childName} busy={busy === 'send_back'} onClose={() => setSheet(false)} onSend={async (note) => (await decide('send_back', note)) && setSheet(false)} />
+      {error?.decision === 'ok' ? <Banner tone="error" message={error.message} action={{ label: t('common.retry'), onPress: () => void decide('ok', null) }} /> : null}
+      <NoteSheet
+        visible={sheet}
+        childName={childName}
+        busy={busy === 'send_back'}
+        error={error?.decision === 'send_back' ? error.message : null}
+        onClose={() => {
+          setSheet(false);
+          setError((e) => (e?.decision === 'send_back' ? null : e));
+        }}
+        onSend={async (note) => (await decide('send_back', note)) && setSheet(false)}
+      />
     </Card>
   );
 }
 
-/** The note that goes back with the answer: optional, at most MAX_NOTE_CHARS. */
-function NoteSheet({ visible, childName, busy, onClose, onSend }: { visible: boolean; childName: string; busy: boolean; onClose: () => void; onSend: (note: string | null) => Promise<unknown> }) {
+/** The note that goes back with the answer: optional, at most MAX_NOTE_CHARS. A refusal is shown inside the sheet, next to the button that was pressed, with Try again. */
+function NoteSheet({ visible, childName, busy, error, onClose, onSend }: { visible: boolean; childName: string; busy: boolean; error: string | null; onClose: () => void; onSend: (note: string | null) => Promise<unknown> }) {
   const t = useT();
   const insets = useSafeAreaInsets();
   const [note, setNote] = useState('');
@@ -71,6 +84,7 @@ function NoteSheet({ visible, childName, busy, onClose, onSend }: { visible: boo
           {t('hw.noteTitle', { name: childName })}
         </Txt>
         <TextField label={t('hw.noteLabel', { name: childName })} value={note} onChangeText={setNote} multiline placeholder={t('hw.notePlaceholder', { name: childName })} hint={t('hw.noteHint')} error={tooLong ? t('hw.noteTooLong', { max: MAX_NOTE_CHARS }) : null} editable={!busy} />
+        {error ? <Banner tone="error" message={error} action={{ label: t('common.retry'), onPress: () => void onSend(note.trim() || null) }} /> : null}
         <VStack gap={space.sm}>
           <Button label={t('hw.noteSend')} tone="brown" onPress={() => void onSend(note.trim() || null)} busy={busy} disabled={tooLong} />
           <Button label={t('common.cancel')} tone="secondary" size="md" onPress={onClose} disabled={busy} />

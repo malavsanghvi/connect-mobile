@@ -10,6 +10,7 @@ import { todayAt } from '@/lib/format';
 import { firstNameOf, itemsForPerson, viewerFor } from '@/lib/homework';
 import { communityName } from '@/lib/learning';
 import { useApp } from '@/providers/app';
+import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 import { space } from '@/theme';
 
@@ -22,6 +23,7 @@ export default function HomeworkListScreen() {
   const t = useT();
   const { person } = useLocalSearchParams<{ person?: string }>();
   const { center, member, setGuest } = useApp();
+  const { invalidate } = useDataVersion();
   const load = useHomework();
   const personId = typeof person === 'string' && person ? person : (member?.person.id ?? '');
   if (!member || !center) {
@@ -38,7 +40,7 @@ export default function HomeworkListScreen() {
   const family = member.members.find((m) => m.person.id === personId)?.person;
   const today = todayAt(center.time_zone);
   return (
-    <Screen title={t('hw.title')} tabBar={false} niva={false} headerRight={mine ? <GyanHeaderChips /> : undefined}>
+    <Screen title={t('hw.title')} tabBar={false} niva={false} headerRight={mine ? <GyanHeaderChips /> : undefined} onRefresh={async () => invalidate()}>
       <Loaded state={load.state}>
         {(answer) => {
           // No answer yet: the load before the access check answered gave nothing; the real one follows (Loaded says so when it failed).
