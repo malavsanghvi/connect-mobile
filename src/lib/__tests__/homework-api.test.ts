@@ -67,6 +67,15 @@ describe('writing homework', () => {
     expect(sub).toMatchObject({ id: S1, status: 'draft', textAnswer: 'Hi' });
   });
 
+  it('creates the draft with no list of parts (null) so the database keeps the parts it already has, and sends a list only to replace the set', async () => {
+    mockRpc.mockResolvedValueOnce({ data: submission, error: null });
+    await saveDraft({ assignmentId: A1, personId: P1, text: null, files: null });
+    expect(mockRpc).toHaveBeenLastCalledWith('save_gyan_submission_draft', { p_assignment: A1, p_person: P1, p_text: null, p_files: null });
+    mockRpc.mockResolvedValueOnce({ data: submission, error: null });
+    await saveDraft({ assignmentId: A1, personId: P1, text: 'Hi', files: [] });
+    expect(mockRpc).toHaveBeenLastCalledWith('save_gyan_submission_draft', { p_assignment: A1, p_person: P1, p_text: 'Hi', p_files: [] });
+  });
+
   it('hands in and lets a parent decide, passing the note', async () => {
     mockRpc.mockResolvedValueOnce({ data: { ...submission, status: 'awaiting_parent' }, error: null });
     expect((await handIn(S1)).status).toBe('awaiting_parent');

@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { Banner, Button, Card, Row, TextField, Txt, VStack } from '@/components/ui';
 import type { InAppAudio } from '@/features/audio';
-import { handIn, removePart as removeUpload, saveDraft, uploadPart } from '@/lib/api/homework';
+import { handIn, isRefusal, removePart as removeUpload, saveDraft, uploadPart } from '@/lib/api/homework';
 import { AppError, logError, report } from '@/lib/errors';
 import { answerButtons, handInBlock, handInNote, keptFiles, MAX_TEXT_CHARS, type FileArg, type HandInBlock, type HomeworkItem, type PartKind, type Submission, type Viewer } from '@/lib/homework';
 import { newRequestId } from '@/lib/request-context';
@@ -81,52 +81,64 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
   };
   const textArg = () => textRef.current.trim() || null;
 
-  /** The draft's id, creating the draft (with no parts yet) when there is none: a part's path needs it. */
+  /** The draft's id, creating the draft when there is none: a part's path needs it. No list of parts (null): the database keeps whatever the draft already has. */
   const ensureSubmission = async (): Promise<string> => {
     if (submissionIdRef.current) return submissionIdRef.current;
-    const saved = await saveDraft({ assignmentId: assignment.id, personId: item.personId, text: textArg(), files: [] });
+    const saved = await saveDraft({ assignmentId: assignment.id, personId: item.personId, text: textArg(), files: null });
     submissionIdRef.current = saved.id;
     onSaved(saved);
     return saved.id;
   };
 
+  /**
+   * Upload one part and register it with the draft. The part keeps its storage path from the moment its file is in the
+   * bucket, so when only the registration failed (a lost reply, no signal) Try again registers that same file instead
+   * of uploading another copy. The file is deleted only when the database said no (a refusal: it is certainly not on the
+   * draft) or when the learner removes the part.
+   */
   const upload = (key: string) =>
     enqueue(async () => {
       const part = partsRef.current.find((p) => p.key === key);
-      if (!part || !part.uri) return;
+      if (!part || (!part.uri && !part.storagePath)) return;
       // Set once the server has been asked anything (the draft, the bucket, the draft again): only then can a failure mean the answer has moved on.
       let askedServer = false;
+      // Where the file is in the bucket, once it is there.
+      let stored = part.storagePath ? { storagePath: part.storagePath, mimeType: part.mimeType, bytes: part.bytes } : null;
       try {
-        const file = await uploadPart({
-          centerId,
-          personId: item.personId,
-          submissionId: () => {
-            askedServer = true;
-            return ensureSubmission();
-          },
-          kind: part.kind,
-          uri: part.uri,
-          fileName: part.fileName,
-          mimeType: part.mimeType,
-          durationSeconds: part.durationSeconds,
-        });
-        const uploaded: LocalPart = { ...part, state: 'uploaded', storagePath: file.storage_path, mimeType: file.mime_type, bytes: file.bytes, error: null };
-        const next = partsRef.current.map((p) => (p.key === key ? uploaded : p));
-        let saved: Submission;
-        try {
-          saved = await saveDraft({ assignmentId: assignment.id, personId: item.personId, text: textArg(), files: fileArgsOf(next) });
-          askedServer = true;
-        } catch (err) {
-          // The part is not on the draft, so it must not stay in the bucket either (as photo albums do).
-          await removeUpload(file.storage_path);
-          throw err;
+        if (!stored && part.uri) {
+          const file = await uploadPart({
+            centerId,
+            personId: item.personId,
+            submissionId: () => {
+              askedServer = true;
+              return ensureSubmission();
+            },
+            kind: part.kind,
+            uri: part.uri,
+            fileName: part.fileName,
+            mimeType: part.mimeType,
+            durationSeconds: part.durationSeconds,
+          });
+          stored = { storagePath: file.storage_path, mimeType: file.mime_type, bytes: file.bytes };
+          // Kept at once: a registration that fails below must not forget where the file is.
+          const where = stored;
+          setParts((prev) => prev.map((p) => (p.key === key ? { ...p, ...where } : p)));
         }
+        if (!stored) return;
+        const uploaded: LocalPart = { ...part, ...stored, state: 'uploaded', error: null };
+        const next = partsRef.current.map((p) => (p.key === key ? uploaded : p));
+        askedServer = true;
+        const saved = await saveDraft({ assignmentId: assignment.id, personId: item.personId, text: textArg(), files: fileArgsOf(next) });
         setParts((prev) => prev.map((p) => (p.key === key ? uploaded : p)));
         onSaved(saved);
         invalidate();
       } catch (err) {
+        // The database refused the draft: the file is certainly not on it, so it must not stay in the bucket (as photo
+        // albums do). Any other failure (no signal, a lost reply) leaves it unknown: the file stays, and Try again registers it.
+        const refused = isRefusal(err);
+        if (refused && stored) await removeUpload(stored.storagePath);
         const message = report(err, 'upload this part').userMessage;
-        setParts((prev) => prev.map((p) => (p.key === key ? { ...p, state: 'failed', error: message } : p)));
+        setParts((prev) => prev.map((p) => (p.key === key ? { ...p, ...(refused ? { storagePath: null } : {}), state: 'failed', error: message } : p)));
         // The server may know better than this screen (the answer was handed in elsewhere): load it again, so what is shown is what is true.
         if (askedServer) invalidate();
       }
@@ -151,7 +163,8 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
     setNotice(null);
     setError(null);
     setParts((prev) => prev.filter((p) => p.key !== key));
-    if (part.state !== 'uploaded' || !part.storagePath) return;
+    // Never in the bucket: nothing to take off the draft or to delete. In the bucket (registered, or uploaded and not registered yet): off the draft, then deleted.
+    if (!part.storagePath) return;
     const path = part.storagePath;
     void enqueue(async () => {
       try {

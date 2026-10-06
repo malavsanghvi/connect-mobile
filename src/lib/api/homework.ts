@@ -110,9 +110,10 @@ async function writeSubmission(fn: string, args: Record<string, unknown>, action
 /**
  * Create or update the draft (`app.save_gyan_submission_draft`). `files` is the whole set of parts (the database
  * replaces the set), each already uploaded with `uploadPart`; a sent-back answer becomes a new draft (attempt + 1)
- * on its first save. Called once with no files to get the submission id before the first upload.
+ * on its first save. `files: null` leaves the parts the draft already has as they are (the database reads a null
+ * list that way): the call that only creates the draft, to get the submission id before the first upload.
  */
-export async function saveDraft(args: { assignmentId: string; personId: string; text: string | null; files: FileArg[] }): Promise<Submission> {
+export async function saveDraft(args: { assignmentId: string; personId: string; text: string | null; files: FileArg[] | null }): Promise<Submission> {
   return writeSubmission('save_gyan_submission_draft', { p_assignment: args.assignmentId, p_person: args.personId, p_text: args.text, p_files: args.files }, 'save your draft');
 }
 
