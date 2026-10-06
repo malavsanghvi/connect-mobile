@@ -66,7 +66,8 @@ export function HomeworkView({ item, people }: { item: HomeworkItem; people: Hom
   const sub = written && written.over === item.submission ? written.sub : item.submission;
   const burst = useAcceptedCelebration(sub);
   if (!center || !member) return null;
-  const viewer = viewerFor(item.personId, { personId: member.person.id, isAdult: member.isAdult, household: member.members.map((m) => m.person.id) });
+  // Who may do what comes from the answer's own people list (every household the reader is in); the family roster is for names.
+  const viewer = viewerFor(item.personId, { personId: member.person.id, isAdult: member.isAdult }, people);
   const family = member.members.find((m) => m.person.id === item.personId)?.person;
   const learnerName = family ? family.preferred_name || family.first_name : firstNameOf(people.find((p) => p.personId === item.personId)?.name ?? '');
   const today = todayAt(center.time_zone);

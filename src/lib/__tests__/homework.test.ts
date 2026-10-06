@@ -201,12 +201,22 @@ describe('status', () => {
 });
 
 describe('who is looking', () => {
-  const me = { personId: P_ME, isAdult: true, household: [P_ME, P_KID] };
+  const me = { personId: P_ME, isAdult: true };
+  // The people my_gyan_homework answers with: the caller and the household members the caller may act for.
+  const people = [{ personId: P_ME }, { personId: P_KID }];
   it('is the learner, a household adult, or nobody', () => {
-    expect(viewerFor(P_ME, me)).toBe('learner');
-    expect(viewerFor(P_KID, me)).toBe('parent');
-    expect(viewerFor(P_OTHER, me)).toBe('none');
-    expect(viewerFor(P_KID, { ...me, isAdult: false })).toBe('none');
+    expect(viewerFor(P_ME, me, people)).toBe('learner');
+    expect(viewerFor(P_KID, me, people)).toBe('parent');
+    expect(viewerFor(P_OTHER, me, people)).toBe('none');
+    expect(viewerFor(P_KID, { ...me, isAdult: false }, people)).toBe('none');
+    expect(viewerFor(P_ME, { ...me, isAdult: false }, [{ personId: P_ME }])).toBe('learner');
+  });
+  it("takes a child of a second household as a child (the function's people list, not the primary household roster)", () => {
+    // P_OTHER lives in another household the caller belongs to: the answer's people carry them, the roster would not.
+    expect(viewerFor(P_OTHER, me, [...people, { personId: P_OTHER }])).toBe('parent');
+    expect(viewerFor(P_OTHER, me, people)).toBe('none');
+    // A reader the database gave no one but themself (a child's own login) is nobody's parent.
+    expect(viewerFor(P_OTHER, { personId: P_KID, isAdult: false }, [{ personId: P_KID }])).toBe('none');
   });
   it('lets the learner or a parent work on an answer that is not started, a draft or sent back', () => {
     expect(canEdit('not_started', 'learner')).toBe(true);

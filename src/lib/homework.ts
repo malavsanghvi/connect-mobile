@@ -340,9 +340,15 @@ export function isOverdue(item: { assignment: { dueOn: string | null }; submissi
 /** The learner themselves, a household adult looking at a child's homework, or someone with no business here. */
 export type Viewer = 'learner' | 'parent' | 'none';
 
-export function viewerFor(personId: string, me: { personId: string; isAdult: boolean; household: readonly string[] }): Viewer {
+/**
+ * Who this reader is for the homework of `personId`. `people` is the `people` list of `app.my_gyan_homework`: the caller
+ * and, for a household adult, everyone in EVERY household they belong to (the function returns only people the caller
+ * may act for). A child in a second household is therefore a child like any other; the app's own family roster
+ * (`member.members`, the primary household only) is for names, never for deciding who may do what.
+ */
+export function viewerFor(personId: string, me: { personId: string; isAdult: boolean }, people: readonly { personId: string }[]): Viewer {
   if (personId === me.personId) return 'learner';
-  return me.isAdult && me.household.includes(personId) ? 'parent' : 'none';
+  return me.isAdult && people.some((p) => p.personId === personId) ? 'parent' : 'none';
 }
 
 /** The answer can be worked on: by the learner or a household adult, while it is not started, a draft, or sent back. */

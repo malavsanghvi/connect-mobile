@@ -35,7 +35,6 @@ export default function HomeworkListScreen() {
     );
   }
   const mine = personId === member.person.id;
-  const viewer = viewerFor(personId, { personId: member.person.id, isAdult: member.isAdult, household: member.members.map((m) => m.person.id) });
   const family = member.members.find((m) => m.person.id === personId)?.person;
   const today = todayAt(center.time_zone);
   return (
@@ -45,6 +44,9 @@ export default function HomeworkListScreen() {
           // No answer yet: the load before the access check answered gave nothing; the real one follows (Loaded says so when it failed).
           if (!answer) return load.state.error ? null : <LoadingState />;
           if (answer.kind === 'missing') return <EmptyState icon="school-outline" title={t('hw.notOffered', { center: communityName(center) })} body={t('hw.notOfferedBody')} />;
+          // Who may do what comes from the answer's people (every household the reader is in); an unknown or stale ?person= is not found, never "has no homework yet".
+          const viewer = viewerFor(personId, { personId: member.person.id, isAdult: member.isAdult }, answer.homework.people);
+          if (viewer === 'none') return <EmptyState icon="school-outline" title={t('hw.notFound')} body={t('hw.notFoundBody')} />;
           const name = family ? family.preferred_name || family.first_name : firstNameOf(answer.homework.people.find((p) => p.personId === personId)?.name ?? '');
           const items = itemsForPerson(answer.homework.items, personId);
           if (items.length === 0) return <EmptyState icon="school-outline" title={mine ? t('hw.none') : t('hw.noneFor', { name })} body={mine ? t('hw.noneBody') : undefined} />;
