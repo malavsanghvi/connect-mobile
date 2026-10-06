@@ -7,7 +7,7 @@ import { Banner, Button, Txt } from '@/components/ui';
 import { GyanHeaderChips } from '@/features/gyan-header';
 import { Button3D, StarGlyph } from '@/features/gyan-ui';
 import { HomeworkSection } from '@/features/homework/cards';
-import { useHomework } from '@/features/homework/use-homework';
+import type { HomeworkLoad } from '@/features/homework/use-homework';
 import { loadPointsAndStreak } from '@/lib/api/jainway';
 import { loadLevelAwards, requestSignoff, type GyanData, type GyanGoal, type GyanLevel } from '@/lib/api/gyan';
 import { report } from '@/lib/errors';
@@ -45,6 +45,7 @@ export function Celebration({
   alreadyDone,
   wasLevelDone,
   startedAt,
+  homework,
 }: {
   data: GyanData;
   goal: GyanGoal;
@@ -54,6 +55,8 @@ export function Celebration({
   alreadyDone: Set<string>;
   wasLevelDone: boolean;
   startedAt: number;
+  /** The lesson's own load of the homework (one for the whole lesson, asked for again when the lesson is back in front). */
+  homework: HomeworkLoad;
 }) {
   const t = useT();
   const router = useRouter();
@@ -64,8 +67,6 @@ export function Celebration({
   const me = member?.person.id ?? '';
   const standing = useLoad(() => (center && member ? loadPointsAndStreak(center, member.person.id) : Promise.resolve(null)), [center?.id, member?.person.id], 'load your streak');
   const paid = useLoad(() => loadLevelAwards(me, level, new Date(startedAt - CLOCK_SKEW_MS).toISOString()), [me, level.id, startedAt], 'load the points from this level');
-  // The level's homework: the lesson is done, so this is the moment for it.
-  const homework = useHomework();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requested, setRequested] = useState(false);

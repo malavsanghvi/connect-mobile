@@ -13,7 +13,7 @@ import { useHomework } from '@/features/homework/use-homework';
 import { goalProgress, isLevelDone, loadGyan, type GyanData, type GyanGoal } from '@/lib/api/gyan';
 import { logError } from '@/lib/errors';
 import { todayAt } from '@/lib/format';
-import { itemsForGoal, toDoCount } from '@/lib/homework';
+import { itemsForGoal, sortByLevel, toDoCount, type HomeworkItem } from '@/lib/homework';
 import { currentChapter, levelStars, mapLayout, tintBackground } from '@/lib/learning';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -66,9 +66,15 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
   const { center, member } = useApp();
   const { toast } = useFeedback();
   const [width, setWidth] = useState(360);
-  // This goal's homework for the person: a line in the strip, and the cards under the map.
-  const homework = useHomework();
-  const homeworkItems = homework.homework ? itemsForGoal(homework.homework.items, goal.id, personId) : [];
+  // This goal's homework for the person: a line in the strip, and the cards under the map, level by level. It is asked for again
+  // only while the map is in front (a write on a screen above it, or the steps of a lesson, are one reload when the member is back).
+  const homework = useHomework(true, 'in-front');
+  const levelIds = goal.levels.map((l) => l.id);
+  const homeworkItems = homework.homework ? sortByLevel(itemsForGoal(homework.homework.items, goal.id, personId), levelIds) : [];
+  const levelLabelOf = (item: HomeworkItem) => {
+    const at = item.assignment.levelId ? levelIds.indexOf(item.assignment.levelId) : -1;
+    return at < 0 ? null : t('hw.levelLabel', { n: at + 1, name: goal.levels[at].name });
+  };
   const toDo = toDoCount(homeworkItems);
   const p = goalProgress(goal, data.progress, personId);
   const total = goal.levels.length;
@@ -154,7 +160,7 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
           </View>
         )}
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          <HomeworkSection load={homework} items={homeworkItems} title={t('hw.section')} today={todayAt(center?.time_zone)} viewer="learner" />
+          <HomeworkSection load={homework} items={homeworkItems} title={t('hw.section')} today={todayAt(center?.time_zone)} viewer="learner" levelLabelOf={levelLabelOf} />
         </View>
         <Txt variant="fine" color="muted" center style={{ paddingHorizontal: 20, paddingTop: 12 }}>
           {t('learn.contentNote')}

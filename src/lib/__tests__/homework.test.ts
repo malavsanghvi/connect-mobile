@@ -35,6 +35,7 @@ import {
   recordCelebrated,
   shortDate,
   shouldCelebrate,
+  sortByLevel,
   sortItems,
   STATE_LABEL,
   STATE_TONE,
@@ -385,6 +386,18 @@ describe('lists', () => {
     expect(itemsForLevel(items, 'lvl-2', P_KID)).toEqual([]);
     expect(itemsForGoal(items, 'goal-1', P_ME)).toHaveLength(7);
     expect(toDoCount(itemsForGoal(items, 'goal-1', P_ME))).toBe(4);
+  });
+
+  it("lists a goal's homework level by level, keeping the order within a level", () => {
+    const at = (id: string, levelId: string | null) => item({ title: id, status: null, assignment: { ...parseAssignment({ ...rawAssignment, id, title: id, level_id: levelId })!, } });
+    const a = at('a', 'lvl-2');
+    const b = at('b', 'lvl-1');
+    const c = at('c', 'lvl-2');
+    const d = at('d', null);
+    const e = at('e', 'lvl-gone');
+    expect(sortByLevel([a, b, c, d, e], ['lvl-1', 'lvl-2', 'lvl-3']).map((i) => i.assignment.title)).toEqual(['b', 'a', 'c', 'd', 'e']);
+    expect(sortByLevel([], ['lvl-1'])).toEqual([]);
+    expect(sortByLevel([a], [])).toEqual([a]);
   });
 
   it('counts a person\'s homework and words the Family tab line', () => {

@@ -16,16 +16,17 @@ export function openHomework(router: ReturnType<typeof useRouter>, item: Homewor
 
 /**
  * One assignment for one person: title, due, points, status chip, and the note that came with a send-back (the
- * teacher's, or a parent's on a draft). Tapping opens the homework screen.
+ * teacher's, or a parent's on a draft). Tapping opens the homework screen. `levelLabel` ("Level 2: Namaskar") says
+ * which level it belongs to where the cards of several levels are listed together (the goal map).
  */
-export function HomeworkCard({ item, today, viewer, forName }: { item: HomeworkItem; today: string; viewer: Viewer; forName?: string | null }) {
+export function HomeworkCard({ item, today, viewer, levelLabel }: { item: HomeworkItem; today: string; viewer: Viewer; levelLabel?: string | null }) {
   const t = useT();
   const router = useRouter();
   const { assignment: a, submission: sub } = item;
   const state = homeworkState(sub);
   const due = dueLine(a.dueOn, today);
   const overdue = isOverdue(item, today);
-  const meta = [due ? t(due.key, due.vars) : null, a.points > 0 ? t('hw.points', { n: a.points }) : null, forName ? t('hw.forName', { name: forName }) : null].filter((x): x is string => !!x).join(' · ');
+  const meta = [levelLabel ?? null, due ? t(due.key, due.vars) : null, a.points > 0 ? t('hw.points', { n: a.points }) : null].filter((x): x is string => !!x).join(' · ');
   // The note that explains the chip: the teacher's when sent back, a parent's when they sent it back to the child (then it is a draft again).
   const note = comebackNote(sub);
   const noteTitle = note ? (note.from === 'teacher' ? (viewer === 'learner' ? t('hw.teacherNote') : t('hw.teacherNoteOther')) : viewer === 'learner' ? t('hw.parentNote') : t('hw.parentNoteOther')) : null;
@@ -72,7 +73,7 @@ export function HomeworkCard({ item, today, viewer, forName }: { item: HomeworkI
  * A titled list of homework cards (a level's, a goal's, a person's). Nothing at all when there is nothing to show
  * and nothing wrong; a failed load says so with Try again (the homework is never quietly missing).
  */
-export function HomeworkSection({ load, items, title, today, viewer, forName, onNavy }: { load: HomeworkLoad; items: HomeworkItem[]; title: string; today: string; viewer: Viewer; forName?: string | null; /** On the navy celebration screen the title is light. */ onNavy?: boolean }) {
+export function HomeworkSection({ load, items, title, today, viewer, levelLabelOf, onNavy }: { load: HomeworkLoad; items: HomeworkItem[]; title: string; today: string; viewer: Viewer; levelLabelOf?: (item: HomeworkItem) => string | null; /** On the navy celebration screen the title is light. */ onNavy?: boolean }) {
   if (load.state.error && !load.state.data) return <ErrorState error={load.state.error} onRetry={() => void load.state.reload()} />;
   if (items.length === 0) return null;
   return (
@@ -82,7 +83,7 @@ export function HomeworkSection({ load, items, title, today, viewer, forName, on
       </Txt>
       {load.state.error ? <ErrorState error={load.state.error} onRetry={() => void load.state.reload()} /> : null}
       {items.map((item) => (
-        <HomeworkCard key={`${item.assignment.id}:${item.personId}`} item={item} today={today} viewer={viewer} forName={forName} />
+        <HomeworkCard key={`${item.assignment.id}:${item.personId}`} item={item} today={today} viewer={viewer} levelLabel={levelLabelOf?.(item) ?? null} />
       ))}
     </VStack>
   );

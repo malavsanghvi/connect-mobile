@@ -43,7 +43,8 @@ export default function FamilyScreen() {
   const eligibility = useLoad(() => (member ? loadEligibility(member.person.id) : Promise.resolve(null)), [member?.person.id], 'load voting eligibility');
   const pendingRequests = useLoad(() => (member?.household ? listOpenHouseholdRequests(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load your family requests');
   // Each person's homework line (connect-crm 0587): nothing until the portal has homework.
-  const homework = useHomework(isHomeCardVisible(modules, 'homework'));
+  // In front only, like Home: a write on a screen above the Family tab is one reload when the member is back, not one per write behind their back.
+  const homework = useHomework(isHomeCardVisible(modules, 'homework'), 'in-front');
   const community = center?.short_name || center?.name || '';
 
   if (!member) {

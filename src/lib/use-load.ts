@@ -6,6 +6,23 @@ import { AppError, report } from './errors';
 
 type Result<T> = { key: string; data?: T; error?: AppError };
 
+export type LoadOptions = {
+  /**
+   * Ignore writes made elsewhere (the data version) while true, and catch up once when it turns false: the rule
+   * FreezeDataVersion gives a whole screen, for one load. Left out, the load follows every write (the default).
+   */
+  frozen?: boolean;
+};
+
+/**
+ * The data version a load keys on, and the version it has seen. Following writes (`frozen` undefined): the live
+ * version. Frozen: the version it had seen. Unfrozen again: the live version, which it has now seen (the catch-up).
+ */
+export function versionFor(live: number, seen: number, frozen: boolean | undefined): { version: number; seen: number } {
+  if (frozen === undefined) return { version: live, seen };
+  return frozen ? { version: seen, seen } : { version: live, seen: live };
+}
+
 export type LoadState<T> = {
   data: T | undefined;
   error: AppError | null;
@@ -16,11 +33,15 @@ export type LoadState<T> = {
 
 /**
  * Load data for a screen. `deps` must be serialisable (ids, flags). Reloads
- * when deps change and after any write (DataVersionProvider). Errors are
+ * when deps change and after any write (DataVersionProvider), unless
+ * `options.frozen` says to ignore writes for a while. Errors are
  * converted to plain English with `action` ("load your events").
  */
-export function useLoad<T>(loader: () => Promise<T>, deps: readonly unknown[], action: string): LoadState<T> {
-  const { version } = useDataVersion();
+export function useLoad<T>(loader: () => Promise<T>, deps: readonly unknown[], action: string, options?: LoadOptions): LoadState<T> {
+  const { version: live } = useDataVersion();
+  const [seen, setSeen] = useState(live);
+  const { version, seen: nowSeen } = versionFor(live, seen, options?.frozen);
+  if (nowSeen !== seen) setSeen(nowSeen);
   const key = `${JSON.stringify(deps)}#${version}`;
   const loaderRef = useRef(loader);
   const keyRef = useRef(key);

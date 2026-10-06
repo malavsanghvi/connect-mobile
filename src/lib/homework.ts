@@ -584,6 +584,15 @@ export function itemsForGoal(items: readonly HomeworkItem[], goalId: string, per
   return sortItems(items.filter((i) => i.personId === personId && i.assignment.goalId === goalId));
 }
 
+/** The items in the order of the goal's levels (level 1 first; homework of no known level last), keeping their order within a level. */
+export function sortByLevel(items: readonly HomeworkItem[], levelIds: readonly string[]): HomeworkItem[] {
+  const place = (i: HomeworkItem) => {
+    const at = i.assignment.levelId ? levelIds.indexOf(i.assignment.levelId) : -1;
+    return at < 0 ? levelIds.length : at;
+  };
+  return items.map((item, n) => ({ item, n })).sort((a, b) => place(a.item) - place(b.item) || a.n - b.n).map((x) => x.item);
+}
+
 /** Still to do by this learner: not started, a draft, or sent back. */
 export function toDoCount(items: readonly HomeworkItem[]): number {
   return items.filter((i) => canEdit(homeworkState(i.submission), 'learner')).length;

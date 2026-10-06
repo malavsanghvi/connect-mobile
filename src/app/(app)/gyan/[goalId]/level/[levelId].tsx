@@ -108,8 +108,10 @@ function Lesson({ data, goal, level, content, startStepId, backToPuja }: { data:
   const [startedAt] = useState(() => Date.now());
   const audio = useInAppAudio(t('learn.audioFailed'));
   const router = useRouter();
-  // The level's homework, under every step (one load for the whole lesson; the cards open the homework screen).
-  const homework = useHomework();
+  // The level's homework: the cards sit under the first step and on the level-complete screen. One load for the whole
+  // lesson, asked for again only when the lesson is back in front (a step it saves is a write that changes no homework;
+  // the homework screen a card opens does, and it is on top while that happens).
+  const homework = useHomework(true, 'on-return');
   const index = goal.levels.findIndex((l) => l.id === level.id);
   const levelAudio = level.steps.map((s) => content.find((c) => c.id === s.content_item_id)?.media_url).find((u): u is string => !!u) ?? null;
   // Questions, cards, spots or lines that can't be shown are left out of the lesson; the log names them for the office.
@@ -117,7 +119,7 @@ function Lesson({ data, goal, level, content, startStepId, backToPuja }: { data:
     level.steps.forEach(logSkippedContent);
   }, [level]);
 
-  if (done) return <Celebration data={data} goal={goal} level={level} index={index} run={run} alreadyDone={alreadyDone} wasLevelDone={wasLevelDone} startedAt={startedAt} />;
+  if (done) return <Celebration data={data} goal={goal} level={level} index={index} run={run} alreadyDone={alreadyDone} wasLevelDone={wasLevelDone} startedAt={startedAt} homework={homework} />;
 
   if (screens.length === 0 || !center) {
     return (
@@ -238,7 +240,8 @@ function Lesson({ data, goal, level, content, startStepId, backToPuja }: { data:
       kindLabel: t(label.key, label.vars),
       saving,
       saveError,
-      below: single ? null : <HomeworkSection load={homework} items={homework.homework ? itemsForLevel(homework.homework.items, level.id, me) : []} title={t('hw.sectionLevel')} today={todayAt(center.time_zone)} viewer="learner" />,
+      // Under the first step only (a failed load is said once, not under every question).
+      below: single || i !== (startAt?.start ?? 0) ? null : <HomeworkSection load={homework} items={homework.homework ? itemsForLevel(homework.homework.items, level.id, me) : []} title={t('hw.sectionLevel')} today={todayAt(center.time_zone)} viewer="learner" />,
     },
     finish: (r) => void finish(r),
     burst: showBurst,
