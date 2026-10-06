@@ -33,6 +33,8 @@ export function ReciteStep({ ctx }: StepProps) {
     setError(null);
     ctx.audio.stop();
     const started = await voice.start();
+    // Cancelled: the lesson was left while the microphone prompt was open; there is no screen to say anything on.
+    if (!started.ok && started.reason === 'cancelled') return;
     if (!started.ok) {
       setError(started.reason === 'denied' ? t('learn.micDenied') : t('learn.micFailed'));
       setPhase('idle');

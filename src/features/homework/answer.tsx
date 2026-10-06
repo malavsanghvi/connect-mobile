@@ -267,9 +267,11 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
         <VoiceNotePanel
           stopOtherAudio={audio.stop}
           onClose={() => setRecording(false)}
-          onRecorded={(rec) => {
+          onRecorded={(rec, auto) => {
             setRecording(false);
             addPart({ kind: 'voice', uri: rec.uri, fileName: null, mimeType: null, bytes: null, durationSeconds: Math.round(rec.seconds * 10) / 10 });
+            // A note cut off at the limit says so (addPart clears the notice first, so this comes after it).
+            if (auto) setNotice(t('hw.voiceStopped'));
           }}
         />
       ) : null}

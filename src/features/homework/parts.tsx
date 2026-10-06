@@ -95,17 +95,21 @@ export function PartRow({ part, editable, audio, onRemove, onRetry }: { part: Lo
 
 /**
  * Record a voice note (the lesson's recorder, src/features/gyan/recorder.ts): tap to start, the time runs, tap to
- * stop; it stops by itself at MAX_VOICE_SECONDS. The recording is handed to the editor, which uploads it.
+ * stop; it stops by itself at MAX_VOICE_SECONDS (`auto` tells the editor, which says so). The recording is handed to
+ * the editor, which uploads it. Cancel is off while the microphone is being asked for or the file is being finished,
+ * so a cancelled panel never leaves a recording behind.
  */
-export function VoiceNotePanel({ onRecorded, onClose, stopOtherAudio }: { onRecorded: (rec: { uri: string; seconds: number }) => void; onClose: () => void; stopOtherAudio: () => void }) {
+export function VoiceNotePanel({ onRecorded, onClose, stopOtherAudio }: { onRecorded: (rec: { uri: string; seconds: number }, auto: boolean) => void; onClose: () => void; stopOtherAudio: () => void }) {
   const t = useT();
   const reduce = useReduceMotion();
   const voice = useVoiceRecorder();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [autoStopped, setAutoStopped] = useState(false);
+  /** Waiting for the microphone (the phone's or the browser's permission prompt may be open). */
+  const [starting, setStarting] = useState(false);
   const pulse = usePulse(voice.listening, reduce);
   const stopping = useRef(false);
+  const gone = useRef(false);
   const limit = useRef<ReturnType<typeof setTimeout> | null>(null);
   const finishRef = useRef<(auto: boolean) => Promise<void>>(async () => undefined);
 
@@ -121,32 +125,36 @@ export function VoiceNotePanel({ onRecorded, onClose, stopOtherAudio }: { onReco
     setBusy(true);
     const stopped = await voice.stop();
     stopping.current = false;
+    // The screen was left meanwhile: nothing is added after the learner has gone.
+    if (gone.current) return;
     setBusy(false);
     if (!stopped.ok) {
       setError(t('hw.voiceFailed'));
       return;
     }
-    if (auto) setAutoStopped(true);
     haptic('right');
-    onRecorded({ uri: stopped.uri, seconds: stopped.seconds });
+    onRecorded({ uri: stopped.uri, seconds: stopped.seconds }, auto);
   };
   // The time limit fires from a timer, so it must reach the newest finish (the one whose props and state are current).
   useEffect(() => {
     finishRef.current = finish;
   });
-  // Leaving the panel: no stop after it is gone.
-  useEffect(
-    () => () => {
+  // Leaving the panel: no stop after it is gone (the recorder itself lets go of the microphone).
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
       if (limit.current) clearTimeout(limit.current);
-    },
-    [],
-  );
+    };
+  }, []);
 
   const start = async () => {
     setError(null);
-    setAutoStopped(false);
     stopOtherAudio();
+    setStarting(true);
     const started = await voice.start();
+    if (gone.current) return;
+    setStarting(false);
     if (!started.ok) {
       setError(started.reason === 'denied' ? t('hw.voiceDenied') : t('hw.voiceFailed'));
       return;
@@ -182,16 +190,16 @@ export function VoiceNotePanel({ onRecorded, onClose, stopOtherAudio }: { onReco
             if (voice.listening) void finish(false);
             else void start();
           }}
-          disabled={busy}
+          disabled={busy || starting}
           accessibilityRole="button"
           accessibilityLabel={voice.listening ? t('hw.voiceStopLabel') : t('hw.voiceLabel')}
-          accessibilityState={{ busy }}
+          accessibilityState={{ busy: busy || starting, disabled: busy || starting }}
           style={({ pressed }) => ({ width: 96, height: 96, borderRadius: 48, backgroundColor: micBg, alignItems: 'center', justifyContent: 'center', opacity: pressed || busy ? 0.85 : 1 })}>
           <MicGlyph size={40} />
         </Pressable>
       </View>
       <Txt variant="bodyStrong" color={voice.listening ? 'danger' : 'muted'} center accessibilityLiveRegion="polite">
-        {voice.listening ? `${t('hw.voiceListening')} · ${clock(voice.seconds)}` : autoStopped ? t('hw.voiceStopped') : t('hw.voiceStart')}
+        {voice.listening ? `${t('hw.voiceListening')} · ${clock(voice.seconds)}` : t('hw.voiceStart')}
       </Txt>
       <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
         {t('hw.voiceMax')}
@@ -201,7 +209,7 @@ export function VoiceNotePanel({ onRecorded, onClose, stopOtherAudio }: { onReco
           <Banner tone="error" message={error} />
         </View>
       ) : null}
-      {!voice.listening ? <Button label={t('common.cancel')} tone="secondary" size="sm" fill={false} onPress={onClose} /> : null}
+      {!voice.listening ? <Button label={t('common.cancel')} tone="secondary" size="sm" fill={false} onPress={onClose} disabled={busy || starting} /> : null}
     </View>
   );
 }
