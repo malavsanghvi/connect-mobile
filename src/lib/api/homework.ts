@@ -1,3 +1,4 @@
+import { en } from '../../i18n/en';
 import { AppError, logError, report } from '../errors';
 import { HOMEWORK_BUCKET, MAX_FILE_BYTES, parseHomework, parseSubmission, partFile, storagePath, type FileArg, type Homework, type PartKind, type Submission } from '../homework';
 import { isMissingRpcError } from '../modules';
@@ -27,7 +28,37 @@ export type HomeworkAnswer = { kind: 'answered'; homework: Homework } | { kind: 
 let loggedMissing = false;
 
 /** Said when a write reaches a portal that does not have homework yet (the entry points are hidden, so only a stale link gets here). */
-export const HOMEWORK_UNAVAILABLE = "Homework isn't available in your community yet. Ask the office to update the portal.";
+export const HOMEWORK_UNAVAILABLE = en['hw.err.unavailable'];
+
+/**
+ * The SQLSTATEs connect-crm 0587 raises its plain-English refusals with: 22023 (a rule: "This homework is already with
+ * the teacher."), P0002 (not found: "That homework answer was not found.") and 42501 (not allowed: "You can only hand
+ * in homework for yourself or for someone in your family."). The sentences are written for people, so they are shown as
+ * they are; the one gate is that Postgres' own permission and row-level-security messages stay generic.
+ */
+const REFUSAL_CODES = new Set(['22023', 'P0002', '42501']);
+
+/** True when the database said no on purpose (a rule, a missing row, not allowed), so the write certainly did not happen. */
+export function isRefusal(err: unknown): boolean {
+  return err instanceof AppError && err.code !== null && REFUSAL_CODES.has(err.code);
+}
+
+/**
+ * A failed homework call as the AppError the screen shows: the database's own sentence when it wrote one (with a final
+ * period), else the generic words for `action` ("We couldn't hand in your homework. Check your internet connection and
+ * try again."). The technical detail and the code are kept on the error and logged.
+ */
+export function homeworkError(err: unknown, action: string): AppError {
+  const e = err && typeof err === 'object' ? (err as { code?: unknown; message?: unknown }) : {};
+  const code = typeof e.code === 'string' ? e.code : null;
+  const message = typeof e.message === 'string' ? e.message.trim() : '';
+  if (code && REFUSAL_CODES.has(code) && /^["A-Z]/.test(message) && !/permission denied|row-level security/i.test(message)) {
+    const out = new AppError(/[.!?]$/.test(message) ? message : `${message}.`, `${action}: ${message} | code=${code}`, code);
+    logError(action, out);
+    return out;
+  }
+  return report(err, action);
+}
 
 /**
  * The homework of the signed-in person and, for an adult, of everyone in their household
@@ -44,7 +75,7 @@ export async function loadHomework(centerId: string): Promise<HomeworkAnswer> {
       }
       return { kind: 'missing' };
     }
-    throw report(res.error, 'load your homework');
+    throw homeworkError(res.error, 'load your homework');
   }
   const homework = parseHomework(res.data);
   if (!homework) {
@@ -65,7 +96,7 @@ async function writeSubmission(fn: string, args: Record<string, unknown>, action
       logError(action, err);
       throw err;
     }
-    throw report(res.error, action);
+    throw homeworkError(res.error, action);
   }
   const sub = parseSubmission(res.data);
   if (!sub) {
@@ -95,17 +126,9 @@ export async function parentDecide(submissionId: string, decision: 'ok' | 'send_
   return writeSubmission('parent_decide_gyan_submission', { p_submission: submissionId, p_decision: decision, p_note: note }, decision === 'ok' ? 'send it to the teacher' : 'send it back');
 }
 
-const SIZE_MESSAGE: Record<PartKind, string> = {
-  photo: 'This photo is larger than 25 MB. Please choose a smaller one.',
-  voice: 'This voice note is larger than 25 MB. Please record a shorter one.',
-  file: 'This file is larger than 25 MB. Please choose a smaller one.',
-};
+const SIZE_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.sizePhoto'], voice: en['hw.err.sizeVoice'], file: en['hw.err.sizeFile'] };
 
-const READ_MESSAGE: Record<PartKind, string> = {
-  photo: "We couldn't read that photo from your device. Please choose it again.",
-  voice: "We couldn't read your voice note from this phone. Please record it again.",
-  file: "We couldn't read that file from your device. Please choose it again.",
-};
+const READ_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.readPhoto'], voice: en['hw.err.readVoice'], file: en['hw.err.readFile'] };
 
 /**
  * Upload one part to the `homework` bucket at `<center>/<person>/<submission>/<id>.<ext>` and describe it for
@@ -119,16 +142,13 @@ export async function uploadPart(args: { centerId: string; personId: string; sub
   } catch (err) {
     throw new AppError(READ_MESSAGE[args.kind], `reading ${args.kind} ${args.uri}: ${err instanceof Error ? err.message : String(err)}`);
   }
-  if (body.byteLength === 0) throw new AppError(args.kind === 'voice' ? 'The voice note was empty. Please record it again.' : 'That file was empty. Please choose another.', `empty ${args.kind}`);
+  if (body.byteLength === 0) throw new AppError(args.kind === 'voice' ? en['hw.err.emptyVoice'] : en['hw.err.emptyFile'], `empty ${args.kind}`);
   if (body.byteLength > MAX_FILE_BYTES) throw new AppError(SIZE_MESSAGE[args.kind], `${args.kind} is ${body.byteLength} bytes (limit ${MAX_FILE_BYTES})`);
   const { ext, contentType } = partFile(args.kind, { fileName: args.fileName, mimeType: args.mimeType, uri: args.uri });
   const path = storagePath({ centerId: args.centerId, personId: args.personId, submissionId: args.submissionId, id: newRequestId(), ext });
   const up = await supabase.storage.from(HOMEWORK_BUCKET).upload(path, body, { contentType, upsert: false });
   if (up.error) {
-    throw new AppError(
-      isMissingBucket(up.error) ? "Homework uploads aren't set up for your community yet, so this part wasn't saved. Ask the office to update the portal." : "We couldn't upload this part. Please check your connection and try again.",
-      `storage upload to ${HOMEWORK_BUCKET}/${path}: ${up.error.message}`,
-    );
+    throw new AppError(isMissingBucket(up.error) ? en['hw.err.noBucket'] : en['hw.err.upload'], `storage upload to ${HOMEWORK_BUCKET}/${path}: ${up.error.message}`);
   }
   return { kind: args.kind, storage_path: path, mime_type: contentType, bytes: body.byteLength, duration_seconds: args.durationSeconds ?? null };
 }

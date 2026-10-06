@@ -1,6 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { handIn, loadHomework, parentDecide, saveDraft, uploadPart } from '../api/homework';
+import { handIn, isRefusal, loadHomework, parentDecide, saveDraft, uploadPart } from '../api/homework';
 import { AppError } from '../errors';
 
 type Result = { data: unknown; error: unknown };
@@ -76,18 +76,88 @@ describe('writing homework', () => {
     expect(mockRpc).toHaveBeenLastCalledWith('parent_decide_gyan_submission', { p_submission: S1, p_decision: 'send_back', p_note: 'Slower' });
   });
 
-  it("shows the database's refusal as it is, and says when homework is not offered", async () => {
+  it('says when homework is not offered, and when the answer is not a submission', async () => {
     const log = quiet();
-    mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'Only a parent in the family can decide this' } });
-    let err = await parentDecide(S1, 'ok', null).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe('Only a parent in the family can decide this.');
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function app.hand_in_gyan_submission' } });
-    err = await handIn(S1).catch((e: unknown) => e);
+    let err = await handIn(S1).catch((e: unknown) => e);
     expect((err as AppError).userMessage).toMatch(/isn't available in your community yet/);
     mockRpc.mockResolvedValueOnce({ data: { id: 'x' }, error: null });
     err = await handIn(S1).catch((e: unknown) => e);
     expect((err as AppError).userMessage).toBe("We couldn't hand in your homework — the answer was not what we expected. Please try again.");
     log.mockRestore();
+  });
+
+  describe("the database's refusals (0587 raises its sentences with 22023, P0002 and 42501)", () => {
+    const refuse = async (call: () => Promise<unknown>, error: { code: string; message: string }): Promise<AppError> => {
+      mockRpc.mockResolvedValueOnce({ data: null, error });
+      return (await call().catch((e: unknown) => e)) as AppError;
+    };
+    const draft = () => saveDraft({ assignmentId: A1, personId: P1, text: null, files: [] });
+
+    it('shows a rule of the homework as written (22023)', async () => {
+      const log = quiet();
+      let err = await refuse(() => handIn(S1), { code: '22023', message: 'This homework is already with the teacher.' });
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.userMessage).toBe('This homework is already with the teacher.');
+      expect(err.code).toBe('22023');
+      expect(err.detail).toContain('This homework is already with the teacher.');
+      err = await refuse(draft, { code: '22023', message: "This homework is waiting for a parent's OK and cannot be changed now." });
+      expect(err.userMessage).toBe("This homework is waiting for a parent's OK and cannot be changed now.");
+      err = await refuse(() => parentDecide(S1, 'ok', null), { code: '22023', message: "This homework is not waiting for a parent's OK (it is with the teacher)." });
+      expect(err.userMessage).toBe("This homework is not waiting for a parent's OK (it is with the teacher).");
+      expect(log).toHaveBeenCalled();
+      log.mockRestore();
+    });
+
+    it('shows "not found" (P0002) and "not allowed" (42501) as written, for loading too', async () => {
+      const log = quiet();
+      let err = await refuse(() => handIn(S1), { code: 'P0002', message: 'That homework answer was not found.' });
+      expect(err.userMessage).toBe('That homework answer was not found.');
+      err = await refuse(() => parentDecide(S1, 'ok', null), { code: '42501', message: "Only an adult of Aarav's household can check this homework." });
+      expect(err.userMessage).toBe("Only an adult of Aarav's household can check this homework.");
+      err = await refuse(() => loadHomework('center-1'), { code: '42501', message: 'Only members of this community can see its homework.' });
+      expect(err.userMessage).toBe('Only members of this community can see its homework.');
+      log.mockRestore();
+    });
+
+    it('gives a sentence without its full stop one', async () => {
+      const log = quiet();
+      const err = await refuse(draft, { code: '22023', message: 'This homework takes at most 3 files' });
+      expect(err.userMessage).toBe('This homework takes at most 3 files.');
+      log.mockRestore();
+    });
+
+    it("keeps Postgres' own words generic", async () => {
+      const log = quiet();
+      let err = await refuse(draft, { code: '42501', message: 'permission denied for table gyan_submissions' });
+      expect(err.userMessage).toBe("You don't have permission to save your draft. If you think this is a mistake, please contact the office.");
+      err = await refuse(draft, { code: '42501', message: 'new row violates row-level security policy for table "objects"' });
+      expect(err.userMessage).toBe("You don't have permission to save your draft. If you think this is a mistake, please contact the office.");
+      err = await refuse(() => handIn(S1), { code: 'P0002', message: 'query returned no rows' });
+      expect(err.userMessage).toBe('Something went wrong while trying to hand in your homework. Please try again.');
+      err = await refuse(() => handIn(S1), { code: 'XX000', message: 'Something broke inside the database.' });
+      expect(err.userMessage).toBe('Something went wrong while trying to hand in your homework. Please try again.');
+      log.mockRestore();
+    });
+
+    it('still passes a plain business-rule message (P0001) through the way the rest of the app does', async () => {
+      const log = quiet();
+      const err = await refuse(() => parentDecide(S1, 'ok', null), { code: 'P0001', message: 'Only a parent in the family can decide this' });
+      expect(err.userMessage).toBe('Only a parent in the family can decide this.');
+      log.mockRestore();
+    });
+
+    it('tells a refusal from a failure it cannot read (an upload is only removed after the first)', async () => {
+      const log = quiet();
+      expect(isRefusal(await refuse(() => handIn(S1), { code: '22023', message: 'This homework was already accepted.' }))).toBe(true);
+      expect(isRefusal(await refuse(() => handIn(S1), { code: 'P0002', message: 'That homework answer was not found.' }))).toBe(true);
+      expect(isRefusal(await refuse(() => handIn(S1), { code: '42501', message: 'permission denied for table x' }))).toBe(true);
+      mockRpc.mockResolvedValueOnce({ data: null, error: new TypeError('Network request failed') });
+      expect(isRefusal(await handIn(S1).catch((e: unknown) => e))).toBe(false);
+      expect(isRefusal(await refuse(() => handIn(S1), { code: '57014', message: 'canceling statement due to statement timeout' }))).toBe(false);
+      expect(isRefusal(new Error('x'))).toBe(false);
+      log.mockRestore();
+    });
   });
 });
 

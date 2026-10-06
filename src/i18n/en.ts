@@ -2603,6 +2603,18 @@ export const en = {
   'hw.strip.hint': 'Opens the answer to check it',
   'hw.goalStrip': 'Homework: {n} to do',
   'hw.openHint': 'Opens this homework',
+  // Said by the homework calls themselves (src/lib/api/homework.ts), which have no screen to translate for them.
+  'hw.err.unavailable': "Homework isn't available in your community yet. Ask the office to update the portal.",
+  'hw.err.sizePhoto': 'This photo is larger than 25 MB. Please choose a smaller one.',
+  'hw.err.sizeVoice': 'This voice note is larger than 25 MB. Please record a shorter one.',
+  'hw.err.sizeFile': 'This file is larger than 25 MB. Please choose a smaller one.',
+  'hw.err.readPhoto': "We couldn't read that photo from your device. Please choose it again.",
+  'hw.err.readVoice': "We couldn't read your voice note from this phone. Please record it again.",
+  'hw.err.readFile': "We couldn't read that file from your device. Please choose it again.",
+  'hw.err.emptyVoice': 'The voice note was empty. Please record it again.',
+  'hw.err.emptyFile': 'That file was empty. Please choose another.',
+  'hw.err.noBucket': "Homework uploads aren't set up for your community yet, so this part wasn't saved. Ask the office to update the portal.",
+  'hw.err.upload': "We couldn't upload this part. Please check your connection and try again.",
 } as const;
 
 export type StringKey = keyof typeof en;
