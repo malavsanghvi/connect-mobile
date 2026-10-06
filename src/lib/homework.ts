@@ -408,25 +408,125 @@ export function keptFiles(sub: Submission | null): SubmissionFile[] {
   return (sub?.files ?? []).filter((f) => !!f.storagePath && !f.deleted);
 }
 
-/** The file name and content type of a part about to be uploaded, from what the picker or the recorder said about it. */
-export function partFile(kind: PartKind, hints: { fileName?: string | null; mimeType?: string | null; uri?: string | null }): { ext: string; contentType: string } {
-  const mime = (hints.mimeType ?? '').split(';')[0].trim().toLowerCase();
-  const fromName = /\.([a-z0-9]{2,5})(\?|$)/i.exec(hints.fileName ?? '')?.[1]?.toLowerCase() ?? null;
-  const fromUri = /\.([a-z0-9]{2,5})(\?|$)/i.exec(hints.uri ?? '')?.[1]?.toLowerCase() ?? null;
-  if (kind === 'photo') {
-    const IMAGE_EXT: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif' };
-    const MIME_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif' };
-    const ext = (fromName && IMAGE_EXT[fromName] ? fromName : null) ?? (fromUri && IMAGE_EXT[fromUri] ? fromUri : null) ?? MIME_EXT[mime] ?? 'jpg';
-    return { ext, contentType: mime.startsWith('image/') ? mime : IMAGE_EXT[ext] };
-  }
-  if (kind === 'voice') {
-    const AUDIO_EXT: Record<string, string> = { m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', caf: 'audio/x-caf', wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', '3gp': 'audio/3gpp', mp3: 'audio/mpeg' };
-    const MIME_EXT: Record<string, string> = { 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a', 'audio/aac': 'aac', 'audio/x-caf': 'caf', 'audio/wav': 'wav', 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/3gpp': '3gp', 'audio/mpeg': 'mp3' };
-    const ext = (fromUri && AUDIO_EXT[fromUri] ? fromUri : null) ?? (fromName && AUDIO_EXT[fromName] ? fromName : null) ?? MIME_EXT[mime] ?? 'm4a';
-    return { ext, contentType: mime.startsWith('audio/') ? mime : AUDIO_EXT[ext] };
-  }
-  const ext = fromName ?? fromUri ?? 'bin';
-  return { ext, contentType: mime || 'application/octet-stream' };
+/**
+ * The content types the `homework` bucket takes (connect-crm 0587 `allowed_mime_types`). A photo must be one of the
+ * images, a voice note one of the audio types, a file any of them (`app.gyan_homework_mime_ok`); anything else is
+ * refused by the bucket with a 415, so the app checks first and says so in plain words.
+ */
+export const BUCKET_TYPES: readonly string[] = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/mpeg',
+  'audio/aac',
+  'audio/webm',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/3gpp',
+  'audio/x-caf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+];
+
+/** Names some pickers and browsers give a type that the bucket knows by another name. */
+const SAME_TYPE: Record<string, string> = { 'image/jpg': 'image/jpeg', 'image/pjpeg': 'image/jpeg', 'audio/m4a': 'audio/mp4', 'audio/mp3': 'audio/mpeg', 'audio/wave': 'audio/wav' };
+
+/** A content type as the bucket spells it: lower case, no `;codecs=…`, and the common other names for it mapped (image/jpg → image/jpeg, audio/m4a → audio/mp4). */
+export function normalizeMime(raw: string | null | undefined): string {
+  const mime = (raw ?? '').split(';')[0].trim().toLowerCase();
+  return SAME_TYPE[mime] ?? mime;
+}
+
+/** The bucket takes this content type for this kind of part. */
+export function partTypeAllowed(kind: PartKind, contentType: string): boolean {
+  if (!BUCKET_TYPES.includes(contentType)) return false;
+  return kind === 'photo' ? contentType.startsWith('image/') : kind === 'voice' ? contentType.startsWith('audio/') : true;
+}
+
+
+const IMAGE_EXT: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif' };
+const AUDIO_EXT: Record<string, string> = { m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', caf: 'audio/x-caf', wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', '3gp': 'audio/3gpp', mp3: 'audio/mpeg' };
+const FILE_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+};
+const EXT_OF_TYPE: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac', 'audio/x-caf': 'caf', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/3gpp': '3gp', 'audio/mpeg': 'mp3' };
+
+/** What the picker, the file name or the recorder says about a part; `reported` is the type the fetched file itself reported (a web recording has no other hint). */
+export type PartHints = { fileName?: string | null; mimeType?: string | null; uri?: string | null; reported?: string | null };
+
+const DEFAULT_TYPE: Record<PartKind, { ext: string; contentType: string }> = {
+  photo: { ext: 'jpg', contentType: 'image/jpeg' },
+  voice: { ext: 'm4a', contentType: 'audio/mp4' },
+  file: { ext: 'bin', contentType: 'application/octet-stream' },
+};
+
+/** The extension of a file name or uri ("IMG_1.HEIC" gives "heic"), when it has one. */
+function extensionOf(s: string | null | undefined): string | null {
+  return /\.([a-z0-9]{2,5})(\?|$)/i.exec(s ?? '')?.[1]?.toLowerCase() ?? null;
+}
+
+/** The type the hints give, or null when none of them says (then the kind's default is assumed, or the file's own report is waited for). */
+function hintedPartType(kind: PartKind, hints: PartHints): { ext: string; contentType: string } | null {
+  const mime = normalizeMime(hints.mimeType);
+  const reported = normalizeMime(hints.reported);
+  const name = extensionOf(hints.fileName);
+  const uri = extensionOf(hints.uri);
+  const family = kind === 'photo' ? 'image/' : kind === 'voice' ? 'audio/' : '';
+  const byExt = kind === 'photo' ? IMAGE_EXT : kind === 'voice' ? AUDIO_EXT : FILE_EXT;
+  // A recording's own uri is the better hint (the recorder wrote it); a photo's name is the picker's.
+  const named = (kind === 'voice' ? [uri, name] : [name, uri]).find((e): e is string => !!e && !!byExt[e]) ?? null;
+  const fromMime = mime && mime.startsWith(family) ? mime : null;
+  const fromReport = reported && reported !== 'application/octet-stream' && reported.startsWith(family) ? reported : null;
+  const contentType = fromMime ?? (named ? byExt[named] : null) ?? fromReport;
+  if (!contentType) return null;
+  return { ext: named ?? EXT_OF_TYPE[contentType] ?? (kind === 'file' ? (name ?? uri ?? 'bin') : DEFAULT_TYPE[kind].ext), contentType };
+}
+
+
+/** Whether anything about the part says what type it is (so it can be checked before the file is read). */
+export function hasTypeHint(kind: PartKind, hints: PartHints): boolean {
+  return hintedPartType(kind, hints) !== null;
+}
+
+/**
+ * The file name extension and content type a part is uploaded under, from what the picker or the recorder said about
+ * it (an explicit type, then the extension of the name or uri, then what the file reported), spelled the way the bucket
+ * spells them. With no hint at all: a JPEG photo, an MP4 voice note, an anonymous file.
+ */
+export function partFile(kind: PartKind, hints: PartHints): { ext: string; contentType: string } {
+  return hintedPartType(kind, hints) ?? DEFAULT_TYPE[kind];
+}
+
+/** What a failed storage upload says it was: the type is not one the bucket takes (415), the file is over the size limit (413), or this answer can no longer be changed (403). */
+export type StorageProblem = 'type' | 'size' | 'locked';
+
+/** Reads a storage error (the HTTP status, the service's own status code and code, its words) as one of the problems above; null when it is something else. */
+export function storageProblem(error: { message?: string; status?: number | string; statusCode?: number | string; code?: string; error?: string } | null | undefined): StorageProblem | null {
+  if (!error) return null;
+  const codes = [String(error.statusCode ?? ''), String(error.status ?? '')];
+  const text = `${error.code ?? ''} ${error.error ?? ''} ${error.message ?? ''}`;
+  if (codes.includes('415') || /invalid.?mime|mime type .*not supported|unsupported media/i.test(text)) return 'type';
+  if (codes.includes('413') || /too.?large|exceeded the maximum allowed size|maximum allowed size/i.test(text)) return 'size';
+  if (codes.includes('403') || /access.?denied|unauthorized|row-level security/i.test(text)) return 'locked';
+  return null;
 }
 
 /** Where a part goes in the bucket: `<center>/<person>/<submission>/<id>.<ext>` (the bucket's rules read the person from the path). */

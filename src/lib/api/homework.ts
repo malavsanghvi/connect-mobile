@@ -1,6 +1,6 @@
 import { en } from '../../i18n/en';
 import { AppError, logError, report } from '../errors';
-import { HOMEWORK_BUCKET, MAX_FILE_BYTES, parseHomework, parseSubmission, partFile, storagePath, type FileArg, type Homework, type PartKind, type Submission } from '../homework';
+import { HOMEWORK_BUCKET, hasTypeHint, MAX_FILE_BYTES, parseHomework, parseSubmission, partFile, partTypeAllowed, storagePath, storageProblem, type FileArg, type Homework, type PartKind, type Submission } from '../homework';
 import { isMissingRpcError } from '../modules';
 import { newRequestId } from '../request-context';
 import { supabase } from '../supabase';
@@ -130,25 +130,50 @@ const SIZE_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.sizePhoto'], 
 
 const READ_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.readPhoto'], voice: en['hw.err.readVoice'], file: en['hw.err.readFile'] };
 
+const TYPE_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.typePhoto'], voice: en['hw.err.typeVoice'], file: en['hw.err.typeFile'] };
+
+/** The words for a failed storage upload: the bucket's own refusals (type 415, size 413, this answer is no longer open for changes 403) in plain English, else the connection. */
+function uploadMessage(error: { message?: string; status?: number | string; statusCode?: number | string; code?: string; error?: string }): string {
+  if (isMissingBucket(error)) return en['hw.err.noBucket'];
+  const problem = storageProblem(error);
+  return problem === 'type' ? en['hw.err.rejectedType'] : problem === 'size' ? en['hw.err.tooBig'] : problem === 'locked' ? en['hw.err.locked'] : en['hw.err.upload'];
+}
+
 /**
  * Upload one part to the `homework` bucket at `<center>/<person>/<submission>/<id>.<ext>` and describe it for
- * `saveDraft`. The 25 MB limit is checked here, with a plain message, before anything is sent. The caller registers
- * the part with `saveDraft` right after; if that fails it removes the upload again (`removePart`), as photo albums do.
+ * `saveDraft`. The bucket's rules are checked here, with plain messages, before anything is sent: the type (when the
+ * picker or the file name says what it is, even before the file is read) and the 25 MB limit. `submissionId` may be a
+ * function that makes the draft when there is none yet: it runs after those checks, so a part the bucket would refuse
+ * does not leave an empty draft behind. The caller registers the part with `saveDraft` right after (see `isRefusal`
+ * for when it removes the upload again).
  */
-export async function uploadPart(args: { centerId: string; personId: string; submissionId: string; kind: PartKind; uri: string; fileName?: string | null; mimeType?: string | null; durationSeconds?: number | null }): Promise<FileArg> {
+export async function uploadPart(args: { centerId: string; personId: string; submissionId: string | (() => Promise<string>); kind: PartKind; uri: string; fileName?: string | null; mimeType?: string | null; durationSeconds?: number | null }): Promise<FileArg> {
+  const hints = { fileName: args.fileName, mimeType: args.mimeType, uri: args.uri };
+  const refuseType = (contentType: string) => new AppError(TYPE_MESSAGE[args.kind], `${args.kind} of type ${contentType} is not one the ${HOMEWORK_BUCKET} bucket takes`);
+  if (hasTypeHint(args.kind, hints)) {
+    const early = partFile(args.kind, hints);
+    if (!partTypeAllowed(args.kind, early.contentType)) throw refuseType(early.contentType);
+  }
+  let res: Response;
   let body: ArrayBuffer;
   try {
-    body = await (await fetch(args.uri)).arrayBuffer();
+    res = await fetch(args.uri);
+    body = await res.arrayBuffer();
   } catch (err) {
     throw new AppError(READ_MESSAGE[args.kind], `reading ${args.kind} ${args.uri}: ${err instanceof Error ? err.message : String(err)}`);
   }
   if (body.byteLength === 0) throw new AppError(args.kind === 'voice' ? en['hw.err.emptyVoice'] : en['hw.err.emptyFile'], `empty ${args.kind}`);
   if (body.byteLength > MAX_FILE_BYTES) throw new AppError(SIZE_MESSAGE[args.kind], `${args.kind} is ${body.byteLength} bytes (limit ${MAX_FILE_BYTES})`);
-  const { ext, contentType } = partFile(args.kind, { fileName: args.fileName, mimeType: args.mimeType, uri: args.uri });
-  const path = storagePath({ centerId: args.centerId, personId: args.personId, submissionId: args.submissionId, id: newRequestId(), ext });
+  // A recording made in a browser has no extension or type of its own: the fetched file says what it is (WebM there), and that names it.
+  const { ext, contentType } = partFile(args.kind, { ...hints, reported: res.headers?.get?.('content-type') });
+  if (!partTypeAllowed(args.kind, contentType)) throw refuseType(contentType);
+  // The draft that gives the path its submission is only made (a callback) once every check that needs no network has passed.
+  const submissionId = typeof args.submissionId === 'function' ? await args.submissionId() : args.submissionId;
+  const path = storagePath({ centerId: args.centerId, personId: args.personId, submissionId, id: newRequestId(), ext });
   const up = await supabase.storage.from(HOMEWORK_BUCKET).upload(path, body, { contentType, upsert: false });
   if (up.error) {
-    throw new AppError(isMissingBucket(up.error) ? en['hw.err.noBucket'] : en['hw.err.upload'], `storage upload to ${HOMEWORK_BUCKET}/${path}: ${up.error.message}`);
+    const e = up.error as { message: string; status?: number | string; statusCode?: number | string; code?: string };
+    throw new AppError(uploadMessage(e), `storage upload to ${HOMEWORK_BUCKET}/${path}: ${e.message} | status=${String(e.status ?? '')} statusCode=${String(e.statusCode ?? '')} code=${String(e.code ?? '')}`);
   }
   return { kind: args.kind, storage_path: path, mime_type: contentType, bytes: body.byteLength, duration_seconds: args.durationSeconds ?? null };
 }

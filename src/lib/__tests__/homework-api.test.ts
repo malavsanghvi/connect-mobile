@@ -183,6 +183,90 @@ describe('uploading a part', () => {
     expect((err as AppError).userMessage).toBe("We couldn't read that photo from your device. Please choose it again.");
   });
 
+  describe("the bucket's type rule (image/png, jpeg, webp, heic, heif; audio/mp4, x-m4a, mpeg, aac, webm, wav, x-wav, ogg, 3gpp, x-caf)", () => {
+    const sized = (n: number, type?: string) => ({ arrayBuffer: async () => new ArrayBuffer(n), headers: { get: (h: string) => (h.toLowerCase() === 'content-type' ? (type ?? null) : null) } }) as unknown as Response;
+
+    it('refuses a GIF or an AVIF photo before reading the file, in plain words', async () => {
+      const reads = fetchSpy.mock.calls.length;
+      const uploads = mockUpload.mock.calls.length;
+      let err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a.gif', mimeType: 'image/gif', fileName: 'a.gif' }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AppError);
+      expect((err as AppError).userMessage).toBe('Choose a JPEG, PNG, WebP or HEIC photo.');
+      err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a.avif', mimeType: 'image/avif', fileName: 'a.avif' }).catch((e: unknown) => e);
+      expect((err as AppError).userMessage).toBe('Choose a JPEG, PNG, WebP or HEIC photo.');
+      expect(fetchSpy.mock.calls.length).toBe(reads);
+      expect(mockUpload.mock.calls.length).toBe(uploads);
+    });
+
+    it('makes the draft only after the checks that need no network (a refused part leaves no empty draft)', async () => {
+      const makeDraft = jest.fn<() => Promise<string>>().mockResolvedValue(S1);
+      let err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: makeDraft, kind: 'photo', uri: 'file:///a.gif', mimeType: 'image/gif' }).catch((e: unknown) => e);
+      expect((err as AppError).userMessage).toBe('Choose a JPEG, PNG, WebP or HEIC photo.');
+      fetchSpy.mockResolvedValueOnce(sized(0));
+      err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: makeDraft, kind: 'photo', uri: 'file:///a.jpg' }).catch((e: unknown) => e);
+      expect((err as AppError).userMessage).toBe('That file was empty. Please choose another.');
+      expect(makeDraft).not.toHaveBeenCalled();
+      fetchSpy.mockResolvedValueOnce(sized(4));
+      mockUpload.mockResolvedValueOnce({ error: null });
+      const part = await uploadPart({ centerId: 'c1', personId: P1, submissionId: makeDraft, kind: 'photo', uri: 'file:///a.jpg' });
+      expect(makeDraft).toHaveBeenCalledTimes(1);
+      expect(part.storage_path.startsWith(`c1/${P1}/${S1}/`)).toBe(true);
+    });
+
+    it('sends image/jpg as image/jpeg and audio/m4a as audio/mp4', async () => {
+      fetchSpy.mockResolvedValueOnce(sized(5));
+      mockUpload.mockResolvedValueOnce({ error: null });
+      const photo = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a', mimeType: 'image/jpg', fileName: 'holiday.JPG' });
+      expect(photo.mime_type).toBe('image/jpeg');
+      expect(photo.storage_path).toMatch(/\.JPG$|\.jpg$/i);
+      fetchSpy.mockResolvedValueOnce(sized(5));
+      mockUpload.mockResolvedValueOnce({ error: null });
+      const voice = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'voice', uri: 'file:///rec', mimeType: 'audio/m4a' });
+      expect(voice.mime_type).toBe('audio/mp4');
+      expect(voice.storage_path).toMatch(/\.m4a$/);
+      expect(mockUpload).toHaveBeenLastCalledWith(voice.storage_path, expect.any(ArrayBuffer), { contentType: 'audio/mp4', upsert: false });
+    });
+
+    it('takes the type of a recording made in a browser from the fetched file (WebM), and names it that way', async () => {
+      fetchSpy.mockResolvedValueOnce(sized(9, 'audio/webm;codecs=opus'));
+      mockUpload.mockResolvedValueOnce({ error: null });
+      const part = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'voice', uri: 'blob:http://localhost:8099/6f1c2d3e-0000-4000-8000-000000000000', durationSeconds: 3 });
+      expect(part).toMatchObject({ kind: 'voice', mime_type: 'audio/webm', bytes: 9 });
+      expect(part.storage_path).toMatch(new RegExp(`^c1/${P1}/${S1}/[0-9a-f-]{36}\.webm$`));
+      expect(mockUpload).toHaveBeenLastCalledWith(part.storage_path, expect.any(ArrayBuffer), { contentType: 'audio/webm', upsert: false });
+    });
+
+    it('refuses a recording of a kind the bucket does not take, after the file said what it is', async () => {
+      fetchSpy.mockResolvedValueOnce(sized(9, 'audio/flac'));
+      const uploads = mockUpload.mock.calls.length;
+      const err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'voice', uri: 'blob:http://localhost:8099/x' }).catch((e: unknown) => e);
+      expect((err as AppError).userMessage).toBe("That kind of recording can't be used for homework. Please record it again.");
+      expect(mockUpload.mock.calls.length).toBe(uploads);
+    });
+  });
+
+  describe("the bucket's own refusals", () => {
+    const failWith = async (error: { message: string; statusCode?: string; status?: number; code?: string }) => {
+      fetchSpy.mockResolvedValueOnce({ arrayBuffer: async () => new ArrayBuffer(3) } as unknown as Response);
+      mockUpload.mockResolvedValueOnce({ error });
+      return ((await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a.jpg' }).catch((e: unknown) => e)) as AppError).userMessage;
+    };
+
+    it('says what a 415 (type), a 413 (size) and a 403 (the answer moved on) mean', async () => {
+      expect(await failWith({ message: 'mime type image/gif is not supported', statusCode: '415' })).toBe("That kind of file can't be used for homework.");
+      expect(await failWith({ message: 'invalid_mime_type', status: 400, statusCode: '415' })).toBe("That kind of file can't be used for homework.");
+      expect(await failWith({ message: 'The object exceeded the maximum allowed size', statusCode: '413' })).toBe('That file is over 25 MB.');
+      expect(await failWith({ message: 'Payload too large', status: 413 })).toBe('That file is over 25 MB.');
+      expect(await failWith({ message: 'new row violates row-level security policy', status: 400, statusCode: '403' })).toBe("This answer can't be changed any more — reload to see where it is.");
+      expect(await failWith({ message: 'Unauthorized', code: 'AccessDenied' })).toBe("This answer can't be changed any more — reload to see where it is.");
+    });
+
+    it('still says "not set up" for a missing bucket, and the connection for anything else', async () => {
+      expect(await failWith({ message: 'Bucket not found', statusCode: '404' })).toMatch(/aren't set up for your community yet/);
+      expect(await failWith({ message: 'fetch failed' })).toBe("We couldn't upload this part. Please check your connection and try again.");
+    });
+  });
+
   it('says when the bucket is not set up, or the upload failed', async () => {
     fetchSpy.mockResolvedValueOnce({ arrayBuffer: async () => new ArrayBuffer(3) } as unknown as Response);
     mockUpload.mockResolvedValueOnce({ error: { message: 'Bucket not found', statusCode: '404' } });

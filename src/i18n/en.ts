@@ -2615,6 +2615,12 @@ export const en = {
   'hw.err.emptyFile': 'That file was empty. Please choose another.',
   'hw.err.noBucket': "Homework uploads aren't set up for your community yet, so this part wasn't saved. Ask the office to update the portal.",
   'hw.err.upload': "We couldn't upload this part. Please check your connection and try again.",
+  'hw.err.typePhoto': 'Choose a JPEG, PNG, WebP or HEIC photo.',
+  'hw.err.typeVoice': "That kind of recording can't be used for homework. Please record it again.",
+  'hw.err.typeFile': "That kind of file can't be used for homework. Choose a PDF, Word, Excel, PowerPoint or text file.",
+  'hw.err.rejectedType': "That kind of file can't be used for homework.",
+  'hw.err.tooBig': 'That file is over 25 MB.',
+  'hw.err.locked': "This answer can't be changed any more — reload to see where it is.",
 } as const;
 
 export type StringKey = keyof typeof en;

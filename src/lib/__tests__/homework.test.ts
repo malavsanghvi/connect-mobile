@@ -10,6 +10,7 @@ import {
   firstNameOf,
   handInBlock,
   handInNote,
+  hasTypeHint,
   homeworkLineParts,
   homeworkState,
   isOverdue,
@@ -17,6 +18,8 @@ import {
   itemsForLevel,
   itemsForPerson,
   keptFiles,
+  normalizeMime,
+  BUCKET_TYPES,
   MAX_FILE_BYTES,
   MAX_TEXT_CHARS,
   MAX_VOICE_SECONDS,
@@ -28,6 +31,7 @@ import {
   parseSubmission,
   partFile,
   partLabel,
+  partTypeAllowed,
   recordCelebrated,
   shortDate,
   shouldCelebrate,
@@ -35,6 +39,7 @@ import {
   STATE_LABEL,
   STATE_TONE,
   storagePath,
+  storageProblem,
   toDoCount,
   viewerFor,
   type HomeworkItem,
@@ -267,6 +272,61 @@ describe('the ways to answer', () => {
     expect(partFile('voice', {})).toEqual({ ext: 'm4a', contentType: 'audio/mp4' });
     expect(partFile('file', { fileName: 'notes.pdf', mimeType: 'application/pdf' })).toEqual({ ext: 'pdf', contentType: 'application/pdf' });
     expect(partFile('file', {})).toEqual({ ext: 'bin', contentType: 'application/octet-stream' });
+  });
+
+  it("spells types the way the bucket does (image/jpg is image/jpeg, audio/m4a is audio/mp4) and drops ';codecs=…'", () => {
+    expect(normalizeMime('IMAGE/JPG')).toBe('image/jpeg');
+    expect(normalizeMime('audio/m4a')).toBe('audio/mp4');
+    expect(normalizeMime('audio/webm;codecs=opus')).toBe('audio/webm');
+    expect(normalizeMime(' audio/mp3 ')).toBe('audio/mpeg');
+    expect(normalizeMime(null)).toBe('');
+    expect(partFile('photo', { fileName: 'x.jpg', mimeType: 'image/jpg' })).toEqual({ ext: 'jpg', contentType: 'image/jpeg' });
+    expect(partFile('voice', { mimeType: 'audio/m4a' })).toEqual({ ext: 'm4a', contentType: 'audio/mp4' });
+  });
+
+  it('knows which types the bucket takes for which kind of part (0587)', () => {
+    for (const t of ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']) expect(partTypeAllowed('photo', t)).toBe(true);
+    for (const t of ['image/gif', 'image/avif', 'image/bmp', 'image/svg+xml', 'image/tiff', 'application/pdf', 'audio/mp4', '']) expect(partTypeAllowed('photo', t)).toBe(false);
+    for (const t of ['audio/mp4', 'audio/x-m4a', 'audio/mpeg', 'audio/aac', 'audio/webm', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/3gpp', 'audio/x-caf']) expect(partTypeAllowed('voice', t)).toBe(true);
+    for (const t of ['audio/flac', 'audio/x-aiff', 'audio/m4a', 'video/mp4', 'image/png', 'application/pdf']) expect(partTypeAllowed('voice', t)).toBe(false);
+    expect(partTypeAllowed('file', 'application/pdf')).toBe(true);
+    expect(partTypeAllowed('file', 'text/plain')).toBe(true);
+    expect(partTypeAllowed('file', 'application/zip')).toBe(false);
+    expect(partTypeAllowed('file', 'application/octet-stream')).toBe(false);
+    expect(BUCKET_TYPES).toHaveLength(23);
+  });
+
+  it('refuses what the picker says is a GIF or an AVIF, by its type or by its name', () => {
+    expect(partTypeAllowed('photo', partFile('photo', { mimeType: 'image/gif', fileName: 'party.gif' }).contentType)).toBe(false);
+    expect(partTypeAllowed('photo', partFile('photo', { mimeType: 'image/avif' }).contentType)).toBe(false);
+    expect(partTypeAllowed('photo', partFile('photo', { mimeType: 'image/jpg' }).contentType)).toBe(true);
+    expect(hasTypeHint('photo', { mimeType: 'image/gif' })).toBe(true);
+  });
+
+  it('takes the type of a part from the file itself only when nothing else says (a recording made in a browser)', () => {
+    expect(hasTypeHint('voice', { uri: 'blob:http://localhost:8099/6f1c' })).toBe(false);
+    expect(partFile('voice', { uri: 'blob:http://localhost:8099/6f1c' })).toEqual({ ext: 'm4a', contentType: 'audio/mp4' });
+    expect(hasTypeHint('voice', { uri: 'blob:http://localhost:8099/6f1c', reported: 'audio/webm;codecs=opus' })).toBe(true);
+    expect(partFile('voice', { uri: 'blob:http://localhost:8099/6f1c', reported: 'audio/webm;codecs=opus' })).toEqual({ ext: 'webm', contentType: 'audio/webm' });
+    expect(partFile('voice', { uri: 'blob:x', reported: 'audio/mp4' })).toEqual({ ext: 'm4a', contentType: 'audio/mp4' });
+    // What the picker or the recorder said wins over what the fetch reported, and a report of the wrong family or a bare octet-stream says nothing.
+    expect(partFile('voice', { uri: 'file:///rec/a.m4a', reported: 'audio/webm' })).toEqual({ ext: 'm4a', contentType: 'audio/mp4' });
+    expect(hasTypeHint('voice', { uri: 'blob:x', reported: 'application/octet-stream' })).toBe(false);
+    expect(hasTypeHint('photo', { uri: 'blob:x', reported: 'audio/webm' })).toBe(false);
+    expect(partFile('photo', { uri: 'blob:x', reported: 'image/png' })).toEqual({ ext: 'png', contentType: 'image/png' });
+  });
+
+  it('reads what a failed storage upload was: a type (415), a size (413) or a locked answer (403)', () => {
+    expect(storageProblem({ message: 'mime type image/gif is not supported', statusCode: '415' })).toBe('type');
+    expect(storageProblem({ message: 'invalid_mime_type', status: 400, statusCode: '415' })).toBe('type');
+    expect(storageProblem({ message: 'x', code: 'InvalidMimeType' })).toBe('type');
+    expect(storageProblem({ message: 'The object exceeded the maximum allowed size', statusCode: '413' })).toBe('size');
+    expect(storageProblem({ message: 'Payload too large', status: 413 })).toBe('size');
+    expect(storageProblem({ message: 'new row violates row-level security policy', status: 400, statusCode: '403' })).toBe('locked');
+    expect(storageProblem({ message: 'Unauthorized', code: 'AccessDenied' })).toBe('locked');
+    expect(storageProblem({ message: 'Bucket not found', statusCode: '404' })).toBeNull();
+    expect(storageProblem({ message: 'fetch failed' })).toBeNull();
+    expect(storageProblem(null)).toBeNull();
   });
 
   it('puts a part under the center, the person and the submission', () => {
