@@ -14,6 +14,23 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.8.0 — 2026-10-06
+
+- **Homework.** When your community sets homework on a Gyan Path level, it shows under the lesson's first step, on the
+  goal map and on the level-complete screen, with its due date, points and status. Open it to read what to do and answer
+  with a photo from your library, a voice note (up to 10 minutes), a written answer, or all three; save a draft, then
+  **Hand in**. Every part is uploaded as you add it; one that fails says so and offers **Try again** (unless the file
+  can't be used for homework, and then it says why), and nothing is handed in until every part is in. A level's points
+  now say when they are waiting for homework your teacher has to accept.
+- **A parent's OK.** When the homework asks for it, a child's own hand-in waits for a parent: adults see **Needs your OK**
+  on Home and a homework line under each child on Family, read the answer, and send it to the teacher or back to the
+  child with a note. A parent can also do the homework for a younger child from the same screen.
+- **The teacher's answer.** Accepted homework shows its points (with a little celebration for the learner, the first
+  time); homework sent back shows the teacher's note and **Edit and hand in again**. Homework your community has closed
+  stays readable but can't be changed. Pushes about homework open the right screen.
+- **Attach a file** and **Take a photo** arrive with the next app build (they need a new install, not only an update).
+- Until the community's portal is updated, nothing about homework is shown.
+
 ## 1.7.0 — 2026-10-03
 
 - **Choose how to pay.** When your community takes cards and PayPal, the Pay sheet lists both and you choose. Card shows

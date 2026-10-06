@@ -130,6 +130,11 @@ describe('Home, drawer and guide', () => {
     expect(isHomeCardVisible(off('giving'), 'specialDay')).toBe(true);
     expect(isHomeCardVisible(off('giving'), 'giving')).toBe(false);
   });
+  it('keeps the homework strip and lines with Gyan Path', () => {
+    expect(isHomeCardVisible(ALL_ON, 'homework')).toBe(true);
+    expect(isHomeCardVisible(off('gyan_path'), 'homework')).toBe(false);
+    expect(isHomeCardVisible(off('pathshala'), 'homework')).toBe(true);
+  });
   it('maps the Home rails to their modules', () => {
     const rails = ['railLearning', 'railEvents', 'railListen', 'giving', 'railPhotos', 'railRecipes'] as const;
     for (const rail of rails) expect(isHomeCardVisible(ALL_ON, rail)).toBe(true);
@@ -219,6 +224,8 @@ describe('blockingModule (deep links)', () => {
     expect(blockingModule(off('events'), 'event/[id]/tickets')).toBe('events');
     expect(blockingModule(off('gyan_path'), 'gyan/[goalId]/level/[levelId]')).toBe('gyan_path');
     expect(blockingModule(off('gyan_path'), 'gyan')).toBe('gyan_path');
+    expect(blockingModule(off('gyan_path'), 'gyan/homework')).toBe('gyan_path');
+    expect(blockingModule(off('gyan_path'), 'gyan/homework/[assignmentId]')).toBe('gyan_path');
     expect(blockingModule(off('comms'), 'guide/whatsapp')).toBe('comms');
     expect(blockingModule(off('niva'), '/niva')).toBe('niva');
     // The Zelle report form is a Giving screen: Giving off, no form (deep links included).
@@ -249,7 +256,7 @@ describe('routeFeature (the access area of a pushed screen)', () => {
     expect(routeFeature('puja')).toBe('puja');
     expect(routeFeature('niva')).toBe('niva');
     expect(routeFeature('/niva')).toBe('niva');
-    for (const name of ['gyan', 'gyan/index', 'gyan/[goalId]', 'gyan/[goalId]/index', 'gyan/[goalId]/level/[levelId]']) expect(routeFeature(name)).toBe('learn');
+    for (const name of ['gyan', 'gyan/index', 'gyan/[goalId]', 'gyan/[goalId]/index', 'gyan/[goalId]/level/[levelId]', 'gyan/homework', 'gyan/homework/index', 'gyan/homework/[assignmentId]']) expect(routeFeature(name)).toBe('learn');
     expect(routeFeature('recipe/[id]')).toBe('look');
     expect(routeFeature('recipe/random')).toBe('look');
     expect(routeFeature('listen/playlist')).toBe('listen');

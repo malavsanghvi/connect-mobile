@@ -1,0 +1,211 @@
+import { translate } from '../../i18n';
+import { en } from '../../i18n/en';
+import { AppError, logError, report } from '../errors';
+import { HOMEWORK_BUCKET, hasTypeHint, MAX_FILE_BYTES, parseHomework, parseSubmission, partFile, partTypeAllowed, storagePath, storageProblem, type FileArg, type Homework, type PartKind, type Submission } from '../homework';
+import { isMissingRpcError } from '../modules';
+import { newRequestId } from '../request-context';
+import { supabase } from '../supabase';
+
+import { signedUrl } from './files';
+import { isMissingBucket } from './photos';
+
+/**
+ * Homework (connect-crm migration 0587): the four functions and the `homework`
+ * bucket. The generated types do not know 0587 yet (README › Schema gaps #31),
+ * so the calls go through one narrow cast here, and every answer is read
+ * defensively in src/lib/homework.ts. Nothing else in the app touches these
+ * functions.
+ */
+type UntypedRpc = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> };
+
+/** The one place the generated types are stepped around: they do not carry 0587 yet. */
+function rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> {
+  return (supabase as unknown as UntypedRpc).rpc(fn, args);
+}
+
+/** The portal's answer, or `missing`: it does not have homework yet (an older portal), so nothing of it is shown. */
+export type HomeworkAnswer = { kind: 'answered'; homework: Homework } | { kind: 'missing' };
+
+let loggedMissing = false;
+
+/** Said when a write reaches a portal that does not have homework yet (the entry points are hidden, so only a stale link gets here). */
+export const HOMEWORK_UNAVAILABLE = en['hw.err.unavailable'];
+
+/**
+ * The SQLSTATEs connect-crm 0587 raises its plain-English refusals with: 22023 (a rule: "This homework is already with
+ * the teacher."), P0002 (not found: "That homework answer was not found.") and 42501 (not allowed: "You can only hand
+ * in homework for yourself or for someone in your family."). The sentences are written for people, so they are shown as
+ * they are; the one gate is that Postgres' own permission and row-level-security messages stay generic.
+ */
+const REFUSAL_CODES = new Set(['22023', 'P0002', '42501']);
+
+/** True when the database said no on purpose (a rule, a missing row, not allowed), so the write certainly did not happen. */
+export function isRefusal(err: unknown): boolean {
+  return err instanceof AppError && err.code !== null && REFUSAL_CODES.has(err.code);
+}
+
+/**
+ * A failed homework call as the AppError the screen shows: the database's own sentence when it wrote one (with a final
+ * period), else the generic words for `action` ("We couldn't hand in your homework. Check your internet connection and
+ * try again."). The technical detail and the code are kept on the error and logged.
+ */
+export function homeworkError(err: unknown, action: string): AppError {
+  const e = err && typeof err === 'object' ? (err as { code?: unknown; message?: unknown }) : {};
+  const code = typeof e.code === 'string' ? e.code : null;
+  const message = typeof e.message === 'string' ? e.message.trim() : '';
+  if (code && REFUSAL_CODES.has(code) && /^["A-Z]/.test(message) && !/permission denied|row-level security/i.test(message)) {
+    const out = new AppError(/[.!?]$/.test(message) ? message : `${message}.`, `${action}: ${message} | code=${code}`, code);
+    logError(action, out);
+    return out;
+  }
+  return report(err, action);
+}
+
+/**
+ * The homework of the signed-in person and, for an adult, of everyone in their household
+ * (`app.my_gyan_homework`). Rejects with a plain-English AppError when it cannot be had; a function that is not
+ * deployed yet is not a failure: it is `missing`, logged once, and the app shows no homework at all.
+ */
+export async function loadHomework(centerId: string): Promise<HomeworkAnswer> {
+  const res = await rpc('my_gyan_homework', { p_center: centerId });
+  if (res.error) {
+    if (isMissingRpcError(res.error)) {
+      if (!loggedMissing) {
+        loggedMissing = true;
+        logError('loading homework: app.my_gyan_homework is not deployed yet (connect-crm 0587), so homework is not offered', res.error);
+      }
+      return { kind: 'missing' };
+    }
+    throw homeworkError(res.error, 'load your homework');
+  }
+  const homework = parseHomework(res.data);
+  if (!homework) {
+    const err = new AppError(en['hw.err.unreadableLoad'], `my_gyan_homework returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'}`);
+    logError('load your homework', err);
+    throw err;
+  }
+  if (homework.skipped > 0) logError(`loading homework: ${homework.skipped} item(s) could not be read and are not shown (an unknown status or a missing assignment id)`, new Error('unreadable homework items'));
+  return { kind: 'answered', homework };
+}
+
+/** One write through a homework function: the submission it answers with, or a plain-English refusal (shown as-is, with Try again). */
+async function writeSubmission(fn: string, args: Record<string, unknown>, action: string): Promise<Submission> {
+  const res = await rpc(fn, args);
+  if (res.error) {
+    if (isMissingRpcError(res.error)) {
+      const err = new AppError(HOMEWORK_UNAVAILABLE, `${fn}: ${String((res.error as { message?: unknown }).message ?? res.error)}`);
+      logError(action, err);
+      throw err;
+    }
+    throw homeworkError(res.error, action);
+  }
+  const sub = parseSubmission(res.data);
+  if (!sub) {
+    const err = new AppError(translate('en', 'hw.err.unreadable', { action }), `${fn} returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'}`);
+    logError(action, err);
+    throw err;
+  }
+  return sub;
+}
+
+/**
+ * Create or update the draft (`app.save_gyan_submission_draft`). `files` is the whole set of parts (the database
+ * replaces the set), each already uploaded with `uploadPart`; a sent-back answer becomes a new draft (attempt + 1)
+ * on its first save. `files: null` leaves the parts the draft already has as they are (the database reads a null
+ * list that way): the call that only creates the draft, to get the submission id before the first upload.
+ */
+export async function saveDraft(args: { assignmentId: string; personId: string; text: string | null; files: FileArg[] | null }): Promise<Submission> {
+  return writeSubmission('save_gyan_submission_draft', { p_assignment: args.assignmentId, p_person: args.personId, p_text: args.text, p_files: args.files }, 'save your draft');
+}
+
+/** Hand the draft in (`app.hand_in_gyan_submission`): it comes back awaiting a parent, or with the teacher. */
+export async function handIn(submissionId: string): Promise<Submission> {
+  return writeSubmission('hand_in_gyan_submission', { p_submission: submissionId }, 'hand in your homework');
+}
+
+/** A household adult sends a child's waiting answer on to the teacher, or back to the child with a note (`app.parent_decide_gyan_submission`). */
+export async function parentDecide(submissionId: string, decision: 'ok' | 'send_back', note: string | null): Promise<Submission> {
+  return writeSubmission('parent_decide_gyan_submission', { p_submission: submissionId, p_decision: decision, p_note: note }, decision === 'ok' ? 'send it to the teacher' : 'send it back');
+}
+
+/**
+ * A part turned away for what it is, by the app before anything was sent or by the bucket: a type the bucket does not
+ * take, over 25 MB, an empty recording, or an answer that can no longer be changed. The same file can never go
+ * through, so the screen offers Remove (or another file), not Try again.
+ */
+export class PartRefused extends AppError {}
+
+const SIZE_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.sizePhoto'], voice: en['hw.err.sizeVoice'], file: en['hw.err.sizeFile'] };
+
+const READ_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.readPhoto'], voice: en['hw.err.readVoice'], file: en['hw.err.readFile'] };
+
+const TYPE_MESSAGE: Record<PartKind, string> = { photo: en['hw.err.typePhoto'], voice: en['hw.err.typeVoice'], file: en['hw.err.typeFile'] };
+
+/** The words for a failed storage upload: the bucket's own refusals (type 415, size 413, this answer is no longer open for changes 403) in plain English, else the connection. */
+function uploadMessage(error: { message?: string; status?: number | string; statusCode?: number | string; code?: string; error?: string }): string {
+  if (isMissingBucket(error)) return en['hw.err.noBucket'];
+  const problem = storageProblem(error);
+  return problem === 'type' ? en['hw.err.rejectedType'] : problem === 'size' ? en['hw.err.tooBig'] : problem === 'locked' ? en['hw.err.locked'] : en['hw.err.upload'];
+}
+
+/**
+ * Upload one part to the `homework` bucket at `<center>/<person>/<submission>/<id>.<ext>` and describe it for
+ * `saveDraft`. The bucket's rules are checked here, with plain messages, before anything is sent: the type (when the
+ * picker or the file name says what it is, even before the file is read) and the 25 MB limit. `submissionId` may be a
+ * function that makes the draft when there is none yet: it runs after those checks, so a part the bucket would refuse
+ * does not leave an empty draft behind. The caller registers the part with `saveDraft` right after (see `isRefusal`
+ * for when it removes the upload again).
+ */
+export async function uploadPart(args: { centerId: string; personId: string; submissionId: string | (() => Promise<string>); kind: PartKind; uri: string; fileName?: string | null; mimeType?: string | null; durationSeconds?: number | null }): Promise<FileArg> {
+  const hints = { fileName: args.fileName, mimeType: args.mimeType, uri: args.uri };
+  const refuseType = (contentType: string) => new PartRefused(TYPE_MESSAGE[args.kind], `${args.kind} of type ${contentType} is not one the ${HOMEWORK_BUCKET} bucket takes`);
+  if (hasTypeHint(args.kind, hints)) {
+    const early = partFile(args.kind, hints);
+    if (!partTypeAllowed(args.kind, early.contentType)) throw refuseType(early.contentType);
+  }
+  let res: Response;
+  let body: ArrayBuffer;
+  try {
+    res = await fetch(args.uri);
+    body = await res.arrayBuffer();
+  } catch (err) {
+    throw new AppError(READ_MESSAGE[args.kind], `reading ${args.kind} ${args.uri}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (body.byteLength === 0) throw new PartRefused(args.kind === 'voice' ? en['hw.err.emptyVoice'] : en['hw.err.emptyFile'], `empty ${args.kind}`);
+  if (body.byteLength > MAX_FILE_BYTES) throw new PartRefused(SIZE_MESSAGE[args.kind], `${args.kind} is ${body.byteLength} bytes (limit ${MAX_FILE_BYTES})`);
+  // A recording made in a browser has no extension or type of its own: the fetched file says what it is (WebM there), and that names it.
+  const { ext, contentType } = partFile(args.kind, { ...hints, reported: res.headers?.get?.('content-type') });
+  if (!partTypeAllowed(args.kind, contentType)) throw refuseType(contentType);
+  // The draft that gives the path its submission is only made (a callback) once every check that needs no network has passed.
+  const submissionId = typeof args.submissionId === 'function' ? await args.submissionId() : args.submissionId;
+  const path = storagePath({ centerId: args.centerId, personId: args.personId, submissionId, id: newRequestId(), ext });
+  const up = await supabase.storage.from(HOMEWORK_BUCKET).upload(path, body, { contentType, upsert: false });
+  if (up.error) {
+    const e = up.error as { message: string; status?: number | string; statusCode?: number | string; code?: string };
+    const detail = `storage upload to ${HOMEWORK_BUCKET}/${path}: ${e.message} | status=${String(e.status ?? '')} statusCode=${String(e.statusCode ?? '')} code=${String(e.code ?? '')}`;
+    // The bucket said no for what the file is (type, size) or for where the answer stands (locked): trying it again cannot work.
+    throw storageProblem(e) ? new PartRefused(uploadMessage(e), detail) : new AppError(uploadMessage(e), detail);
+  }
+  return { kind: args.kind, storage_path: path, mime_type: contentType, bytes: body.byteLength, duration_seconds: args.durationSeconds ?? null };
+}
+
+/** Remove an uploaded part (after its draft row failed, or when the learner took it off the answer). Best effort: a failure is logged, never shown. */
+export async function removePart(path: string): Promise<void> {
+  const { error } = await supabase.storage.from(HOMEWORK_BUCKET).remove([path]);
+  if (error) logError(`removing the homework upload ${path} (office cleanup may be needed)`, error);
+}
+
+/** A signed link is good for an hour (files.ts); one made less than this long ago is reused. */
+const SIGNED_REUSE_MS = 50 * 60 * 1000;
+/** The links already made, by path: every reload of the answer (after every write) would otherwise sign every stored part again. */
+const signedLinks = new Map<string, { url: string; until: number }>();
+
+/** A link to look at or play a stored part, good for an hour (the learner, their household adults and their teachers may read it). Signed once per path and reused for most of that hour. */
+export async function partUrl(path: string): Promise<string> {
+  const hit = signedLinks.get(path);
+  if (hit && hit.until > Date.now()) return hit.url;
+  const url = await signedUrl(path, HOMEWORK_BUCKET, 'load this part of the homework');
+  if (signedLinks.size >= 200) signedLinks.clear();
+  signedLinks.set(path, { url, until: Date.now() + SIGNED_REUSE_MS });
+  return url;
+}

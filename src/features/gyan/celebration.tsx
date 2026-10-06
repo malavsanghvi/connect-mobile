@@ -6,10 +6,13 @@ import { Screen } from '@/components/screen';
 import { Banner, Button, Txt } from '@/components/ui';
 import { GyanHeaderChips } from '@/features/gyan-header';
 import { Button3D, StarGlyph } from '@/features/gyan-ui';
+import { HomeworkSection } from '@/features/homework/cards';
+import type { HomeworkLoad } from '@/features/homework/use-homework';
 import { loadPointsAndStreak } from '@/lib/api/jainway';
 import { loadLevelAwards, requestSignoff, type GyanData, type GyanGoal, type GyanLevel } from '@/lib/api/gyan';
 import { report } from '@/lib/errors';
 import { todayAt } from '@/lib/format';
+import { itemsForLevel, levelPointsWait } from '@/lib/homework';
 import { accuracyPercent, communityName, levelStars } from '@/lib/learning';
 import { streakDisplay } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
@@ -42,6 +45,7 @@ export function Celebration({
   alreadyDone,
   wasLevelDone,
   startedAt,
+  homework,
 }: {
   data: GyanData;
   goal: GyanGoal;
@@ -51,6 +55,8 @@ export function Celebration({
   alreadyDone: Set<string>;
   wasLevelDone: boolean;
   startedAt: number;
+  /** The lesson's own load of the homework (one for the whole lesson, asked for again when the lesson is back in front). */
+  homework: HomeworkLoad;
 }) {
   const t = useT();
   const router = useRouter();
@@ -68,6 +74,9 @@ export function Celebration({
   const awards = paid.data ? levelAwards(paid.data, { stepIds: level.steps.map((s) => s.id), levelId: level.id, alreadyDone, wasLevelDone }) : null;
   const earned = awards ? awards.steps + awards.bonus + awards.treasure + run.practicePoints : null;
   const streak = standing.data && center ? streakDisplay(standing.data.streak, todayAt(center.time_zone)).days : null;
+  const levelHomework = homework.homework ? itemsForLevel(homework.homework.items, level.id, me) : [];
+  // The steps are done, but the database pays the level's points and treasure only once the required homework is accepted.
+  const wait = levelPointsWait(levelHomework);
   const next = goal.levels[index + 1] ?? null;
   const isFinal = !next;
   const signoff = data.signoffs.find((s) => s.level_id === level.id && s.person_id === me);
@@ -156,6 +165,11 @@ export function Celebration({
               {parts.join(' · ')}
             </Txt>
           ) : null}
+          {wait ? (
+            <Txt variant="caption" color="onNavy" center>
+              {t(wait.key, wait.vars)}
+            </Txt>
+          ) : null}
           {earned === 0 && wasLevelDone ? (
             <Txt variant="caption" color="onNavy" center>
               {t('learn.doneReplayPoints')}
@@ -166,7 +180,7 @@ export function Celebration({
               {t('learn.doneSignoffPoints', { points: level.points, center: community })}
             </Txt>
           ) : null}
-          {level.treasure && !wasLevelDone ? (
+          {level.treasure && !wasLevelDone && !wait ? (
             <View style={{ alignSelf: 'stretch', backgroundColor: colors.gold, borderRadius: radii.row, paddingVertical: 12, paddingHorizontal: 14 }}>
               <Txt variant="smallStrong" color="treasureInk" style={{ fontFamily: fonts.bodyBold }}>
                 {awards && awards.treasure > 0 ? t('gyan.treasurePoints', { reward: level.treasure, points: awards.treasure }) : t('learn.treasureUnlocked', { reward: level.treasure })}
@@ -190,6 +204,9 @@ export function Celebration({
               <Banner tone="error" message={error} />
             </View>
           ) : null}
+          <View style={{ alignSelf: 'stretch', paddingTop: space.sm }}>
+            <HomeworkSection load={homework} items={levelHomework} title={t('hw.sectionLevel')} today={todayAt(center?.time_zone)} viewer="learner" onNavy />
+          </View>
           <View style={{ flexGrow: 1 }} />
           <Button3D
             style={{ alignSelf: 'stretch' }}

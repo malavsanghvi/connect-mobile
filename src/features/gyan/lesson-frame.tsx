@@ -51,6 +51,7 @@ export function LessonFrame({ frame, answered, footer, children }: { frame: Fram
           {frame.kindLabel}
         </Txt>
         {children}
+        {frame.below}
       </ScrollView>
     </Screen>
   );

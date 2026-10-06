@@ -8,8 +8,12 @@ import { EmptyState, Loaded } from '@/components/states';
 import { Banner, ProgressBar, Txt } from '@/components/ui';
 import { GyanHeaderChips } from '@/features/gyan-header';
 import { Button3D } from '@/features/gyan-ui';
+import { HomeworkSection } from '@/features/homework/cards';
+import { useHomework } from '@/features/homework/use-homework';
 import { goalProgress, isLevelDone, loadGyan, type GyanData, type GyanGoal } from '@/lib/api/gyan';
 import { logError } from '@/lib/errors';
+import { todayAt } from '@/lib/format';
+import { homeworkState, itemsForGoal, itemsForLevel, levelPointsWait, sortByLevel, toDoCount, type HomeworkItem } from '@/lib/homework';
 import { currentChapter, levelStars, mapLayout, tintBackground } from '@/lib/learning';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -59,9 +63,26 @@ export default function GyanGoalScreen() {
 function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; personId: string }) {
   const t = useT();
   const router = useRouter();
-  const { member } = useApp();
+  const { center, member } = useApp();
   const { toast } = useFeedback();
   const [width, setWidth] = useState(360);
+  // This goal's homework for the person: a line in the strip, and the cards under the map, level by level. It is asked for again
+  // only while the map is in front (a write on a screen above it, or the steps of a lesson, are one reload when the member is back).
+  const homework = useHomework(true, 'in-front');
+  const levelIds = goal.levels.map((l) => l.id);
+  const homeworkItems = homework.homework ? sortByLevel(itemsForGoal(homework.homework.items, goal.id, personId), levelIds) : [];
+  const levelLabelOf = (item: HomeworkItem) => {
+    const at = item.assignment.levelId ? levelIds.indexOf(item.assignment.levelId) : -1;
+    return at < 0 ? null : t('hw.levelLabel', { n: at + 1, name: goal.levels[at].name });
+  };
+  // A level whose steps are all done but whose required homework is not accepted yet has no points: the database pays them when the teacher accepts it.
+  const waitNoteOf = (item: HomeworkItem) => {
+    const at = item.assignment.levelId ? levelIds.indexOf(item.assignment.levelId) : -1;
+    if (at < 0 || item.assignment.archived || !item.assignment.requiredForLevel || homeworkState(item.submission) === 'accepted' || !isLevelDone(goal.levels[at], data.progress, personId)) return null;
+    const wait = levelPointsWait(itemsForLevel(homework.homework?.items ?? [], goal.levels[at].id, personId));
+    return wait ? t(wait.key, wait.vars) : null;
+  };
+  const toDo = toDoCount(homeworkItems);
   const p = goalProgress(goal, data.progress, personId);
   const total = goal.levels.length;
   const current = p.levelsDone;
@@ -91,7 +112,7 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
         <View style={[{ backgroundColor: colors.card, borderRadius: radii.row, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadows.strip]}>
           <View style={{ flex: 1, gap: 4 }}>
             <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-              {chapter ? t('learn.mapStrip', { chapter, min: minutes }) : t('learn.mapStripNoChapter', { min: minutes })}
+              {[chapter ? t('learn.mapStrip', { chapter, min: minutes }) : t('learn.mapStripNoChapter', { min: minutes }), toDo > 0 ? t('hw.goalStrip', { n: toDo }) : null].filter(Boolean).join(' · ')}
             </Txt>
             <ProgressBar value={total ? current / total : 0} color={colors.green} track={colors.divider} height={8} label={t('learn.progress', { done: current, n: total })} />
           </View>
@@ -145,7 +166,10 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
             )}
           </View>
         )}
-        <Txt variant="fine" color="muted" center style={{ paddingHorizontal: 20 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <HomeworkSection load={homework} items={homeworkItems} title={t('hw.section')} today={todayAt(center?.time_zone)} viewer="learner" levelLabelOf={levelLabelOf} waitNoteOf={waitNoteOf} />
+        </View>
+        <Txt variant="fine" color="muted" center style={{ paddingHorizontal: 20, paddingTop: 12 }}>
           {t('learn.contentNote')}
         </Txt>
       </View>

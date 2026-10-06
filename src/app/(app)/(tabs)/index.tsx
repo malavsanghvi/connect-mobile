@@ -4,6 +4,8 @@ import { Screen } from '@/components/screen';
 import { AlertsStrip, ConfirmPrompt, DeactivatedBanner, EventActionsStrip, FeedbackStrip, GuestSignInCard, useFeedbackHome, useHomeAlerts, useHomeEvents } from '@/features/home';
 import { HomeRows, type LazyRow } from '@/features/home-rails';
 import { useRailReveal } from '@/features/home-rail';
+import { NeedsOkStrip } from '@/features/homework/strip';
+import { useHomework } from '@/features/homework/use-homework';
 import { SurveyPopup } from '@/features/survey-popup';
 import { isHomeCardVisible, type HomeCard } from '@/lib/modules';
 import { useApp } from '@/providers/app';
@@ -54,6 +56,9 @@ function HomeContent() {
   const feedback = useFeedbackHome(feedbackOn);
   const alertsOn = !!member && on('alerts');
   const alerts = useHomeAlerts(alertsOn);
+  // A child's homework waiting for a parent's OK (connect-crm 0587): adults only; nothing until the portal has homework.
+  const homeworkOn = adult && on('homework');
+  const homework = useHomework(homeworkOn);
   return (
     <>
       <Screen root showWordmark onRefresh={async () => invalidate()} onViewport={reveal.onViewport}>
@@ -65,6 +70,7 @@ function HomeContent() {
           underToday={
             <>
               {alertsOn ? <AlertsStrip state={alerts} part="other" /> : null}
+              {homeworkOn ? <NeedsOkStrip load={homework} /> : null}
               {confirmOn || lunchOn ? <EventActionsStrip events={events} lunch={lunchOn} /> : null}
               {feedbackOn ? <FeedbackStrip state={feedback} /> : null}
             </>

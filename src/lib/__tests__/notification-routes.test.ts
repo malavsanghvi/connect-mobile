@@ -54,4 +54,49 @@ describe('notification routes', () => {
       expect(routeForNotification({ survey_id: SURVEY, deep_link: `survey/${SURVEY}` }, null)).toBeNull();
     });
   });
+
+  describe('homework pushes (connect-crm 0587)', () => {
+    const ASSIGNMENT = '11111111-1111-4111-8111-111111111111';
+    const PERSON = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const PARENT = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const target = { pathname: '/gyan/homework/[assignmentId]', params: { assignmentId: ASSIGNMENT, person: PERSON } };
+    it('open the homework the deep link names, for the learner and for a parent', () => {
+      expect(notificationTarget({ type: 'homework', deep_link: `/gyan/homework/${ASSIGNMENT}?person=${PERSON}` })).toEqual(target);
+      expect(notificationTarget({ type: 'homework_parent', deep_link: `/gyan/homework/${ASSIGNMENT}?person=${PERSON}` })).toEqual(target);
+      expect(notificationTarget({ type: 'homework', deep_link: `gyan/homework/${ASSIGNMENT}` })).toEqual({ pathname: '/gyan/homework/[assignmentId]', params: { assignmentId: ASSIGNMENT } });
+    });
+    it('follow the deep link without a type too', () => {
+      expect(notificationTarget({ deep_link: `/gyan/homework/${ASSIGNMENT}?person=${PERSON}` })).toEqual(target);
+    });
+    it('read the ids the worker forwards (assignment_id and learner_id) when there is no link', () => {
+      expect(notificationTarget({ type: 'homework', assignment_id: ASSIGNMENT, learner_id: PERSON })).toEqual(target);
+      expect(notificationTarget({ type: 'homework_parent', assignment_id: ASSIGNMENT, learner_id: PERSON })).toEqual(target);
+      expect(notificationTarget({ type: 'homework', assignment_id: ASSIGNMENT })).toEqual({ pathname: '/gyan/homework/[assignmentId]', params: { assignmentId: ASSIGNMENT } });
+    });
+    it("open the child's item for the real payload of a parent's push", () => {
+      const payload = { type: 'homework_parent', deep_link: `/gyan/homework/${ASSIGNMENT}?person=${PERSON}`, assignment_id: ASSIGNMENT, submission_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', learner_id: PERSON };
+      expect(notificationTarget(payload)).toEqual(target);
+      expect(notificationTarget({ ...payload, deep_link: undefined })).toEqual(target);
+    });
+    it('keep person_id as an alias of learner_id for the learner own push only (it is the recipient everywhere else)', () => {
+      expect(notificationTarget({ type: 'homework', assignment_id: ASSIGNMENT, person_id: PERSON })).toEqual(target);
+      expect(notificationTarget({ assignment_id: ASSIGNMENT, person_id: PERSON })).toEqual({ pathname: '/gyan/homework/[assignmentId]', params: { assignmentId: ASSIGNMENT } });
+      // learner_id wins over person_id, and a parent's person_id never opens the parent's own item.
+      expect(notificationTarget({ type: 'homework', assignment_id: ASSIGNMENT, learner_id: PERSON, person_id: PARENT })).toEqual(target);
+      expect(notificationTarget({ type: 'homework_parent', assignment_id: ASSIGNMENT, person_id: PARENT })).toBeNull();
+      expect(notificationTarget({ type: 'homework_parent', assignment_id: ASSIGNMENT, learner_id: PERSON, person_id: PARENT })).toEqual(target);
+    });
+    it('open the homework list for the learner, and the app for a parent, when the push names no usable item', () => {
+      expect(notificationTarget({ type: 'homework' })).toEqual({ pathname: '/gyan/homework' });
+      expect(notificationTarget({ type: 'homework', deep_link: 'gyan/homework/not-an-id' })).toEqual({ pathname: '/gyan/homework' });
+      // A parent without the child: nothing right to open (their own item does not exist), so the app just opens on Home.
+      expect(notificationTarget({ type: 'homework_parent' })).toBeNull();
+      expect(notificationTarget({ type: 'homework_parent', deep_link: 'gyan/homework/not-an-id' })).toBeNull();
+      expect(notificationTarget({ type: 'homework_parent', assignment_id: ASSIGNMENT })).toBeNull();
+      expect(notificationTarget({ deep_link: 'gyan/homework/not-an-id' })).toBeNull();
+    });
+    it('give a teacher\'s homework_review push no route (they review in the portal)', () => {
+      expect(notificationTarget({ type: 'homework_review', assignment_id: ASSIGNMENT, submission_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', learner_id: PERSON })).toBeNull();
+    });
+  });
 });

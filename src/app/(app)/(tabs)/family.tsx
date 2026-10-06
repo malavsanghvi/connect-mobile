@@ -4,6 +4,8 @@ import { Pressable, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { ErrorState, LoadingState } from '@/components/states';
 import { Banner, Button, Card, Row, Txt } from '@/components/ui';
+import { FamilyHomeworkLine } from '@/features/homework/family-line';
+import { useHomework } from '@/features/homework/use-homework';
 import { roleLabel } from '@/features/labels';
 import { listDisplayName, whenText } from '@/features/special-days';
 import { listOpenHouseholdRequests, listSpecialDays, loadEligibility } from '@/lib/api/family';
@@ -12,12 +14,13 @@ import { applicationStatusKey } from '@/features/membership';
 import { rememberedName } from '@/features/remembrance';
 import { logError } from '@/lib/errors';
 import { formatDob, formatLongDate, fullName } from '@/lib/format';
+import { isHomeCardVisible } from '@/lib/modules';
 import { ageOn, nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
-import { useModule } from '@/providers/modules';
+import { useModule, useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -33,11 +36,15 @@ export default function FamilyScreen() {
   const { invalidate } = useDataVersion();
   const { confirm } = useFeedback();
   const membershipOn = useModule('membership');
+  const { map: modules } = useModules();
   const refs = useLoad(() => (member && membershipOn ? myReferenceRequests() : Promise.resolve([])), [member?.person.id, membershipOn], 'load the reference requests');
   const application = useLoad(() => (member && center && membershipOn ? myApplication(center.id) : Promise.resolve(null)), [member?.person.id, center?.id, membershipOn], 'load your membership application');
   const days = useLoad(() => (member?.household ? listSpecialDays(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load special days');
   const eligibility = useLoad(() => (member ? loadEligibility(member.person.id) : Promise.resolve(null)), [member?.person.id], 'load voting eligibility');
   const pendingRequests = useLoad(() => (member?.household ? listOpenHouseholdRequests(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load your family requests');
+  // Each person's homework line (connect-crm 0587): nothing until the portal has homework.
+  // In front only, like Home: a write on a screen above the Family tab is one reload when the member is back, not one per write behind their back.
+  const homework = useHomework(isHomeCardVisible(modules, 'homework'), 'in-front');
   const community = center?.short_name || center?.name || '';
 
   if (!member) {
@@ -148,25 +155,29 @@ export default function FamilyScreen() {
           const id = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
           const tag = [roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id].filter(Boolean).join(' · ');
           return (
-            <Row key={fm.person.id} gap={space.md} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.navyTint2, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">
-                <Txt variant="bodyStrong" color="navy">
-                  {fm.person.first_name.charAt(0).toUpperCase()}
-                </Txt>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Txt variant="body" style={{ fontFamily: fonts.bodyMedium }}>
-                  {fullName(fm.person)}
-                </Txt>
-                <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }} selectable>
-                  {tag}
-                </Txt>
-              </View>
-              {pill(t('family.profile'), () => router.push({ pathname: '/person/[id]', params: { id: fm.person.id } }), true, `${t('family.profile')}: ${fm.person.first_name}`)}
-              {pill(t('family.qr'), () => router.push({ pathname: '/member-card', params: { person: fm.person.id } }), false, t('family.qrFor', { name: fm.person.first_name }))}
-            </Row>
+            <View key={fm.person.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+              <Row gap={space.md} style={{ paddingVertical: 10 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.navyTint2, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">
+                  <Txt variant="bodyStrong" color="navy">
+                    {fm.person.first_name.charAt(0).toUpperCase()}
+                  </Txt>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="body" style={{ fontFamily: fonts.bodyMedium }}>
+                    {fullName(fm.person)}
+                  </Txt>
+                  <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }} selectable>
+                    {tag}
+                  </Txt>
+                </View>
+                {pill(t('family.profile'), () => router.push({ pathname: '/person/[id]', params: { id: fm.person.id } }), true, `${t('family.profile')}: ${fm.person.first_name}`)}
+                {pill(t('family.qr'), () => router.push({ pathname: '/member-card', params: { person: fm.person.id } }), false, t('family.qrFor', { name: fm.person.first_name }))}
+              </Row>
+              <FamilyHomeworkLine personId={fm.person.id} load={homework} />
+            </View>
           );
         })}
+        {homework.state.error ? <ErrorState error={homework.state.error} onRetry={() => void homework.state.reload()} /> : null}
         {member.remembered.length ? (
           <View testID="in-memory" style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }} accessibilityRole="text">
             <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
