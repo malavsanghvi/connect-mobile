@@ -1,17 +1,18 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { handIn, isRefusal, loadHomework, parentDecide, saveDraft, uploadPart } from '../api/homework';
+import { handIn, isRefusal, loadHomework, parentDecide, partUrl, saveDraft, uploadPart } from '../api/homework';
 import { AppError } from '../errors';
 
 type Result = { data: unknown; error: unknown };
 const mockRpc = jest.fn<(name: string, args: unknown) => Promise<Result>>();
 const mockUpload = jest.fn<(path: string, body: ArrayBuffer, opts: unknown) => Promise<{ error: { message: string; statusCode?: string } | null }>>();
 const mockRemove = jest.fn<(paths: string[]) => Promise<{ error: { message: string } | null }>>();
+const mockSign = jest.fn<(key: string, seconds: number) => Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>>();
 
 jest.mock('../supabase', () => ({
   supabase: {
     rpc: (name: string, args: unknown) => mockRpc(name, args),
-    storage: { from: () => ({ upload: (path: string, body: ArrayBuffer, opts: unknown) => mockUpload(path, body, opts), remove: (paths: string[]) => mockRemove(paths) }) },
+    storage: { from: () => ({ upload: (path: string, body: ArrayBuffer, opts: unknown) => mockUpload(path, body, opts), remove: (paths: string[]) => mockRemove(paths), createSignedUrl: (key: string, seconds: number) => mockSign(key, seconds) }) },
   },
 }));
 
@@ -285,5 +286,42 @@ describe('uploading a part', () => {
     mockUpload.mockResolvedValueOnce({ error: { message: 'boom' } });
     err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a.jpg' }).catch((e: unknown) => e);
     expect((err as AppError).userMessage).toBe("We couldn't upload this part. Please check your connection and try again.");
+  });
+});
+
+describe('links to stored parts', () => {
+  const path = (n: string) => `c1/${P1}/${S1}/${n}.jpg`;
+
+  it('signs a part once and reuses the link for most of its hour, so a reload of the answer does not sign every part again', async () => {
+    const now = jest.spyOn(Date, 'now');
+    now.mockReturnValue(1_000_000);
+    mockSign.mockResolvedValueOnce({ data: { signedUrl: 'https://signed/a?t=1' }, error: null });
+    expect(await partUrl(path('a'))).toBe('https://signed/a?t=1');
+    expect(mockSign).toHaveBeenLastCalledWith(path('a'), 3600);
+    expect(mockSign).toHaveBeenCalledTimes(1);
+    // Every reload of the answer asks again: the same link, nothing signed.
+    now.mockReturnValue(1_000_000 + 30 * 60 * 1000);
+    expect(await partUrl(path('a'))).toBe('https://signed/a?t=1');
+    expect(mockSign).toHaveBeenCalledTimes(1);
+    // Another part is its own link.
+    mockSign.mockResolvedValueOnce({ data: { signedUrl: 'https://signed/b?t=1' }, error: null });
+    expect(await partUrl(path('b'))).toBe('https://signed/b?t=1');
+    expect(mockSign).toHaveBeenCalledTimes(2);
+    // Near the end of the hour it is signed again, before the old link runs out.
+    now.mockReturnValue(1_000_000 + 51 * 60 * 1000);
+    mockSign.mockResolvedValueOnce({ data: { signedUrl: 'https://signed/a?t=2' }, error: null });
+    expect(await partUrl(path('a'))).toBe('https://signed/a?t=2');
+    expect(mockSign).toHaveBeenCalledTimes(3);
+    now.mockRestore();
+  });
+
+  it('does not remember a failure: the next ask signs again', async () => {
+    const log = quiet();
+    mockSign.mockResolvedValueOnce({ data: null, error: { message: 'Object not found' } });
+    const err = await partUrl(path('gone')).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    mockSign.mockResolvedValueOnce({ data: { signedUrl: 'https://signed/gone' }, error: null });
+    expect(await partUrl(path('gone'))).toBe('https://signed/gone');
+    log.mockRestore();
   });
 });

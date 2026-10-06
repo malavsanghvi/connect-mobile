@@ -21,7 +21,7 @@ function fileArgsOf(parts: readonly LocalPart[]): FileArg[] {
 }
 
 function initialParts(sub: Submission | null): LocalPart[] {
-  return keptFiles(sub).map((f) => ({ key: f.id, kind: f.kind, uri: null, storagePath: f.storagePath, fileId: f.id, mimeType: f.mimeType, fileName: null, bytes: f.bytes, durationSeconds: f.durationSeconds, state: 'uploaded', error: null }));
+  return keptFiles(sub).map((f) => ({ key: f.id, kind: f.kind, uri: null, storagePath: f.storagePath, mimeType: f.mimeType, fileName: null, bytes: f.bytes, durationSeconds: f.durationSeconds, state: 'uploaded', error: null }));
 }
 
 const BLOCK_KEY: Record<HandInBlock, 'hw.block.uploading' | 'hw.block.notUploaded' | 'hw.block.tooMany' | 'hw.block.textTooLong' | 'hw.block.empty'> = {
@@ -148,7 +148,7 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
     const key = newRequestId();
     setNotice(null);
     setError(null);
-    setParts((prev) => [...prev, { key, fileId: null, storagePath: null, state: 'uploading', error: null, ...part }]);
+    setParts((prev) => [...prev, { key, storagePath: null, state: 'uploading', error: null, ...part }]);
     void upload(key);
   };
 

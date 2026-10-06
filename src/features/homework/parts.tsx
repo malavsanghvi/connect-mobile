@@ -16,14 +16,13 @@ import { colors, fonts, radii, space, touch } from '@/theme';
 
 /**
  * A part of the answer as this phone knows it: one still on the phone (`uri`, being uploaded or not uploaded) or
- * one stored for the submission (`storagePath`). A stored part came from the server (`fileId`) or was uploaded here.
+ * one stored for the submission (`storagePath`; a part uploaded here whose registration failed has both).
  */
 export type LocalPart = {
   key: string;
   kind: PartKind;
   uri: string | null;
   storagePath: string | null;
-  fileId: string | null;
   mimeType: string | null;
   fileName: string | null;
   bytes: number | null;

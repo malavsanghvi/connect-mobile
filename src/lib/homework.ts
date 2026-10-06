@@ -45,8 +45,6 @@ export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_VOICE_SECONDS = 10 * 60;
 /** The private storage bucket of the parts (RLS: the learner, their household adults and their teachers). */
 export const HOMEWORK_BUCKET = 'homework';
-/** How long a signed link to a part is good for. */
-export const SIGNED_URL_SECONDS = 3600;
 
 export type HomeworkAssignment = {
   id: string;
@@ -90,7 +88,7 @@ export type Submission = {
   files: SubmissionFile[];
 };
 
-export type HomeworkPerson = { personId: string; name: string; isChild: boolean };
+export type HomeworkPerson = { personId: string; name: string };
 
 export type HomeworkItem = {
   assignment: HomeworkAssignment;
@@ -221,7 +219,7 @@ function parseItem(raw: unknown): HomeworkItem | null {
 }
 
 /**
- * Read the `app.my_gyan_homework(p_center)` answer: `{ people: [{person_id, name, is_child}], items: [{assignment, person_id,
+ * Read the `app.my_gyan_homework(p_center)` answer: `{ people: [{person_id, name, is_child}] (is_child is not used), items: [{assignment, person_id,
  * submission, needs_parent, can_parent_decide}] }`. Null when it is not an answer at all (no `items` list); an item that cannot
  * be read is counted in `skipped` and left out.
  */
@@ -232,7 +230,7 @@ export function parseHomework(raw: unknown): Homework | null {
     if (!isObject(p)) continue;
     const personId = str(p.person_id);
     if (!personId) continue;
-    people.push({ personId, name: str(p.name) ?? '', isChild: p.is_child === true });
+    people.push({ personId, name: str(p.name) ?? '' });
   }
   const items: HomeworkItem[] = [];
   let skipped = 0;

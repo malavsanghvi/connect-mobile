@@ -185,7 +185,17 @@ export async function removePart(path: string): Promise<void> {
   if (error) logError(`removing the homework upload ${path} (office cleanup may be needed)`, error);
 }
 
-/** A link to look at or play a stored part, good for an hour (the learner, their household adults and their teachers may read it). */
+/** A signed link is good for an hour (files.ts); one made less than this long ago is reused. */
+const SIGNED_REUSE_MS = 50 * 60 * 1000;
+/** The links already made, by path: every reload of the answer (after every write) would otherwise sign every stored part again. */
+const signedLinks = new Map<string, { url: string; until: number }>();
+
+/** A link to look at or play a stored part, good for an hour (the learner, their household adults and their teachers may read it). Signed once per path and reused for most of that hour. */
 export async function partUrl(path: string): Promise<string> {
-  return signedUrl(path, HOMEWORK_BUCKET, 'load this part of the homework');
+  const hit = signedLinks.get(path);
+  if (hit && hit.until > Date.now()) return hit.url;
+  const url = await signedUrl(path, HOMEWORK_BUCKET, 'load this part of the homework');
+  if (signedLinks.size >= 200) signedLinks.clear();
+  signedLinks.set(path, { url, until: Date.now() + SIGNED_REUSE_MS });
+  return url;
 }

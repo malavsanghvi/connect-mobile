@@ -139,8 +139,8 @@ describe('reading the my_gyan_homework answer', () => {
   it('reads the whole answer, counting what it had to leave out', () => {
     const hw = parseHomework(rawAnswer)!;
     expect(hw.people).toEqual([
-      { personId: P_ME, name: 'Priya Shah', isChild: false },
-      { personId: P_KID, name: 'Aarav Shah', isChild: true },
+      { personId: P_ME, name: 'Priya Shah' },
+      { personId: P_KID, name: 'Aarav Shah' },
     ]);
     expect(hw.items).toHaveLength(3);
     expect(hw.skipped).toBe(3);
