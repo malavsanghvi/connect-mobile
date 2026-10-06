@@ -431,6 +431,14 @@ describe('lists', () => {
 });
 
 describe('the accept celebration, once per device', () => {
+  it('celebrates for the learner only: a parent opening the child\'s accepted homework does not use it up', () => {
+    const accepted = parseSubmission({ ...rawSubmission, status: 'accepted' });
+    expect(shouldCelebrate([], accepted, 'learner')).toBe(true);
+    expect(shouldCelebrate([], accepted, 'parent')).toBe(false);
+    expect(shouldCelebrate([], accepted, 'none')).toBe(false);
+    expect(shouldCelebrate([], accepted)).toBe(true);
+  });
+
   it('celebrates an accepted answer this device has not seen', () => {
     const accepted = parseSubmission({ ...rawSubmission, status: 'accepted', points_awarded: 10 });
     expect(shouldCelebrate([], accepted)).toBe(true);

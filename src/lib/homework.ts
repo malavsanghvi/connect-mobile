@@ -660,9 +660,12 @@ export function parseCelebrated(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
 }
 
-/** An accepted answer this device has not celebrated yet. */
-export function shouldCelebrate(seen: readonly string[], sub: Submission | null): boolean {
-  return !!sub && sub.status === 'accepted' && !seen.includes(sub.id);
+/**
+ * An accepted answer this device has not celebrated yet, for the learner only: a parent who opens the child's accepted
+ * homework (to read the teacher's note, say) must not use up the child's burst and toast on this device.
+ */
+export function shouldCelebrate(seen: readonly string[], sub: Submission | null, viewer: Viewer = 'learner'): boolean {
+  return viewer === 'learner' && !!sub && sub.status === 'accepted' && !seen.includes(sub.id);
 }
 
 /** Add one, keeping only the newest `keep`. */

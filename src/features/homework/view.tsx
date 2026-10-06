@@ -8,7 +8,7 @@ import { PointsBurst } from '@/features/gyan/confetti';
 import { haptic } from '@/features/gyan/motion';
 import { logError } from '@/lib/errors';
 import { todayAt } from '@/lib/format';
-import { canDecide, canEdit, CELEBRATED_PREF, comebackNote, dueLine, firstNameOf, homeworkState, isOverdue, parseCelebrated, recordCelebrated, shouldCelebrate, STATE_LABEL, STATE_TONE, viewerFor, type HomeworkItem, type HomeworkPerson, type Submission } from '@/lib/homework';
+import { canDecide, canEdit, CELEBRATED_PREF, comebackNote, dueLine, firstNameOf, homeworkState, isOverdue, parseCelebrated, recordCelebrated, shouldCelebrate, STATE_LABEL, STATE_TONE, viewerFor, type HomeworkItem, type HomeworkPerson, type Submission, type Viewer } from '@/lib/homework';
 import { communityName } from '@/lib/learning';
 import { readPref, writePref } from '@/lib/storage';
 import { useApp } from '@/providers/app';
@@ -21,21 +21,22 @@ import { ParentDecision } from './decide';
 
 /**
  * "+N points" with confetti, the first time this device sees an accepted answer (the same burst a lesson's points
- * get). Remembered per submission on the device, so it never plays twice for one acceptance.
+ * get). Remembered per submission on the device, so it never plays twice for one acceptance. For the learner only:
+ * a parent looking at the child's accepted homework neither sees it nor uses it up.
  */
-function useAcceptedCelebration(sub: Submission | null): number | null {
+function useAcceptedCelebration(sub: Submission | null, viewer: Viewer): number | null {
   const t = useT();
   const { center } = useApp();
   const { toast } = useFeedback();
   const [burst, setBurst] = useState<number | null>(null);
-  const id = sub?.status === 'accepted' ? sub.id : null;
+  const id = viewer === 'learner' && sub?.status === 'accepted' ? sub.id : null;
   const points = sub?.pointsAwarded ?? 0;
   useEffect(() => {
     if (!id) return;
     let alive = true;
     readPref<unknown>(CELEBRATED_PREF, []).then((raw) => {
       const seen = parseCelebrated(raw);
-      if (!alive || !shouldCelebrate(seen, { id, status: 'accepted' } as Submission)) return;
+      if (!alive || !shouldCelebrate(seen, { id, status: 'accepted' } as Submission, viewer)) return;
       setBurst(Date.now());
       haptic('complete');
       toast(points > 0 ? t('hw.acceptedToast', { n: points, center: communityName(center) }) : t('hw.acceptedToastNoPoints'));
@@ -64,10 +65,10 @@ export function HomeworkView({ item, people }: { item: HomeworkItem; people: Hom
   const [written, setWritten] = useState<{ sub: Submission; over: Submission | null } | null>(null);
   const [editingAgain, setEditingAgain] = useState(false);
   const sub = written && written.over === item.submission ? written.sub : item.submission;
-  const burst = useAcceptedCelebration(sub);
-  if (!center || !member) return null;
   // Who may do what comes from the answer's own people list (every household the reader is in); the family roster is for names.
-  const viewer = viewerFor(item.personId, { personId: member.person.id, isAdult: member.isAdult }, people);
+  const viewer = member ? viewerFor(item.personId, { personId: member.person.id, isAdult: member.isAdult }, people) : 'none';
+  const burst = useAcceptedCelebration(sub, viewer);
+  if (!center || !member) return null;
   const family = member.members.find((m) => m.person.id === item.personId)?.person;
   const learnerName = family ? family.preferred_name || family.first_name : firstNameOf(people.find((p) => p.personId === item.personId)?.name ?? '');
   const today = todayAt(center.time_zone);
