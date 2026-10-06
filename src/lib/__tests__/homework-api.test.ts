@@ -1,0 +1,126 @@
+import { describe, expect, it, jest } from '@jest/globals';
+
+import { handIn, loadHomework, parentDecide, saveDraft, uploadPart } from '../api/homework';
+import { AppError } from '../errors';
+
+type Result = { data: unknown; error: unknown };
+const mockRpc = jest.fn<(name: string, args: unknown) => Promise<Result>>();
+const mockUpload = jest.fn<(path: string, body: ArrayBuffer, opts: unknown) => Promise<{ error: { message: string; statusCode?: string } | null }>>();
+const mockRemove = jest.fn<(paths: string[]) => Promise<{ error: { message: string } | null }>>();
+
+jest.mock('../supabase', () => ({
+  supabase: {
+    rpc: (name: string, args: unknown) => mockRpc(name, args),
+    storage: { from: () => ({ upload: (path: string, body: ArrayBuffer, opts: unknown) => mockUpload(path, body, opts), remove: (paths: string[]) => mockRemove(paths) }) },
+  },
+}));
+
+const A1 = '11111111-1111-4111-8111-111111111111';
+const P1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const S1 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+const submission = { id: S1, status: 'draft', attempt: 1, text_answer: null, submitted_at: null, parent_note: null, review_note: null, decided_at: null, points_awarded: 0, late: false, files: [] };
+
+function quiet(): jest.SpiedFunction<typeof console.error> {
+  return jest.spyOn(console, 'error').mockImplementation(() => undefined);
+}
+
+describe('loading homework', () => {
+  it('asks app.my_gyan_homework for the community and reads the answer', async () => {
+    mockRpc.mockResolvedValueOnce({ data: { people: [], items: [{ assignment: { id: A1, title: 'Draw it', allowed_kinds: ['photo'] }, person_id: P1, submission: null, needs_parent: true, can_parent_decide: false }] }, error: null });
+    const res = await loadHomework('center-1');
+    expect(mockRpc).toHaveBeenCalledWith('my_gyan_homework', { p_center: 'center-1' });
+    expect(res.kind).toBe('answered');
+    if (res.kind !== 'answered') return;
+    expect(res.homework.items[0]).toMatchObject({ personId: P1, needsParent: true });
+  });
+
+  it('treats a portal without the function as "not offered", logged once', async () => {
+    const log = quiet();
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function app.my_gyan_homework(p_center) in the schema cache' } });
+    expect(await loadHomework('center-1')).toEqual({ kind: 'missing' });
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '42883', message: 'function app.my_gyan_homework(uuid) does not exist' } });
+    expect(await loadHomework('center-1')).toEqual({ kind: 'missing' });
+    expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
+  });
+
+  it('fails in plain English when it cannot be had or is not an answer', async () => {
+    const log = quiet();
+    mockRpc.mockResolvedValueOnce({ data: null, error: new TypeError('Network request failed') });
+    let err = await loadHomework('center-1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).userMessage).toBe("We couldn't load your homework. Check your internet connection and try again.");
+    mockRpc.mockResolvedValueOnce({ data: 'nonsense', error: null });
+    err = await loadHomework('center-1').catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toBe("We couldn't load your homework — the answer was not what we expected. Please try again.");
+    log.mockRestore();
+  });
+});
+
+describe('writing homework', () => {
+  it('saves a draft with the whole set of parts and reads the submission back', async () => {
+    mockRpc.mockResolvedValueOnce({ data: { ...submission, text_answer: 'Hi' }, error: null });
+    const files = [{ kind: 'photo' as const, storage_path: 'c/p/s/x.jpg', mime_type: 'image/jpeg', bytes: 10, duration_seconds: null }];
+    const sub = await saveDraft({ assignmentId: A1, personId: P1, text: 'Hi', files });
+    expect(mockRpc).toHaveBeenLastCalledWith('save_gyan_submission_draft', { p_assignment: A1, p_person: P1, p_text: 'Hi', p_files: files });
+    expect(sub).toMatchObject({ id: S1, status: 'draft', textAnswer: 'Hi' });
+  });
+
+  it('hands in and lets a parent decide, passing the note', async () => {
+    mockRpc.mockResolvedValueOnce({ data: { ...submission, status: 'awaiting_parent' }, error: null });
+    expect((await handIn(S1)).status).toBe('awaiting_parent');
+    expect(mockRpc).toHaveBeenLastCalledWith('hand_in_gyan_submission', { p_submission: S1 });
+    mockRpc.mockResolvedValueOnce({ data: { ...submission, status: 'draft', parent_note: 'Slower' }, error: null });
+    expect((await parentDecide(S1, 'send_back', 'Slower')).parentNote).toBe('Slower');
+    expect(mockRpc).toHaveBeenLastCalledWith('parent_decide_gyan_submission', { p_submission: S1, p_decision: 'send_back', p_note: 'Slower' });
+  });
+
+  it("shows the database's refusal as it is, and says when homework is not offered", async () => {
+    const log = quiet();
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'Only a parent in the family can decide this' } });
+    let err = await parentDecide(S1, 'ok', null).catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toBe('Only a parent in the family can decide this.');
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function app.hand_in_gyan_submission' } });
+    err = await handIn(S1).catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toMatch(/isn't available in your community yet/);
+    mockRpc.mockResolvedValueOnce({ data: { id: 'x' }, error: null });
+    err = await handIn(S1).catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toBe("We couldn't hand in your homework — the answer was not what we expected. Please try again.");
+    log.mockRestore();
+  });
+});
+
+describe('uploading a part', () => {
+  const fetchSpy = jest.spyOn(globalThis, 'fetch');
+
+  it('reads the file, puts it under the center, person and submission, and describes it for the draft', async () => {
+    fetchSpy.mockResolvedValueOnce({ arrayBuffer: async () => new ArrayBuffer(12) } as unknown as Response);
+    mockUpload.mockResolvedValueOnce({ error: null });
+    const part = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'voice', uri: 'file:///rec/a.m4a', durationSeconds: 42 });
+    expect(part).toMatchObject({ kind: 'voice', mime_type: 'audio/mp4', bytes: 12, duration_seconds: 42 });
+    expect(part.storage_path).toMatch(new RegExp(`^c1/${P1}/${S1}/[0-9a-f-]{36}\\.m4a$`));
+    expect(mockUpload).toHaveBeenCalledWith(part.storage_path, expect.any(ArrayBuffer), { contentType: 'audio/mp4', upsert: false });
+  });
+
+  it('refuses a part over 25 MB before sending anything, and says when the file could not be read', async () => {
+    fetchSpy.mockResolvedValueOnce({ arrayBuffer: async () => new ArrayBuffer(25 * 1024 * 1024 + 1) } as unknown as Response);
+    let err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///big.jpg' }).catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toBe('This photo is larger than 25 MB. Please choose a smaller one.');
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    fetchSpy.mockRejectedValueOnce(new Error('ENOENT'));
+    err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///gone.jpg' }).catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toBe("We couldn't read that photo from your device. Please choose it again.");
+  });
+
+  it('says when the bucket is not set up, or the upload failed', async () => {
+    fetchSpy.mockResolvedValueOnce({ arrayBuffer: async () => new ArrayBuffer(3) } as unknown as Response);
+    mockUpload.mockResolvedValueOnce({ error: { message: 'Bucket not found', statusCode: '404' } });
+    let err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a.jpg' }).catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toMatch(/aren't set up for your community yet/);
+    fetchSpy.mockResolvedValueOnce({ arrayBuffer: async () => new ArrayBuffer(3) } as unknown as Response);
+    mockUpload.mockResolvedValueOnce({ error: { message: 'boom' } });
+    err = await uploadPart({ centerId: 'c1', personId: P1, submissionId: S1, kind: 'photo', uri: 'file:///a.jpg' }).catch((e: unknown) => e);
+    expect((err as AppError).userMessage).toBe("We couldn't upload this part. Please check your connection and try again.");
+  });
+});

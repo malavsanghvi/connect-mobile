@@ -152,6 +152,8 @@ export const HOME_CARD_MODULE = {
   railListen: 'content',
   railPhotos: 'content',
   railRecipes: 'content',
+  /** The "Needs your OK" strip (a child's homework waiting for a parent) and the Family tab's homework lines. */
+  homework: 'gyan_path',
 } as const satisfies Record<string, ModuleKey | null>;
 
 export type HomeCard = keyof typeof HOME_CARD_MODULE;
@@ -317,6 +319,8 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   'gyan/index': 'gyan_path',
   'gyan/[goalId]/index': 'gyan_path',
   'gyan/[goalId]/level/[levelId]': 'gyan_path',
+  'gyan/homework/index': 'gyan_path',
+  'gyan/homework/[assignmentId]': 'gyan_path',
   puja: 'gyan_path', // the virtual puja (the Navang puja lesson's practice step)
   'pathshala-scan': 'pathshala',
   'pathshala-enroll': 'pathshala',
@@ -382,6 +386,8 @@ export const ROUTE_FEATURE: Record<string, FeatureKey> = {
   'gyan/index': 'learn',
   'gyan/[goalId]/index': 'learn',
   'gyan/[goalId]/level/[levelId]': 'learn',
+  'gyan/homework/index': 'learn',
+  'gyan/homework/[assignmentId]': 'learn',
   // 3L: recipes are Look; the playlist and the random podcast are Listen
   'recipe/[id]': 'look',
   'recipe/random': 'look',

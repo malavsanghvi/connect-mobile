@@ -54,4 +54,27 @@ describe('notification routes', () => {
       expect(routeForNotification({ survey_id: SURVEY, deep_link: `survey/${SURVEY}` }, null)).toBeNull();
     });
   });
+
+  describe('homework pushes (connect-crm 0587)', () => {
+    const ASSIGNMENT = '11111111-1111-4111-8111-111111111111';
+    const PERSON = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const target = { pathname: '/gyan/homework/[assignmentId]', params: { assignmentId: ASSIGNMENT, person: PERSON } };
+    it('open the homework the deep link names, for the learner and for a parent', () => {
+      expect(notificationTarget({ type: 'homework', deep_link: `/gyan/homework/${ASSIGNMENT}?person=${PERSON}` })).toEqual(target);
+      expect(notificationTarget({ type: 'homework_parent', deep_link: `/gyan/homework/${ASSIGNMENT}?person=${PERSON}` })).toEqual(target);
+      expect(notificationTarget({ type: 'homework', deep_link: `gyan/homework/${ASSIGNMENT}` })).toEqual({ pathname: '/gyan/homework/[assignmentId]', params: { assignmentId: ASSIGNMENT } });
+    });
+    it('follow the deep link without a type too', () => {
+      expect(notificationTarget({ deep_link: `/gyan/homework/${ASSIGNMENT}?person=${PERSON}` })).toEqual(target);
+    });
+    it('read the ids from fields when there is no link', () => {
+      expect(notificationTarget({ type: 'homework', assignment_id: ASSIGNMENT, person_id: PERSON })).toEqual(target);
+      expect(notificationTarget({ type: 'homework_parent', assignment_id: ASSIGNMENT })).toEqual({ pathname: '/gyan/homework/[assignmentId]', params: { assignmentId: ASSIGNMENT } });
+    });
+    it('open the homework list when the worker forwarded no payload yet (README gap 29)', () => {
+      expect(notificationTarget({ type: 'homework' })).toEqual({ pathname: '/gyan/homework' });
+      expect(notificationTarget({ type: 'homework_parent', deep_link: 'gyan/homework/not-an-id' })).toEqual({ pathname: '/gyan/homework' });
+      expect(notificationTarget({ deep_link: 'gyan/homework/not-an-id' })).toBeNull();
+    });
+  });
 });

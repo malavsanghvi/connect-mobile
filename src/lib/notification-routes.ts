@@ -10,6 +10,8 @@
  *   categoryIdentifier: one of NOTIFICATION_CATEGORIES (for inline buttons)
  */
 
+import { parseHomeworkLink } from './homework';
+
 export type NotificationData = Record<string, unknown>;
 
 /** An expo-router location: pathname plus string params. */
@@ -33,14 +35,15 @@ function str(v: unknown): string | null {
 /**
  * Target for a notification's data, or null when nothing here knows it (the
  * app just opens). A push without a `type` may still carry a `deep_link`
- * ("survey/<id>", as connect-crm queues for event feedback); that opens too
- * (survey links are the only ones known).
+ * ("survey/<id>", as connect-crm queues for event feedback, or
+ * "/gyan/homework/<id>?person=<id>" for homework); that opens too (survey and
+ * homework links are the only ones known).
  */
 export function notificationTarget(data: unknown): NotificationTarget | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const d = data as NotificationData;
   const type = str(d.type);
-  if (!type) return surveyTarget(d);
+  if (!type) return surveyTarget(d) ?? homeworkLinkTarget(d);
   const route = routes.get(type);
   if (!route) return null;
   return route.open(d);
@@ -111,3 +114,32 @@ function surveyTarget(d: NotificationData): NotificationTarget | null {
 
 registerNotificationRoute(EVENT_SURVEY, { open: surveyTarget });
 registerNotificationRoute(EVENT_SURVEY_REMINDER, { open: surveyTarget });
+
+// ---------------------------------------------------------------------------
+// Homework (connect-crm 0587): "homework" to the learner (assigned, sent back,
+// accepted) and "homework_parent" to the household adults (a child's answer
+// waits for their OK; the teacher's decision). Both carry deep_link
+// "/gyan/homework/<assignment id>?person=<person id>" once the worker forwards
+// the payload (README gap 29); until then a tap opens the homework list.
+// ---------------------------------------------------------------------------
+
+export const HOMEWORK = 'homework';
+export const HOMEWORK_PARENT = 'homework_parent';
+
+/** The homework a push points at: its deep link, else assignment_id (+ person_id) fields. Null when neither is usable. */
+function homeworkLinkTarget(d: NotificationData): NotificationTarget | null {
+  const link = parseHomeworkLink(str(d.deep_link));
+  const assignmentId = link?.assignmentId ?? (UUID.test(str(d.assignment_id) ?? '') ? (str(d.assignment_id) as string) : null);
+  if (!assignmentId) return null;
+  const fromField = str(d.person_id);
+  const personId = link?.personId ?? (fromField && UUID.test(fromField) ? fromField : null);
+  return { pathname: '/gyan/homework/[assignmentId]', params: { assignmentId, ...(personId ? { person: personId } : {}) } };
+}
+
+/** The item when the push says which; otherwise the homework list, so a tap still lands on the homework. */
+function homeworkTarget(d: NotificationData): NotificationTarget {
+  return homeworkLinkTarget(d) ?? { pathname: '/gyan/homework' };
+}
+
+registerNotificationRoute(HOMEWORK, { open: homeworkTarget });
+registerNotificationRoute(HOMEWORK_PARENT, { open: homeworkTarget });
