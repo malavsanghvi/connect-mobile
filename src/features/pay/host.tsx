@@ -31,7 +31,7 @@ type SavingState = { job: SavingJob; resolve: (o: SavingOutcome) => void; done: 
 export function PayHost() {
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [saving, setSaving] = useState<SavingState | null>(null);
-  const [paid, setPaid] = useState<{ amountCents: number } | null>(null);
+  const [paid, setPaid] = useState<{ amountCents: number; context: PaymentRequest['context'] } | null>(null);
   const savingRef = useRef<SavingState | null>(null);
   // "I sent it" opens a screen once, however many times it is tapped while the sheet slides away.
   const openingReport = useRef(false);
@@ -103,9 +103,9 @@ export function PayHost() {
     setSheet({ ...sheet, busy: true, error: null });
     try {
       const res = await charge(sheet.req, chosenOnline(methods, sheet.choice) ?? undefined);
-      const amountCents = sheet.req.amountCents;
+      const { amountCents, context } = sheet.req;
       closeSheet({ status: 'paid', paymentId: res.paymentId });
-      setTimeout(() => setPaid({ amountCents }), MODAL_GAP_MS);
+      setTimeout(() => setPaid({ amountCents, context }), MODAL_GAP_MS);
     } catch (err) {
       setSheet((s) => (s ? { ...s, busy: false, error: report(err, 'take your payment').userMessage } : s));
     }
@@ -324,6 +324,7 @@ function PaySheet({
                 </Txt>
               ) : null}
               <Button label={t('pay.confirm')} tone="black" onPress={onConfirm} busy={state?.busy} />
+              {req?.alternative?.withOnline && !state?.busy ? <Button label={req.alternative.label} tone="secondary" size="md" onPress={onAlternative} /> : null}
             </>
           ) : (
             <>
@@ -426,14 +427,18 @@ function SavingView({ state, onRetry, onClose, onContinue }: { state: SavingStat
   );
 }
 
-/** Prototype "Thank you" (L443). Shown only after a real, successful charge. */
-function ThankYou({ state, onClose }: { state: { amountCents: number } | null; onClose: () => void }) {
+/**
+ * Prototype "Thank you" (L443). Shown only after a real, successful charge. A Pathshala fee is a payment, not a gift
+ * (plan P13): "Fee paid", no tax receipt, and the member stays where they paid from.
+ */
+function ThankYou({ state, onClose }: { state: { amountCents: number; context: PaymentRequest['context'] } | null; onClose: () => void }) {
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const fee = state?.context === 'pathshala';
   const back = () => {
     onClose();
-    router.navigate('/give');
+    if (!fee) router.navigate('/give');
   };
   return (
     <Modal visible={!!state} animationType="fade" onRequestClose={back}>
@@ -444,12 +449,12 @@ function ThankYou({ state, onClose }: { state: { amountCents: number } | null; o
           </Txt>
         </View>
         <Txt variant="display" center accessibilityRole="header" style={{ fontFamily: fonts.display, fontSize: 28, lineHeight: 34 }}>
-          {t('paid.title')}
+          {fee ? t('paid.feeTitle') : t('paid.title')}
         </Txt>
         <Txt variant="body" color="ink2" center>
-          {t('paid.body', { amount: formatCents(state?.amountCents ?? 0) })}
+          {t(fee ? 'paid.feeBody' : 'paid.body', { amount: formatCents(state?.amountCents ?? 0, { alwaysCents: fee }) })}
         </Txt>
-        <Button label={t('paid.back')} tone="secondary" size="md" fill={false} style={{ paddingHorizontal: 28, minHeight: touch.secondary }} onPress={back} />
+        <Button label={fee ? t('common.done') : t('paid.back')} tone="secondary" size="md" fill={false} style={{ paddingHorizontal: 28, minHeight: touch.secondary }} onPress={back} />
       </View>
     </Modal>
   );

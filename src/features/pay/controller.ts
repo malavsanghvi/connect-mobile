@@ -32,14 +32,19 @@ export type PaymentRequest = {
   pledgeNumber?: string | null;
   /** Several saved pledges (Family pledges → Pay N pledges). */
   pledgeIds?: string[];
-  /** Where the payment was started from. */
-  context: 'rsvp' | 'rsvp_later' | 'pledges' | 'opportunity' | 'labh' | 'store' | 'other';
+  /**
+   * Where the payment was started from. `pathshala` is a Pathshala fee (connect-crm 0591 adds it to the checkout
+   * contexts): the success screen says "Fee paid", never the donation thank-you or a tax receipt.
+   */
+  context: 'rsvp' | 'rsvp_later' | 'pledges' | 'opportunity' | 'labh' | 'store' | 'pathshala' | 'other';
   /**
    * An explicit, labelled alternative shown on the sheet while card payment is
    * not connected (e.g. "Save as a pledge instead", "Place order · pay at
    * pickup"). It runs only when the member taps it — nothing is saved silently.
+   * `withOnline` shows it beside the online payment too ("Pay at the office
+   * instead" for a Pathshala seat held for payment).
    */
-  alternative?: { label: string; run: () => void };
+  alternative?: { label: string; run: () => void; withOnline?: boolean };
 };
 
 export type PaymentOutcome = { status: 'not_available' } | { status: 'paid'; paymentId: string } | { status: 'cancelled' } | { status: 'alternative' };
