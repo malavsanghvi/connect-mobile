@@ -27,9 +27,11 @@ export type LevelLearner = LearnerAge & { name: string; suggested: RegSuggestion
 
 /**
  * Step 2, "Level for each learner" (plan §3.1): per learner and track, the database's suggestion preselected with its
- * reason, the levels for their age first and "Other levels" below (outside the band: the office confirms, P24), each
- * with its fee and Seats open / Waitlist / Full. "Not sure, let the office decide" in a pledge-mode term only (P25).
- * "Also take Gujarati" adds a track (P10).
+ * reason, the levels for their age first and "Other levels" below (a child's level outside their ages: the office
+ * confirms, P24), each with its fee and Seats open / Waitlist / Full. "Not sure, let the office decide" in a
+ * pledge-mode term only (P25). "Also take Gujarati" adds a track (P10), for a child being added too: the database knows
+ * them by name and birth date, so they stay one child (one request to add them, one rank, one late fee). The note is
+ * for the office and is not private (teachers and the committee read it): fee assistance is asked for on the review.
  */
 export function LevelsStep({
   selections,
@@ -56,7 +58,7 @@ export function LevelsStep({
       <StepHeader eyebrow={eyebrow} title={t('reg.levels.title')} />
       {selections.map((s) => {
         const learner = learnerOf(s);
-        const more = learner.isNewChild ? [] : learner.free.filter((tr) => !s.tracks.some((c) => c.trackId === tr.id));
+        const more = learner.free.filter((tr) => !s.tracks.some((c) => c.trackId === tr.id));
         return (
           <Card key={s.key}>
             <Txt variant="cardTitle" accessibilityRole="header">
@@ -84,7 +86,7 @@ export function LevelsStep({
                 ))}
               </Row>
             ) : null}
-            <TextField label={t('reg.levels.note', { name: learner.name })} hint={t('common.optional')} value={s.note} onChangeText={(v) => onNote(s.key, v)} multiline maxLength={500} />
+            <TextField label={t('reg.levels.note', { name: learner.name })} hint={t('reg.levels.noteHint')} value={s.note} onChangeText={(v) => onNote(s.key, v)} multiline maxLength={500} />
           </Card>
         );
       })}

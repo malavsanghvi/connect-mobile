@@ -50,6 +50,17 @@ export function StartStep({
           : t('reg.start.openNoEnd')
         : null;
 
+  // The family rules of the term's fees (children only, P23): the sibling discount and the family cap.
+  const cap = term.familyCapCents !== null ? formatCents(term.familyCapCents, { alwaysCents: true }) : null;
+  const familyLine =
+    term.siblingDiscountPct > 0 && cap
+      ? t('reg.start.siblingCap', { pct: term.siblingDiscountPct, cap })
+      : term.siblingDiscountPct > 0
+        ? t('reg.start.sibling', { pct: term.siblingDiscountPct })
+        : cap
+          ? t('reg.start.cap', { cap })
+          : null;
+
   const modeLine =
     term.paymentMode === 'pay_now'
       ? term.officePayment.allowed
@@ -102,7 +113,9 @@ export function StartStep({
           <FactLine text={membership === 'member' ? t('reg.start.member') : membership === 'applying' ? t('reg.start.applying') : t('reg.start.notMember')} tone={membership === 'member' ? 'green' : 'brown'} />
         ) : null}
         <FactLine text={modeLine} />
+        {familyLine ? <FactLine text={familyLine} /> : null}
         {term.seatRule === 'office' ? <FactLine text={t('reg.start.officeStep')} /> : null}
+        {term.firstClassOn ? <FactLine text={t('reg.start.firstClass', { date: whenText(term.firstClassOn, timeZone) })} /> : null}
         {term.ageCutoffOn ? <FactLine text={t('reg.start.ages', { date: formatLongDate(term.ageCutoffOn) })} /> : null}
       </Card>
       {term.membershipRequired && membership === 'none' && !block ? <Button label={t('reg.start.applyCta')} tone="secondary" size="md" icon="ribbon-outline" onPress={() => router.push('/guide/apply')} /> : null}

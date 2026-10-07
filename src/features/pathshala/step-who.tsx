@@ -5,7 +5,7 @@ import { Banner, Button, Card, Checkbox, Chip, ChipGroup, LinkText, Row, TextFie
 import { saveBirthDate } from '@/lib/api/pathshala';
 import { report } from '@/lib/errors';
 import { parseDobInput } from '@/lib/format';
-import { enrollmentStatus, type LearnerRow, type NewChild, type RegistrationOptions, type Selection } from '@/lib/pathshala-registration';
+import { enrollmentStatus, myWaiverHolds, type LearnerRow, type NewChild, type RegistrationOptions, type Selection } from '@/lib/pathshala-registration';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
@@ -22,8 +22,9 @@ const RELATIONSHIPS = [
 /**
  * Step 1, "Who is joining" (plan §3.1): everyone in the household with their age on the term's cut-off date, children
  * first, then adult learners ("me" included; adults pay the adult class fee with no sibling discount, P23). Those
- * already registered show where they stand and can only add another track. A learner whose price depends on a
- * missing birth date is asked for it. A child who is not on the family yet can be added: the office adds them first.
+ * already registered show where they stand and can only add another track; the signed-in adult whose registration
+ * (made by another adult) waits for their agreement to the waiver chooses themself to agree. A learner the database
+ * has no birth date for is asked for it. A child who is not on the family yet can be added: the office adds them first.
  */
 export function WhoStep({
   options,
@@ -74,6 +75,7 @@ export function WhoStep({
               return track ? t('reg.who.taken', { track, status }) : status;
             }),
             !row.selectable ? (row.live.length > 0 ? t('reg.who.allTaken') : t('reg.who.noLevels', { name: l.firstName })) : null,
+            row.selectable && myWaiverHolds({ ...l, isMe: row.isMe }).length > 0 ? t('reg.who.agreeMine') : null,
             row.selectable && l.needsBirthDate ? t('reg.who.dobAsk', { name: l.firstName }) : null,
           ]
             .filter(Boolean)

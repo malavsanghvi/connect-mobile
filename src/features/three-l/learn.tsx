@@ -109,17 +109,19 @@ function GyanHero() {
 
 /**
  * Pathshala enrollments, attendance and reports (formerly Learn), with Register and teach. Each line says where it
- * stands (registered, a seat held until a time, a seat offered from the waitlist, waitlisted, waiting for membership or
- * the office); a household adult also sees the fee with Pay (a held seat: its countdown, Pay for the registration's
- * held seats and "Pay at the office instead" when the term allows it). A child never sees fees (plan P30).
+ * stands (registered, a seat held until a time, a seat offered from the waitlist, waitlisted, waiting for membership,
+ * the waiver or the office); a household adult also sees the fee with Pay (a held seat: its countdown, Pay for the
+ * registration's held seats and "Pay at the office instead" when the term allows it). An adult another adult
+ * registered agrees to the waiver from their own line. A child never sees fees, nor the holds about them (plan P30).
  */
 function PathshalaBlock() {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
   const adult = !!member?.isAdult;
-  const pathshala = useLoad(() => (member?.household ? loadPathshala(member.household.id, { fees: adult }) : Promise.resolve([])), [member?.household?.id, adult], 'load Pathshala');
-  const anyHeld = (pathshala.data ?? []).some((r) => enrollmentStatus(r.status, r.hold).heldForPayment);
+  const viewer = { adult };
+  const pathshala = useLoad(() => (member?.household ? loadPathshala(member.household.id, { adult }) : Promise.resolve([])), [member?.household?.id, adult], 'load Pathshala');
+  const anyHeld = (pathshala.data ?? []).some((r) => enrollmentStatus(r.status, r.hold, viewer).heldForPayment);
   const now = useNow(30000, adult && anyHeld);
   const nameOf = (personId: string) => {
     const p = member?.members.find((m) => m.person.id === personId)?.person;
@@ -149,8 +151,10 @@ function PathshalaBlock() {
                 const enrolled = r.status === 'placed' || r.status === 'active';
                 const pending = r.status === 'requested' || r.status === 'waitlisted';
                 const canScan = !!student && enrolled && (student.person.id === member?.person.id || !!member?.isAdult);
-                const view = enrollmentStatus(r.status, r.hold);
+                const view = enrollmentStatus(r.status, r.hold, viewer);
                 const statusLabel = pending ? t(view.key, { until: whenText(view.until, center?.time_zone) }) : t(`enroll.${r.status}` as 'enroll.requested');
+                // Another adult registered me: I agree to the waiver in my own app, and the same registration goes ahead.
+                const myWaiver = adult && r.status === 'requested' && r.hold.holdReason === 'waiver' && r.student_person_id === member?.person.id;
                 const a = attendanceSummary(r.attendance);
                 return (
                   <View key={r.id} style={{ gap: 6 }}>
@@ -162,6 +166,11 @@ function PathshalaBlock() {
                         <Txt variant="meta" color={view.heldForPayment ? 'brownDark' : 'muted'} style={{ fontFamily: fonts.bodySemi }}>
                           {statusLabel}
                         </Txt>
+                        {myWaiver ? (
+                          <Row style={{ flexWrap: 'wrap' }}>
+                            <Button label={t('learn.agreeWaiver')} tone="secondary" size="sm" fill={false} onPress={() => router.push({ pathname: '/pathshala-enroll', params: { term: r.term_id } })} />
+                          </Row>
+                        ) : null}
                       </View>
                     ) : (
                       <>

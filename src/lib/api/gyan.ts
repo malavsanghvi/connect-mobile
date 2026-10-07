@@ -8,10 +8,10 @@ import { isMissingBucket } from './photos';
 
 import { classSchedule, continueGoalId, registrationOpen, todayAtMinutes, type AttendanceMark, type DailyMinutes } from '../learning';
 import { buildGyanSummary, goalProgress, GYAN_SUMMARY_COLUMNS, isLevelDone, isStepDone, lastActivityByGoal, type GoalProgress as GoalProgressOf, type GyanSummary, type ProgressMark } from '../gyan-progress';
-import { holdInfo, type FeePledge, type HoldInfo } from '../pathshala-registration';
+import type { FeePledge, HoldInfo } from '../pathshala-registration';
 
 import type { Center } from './member';
-import { loadFeePledges, termAllowsOffice } from './pathshala';
+import { enrollmentHolds, loadFeePledges, termAllowsOffice } from './pathshala';
 
 // The progress arithmetic is pure and lives in src/lib/gyan-progress.ts (with the summary Home reads); it is re-exported here so every screen keeps one place to import from.
 export { goalProgress, isLevelDone, isStepDone, lastActivityByGoal };
@@ -242,22 +242,27 @@ export type Enrollment = Tables<'pathshala_enrollments'> & {
   attendance: AttendanceMark[];
   /** Published progress reports, newest first. */
   reports: ProgressReport[];
-  /** A seat held for payment, an offer from the waitlist, another hold (connect-crm 0591 columns; all null before 0591). */
+  /**
+   * A seat held for payment, an offer from the waitlist, another hold (connect-crm 0591; all null before 0591), as
+   * src/lib/api/pathshala.ts `enrollmentHolds` gives them to this viewer: a child never sees the fee ones (P30).
+   */
   hold: HoldInfo;
   /** The term lets a family pay at the office instead (0590; false before). */
   officePaymentAllowed: boolean;
-  /** The enrollment's fee pledges: loaded for a household adult only (`fees: true`); a child never sees fees (plan P30). */
+  /** The enrollment's fee pledges: loaded for a household adult only (`adult: true`); a child never sees fees (plan P30). */
   fees: FeePledge[];
 };
 
-export async function loadPathshala(householdId: string, opts: { fees?: boolean } = {}): Promise<Enrollment[]> {
+/** The household's enrollments for 3L › Learn. `adult`: the viewer is an adult of the household (the fees and the holds about them are theirs to see, P30). */
+export async function loadPathshala(householdId: string, opts: { adult?: boolean } = {}): Promise<Enrollment[]> {
   const rows = must(await supabase.from('pathshala_enrollments').select('*').eq('household_id', householdId).neq('status', 'withdrawn').order('registered_at', { ascending: false }), 'load Pathshala enrollments');
   if (rows.length === 0) return [];
   const termIds = [...new Set(rows.map((r) => r.term_id))];
   const classIds = [...new Set(rows.map((r) => r.class_id).filter((x): x is string => !!x))];
   const levelIds = [...new Set(rows.map((r) => r.requested_level_id).filter((x): x is string => !!x))];
   const enrollmentIds = rows.map((r) => r.id);
-  const [terms, classes, levels, marks, reports, fees] = await Promise.all([
+  const adult = opts.adult === true;
+  const [terms, classes, levels, marks, reports, fees, holds] = await Promise.all([
     // Every column: the payment rules of 0590 (office_payment_allowed) are not in the generated types yet.
     supabase.from('pathshala_terms').select('*').in('id', termIds).then((r) => must(r, 'load Pathshala terms')),
     classIds.length ? supabase.from('pathshala_classes').select('id, name, meets_on, starts_time, level_id').in('id', classIds).then((r) => must(r, 'load Pathshala classes')) : Promise.resolve([]),
@@ -270,7 +275,8 @@ export async function loadPathshala(householdId: string, opts: { fees?: boolean 
       .not('published_at', 'is', null)
       .order('published_at', { ascending: false })
       .then((r) => must(r, 'load Pathshala progress reports')),
-    opts.fees ? loadFeePledges(householdId, enrollmentIds) : Promise.resolve([] as FeePledge[]),
+    adult ? loadFeePledges(householdId, enrollmentIds) : Promise.resolve([] as FeePledge[]),
+    enrollmentHolds(rows, { adult }),
   ]);
   return rows.map((r) => {
     const cls = classes.find((c) => c.id === r.class_id);
@@ -284,7 +290,7 @@ export async function loadPathshala(householdId: string, opts: { fees?: boolean 
       // Parents can't read pathshala_sessions, so the class day is when it was marked.
       attendance: marks.filter((m) => m.enrollment_id === r.id).map((m) => ({ status: m.status, held_on: m.marked_at.slice(0, 10) })),
       reports: reports.filter((p) => p.enrollment_id === r.id),
-      hold: holdInfo(r as unknown as Record<string, unknown>),
+      hold: holds.get(r.id) as HoldInfo,
       officePaymentAllowed: term ? termAllowsOffice(term as unknown as Record<string, unknown>) : false,
       fees: fees.filter((f) => f.enrollmentId === r.id),
     };

@@ -33,13 +33,19 @@ function signed(p: ReviewPart): string {
   return p.cents < 0 ? `−${money(-p.cents)}` : `+${money(p.cents)}`;
 }
 
-export type PreviewState = { status: 'idle' } | { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; result: RegistrationResult; learners: Record<string, unknown>[]; clientKey: string };
+/** The preview: `refused` when the database said no in its own words (trying again would not change it). */
+export type PreviewState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error'; message: string; refused: boolean }
+  | { status: 'ready'; result: RegistrationResult; learners: Record<string, unknown>[]; clientKey: string };
 
 /**
  * Step 3, "Review the fee" (plan §3.1): one line per learner and track exactly as the database priced it (level fee,
- * sibling discount, family cap, late fee, fee assistance, the line's total), what happens to each line, the children's
- * and the adults' totals and the family total; then what registering does (added to the pledges, or paid now with the
- * seats held), the withdrawal rule, and "Ask about fee assistance". Nothing is worked out here.
+ * sibling discount, family cap, late fee, fee assistance, the line's total; a "not sure" line is priced when the office
+ * places them), what happens to each line, the children's and the adults' totals and the family total; then what
+ * registering does (added to the pledges, or paid now with the seats held), the withdrawal rule, and "Ask about fee
+ * assistance". Nothing is worked out here. A refusal is the database's own sentence, as it comes.
  */
 export function ReviewStep({
   options,
@@ -67,7 +73,7 @@ export function ReviewStep({
       <StepHeader eyebrow={eyebrow} title={t('reg.review.title')} />
       {notice ? <Banner tone="warning" title={t('reg.review.changed')} message={notice} /> : null}
       {preview.status === 'loading' || preview.status === 'idle' ? <LoadingState label={t('reg.review.loading')} /> : null}
-      {preview.status === 'error' ? <Banner tone="error" message={preview.message} /> : null}
+      {preview.status === 'error' ? <Banner tone="error" title={preview.refused ? t('reg.review.cannotTitle') : undefined} message={preview.message} /> : null}
       {preview.status === 'ready' ? <ReviewLines options={options} result={preview.result} selections={selections} assistance={assistance} timeZone={timeZone} onAssistance={onAssistance} /> : null}
     </VStack>
   );
@@ -120,10 +126,18 @@ function ReviewLines({
               </Txt>
               {adult ? <Pill label={t('reg.review.adultPill')} tone="navy" /> : null}
             </Row>
-            {lineParts(line).map((p) => (
-              <AmountRow key={p.key} label={t(PART_LABEL[p.key])} value={signed(p)} />
-            ))}
-            <AmountRow label={t('reg.review.lineTotal')} value={money(line.totalCents)} strong />
+            {line.priced ? (
+              <>
+                {lineParts(line).map((p) => (
+                  <AmountRow key={p.key} label={t(PART_LABEL[p.key])} value={signed(p)} />
+                ))}
+                <AmountRow label={t('reg.review.lineTotal')} value={money(line.totalCents)} strong />
+              </>
+            ) : (
+              <Txt variant="small" color="ink2">
+                {t('reg.review.unpriced', { name })}
+              </Txt>
+            )}
             <Txt variant="meta" color={charges ? 'greenDark' : 'brown'}>
               {[t(outcomeKey(line, mode), { name }), mode === 'pay_now' && !charges ? t('reg.review.nothingToPay') : null].filter(Boolean).join(' · ')}
             </Txt>
@@ -148,6 +162,11 @@ function ReviewLines({
         <Txt variant="small" color="ink">
           {modeText}
         </Txt>
+        {result.late ? (
+          <Txt variant="small" color="ink2">
+            {t('reg.review.lateNote')}
+          </Txt>
+        ) : null}
         {assistance ? (
           <Txt variant="small" color="ink2">
             {t('reg.review.assistanceWaits')}

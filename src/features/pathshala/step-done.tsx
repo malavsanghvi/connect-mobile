@@ -14,6 +14,7 @@ import {
   lineNames,
   linePledges,
   outcomeKey,
+  type OfficeChoice,
   type RegEnrollment,
   type RegistrationOptions,
   type RegistrationResult,
@@ -26,11 +27,16 @@ import { colors, space } from '@/theme';
 
 import { money, useNow, whenText } from './shared';
 
-/** The learner's enrollment for a line as the database has it now (the options are asked for again after every write). */
+/**
+ * The learner's enrollment for a line as the database has it now (the options are asked for again after every write):
+ * the line's own `enrollment_id`, else (an answer without it) the learner's live enrollment in that track.
+ */
 function liveEnrollment(options: RegistrationOptions, line: RegLine): RegEnrollment | null {
   if (!line.personId) return null;
   const learner = options.learners.find((x) => x.personId === line.personId);
-  return learner?.enrollments.find((e) => e.status !== 'withdrawn' && e.trackId === line.trackId) ?? null;
+  if (!learner) return null;
+  if (line.enrollmentId) return learner.enrollments.find((e) => e.enrollmentId === line.enrollmentId) ?? null;
+  return learner.enrollments.find((e) => e.status !== 'withdrawn' && e.trackId === line.trackId) ?? null;
 }
 
 /** Still waiting for the fee: requested and held for payment (online or at the office). */
@@ -40,10 +46,11 @@ function waitsForPayment(e: RegEnrollment | null): boolean {
 
 /**
  * After registering (plan §3.1 steps 5 and 6). Per learner: registered, waitlisted, waiting for membership, for the
- * office, or for the office to add the child; the pledges a pledge-mode registration added, with "Pay now
- * (optional)". In a pay-now term: the seats held, a countdown, Pay (the Pay sheet with context `pathshala`), "Pay at
- * the office instead" when the term allows it (then the office's Zelle, check and cash instructions), and "Fee paid"
- * once the database has placed them. Statuses come from the database again after every write, never assumed.
+ * waiver, for the office, or for the office to add the child; the pledges a pledge-mode registration added, with "Pay
+ * now (optional)". In a pay-now term: the seats held, a countdown, Pay (the Pay sheet with context `pathshala`), "Pay at
+ * the office instead" when the term allows it (then the office's Zelle, check and cash instructions, until the time the
+ * database gave), and "Fee paid" once the database has placed them. Statuses come from the database again after every
+ * write, never assumed.
  */
 export function DoneStep({
   options,
@@ -56,7 +63,7 @@ export function DoneStep({
   payError,
   officeBusy,
   officeError,
-  officeChosen,
+  officeChoice,
   onPay,
   onPayPledges,
   onOffice,
@@ -73,14 +80,16 @@ export function DoneStep({
   payError: string | null;
   officeBusy: boolean;
   officeError: string | null;
-  officeChosen: boolean;
+  /** "Pay at the office instead" was chosen in this session: what the database answered. */
+  officeChoice: OfficeChoice | null;
   onPay: () => void;
   onPayPledges: () => void;
   onOffice: () => void;
   onCheckAgain: () => void;
 }) {
   const t = useT();
-  const mode = options.term.paymentMode;
+  // The mode the registration was made in (the registration's own answer), else the term's.
+  const mode = result.paymentMode ?? options.term.paymentMode;
   const names = lineNames(result, options.learners, selections);
   const seatLines = result.lines.filter((l) => l.outcome === 'seat');
   const pay = result.pay && result.pay.amountCents > 0 ? result.pay : null;
@@ -93,12 +102,14 @@ export function DoneStep({
     const e = liveEnrollment(options, l);
     return e?.status === 'placed' || e?.status === 'active';
   });
-  const atOffice = officeChosen || seatLines.some((l) => liveEnrollment(options, l)?.holdReason === 'office_payment');
-  const holdUntil =
+  const atOffice = !!officeChoice || seatLines.some((l) => liveEnrollment(options, l)?.holdReason === 'office_payment');
+  const liveUntil =
     seatLines
       .map((l) => liveEnrollment(options, l)?.holdExpiresAt ?? null)
       .filter((x): x is string => !!x)
-      .sort()[0] ?? pay?.holdUntil ?? null;
+      .sort()[0] ?? null;
+  // Paying at the office: until the time the database just gave; otherwise the live hold, else the registration's answer.
+  const holdUntil = (officeChoice ? officeChoice.holdUntil : null) ?? liveUntil ?? pay?.holdUntil ?? null;
   const now = useNow(30000, held);
   const countdown = held ? holdCountdown(holdUntil, now) : null;
   const pledges = linePledges(result);
@@ -110,20 +121,26 @@ export function DoneStep({
         <Txt variant="headline" color={held ? 'brownDark' : 'greenDark'} accessibilityRole="header">
           {title}
         </Txt>
+        {result.replayed ? (
+          <Txt variant="small" color="ink2">
+            {t('reg.done.replayed')}
+          </Txt>
+        ) : null}
         {result.lines.map((line, i) => {
           const { track, level } = lineLevel(line, options.tracks);
           const e = liveEnrollment(options, line);
           const view = e && e.status ? enrollmentStatus(e.status, { holdReason: e.holdReason, holdUntil: e.holdExpiresAt, offered: false, registrationId: null, trackId: e.trackId }) : null;
           const status = view ? t(view.key, { until: whenText(view.until, timeZone) }) : t(outcomeKey(line, mode), { name: names[i] });
+          const pledgeAmount = money(line.pledge?.amountCents ?? line.totalCents);
           const pledge = line.pledge
             ? line.pledge.number
               ? line.pledge.dueOn
-                ? t('reg.done.linePledge', { number: line.pledge.number, amount: money(line.totalCents), date: whenText(line.pledge.dueOn, timeZone) })
-                : t('reg.done.linePledgeNoDate', { number: line.pledge.number, amount: money(line.totalCents) })
+                ? t('reg.done.linePledge', { number: line.pledge.number, amount: pledgeAmount, date: whenText(line.pledge.dueOn, timeZone) })
+                : t('reg.done.linePledgeNoDate', { number: line.pledge.number, amount: pledgeAmount })
               : null
             : null;
           return (
-            <View key={`${line.personId ?? 'new'}:${line.trackId}:${i}`} style={{ gap: 2, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colors.dividerLight, paddingTop: i > 0 ? space.xs : 0 }}>
+            <View key={line.enrollmentId ?? line.pendingRegistrationId ?? `${line.personId ?? 'new'}:${line.trackId}:${i}`} style={{ gap: 2, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colors.dividerLight, paddingTop: i > 0 ? space.xs : 0 }}>
               <Txt variant="bodyStrong">{[names[i], level ?? track].filter(Boolean).join(' · ')}</Txt>
               <Txt variant="small" color="ink2">
                 {status}
@@ -143,7 +160,7 @@ export function DoneStep({
           <Txt variant="small">
             {pledges.ids.length > 1
               ? pledges.dueOn
-                ? t('reg.done.pledges', { n: pledges.ids.length, amount: money(pledges.cents), date: whenText(pledges.dueOn, timeZone) })
+                ? t(pledges.sameDue ? 'reg.done.pledges' : 'reg.done.pledgesFrom', { n: pledges.ids.length, amount: money(pledges.cents), date: whenText(pledges.dueOn, timeZone) })
                 : t('reg.done.pledgesNoDate', { n: pledges.ids.length, amount: money(pledges.cents) })
               : pledges.dueOn
                 ? t('reg.done.pledgesOne', { amount: money(pledges.cents), date: whenText(pledges.dueOn, timeZone) })
@@ -178,7 +195,13 @@ export function DoneStep({
               <Button label={t('reg.done.checkAgain')} tone="secondary" size="md" onPress={onCheckAgain} />
             </>
           ) : atOffice ? (
-            <OfficeInstructions centerId={centerId} until={holdUntil} timeZone={timeZone} amountCents={pay.amountCents} pledgeIds={pay.pledgeIds} />
+            <OfficeInstructions
+              centerId={centerId}
+              until={holdUntil}
+              timeZone={timeZone}
+              amountCents={officeChoice?.amountCents ?? pay.amountCents}
+              pledgeIds={officeChoice && officeChoice.pledgeIds.length > 0 ? officeChoice.pledgeIds : pay.pledgeIds}
+            />
           ) : (
             <>
               <Button label={t('reg.done.pay', { amount: money(pay.amountCents) })} tone="black" onPress={onPay} busy={paying} />

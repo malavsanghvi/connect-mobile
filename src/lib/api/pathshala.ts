@@ -4,12 +4,17 @@ import { AppError, logError, maybe, must, report } from '../errors';
 import { isMissingRpcError } from '../modules';
 import {
   enrollmentStatus,
+  errorHint,
+  holdForViewer,
   holdInfo,
+  parseOfficeChoice,
   parseRegistrationOptions,
   parseRegistrationResult,
   REFUSAL_CODES,
+  RegistrationRefusal,
   type FeePledge,
   type HoldInfo,
+  type OfficeChoice,
   type RegistrationOptions,
   type RegistrationResult,
   type StatusView,
@@ -20,10 +25,11 @@ import { updatePerson } from './family';
 
 /**
  * Pathshala registration (connect-crm migrations 0590 and 0591; the contract is §2.17 of
- * docs/PATHSHALA_REGISTRATION_PLAN.md there): the options for the flow, the preview, the registration and "pay at the
- * office instead". The generated types do not know these functions yet (README › Schema gaps #32), so the calls go
- * through one narrow cast here and every answer is read defensively in src/lib/pathshala-registration.ts. Nothing
- * else in the app calls them.
+ * docs/PATHSHALA_REGISTRATION_PLAN.md there, with the deviations those migrations made): the options for the flow, the
+ * preview, the registration and "pay at the office instead". The generated types do not know these functions yet
+ * (README › Schema gaps #32), so the calls go through one narrow cast here and every answer is read defensively in
+ * src/lib/pathshala-registration.ts. Nothing else in the app calls them. `withdraw_pathshala_enrollment` (0592) and
+ * `my_pathshala_overview` (0593) are not built yet, and nothing here calls them.
  *
  * A database without the functions (an older portal) answers `missing`: the app then keeps today's simple request
  * form (src/features/pathshala/legacy-enroll.tsx), and the reason is logged once.
@@ -42,16 +48,17 @@ let loggedMissing = false;
 
 /**
  * A failed call as the AppError the screen shows: the database's own sentence when it wrote one for people ("The fee
- * changed since you looked; please review the new total."), with a final period and its code (the screen routes on
- * it, see registerRoute); else the generic words for `action`. Postgres' own permission and row-level-security
- * messages stay generic. The technical detail is kept on the error and logged.
+ * changed since you looked; please review the new total ($130.00)."), with a final period, its code and its HINT (a
+ * RegistrationRefusal: the screen routes on `review_again`, see registerRoute); else the generic words for `action`.
+ * Postgres' own permission and row-level-security messages stay generic. The technical detail is kept and logged.
  */
 export function pathshalaError(err: unknown, action: string): AppError {
   const e = err && typeof err === 'object' ? (err as { code?: unknown; message?: unknown }) : {};
   const code = typeof e.code === 'string' ? e.code : null;
   const message = typeof e.message === 'string' ? e.message.trim() : '';
   if (code && REFUSAL_CODES.has(code) && /^["A-Z$]/.test(message) && !/permission denied|row-level security|violates|does not exist|syntax error/i.test(message)) {
-    const out = new AppError(/[.!?]$/.test(message) ? message : `${message}.`, `${action}: ${message} | code=${code}`, code);
+    const hint = errorHint(err);
+    const out = new RegistrationRefusal(/[.!?]$/.test(message) ? message : `${message}.`, `${action}: ${message} | code=${code}${hint ? ` | hint=${hint}` : ''}`, code, hint);
     logError(action, out);
     return out;
   }
@@ -157,11 +164,16 @@ export async function registerLearners(args: {
   return result;
 }
 
-/** "Pay at the office instead" (`app.choose_pathshala_office_payment`): the registration's seats are held for the office window. */
-export async function chooseOfficePayment(registrationId: string): Promise<void> {
+/**
+ * "Pay at the office instead" (`app.choose_pathshala_office_payment(p_registration)`): the registration's seats held for
+ * an online payment are held for the office window instead. Answers until when, what is still to pay and for which
+ * pledges (for the Zelle "I sent it" report).
+ */
+export async function chooseOfficePayment(registrationId: string): Promise<OfficeChoice> {
   const action = 'keep the seats for payment at the office';
   const res = await rpc('choose_pathshala_office_payment', { p_registration: registrationId });
   if (res.error) throw isMissingRpcError(res.error) ? unavailable('choose_pathshala_office_payment', res.error, action) : pathshalaError(res.error, action);
+  return parseOfficeChoice(res.data);
 }
 
 export type Waiver = Pick<Tables<'legal_documents'>, 'id' | 'title' | 'version' | 'body_md' | 'published_at'>;
@@ -203,6 +215,23 @@ export function termAllowsOffice(row: Record<string, unknown>): boolean {
   return row.office_payment_allowed === true;
 }
 
+/** Who is looking at an enrollment: an adult of the household, or a child (P30: a child never sees fees). */
+export type HoldViewer = { adult: boolean };
+
+/**
+ * THE one place the app reads where an enrollment's seat stands beyond its status: whether it is held and why (0591
+ * `hold_reason`), until when (`hold_expires_at`), an offer from the waitlist (`offered_at`) and the registration it
+ * belongs to (`registration_id`). Today these are columns of the `pathshala_enrollments` row the caller already read
+ * (`select('*')`: they are not in the generated types yet). The reasons about the fee (payment, office_payment,
+ * assistance) are moving off that row into rows a child cannot read (P30), and the household's adults will get them
+ * from `app.pathshala_registration_options`; until then a child's view leaves them out here. When the database moves
+ * them, only this adapter changes: the screens read `HoldInfo` and nothing else reads those columns (nor
+ * `withdrawal_reason`, which the app never reads).
+ */
+export async function enrollmentHolds(rows: readonly Pick<Tables<'pathshala_enrollments'>, 'id'>[], viewer: HoldViewer): Promise<Map<string, HoldInfo>> {
+  return new Map(rows.map((r) => [r.id, holdForViewer(holdInfo(r as unknown as Record<string, unknown>), viewer.adult)]));
+}
+
 export type HeldSeat = {
   enrollmentId: string;
   personId: string;
@@ -215,14 +244,15 @@ export type HeldSeat = {
 };
 
 /**
- * Seats the family holds for payment, and seats offered from the waitlist (Home's strip): `requested` enrollments
- * held for payment online or at the office whose hold has not ended. Read with `select('*')`, because the hold columns
- * (0591) are not in the generated types yet; before 0591 there are none, and nothing is shown.
+ * Seats the family holds for payment, and seats offered from the waitlist (Home's strip, a household adult only):
+ * `requested` enrollments held for payment online or at the office whose hold has not ended, as `enrollmentHolds` says.
+ * Before 0591 there are no holds, and nothing is shown.
  */
 export async function loadHeldSeats(householdId: string, now: Date = new Date()): Promise<HeldSeat[]> {
   const rows = must(await supabase.from('pathshala_enrollments').select('*').eq('household_id', householdId).eq('status', 'requested'), 'load your Pathshala seats');
+  const holds = await enrollmentHolds(rows, { adult: true });
   const held = rows
-    .map((r) => ({ row: r, hold: holdInfo(r as unknown as Record<string, unknown>) }))
+    .map((r) => ({ row: r, hold: holds.get(r.id) as HoldInfo }))
     .filter(({ hold }) => (hold.holdReason === 'payment' || hold.holdReason === 'office_payment') && (!hold.holdUntil || new Date(hold.holdUntil).getTime() > now.getTime()));
   if (held.length === 0) return [];
   const termIds = [...new Set(held.map((h) => h.row.term_id))];

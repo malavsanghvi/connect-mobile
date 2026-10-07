@@ -18,6 +18,8 @@ import {
   learnersArg,
   lineNames,
   linePledges,
+  meOf,
+  myWaiverHolds,
   newChildAge,
   payNowCents,
   REFUSAL_CODES,
@@ -25,11 +27,15 @@ import {
   selectionsComplete,
   startBlock,
   suggestedLevel,
+  unsureAllowed,
+  waiverHoldNames,
   type LearnerRow,
   type NewChild,
+  type OfficeChoice,
   type RegistrationOptions,
   type RegistrationResult,
   type Selection,
+  type TrackChoice,
 } from '@/lib/pathshala-registration';
 import { newRequestId } from '@/lib/request-context';
 import { useLoad } from '@/lib/use-load';
@@ -83,7 +89,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-  const [office, setOffice] = useState<{ busy: boolean; error: string | null; chosen: boolean }>({ busy: false, error: null, chosen: false });
+  const [office, setOffice] = useState<{ busy: boolean; error: string | null; chosen: OfficeChoice | null }>({ busy: false, error: null, chosen: null });
 
   const answer = optionsState.data;
   const options: RegistrationOptions | null = answer && answer.kind === 'answered' ? answer.options : null;
@@ -102,7 +108,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
     setResult(null);
     setPaid(false);
     setPayError(null);
-    setOffice({ busy: false, error: null, chosen: false });
+    setOffice({ busy: false, error: null, chosen: null });
   };
 
   const close = () => (router.canGoBack() ? router.back() : router.replace({ pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } }));
@@ -133,6 +139,8 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
   const waiver = options.term.waiver;
   const total = waiver ? 5 : 4;
   const eyebrow = (n: number) => t('reg.step', { n, total });
+  // The signed-in adult as the database knows them (`is_me`).
+  const meId = meOf(options.learners, member.person.id);
   const learnerOf = (s: Selection) => options.learners.find((l) => l.personId === s.personId) ?? null;
   const nameOf = (s: Selection) => s.newChild?.firstName ?? learnerOf(s)?.firstName ?? '';
   const childAge = (child: NewChild) => newChildAge(child, options.term.ageCutoffOn, today);
@@ -145,6 +153,12 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
         const next = { ...prev };
         delete next[id];
         return next;
+      }
+      // Another adult registered me and my seat waits for my agreement to the waiver: go ahead with what they chose.
+      const waiting = myWaiverHolds({ ...row.learner, isMe: row.isMe }).filter((e) => row.free.some((x) => x.id === e.trackId));
+      if (waiting.length > 0) {
+        const tracks: TrackChoice[] = waiting.map((e) => ({ trackId: e.trackId as string, levelId: e.levelId, unsure: !e.levelId && unsureAllowed(mode) }));
+        return { ...prev, [id]: { key: id, personId: id, newChild: null, tracks, note: '' } };
       }
       const track = firstTrack(row.learner, row.free);
       const age = { age: row.learner.ageOnCutoff, countsAsChild: row.learner.countsAsChild };
@@ -175,7 +189,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
     }
     const l = learnerOf(s);
     const age = { age: l?.ageOnCutoff ?? null, countsAsChild: l?.countsAsChild ?? false };
-    return { ...age, name: l?.firstName ?? '', suggested: l?.suggested ?? [], free: l ? freeTracks({ ...age, enrollments: l.enrollments }, options.tracks) : [], isNewChild: false };
+    return { ...age, name: l?.firstName ?? '', suggested: l?.suggested ?? [], free: l ? freeTracks({ ...age, enrollments: l.enrollments, isMe: l.personId === meId }, options.tracks) : [], isNewChild: false };
   };
   const pick = (key: string, trackId: string, levelId: string | null, unsure: boolean) => update(key, (s) => ({ ...s, tracks: s.tracks.map((c) => (c.trackId === trackId ? { trackId, levelId, unsure } : c)) }));
   // On to the levels: a track still without a level takes the database's suggestion, which may only have come with a
@@ -220,8 +234,10 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
       if (run === previewRun.current) setPreview({ status: 'ready', result: res, learners, clientKey: newRequestId() });
     } catch (err) {
       const e = report(err, 'work out the fee');
-      const message = e.code && REFUSAL_CODES.has(e.code) ? t('reg.err.preview', { reason: e.userMessage }) : e.userMessage;
-      if (run === previewRun.current) setPreview({ status: 'error', message });
+      // The database refuses what it would refuse at Register (already registered in that track, a level for adults,
+      // a withdrawal whose fee is still open): its own sentence, as it comes; trying again would not change it.
+      const refused = !!e.code && REFUSAL_CODES.has(e.code);
+      if (run === previewRun.current) setPreview({ status: 'error', message: e.userMessage, refused });
     }
   };
   const toReview = () => {
@@ -236,10 +252,16 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
   };
 
   // ---- Register ----
+  // "I agree" for each child and for myself, for the waiver now published: a newer version un-ticks every box.
+  const agreeKey = (key: string) => `${waiver?.documentId ?? ''}:${key}`;
   const agreeRows: AgreeRow[] = selections
-    .filter((s) => s.newChild || learnerOf(s)?.countsAsChild || s.personId === member.person.id)
-    .map((s) => ({ key: s.key, label: s.personId === member.person.id ? t('reg.waiver.agreeSelf') : t('reg.waiver.agreeFor', { name: nameOf(s) }) }));
-  const otherAdults = selections.filter((s) => !s.newChild && s.personId !== member.person.id && learnerOf(s) && !learnerOf(s)?.countsAsChild).map(nameOf);
+    .filter((s) => s.newChild || learnerOf(s)?.countsAsChild || s.personId === meId)
+    .map((s) => ({ key: agreeKey(s.key), label: s.personId === meId ? t('reg.waiver.agreeSelf') : t('reg.waiver.agreeFor', { name: nameOf(s) }) }));
+  // Another adult learner agrees in their own app when the preview says their line waits for it (they may have agreed already).
+  const otherAdults =
+    preview.status === 'ready'
+      ? waiverHoldNames(preview.result, lineNames(preview.result, options.learners, selections))
+      : selections.filter((s) => !s.newChild && s.personId !== meId && learnerOf(s) && !learnerOf(s)?.countsAsChild).map(nameOf);
   const allAgreed = agreeRows.every((r) => agreed[r.key]);
   const names = selections.map(nameOf).filter(Boolean);
 
@@ -282,15 +304,15 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
 
   const chooseOffice = (res: RegistrationResult) => {
     if (!res.registrationId) return;
-    setOffice({ busy: true, error: null, chosen: false });
+    setOffice({ busy: true, error: null, chosen: null });
     chooseOfficePayment(res.registrationId)
-      .then(() => {
-        setOffice({ busy: false, error: null, chosen: true });
+      .then((choice) => {
+        setOffice({ busy: false, error: null, chosen: choice });
         invalidate();
       })
       .catch((err: unknown) => {
         const e = report(err, 'keep the seats for payment at the office');
-        setOffice({ busy: false, error: t('reg.err.office', { reason: e.userMessage }), chosen: false });
+        setOffice({ busy: false, error: t('reg.err.office', { reason: e.userMessage }), chosen: null });
       });
   };
 
@@ -312,7 +334,8 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
       setStep('done');
       invalidate();
       // Pay now: the Pay sheet opens at once for the family's total ("Register and pay"); the seats stay held meanwhile.
-      if (mode === 'pay_now') openPay(res);
+      // The registration says which mode it was registered in.
+      if ((res.paymentMode ?? mode) === 'pay_now') openPay(res);
     } catch (err) {
       const e = err instanceof AppError ? err : report(err, 'register for Pathshala');
       const who = names.join(', ');
@@ -321,7 +344,8 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
           setSubmit({ busy: false, error: t('reg.err.unavailable'), offerSimple: true });
           break;
         case 'review':
-          // The fee or a seat changed since the review: back to it, with the new lines and the database's words.
+          // Hint review_again: the fee or an outcome changed since the review. Back to it, with the new lines and the
+          // database's words; the boxes are ticked again for what is registered now.
           setSubmit(SUBMIT_IDLE);
           setNotice(e.userMessage);
           setAgreed({});
@@ -329,7 +353,10 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
           void runPreview(assistance);
           break;
         case 'refused':
+          // The database's sentence where they pressed Register. The options are read again, so a newer waiver (or a
+          // window that closed) shows as it is now.
           setSubmit({ busy: false, error: t('reg.err.register', { names: who, reason: e.userMessage }), offerSimple: false });
+          void optionsState.reload();
           break;
         default:
           setSubmit({ busy: false, error: t('reg.err.registerRetry', { names: who, reason: e.userMessage }), offerSimple: false });
@@ -400,7 +427,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
       body = <ReviewStep options={options} preview={preview} selections={selections} notice={notice} assistance={assistance} eyebrow={eyebrow(4)} timeZone={timeZone} onAssistance={toggleAssistance} />;
       footer = (
         <>
-          {preview.status === 'error' ? <Button label={t('common.retry')} tone="secondary" size="md" onPress={() => void runPreview(assistance)} /> : null}
+          {preview.status === 'error' && !preview.refused ? <Button label={t('common.retry')} tone="secondary" size="md" onPress={() => void runPreview(assistance)} /> : null}
           {submitError}
           {waiver ? (
             <Button label={t('reg.review.toWaiver')} onPress={() => setStep('waiver')} disabled={preview.status !== 'ready'} />
@@ -434,7 +461,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
           payError={payError}
           officeBusy={office.busy}
           officeError={office.error}
-          officeChosen={office.chosen}
+          officeChoice={office.chosen}
           onPay={() => openPay(result)}
           onPayPledges={() => payPledges(result)}
           onOffice={() => chooseOffice(result)}
