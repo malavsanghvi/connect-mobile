@@ -35,15 +35,15 @@ function str(v: unknown): string | null {
 /**
  * Target for a notification's data, or null when nothing here knows it (the
  * app just opens). A push without a `type` may still carry a `deep_link`
- * ("survey/<id>", as connect-crm queues for event feedback, or
- * "/gyan/homework/<id>?person=<id>" for homework); that opens too (survey and
- * homework links are the only ones known).
+ * ("survey/<id>", as connect-crm queues for event feedback,
+ * "/gyan/homework/<id>?person=<id>" for homework, or a Pathshala link); that
+ * opens too (survey, homework and Pathshala links are the only ones known).
  */
 export function notificationTarget(data: unknown): NotificationTarget | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const d = data as NotificationData;
   const type = str(d.type);
-  if (!type) return surveyTarget(d) ?? homeworkLinkTarget(d, false);
+  if (!type) return surveyTarget(d) ?? homeworkLinkTarget(d, false) ?? pathshalaLinkTarget(str(d.deep_link), d);
   const route = routes.get(type);
   if (!route) return null;
   return route.open(d);
@@ -163,3 +163,54 @@ function homeworkParentTarget(d: NotificationData): NotificationTarget | null {
 
 registerNotificationRoute(HOMEWORK, { open: homeworkTarget });
 registerNotificationRoute(HOMEWORK_PARENT, { open: homeworkParentTarget });
+
+// ---------------------------------------------------------------------------
+// Pathshala (connect-crm 0591–0593, plan §2.14): every Pathshala message is a push of type "pathshala" to a
+// household adult (registration received, registered, payment due, hold reminder, hold released, waitlisted,
+// placed, level changed, membership hold, child added or not, withdrawn, fee reminder, announcement, report). Its
+// `deep_link` says where it opens:
+//   /pathshala-enroll?term=<id>   registration (hold released, child not added, registration is open)
+//   /pathshala?person=<id>        the learner's page (connect-mobile PR 8); until then 3L › Learn, where each
+//                                 learner's status, fee and Pay are
+//   /guide/membership             membership (a membership hold)
+// Without a usable link: registration for `pathshala_hold_released` and `pathshala_child_not_added` (the template
+// key, sent as `template`), else 3L › Learn. `person_id` is the RECIPIENT and is never read as the learner.
+// ---------------------------------------------------------------------------
+
+export const PATHSHALA = 'pathshala';
+
+const PATHSHALA_LEARN: NotificationTarget = { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } };
+
+/** Templates whose push opens registration again (the seat was released; the child could not be added). */
+const PATHSHALA_REGISTER_AGAIN = new Set(['pathshala_hold_released', 'pathshala_child_not_added']);
+
+function registrationTarget(termId: string | null): NotificationTarget {
+  return termId ? { pathname: '/pathshala-enroll', params: { term: termId } } : { pathname: '/pathshala-enroll' };
+}
+
+/** A Pathshala deep link as an app location, or null when it is not one of the Pathshala links above. */
+function pathshalaLinkTarget(link: string | null, d: NotificationData): NotificationTarget | null {
+  if (!link) return null;
+  const m = /^\/?([a-z-]+(?:\/[a-z-]+)?)\/?(?:\?(.*))?$/i.exec(link);
+  if (!m) return null;
+  const path = m[1].toLowerCase();
+  const query = new Map<string, string>();
+  for (const pair of (m[2] ?? '').split('&')) {
+    const [k, v = ''] = pair.split('=');
+    if (k) query.set(k, v);
+  }
+  if (path === 'pathshala-enroll') return registrationTarget(uuidField(query.get('term')) ?? uuidField(d.term_id));
+  if (path === 'pathshala' || path === 'jain-way') return PATHSHALA_LEARN;
+  if (path === 'guide/membership' || path === 'membership') return { pathname: '/guide/membership' };
+  return null;
+}
+
+function pathshalaTarget(d: NotificationData): NotificationTarget {
+  const fromLink = pathshalaLinkTarget(str(d.deep_link), d);
+  if (fromLink) return fromLink;
+  const template = str(d.template) ?? str(d.template_key);
+  if (template && PATHSHALA_REGISTER_AGAIN.has(template)) return registrationTarget(uuidField(d.term_id));
+  return PATHSHALA_LEARN;
+}
+
+registerNotificationRoute(PATHSHALA, { open: pathshalaTarget });

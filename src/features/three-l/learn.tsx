@@ -4,10 +4,13 @@ import { Pressable, Text, View } from 'react-native';
 import { FeatureNotice } from '@/components/feature-notice';
 import { EmptyState, Loaded } from '@/components/states';
 import { Button, Card, Divider, LinkText, Row, Txt, VStack } from '@/components/ui';
+import { EnrollmentFee } from '@/features/pathshala/enrollment-fee';
+import { useNow, whenText } from '@/features/pathshala/shared';
 import { goalProgress, lastActivityByGoal, loadGyan, loadPathshala, nextGyanLevel } from '@/lib/api/gyan';
 import { formatDay } from '@/lib/format';
 import { attendanceSummary, continueGoalId } from '@/lib/learning';
 import { LEARN_PART_MODULE } from '@/lib/modules';
+import { enrollmentStatus } from '@/lib/pathshala-registration';
 import { useLoad } from '@/lib/use-load';
 import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
@@ -104,12 +107,24 @@ function GyanHero() {
   );
 }
 
-/** Pathshala enrollments, attendance and reports (formerly Learn), with enroll and teach. */
+/**
+ * Pathshala enrollments, attendance and reports (formerly Learn), with Register and teach. Each line says where it
+ * stands (registered, a seat held until a time, a seat offered from the waitlist, waitlisted, waiting for membership or
+ * the office); a household adult also sees the fee with Pay (a held seat: its countdown, Pay for the registration's
+ * held seats and "Pay at the office instead" when the term allows it). A child never sees fees (plan P30).
+ */
 function PathshalaBlock() {
   const t = useT();
   const router = useRouter();
-  const { member } = useApp();
-  const pathshala = useLoad(() => (member?.household ? loadPathshala(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load Pathshala');
+  const { center, member } = useApp();
+  const adult = !!member?.isAdult;
+  const pathshala = useLoad(() => (member?.household ? loadPathshala(member.household.id, { fees: adult }) : Promise.resolve([])), [member?.household?.id, adult], 'load Pathshala');
+  const anyHeld = (pathshala.data ?? []).some((r) => enrollmentStatus(r.status, r.hold).heldForPayment);
+  const now = useNow(30000, adult && anyHeld);
+  const nameOf = (personId: string) => {
+    const p = member?.members.find((m) => m.person.id === personId)?.person;
+    return p ? p.preferred_name || p.first_name : '';
+  };
 
   return (
     <VStack gap={14}>
@@ -134,18 +149,20 @@ function PathshalaBlock() {
                 const enrolled = r.status === 'placed' || r.status === 'active';
                 const pending = r.status === 'requested' || r.status === 'waitlisted';
                 const canScan = !!student && enrolled && (student.person.id === member?.person.id || !!member?.isAdult);
-                const statusLabel = t(`enroll.${r.status}` as 'enroll.requested');
+                const view = enrollmentStatus(r.status, r.hold);
+                const statusLabel = pending ? t(view.key, { until: whenText(view.until, center?.time_zone) }) : t(`enroll.${r.status}` as 'enroll.requested');
                 const a = attendanceSummary(r.attendance);
                 return (
                   <View key={r.id} style={{ gap: 6 }}>
                     {i > 0 ? <Divider /> : null}
                     {pending ? (
-                      <Text style={{ fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted }}>
-                        {`${[name, level, statusLabel].filter(Boolean).join(' · ')} · `}
-                        <Text onPress={() => router.push('/pathshala-enroll')} accessibilityRole="link" style={{ color: colors.navy, textDecorationLine: 'underline' }}>
-                          {t('learn.completeEnrollment')}
-                        </Text>
-                      </Text>
+                      // Where a request stands, never "Complete enrollment" again (plan F6): held, offered, waitlisted, or waiting.
+                      <View style={{ gap: 2 }}>
+                        <Txt variant="bodyStrong">{[name, level].filter(Boolean).join(' · ')}</Txt>
+                        <Txt variant="meta" color={view.heldForPayment ? 'brownDark' : 'muted'} style={{ fontFamily: fonts.bodySemi }}>
+                          {statusLabel}
+                        </Txt>
+                      </View>
                     ) : (
                       <>
                         <Row style={{ justifyContent: 'space-between' }}>
@@ -182,6 +199,7 @@ function PathshalaBlock() {
                         ) : null}
                       </>
                     )}
+                    {adult ? <EnrollmentFee row={r} rows={rows} nameOf={nameOf} now={now} timeZone={center?.time_zone ?? null} /> : null}
                     {canScan ? (
                       <Button
                         label={t('learn.scanAttendance')}

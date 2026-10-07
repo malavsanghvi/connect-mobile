@@ -99,4 +99,33 @@ describe('notification routes', () => {
       expect(notificationTarget({ type: 'homework_review', assignment_id: ASSIGNMENT, submission_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', learner_id: PERSON })).toBeNull();
     });
   });
+
+  describe('Pathshala pushes (connect-crm 0591–0593)', () => {
+    const TERM = '22222222-2222-4222-8222-222222222222';
+    const LEARNER = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const learn = { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } };
+    it('open registration for the term the link names (a released seat, registration is open)', () => {
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/pathshala-enroll?term=${TERM}` })).toEqual({ pathname: '/pathshala-enroll', params: { term: TERM } });
+      expect(notificationTarget({ type: 'pathshala', deep_link: 'pathshala-enroll', term_id: TERM })).toEqual({ pathname: '/pathshala-enroll', params: { term: TERM } });
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/pathshala-enroll?term=not-an-id' })).toEqual({ pathname: '/pathshala-enroll' });
+    });
+    it("open 3L › Learn for the learner's page until that page exists (status, fee and Pay are there)", () => {
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/pathshala?person=${LEARNER}` })).toEqual(learn);
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/jain-way?tab=three_l' })).toEqual(learn);
+      expect(notificationTarget({ type: 'pathshala' })).toEqual(learn);
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/somewhere/${LEARNER}` })).toEqual(learn);
+    });
+    it('open membership for a membership hold', () => {
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/guide/membership' })).toEqual({ pathname: '/guide/membership' });
+    });
+    it('open registration again for a released seat or a child who was not added, when there is no link', () => {
+      expect(notificationTarget({ type: 'pathshala', template: 'pathshala_hold_released', term_id: TERM })).toEqual({ pathname: '/pathshala-enroll', params: { term: TERM } });
+      expect(notificationTarget({ type: 'pathshala', template_key: 'pathshala_child_not_added' })).toEqual({ pathname: '/pathshala-enroll' });
+      expect(notificationTarget({ type: 'pathshala', template: 'pathshala_registered', person_id: LEARNER })).toEqual(learn);
+    });
+    it('follow a Pathshala link without a type too, and nothing else', () => {
+      expect(notificationTarget({ deep_link: `/pathshala-enroll?term=${TERM}` })).toEqual({ pathname: '/pathshala-enroll', params: { term: TERM } });
+      expect(notificationTarget({ deep_link: '/settings' })).toBeNull();
+    });
+  });
 });

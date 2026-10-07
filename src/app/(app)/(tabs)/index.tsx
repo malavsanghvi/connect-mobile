@@ -6,6 +6,7 @@ import { HomeRows, type LazyRow } from '@/features/home-rails';
 import { useRailReveal } from '@/features/home-rail';
 import { NeedsOkStrip } from '@/features/homework/strip';
 import { useHomework } from '@/features/homework/use-homework';
+import { HeldSeatStrip } from '@/features/pathshala/held-strip';
 import { SurveyPopup } from '@/features/survey-popup';
 import { isHomeCardVisible, type HomeCard } from '@/lib/modules';
 import { useApp } from '@/providers/app';
@@ -59,6 +60,8 @@ function HomeContent() {
   // A child's homework waiting for a parent's OK (connect-crm 0587): adults only; nothing until the portal has homework.
   const homeworkOn = adult && on('homework');
   const homework = useHomework(homeworkOn);
+  // A Pathshala seat held for payment or offered from the waitlist (connect-crm 0591): adults only.
+  const seatsOn = adult && on('pathshalaSeats');
   return (
     <>
       <Screen root showWordmark onRefresh={async () => invalidate()} onViewport={reveal.onViewport}>
@@ -71,6 +74,7 @@ function HomeContent() {
             <>
               {alertsOn ? <AlertsStrip state={alerts} part="other" /> : null}
               {homeworkOn ? <NeedsOkStrip load={homework} /> : null}
+              {seatsOn ? <HeldSeatStrip /> : null}
               {confirmOn || lunchOn ? <EventActionsStrip events={events} lunch={lunchOn} /> : null}
               {feedbackOn ? <FeedbackStrip state={feedback} /> : null}
             </>

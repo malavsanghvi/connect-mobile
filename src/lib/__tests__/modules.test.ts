@@ -135,6 +135,11 @@ describe('Home, drawer and guide', () => {
     expect(isHomeCardVisible(off('gyan_path'), 'homework')).toBe(false);
     expect(isHomeCardVisible(off('pathshala'), 'homework')).toBe(true);
   });
+  it('keeps the held-seat strip with Pathshala', () => {
+    expect(isHomeCardVisible(ALL_ON, 'pathshalaSeats')).toBe(true);
+    expect(isHomeCardVisible(off('pathshala'), 'pathshalaSeats')).toBe(false);
+    expect(isHomeCardVisible(off('giving'), 'pathshalaSeats')).toBe(true);
+  });
   it('maps the Home rails to their modules', () => {
     const rails = ['railLearning', 'railEvents', 'railListen', 'giving', 'railPhotos', 'railRecipes'] as const;
     for (const rail of rails) expect(isHomeCardVisible(ALL_ON, rail)).toBe(true);
