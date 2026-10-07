@@ -178,6 +178,27 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
     return { ...age, name: l?.firstName ?? '', suggested: l?.suggested ?? [], free: l ? freeTracks({ ...age, enrollments: l.enrollments }, options.tracks) : [], isNewChild: false };
   };
   const pick = (key: string, trackId: string, levelId: string | null, unsure: boolean) => update(key, (s) => ({ ...s, tracks: s.tracks.map((c) => (c.trackId === trackId ? { trackId, levelId, unsure } : c)) }));
+  // On to the levels: a track still without a level takes the database's suggestion, which may only have come with a
+  // birth date saved on the previous step.
+  const toLevels = () => {
+    setChosen((prev) => {
+      const next: Record<string, Selection> = {};
+      for (const [k, s] of Object.entries(prev)) {
+        const learner = levelLearner(s);
+        next[k] = {
+          ...s,
+          tracks: s.tracks.map((c) => {
+            if (c.levelId || c.unsure) return c;
+            const track = learner.free.find((x) => x.id === c.trackId);
+            const suggestion = track ? suggestedLevel(learner, track) : null;
+            return suggestion ? { ...c, levelId: suggestion.levelId } : c;
+          }),
+        };
+      }
+      return next;
+    });
+    setStep('levels');
+  };
   const addTrack = (key: string, trackId: string) =>
     update(key, (s) => {
       const learner = levelLearner(s);
@@ -361,7 +382,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
       body = <WhoStep options={options} rows={rows} chosen={chosen} newChildren={newChildren} eyebrow={eyebrow(2)} timeZone={timeZone} newChildAgeOf={(c) => childAge(c).age} onToggle={toggle} onAddChild={addChild} onRemoveChild={removeChild} />;
       footer = (
         <>
-          <Button label={t('reg.who.continue')} onPress={() => setStep('levels')} disabled={!whoReady} />
+          <Button label={t('reg.who.continue')} onPress={toLevels} disabled={!whoReady} />
           {back('start')}
         </>
       );

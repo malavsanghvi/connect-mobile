@@ -238,6 +238,30 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   the strip); `homework_review` is for teachers, in the portal (gap 29). A portal without 0587
   (`app.my_gyan_homework` missing) means homework is not offered: every entry point stays hidden and the reason is
   logged once (Schema gaps #31).
+- **Pathshala registration** (`src/lib/pathshala-registration.ts` pure rules, `src/lib/api/pathshala.ts` calls,
+  `src/features/pathshala`, route `/pathshala-enroll?term=<id>`; connect-crm migrations 0590/0591 and
+  `docs/PATHSHALA_REGISTRATION_PLAN.md` §2.17 and §3.1 there): a household adult registers several learners at once,
+  children and adults (themselves included). Before you start: the term, the household when they are an adult of more
+  than one, the window (open; late, with its late fee; closed or opening on a date: stop), membership (register now,
+  seats wait for it; Apply for membership) and what registering does in the term's payment mode. Who is joining:
+  everyone with their age on the cut-off date, children first; a learner already registered in one track can add
+  another; a missing birth date is asked for when the price depends on it (saved on the person); a child not yet on
+  the family can be added (the office adds them first). A level per learner and track: the database's suggestion with
+  its reason, the levels for their age first, "Other levels" (the office confirms), fee and Seats open / Waitlist /
+  Full, and "Not sure, let the office decide" in pledge-mode terms only. The review shows each line exactly as the
+  database priced it (level fee, sibling discount, family cap, late fee, fee assistance, total; adults outside the
+  discount and the cap), the totals, what registering does and the withdrawal rule; "Ask about fee assistance" prices
+  it again. Then the published waiver ("I agree" for each child and for themself) and Register: the database prices
+  it again and refuses a changed total or a seat taken meanwhile, which sends the family back to the review with its
+  sentence; Try again after a lost answer sends the same client key, so nothing is registered twice. Afterwards: in a
+  pledge-mode term "Added to your pledges" with Pay now (optional); in a pay-now term the Pay sheet opens at once
+  (context `pathshala`, "Pay at the office instead" when the term allows it, "Fee paid" afterwards, never a donation),
+  with the seats held and a countdown. 3L › Learn says where each enrollment stands (registered, seat held until,
+  seat offered, waitlisted, waiting for membership or the office) and, for adults only, the fee with Pay; Home shows
+  "Pay to keep Riya's seat · 5 h left" for held and offered seats. Pushes of type `pathshala` open registration,
+  membership or 3L › Learn by their `deep_link`. The app never prices anything. A database without
+  `app.pathshala_registration_options` keeps today's simple request form (logged once); one that has the options but
+  not the registration says so at Register and offers the simple form (Schema gaps #32).
 - **Traceability** (`src/lib/request-context.ts`): every PostgREST request sends
   `x-client-app` (`member`, or `kiosk` while the volunteer board is in kiosk mode), a
   fresh `x-request-id` and `x-client-screen` (the current route). Writes the member
@@ -329,3 +353,4 @@ changed. The app works around each one as noted.
 | 29 | The push worker (`worker/src/messaging.ts`) sends Expo only `{ message_id, center_id, purpose }`; it does not forward `messages.payload` (`survey_id`, `deep_link`, …) or a `type`, so a tapped push cannot say which survey it is about | App routes `data.type = 'event_survey'` / `'event_survey_reminder'` (or a `deep_link` of `survey/<id>`, with `survey_id`) to the survey (`src/lib/notification-routes.ts`). Until the worker forwards them, a tap only opens the app; the Home pop-up and card still ask for the feedback |
 | 30 | ~~`app.feature_access_for_me(p_center)` (access levels, connect-crm 0586) is not in the generated types yet~~ — the types are copied from connect-crm after 0586 | A typed `supabase.rpc('feature_access_for_me', { p_center })` in `src/lib/api/access.ts`; the jsonb answer is still parsed defensively (`src/lib/access.ts`). Missing RPC (an older portal) → the rules from before access levels (members: everything; visitors: the guide and timings), logged once |
 | 31 | Homework (connect-crm 0587: `app.my_gyan_homework`, `save_gyan_submission_draft`, `hand_in_gyan_submission`, `parent_decide_gyan_submission`, bucket `homework`) is not in the generated types yet | One narrow cast per call in `src/lib/api/homework.ts` (nothing else in the app touches these functions); every answer is parsed defensively in `src/lib/homework.ts` (an item with an unknown status is left out and logged, never shown half-read). Missing function (an older portal) → homework is not offered: no cards, strip or lines, logged once; a stale link says "Homework isn't available in {center} yet". "Attach a file" and "Take a photo" wait for the APK with the native pickers (plan F6, H10) |
+| 32 | Pathshala registration (connect-crm 0590/0591: `app.pathshala_registration_options`, `preview_pathshala_registration`, `register_pathshala_children`, `choose_pathshala_office_payment`; the 0591 enrollment columns `hold_reason`, `hold_expires_at`, `offered_at`, `registration_id`, `track_id`; the 0590 term column `office_payment_allowed`) is not in the generated types yet | One narrow cast per call in `src/lib/api/pathshala.ts`; every answer is parsed defensively in `src/lib/pathshala-registration.ts` (a money answer is all or nothing: one unreadable line makes the whole answer an error, never lines that do not add up). The new columns are read from `select('*')` rows; before 0591 they are absent and nothing is held. Missing options function (an older portal) → today's simple request form, logged once; missing registration function → said at Register, with "Send a request instead" |
