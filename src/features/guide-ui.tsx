@@ -20,11 +20,11 @@ export function useCommunity(): string {
 
 /**
  * Welcome.dc.html is a separate full-screen flow: back button + Fraunces 22
- * navy title, no tab bar and no Niva button.
+ * navy title, no tab bar (so no Niva).
  */
 export function GuideScreen({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Screen title={title} tabBar={false} niva={false}>
+    <Screen title={title} tabBar={false}>
       {children}
     </Screen>
   );

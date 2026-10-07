@@ -30,11 +30,10 @@ import { useAccess, useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
 import { useModule, useModules } from '@/providers/modules';
 import { usePlayer } from '@/providers/player';
-import { useSettings, useT } from '@/providers/settings';
+import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
 import { EventIcon } from './event-icons';
-import { shortWhen } from './event-rules';
 import { bandFor } from './events';
 import { Decor, Rail, RailTile, TileBadge, TileCaption, TilePicture, useHold, useRailLoad, type RailReveal, type RailSlot, type TileCtx } from './home-rail';
 import {
@@ -510,36 +509,37 @@ function FlyerPoster({ url, cacheKey, near, fallback }: { url: string; cacheKey?
   );
 }
 
-/** An event without a flyer: its colour, the date large, the name, the time and the venue. */
+/**
+ * An event without a flyer: its colour, the date, the name and the venue. The poster is a thumbnail (a little under 100 wide on a
+ * phone), so the type is small: the name keeps three lines (it is what the member looks for), the venue one, and the time is
+ * left for the event itself (it is in the tile's spoken label, and the RSVP chip sits under the poster).
+ */
 function DesignedPoster({ tile, tz }: { tile: EventTile; tz: string | null }) {
   const iso = tile.startsAt ? zonedParts(new Date(tile.startsAt), tz).iso : null;
   const day = iso ? parseISODate(iso)?.d : null;
   return (
-    <View style={{ flex: 1, padding: space.md, justifyContent: 'space-between' }}>
+    <View style={{ flex: 1, padding: space.sm + 2, justifyContent: 'space-between' }}>
       <Decor />
       {iso && day ? (
         <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end' }}>
           <Txt variant="eyebrow" color="white" style={{ opacity: 0.85 }}>
             {monthShortUpper(iso)}
           </Txt>
-          <Txt variant="display" color="white">
+          <Txt variant="title" color="white">
             {String(day)}
-          </Txt>
-          <Txt variant="caption" color="white" style={{ opacity: 0.9 }}>
-            {shortWhen(tile.startsAt, tz)}
           </Txt>
         </View>
       ) : (
         <View />
       )}
-      <View style={{ gap: 4 }}>
-        <Txt variant="cardTitle" color="white" numberOfLines={3} style={{ fontFamily: fonts.displayBold }}>
+      <View style={{ gap: 3 }}>
+        <Txt variant="meta" color="white" numberOfLines={3} style={{ fontFamily: fonts.displayBold }}>
           {tile.name}
         </Txt>
         {tile.venue ? (
-          <Row gap={4} align="flex-start">
-            <Icon name="location-outline" size={13} color={colors.white} />
-            <Txt variant="caption" color="white" numberOfLines={2} style={{ flex: 1, opacity: 0.9 }}>
+          <Row gap={3} align="flex-start">
+            <Icon name="location-outline" size={11} color={colors.white} />
+            <Txt variant="fine" color="white" numberOfLines={1} style={{ flex: 1, opacity: 0.9 }}>
               {tile.venue}
             </Txt>
           </Row>
@@ -553,7 +553,7 @@ function DesignedPoster({ tile, tz }: { tile: EventTile; tz: string | null }) {
 // Row 4: Giving opportunities
 // ---------------------------------------------------------------------------
 
-/** Every open opportunity as a big tile with "From $X" and View and sponsor; no rotation, nothing moves by itself. */
+/** Every open opportunity as a compact tile with "From $X" and View and sponsor; no rotation, nothing moves by itself. */
 function GiveRow({ shown, onPlace, held }: RailSlot & { held: boolean }) {
   const t = useT();
   const router = useRouter();
@@ -563,7 +563,7 @@ function GiveRow({ shown, onPlace, held }: RailSlot & { held: boolean }) {
     <Rail
       title={t('home.row.give')}
       label={t('home.row.give')}
-      shape="card"
+      shape="offer"
       captionLines={0}
       loading={shown}
       onSeeAll={() => router.push('/give')}
@@ -581,7 +581,6 @@ function GiveRow({ shown, onPlace, held }: RailSlot & { held: boolean }) {
 function GiveTileView({ tile, ctx }: { tile: GiveTile; ctx: TileCtx }) {
   const t = useT();
   const router = useRouter();
-  const { scale } = useSettings();
   const amount = tile.fromCents ? t('give.from', { amount: tile.compact ? formatCentsCompact(tile.fromCents) : formatCents(tile.fromCents) }) : t('give.anyAmount');
   return (
     <RailTile
@@ -589,9 +588,9 @@ function GiveTileView({ tile, ctx }: { tile: GiveTile; ctx: TileCtx }) {
       label={[tile.title, tile.detail, amount, t('home.viewAndSponsor')].filter(Boolean).join('. ')}
       hint={t('home.rail.giveHint')}
       onPress={() => router.push({ pathname: '/opportunity/[id]', params: { id: tile.opportunityId } })}>
-      <View style={{ flexGrow: 1, minHeight: Math.round(170 * Math.min(scale, 1.3)), borderRadius: radii.xl, backgroundColor: colors.brownTint, borderWidth: 1, borderColor: colors.brownBorder, padding: space.cardX, gap: space.md, justifyContent: 'space-between' }}>
-        <View style={{ gap: 4 }}>
-          <Txt variant="headline" numberOfLines={3}>
+      <View style={{ flexGrow: 1, borderRadius: radii.xl, backgroundColor: colors.brownTint, borderWidth: 1, borderColor: colors.brownBorder, padding: space.md, gap: space.sm, justifyContent: 'space-between' }}>
+        <View style={{ gap: 2 }}>
+          <Txt variant="headline" numberOfLines={2}>
             {tile.title}
           </Txt>
           {tile.detail ? (
@@ -600,7 +599,7 @@ function GiveTileView({ tile, ctx }: { tile: GiveTile; ctx: TileCtx }) {
             </Txt>
           ) : null}
         </View>
-        <View style={{ gap: space.sm }}>
+        <View style={{ gap: space.xs }}>
           <Txt variant="bodyStrong" color="brown">
             {amount}
           </Txt>

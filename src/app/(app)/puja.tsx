@@ -85,11 +85,11 @@ export default function PujaScreen() {
   return <Puja key={state.data.practice.step.id} lesson={state.data} center={center} personId={member?.person.id ?? null} refreshError={state.error} reload={state.reload} />;
 }
 
-/** The screen around the puja: a separate full-screen flow, like a lesson (no tab bar, no Niva button). */
+/** The screen around the puja: a separate full-screen flow, like a lesson (no tab bar, so no Niva). */
 function Frame({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   const t = useT();
   return (
-    <Screen title={t('puja.title')} tabBar={false} niva={false} footer={footer}>
+    <Screen title={t('puja.title')} tabBar={false} footer={footer}>
       <Txt variant="title" color="ink" accessibilityRole="header">
         {t('puja.heading')}
       </Txt>

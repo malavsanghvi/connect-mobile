@@ -65,7 +65,6 @@ export default function StoreScreen() {
   return (
     <Screen
       title={t('store.title')}
-      niva={false}
       footer={
         cart.count > 0 ? (
           <Pressable

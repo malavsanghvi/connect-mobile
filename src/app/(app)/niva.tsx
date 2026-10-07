@@ -319,7 +319,7 @@ export default function NivaScreen() {
     }
   };
 
-  // A question tapped in the Niva button's menu arrives as ?q=…; ask it once (trimmed, capped, never an array: askPrefill).
+  // A question carried by the link (/niva?q=…) is asked once (trimmed, capped, never an array: askPrefill).
   const prefill = askPrefill(q);
   useEffect(() => {
     if (!prefill || !member || !center || sentParam.current === prefill) return;
@@ -461,7 +461,7 @@ export default function NivaScreen() {
   ) : undefined;
 
   return (
-    <Screen title={title} niva={false} scroll={false} contentStyle={{ flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0, maxWidth: undefined }} footer={input}>
+    <Screen title={title} scroll={false} contentStyle={{ flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0, maxWidth: undefined }} footer={input}>
       <ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}

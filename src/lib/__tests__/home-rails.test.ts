@@ -177,26 +177,31 @@ describe('railTileSize (big enough to read, the next tile peeking in)', () => {
   const phone = 375 - 20; // from the cards' left edge to the right edge of a 375 phone
   const visible = (room: number, w: number) => (room + TILE_GAP) / (w + TILE_GAP);
 
-  it('fits two event posters and a peek of the third on a phone', () => {
+  it('fits three event posters and a peek of the fourth on a phone (thumbnails: the Home cards were too large)', () => {
     const s = railTileSize('poster', phone);
-    expect(s).toEqual({ width: 138, height: 207, interval: 150, whole: 2 });
-    expect(visible(phone, s.width)).toBeGreaterThan(2.2);
-    expect(visible(phone, s.width)).toBeLessThan(2.6);
+    expect(s).toEqual({ width: 92, height: 138, interval: 104, whole: 3 });
+    expect(visible(phone, s.width)).toBeGreaterThan(3.2);
+    expect(visible(phone, s.width)).toBeLessThan(3.8);
   });
-  it('keeps posters at least 112 wide on the smallest phones', () => {
-    const s = railTileSize('poster', 320 - 20);
-    expect(s.width).toBeGreaterThanOrEqual(TILE_SHAPES.poster.min);
-    expect(s.whole).toBe(2);
-    expect(s.height).toBe(Math.round(s.width * 1.5));
+  it('keeps a poster under 120 wide and 180 tall on a phone, and at least 88 wide on the smallest', () => {
+    for (const screen of [320, 360, 375, 390, 414, 430]) {
+      const s = railTileSize('poster', screen - 20);
+      expect(s.width).toBeLessThan(120);
+      expect(s.height ?? 0).toBeLessThan(180);
+    }
+    const smallest = railTileSize('poster', 320 - 20);
+    expect(smallest.width).toBeGreaterThanOrEqual(TILE_SHAPES.poster.min);
+    expect(smallest.whole).toBe(2);
+    expect(smallest.height).toBe(Math.round(smallest.width * 1.5));
   });
   it('fits more tiles, never wider than the shape allows, on the web frame and tablets', () => {
     const web = railTileSize('poster', 480 - 20);
-    expect(web.whole).toBe(3);
+    expect(web.whole).toBe(4);
     expect(web.width).toBeLessThanOrEqual(TILE_SHAPES.poster.max);
     const tablet = railTileSize('poster', 640 - 20);
-    expect(tablet.whole).toBe(4);
+    expect(tablet.whole).toBe(5);
     expect(tablet.width).toBeLessThanOrEqual(TILE_SHAPES.poster.max);
-    expect(railTileSize('feature', 2000).width).toBeLessThanOrEqual(TILE_SHAPES.feature.max);
+    for (const shape of ['offer', 'feature'] as const) expect(railTileSize(shape, 2000).width).toBeLessThanOrEqual(TILE_SHAPES[shape].max);
   });
   it('shows one wide tile (Learn & listen) with the next peeking in on a phone', () => {
     const s = railTileSize('wide', phone);
@@ -210,6 +215,18 @@ describe('railTileSize (big enough to read, the next tile peeking in)', () => {
     expect(s.width).toBe(TILE_SHAPES.card.max);
     expect(s.height).toBeNull();
     expect(s.interval).toBe(s.width + TILE_GAP);
+  });
+  it('keeps a giving opportunity compact: a card about two thirds of a phone with the next one peeking in, as tall as its words', () => {
+    const s = railTileSize('offer', phone);
+    expect(s).toEqual({ width: 208, height: null, interval: 220, whole: 1 });
+    expect(visible(phone, s.width)).toBeGreaterThan(1.4);
+    expect(visible(phone, s.width)).toBeLessThan(1.9);
+    // Two fit side by side on the web frame and on a large phone.
+    expect(railTileSize('offer', 480 - 20)).toEqual({ width: 190, height: null, interval: 202, whole: 2 });
+    expect(railTileSize('offer', 430 - 20).whole).toBe(2);
+    // Narrower than the special-day card, which keeps its size.
+    expect(TILE_SHAPES.offer.max).toBeLessThan(TILE_SHAPES.card.max);
+    expect(TILE_SHAPES.card.max).toBe(260);
   });
   it('fits two Life@JSH tiles and a peek of the third on a phone', () => {
     const s = railTileSize('feature', phone);
@@ -225,7 +242,7 @@ describe('railTileSize (big enough to read, the next tile peeking in)', () => {
     expect(visible(phone, largest.width) % 1).toBeGreaterThan(0.2);
   });
   it('shows a peek of the next tile on every phone width from 320 to 430, for every shape but the hero', () => {
-    for (const shape of ['poster', 'wide', 'card', 'feature'] as const) {
+    for (const shape of ['poster', 'wide', 'card', 'offer', 'feature'] as const) {
       for (const screen of [320, 360, 375, 390, 414, 430]) {
         const room = screen - 20;
         const s = railTileSize(shape, room);
@@ -239,7 +256,7 @@ describe('railTileSize (big enough to read, the next tile peeking in)', () => {
     }
   });
   it('never breaks on a width it cannot use', () => {
-    for (const shape of ['hero', 'poster', 'wide', 'card', 'feature'] as TileShape[]) {
+    for (const shape of ['hero', 'poster', 'wide', 'card', 'offer', 'feature'] as TileShape[]) {
       for (const w of [0, -10, Number.NaN, Number.POSITIVE_INFINITY]) {
         const s = railTileSize(shape, w);
         expect(Number.isFinite(s.width)).toBe(true);
@@ -265,11 +282,18 @@ describe('railTileSize for a tile that is alone in its row', () => {
     expect(alone('wide', 375).height).toBe(Math.round(335 * (9 / 16)));
     expect(alone('card', 375).height).toBeNull();
   });
-  it('fills the cards’ width for a lone event poster too, 2:3, up to a width of 340 (a poster is half as tall again as it is wide)', () => {
-    expect(alone('poster', 375)).toEqual({ width: 335, height: 503, interval: 347, whole: 1 });
-    expect(alone('poster', 320).width).toBe(280);
-    expect(alone('poster', 430).width).toBe(340);
+  it('makes a lone event poster 2:3 and a little larger, up to a width of 240 (it was a screenful: 340 wide, 510 tall)', () => {
+    expect(alone('poster', 375)).toEqual({ width: 240, height: 360, interval: 252, whole: 1 });
+    expect(alone('poster', 320).width).toBe(240);
+    expect(alone('poster', 430).width).toBe(240);
     expect(alone('poster', 1024).width).toBe(TILE_SHAPES.poster.aloneMax);
+  });
+  it('fills the cards’ width for a lone giving opportunity, up to 360', () => {
+    expect(alone('offer', 320).width).toBe(280);
+    expect(alone('offer', 375).width).toBe(335);
+    expect(alone('offer', 430).width).toBe(360);
+    expect(alone('offer', 1024).width).toBe(TILE_SHAPES.offer.aloneMax);
+    expect(alone('offer', 375).height).toBeNull();
   });
   it('stops at a sensible width on a wide screen, left where it begins', () => {
     expect(alone('card', 1024).width).toBe(440);
@@ -281,7 +305,9 @@ describe('railTileSize for a tile that is alone in its row', () => {
     expect(railTileSize('poster', 355, 1, TILE_GAP, { count: undefined, bleed: 20 })).toEqual(railTileSize('poster', 355));
   });
   it('is as wide as the cards on the smallest phone at the largest text size too (nothing scales a lone tile out of its row)', () => {
-    for (const shape of ['poster', 'wide', 'card', 'feature'] as const) expect(alone(shape, 320, 1.3).width).toBe(280);
+    for (const shape of ['wide', 'card', 'offer', 'feature'] as const) expect(alone(shape, 320, 1.3).width).toBe(280);
+    // A lone poster stops at its own cap whatever the text size.
+    expect(alone('poster', 320, 1.3).width).toBe(TILE_SHAPES.poster.aloneMax);
   });
 });
 
