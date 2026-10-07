@@ -9,6 +9,8 @@ export const env = {
   supabaseAnonKey: (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim(),
   /** Default center (tenant) slug; JSH is tenant #1. */
   centerSlug: (process.env.EXPO_PUBLIC_CENTER_SLUG ?? '').trim() || 'jsh',
+  /** The web domain whose names open a community ("weaverams.org": jsh.weaverams.org opens JSH, app.weaverams.org lists them). Empty: one address for everyone, as before. */
+  memberBaseDomain: (process.env.EXPO_PUBLIC_MEMBER_BASE_DOMAIN ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
   /** Public community dashboard (drawer link) when centers.branding.dashboard_url is not set. */
   communityDashboardUrl: (process.env.EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL ?? '').trim(),
   /** The Community Connect portal that creates online checkouts (/api/payments/intent). Without it, online payment is off. */
@@ -41,6 +43,12 @@ export function envStatus(): EnvVar[] {
       purpose: 'Center to open (optional, defaults to "jsh").',
       required: false,
       present: (process.env.EXPO_PUBLIC_CENTER_SLUG ?? '').trim().length > 0,
+    },
+    {
+      name: 'EXPO_PUBLIC_MEMBER_BASE_DOMAIN',
+      purpose: 'Web domain whose names open a community, e.g. weaverams.org (optional; web build only. Unset: one address for everyone).',
+      required: false,
+      present: env.memberBaseDomain.length > 0,
     },
     {
       name: 'EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL',

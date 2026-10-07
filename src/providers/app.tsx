@@ -9,6 +9,7 @@ import { modeAfterMemberLoad, type OnboardingMode } from '@/features/onboarding/
 import { brandPalette, communityToOpen, isCommunityChoice, openedPath, type CommunityChoice } from '@/lib/community';
 import { env, isConfigured } from '@/lib/env';
 import { AppError, logError, report } from '@/lib/errors';
+import { addressFor, goTo, hostSlug, pickerHost, switchAddress } from '@/lib/member-address';
 import { readPref, writePref } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { applyPalette } from '@/theme';
@@ -106,12 +107,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Saved choice → the build's default for an install that is already signed
-  // in (existing JSH members see no new step) → none ("Find your community").
+  // The web address (jsh.weaverams.org) → saved choice → the build's default for an
+  // install that is already signed in (existing JSH members see no new step) → none
+  // ("Find your community"). On app.weaverams.org a plain visit always shows the list.
   const slug =
     saved === undefined || !sessionReady || openedAt === undefined
       ? undefined
-      : communityToOpen({ saved, signedIn: !!session, defaultSlug: env.centerSlug, openedAt });
+      : communityToOpen({ saved, signedIn: !!session, defaultSlug: env.centerSlug, openedAt, hostSlug, pickerHost });
   const centerKey = `${slug ?? ''}#${bootNonce}`;
 
   // Resolve the center (public read — works for guests too) and theme the app from its brand kit.
@@ -174,6 +176,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       // Still open it for this session; the member is asked again next launch.
       logError('remembering the chosen community on this device', err);
+    }
+    // On the member domain the address says where you are: go to that community's own address.
+    const address = addressFor(choice.slug);
+    if (address) {
+      goTo(address);
+      return;
     }
     setMemberResult(null);
     setOnboardingMode('off');
@@ -264,7 +272,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     needsCommunity: isConfigured && slug === null,
     choosingCommunity,
     chooseCommunity,
-    switchCommunity: () => setChoosingCommunity(true),
+    // On an organization's own address the list lives at app.<domain>; elsewhere it opens in the app.
+    switchCommunity: () => {
+      const address = switchAddress();
+      if (address) goTo(address);
+      else setChoosingCommunity(true);
+    },
     cancelSwitchCommunity: () => setChoosingCommunity(false),
     session,
     guest: !session && guest,

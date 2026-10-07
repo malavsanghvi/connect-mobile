@@ -43,6 +43,7 @@ it never falls back to sample data.
 | `EXPO_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | yes | Anon / publishable key (RLS protects data). Never a service-role key. |
 | `EXPO_PUBLIC_CENTER_SLUG` | no | Center to open, resolved from `app.centers.slug`. Default `jsh`. |
+| `EXPO_PUBLIC_MEMBER_BASE_DOMAIN` | no | Web build only. The domain whose names open a community (`weaverams.org`): `jsh.weaverams.org` opens JSH, `app.weaverams.org` lists the organizations. Unset: one address for everyone. See "One web address per organization". |
 | `EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL` | no | Public community dashboard linked from the menu. `centers.branding.dashboard_url` wins; hidden when neither is set. |
 
 For EAS builds set them as EAS environment variables.
@@ -262,6 +263,24 @@ welcome screen). `EXPO_PUBLIC_CENTER_SLUG` stays the default: an install that is
 signed in, or opened on a link into one of the app's screens, opens it with no new step.
 The app themes itself from the community's brand kit (`centers.branding` colours and logo
 files) and shows "Sandbox · test data" over every screen of a sandbox.
+
+The first screen also has a **dropdown of the organizations** (`listCommunities`, a public read of
+active `centers`). While no live community exists it lists the active sandboxes too; as soon as one
+is live it lists live communities only, so the 2026-09-25 rule needs no switch (owner decision
+2026-10-07, `pickableCommunities` in `src/lib/community.ts`).
+
+### One web address per organization
+
+With `EXPO_PUBLIC_MEMBER_BASE_DOMAIN` set (repository variable `MEMBER_BASE_DOMAIN`, web build
+only), the address picks the community: `jsh.<domain>` opens JSH directly (even for someone who
+chose another community here before), `app.<domain>` always shows the dropdown for a plain visit
+or a join link, and choosing an organization there goes to `https://<slug>.<domain>/`. **Switch
+community** on an organization's address goes back to `https://app.<domain>/`. `app`, `admin`,
+`www`, `events`, `api` and `mail` are never read as organizations. Deep links (`/e/<id>`) on
+`app.<domain>` still open in the remembered or default community. Phones, a bare IP and `localhost`
+are unaffected. The server side (wildcard HTTPS names routed to these files) is connect-crm's
+`MEMBER_BASE_DOMAIN`, see docs/DEPLOY.md there. Browser storage is per address, so a member signs
+in once per address.
 
 ## Event flyers
 

@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { FullScreen } from '@/components/full-screen';
+import { SelectField } from '@/components/pickers';
 import { QrScanner } from '@/components/qr-scanner';
 import { Banner, Button, Card, LinkText, ListRow, Pill, SectionTitle, TextField, Txt } from '@/components/ui';
-import { communityByJoinCode, communityBySlug, findCommunity, type CommunityResult } from '@/lib/api/community';
+import { communityByJoinCode, communityBySlug, findCommunity, listCommunities, type CommunityResult } from '@/lib/api/community';
 import { formatJoinCode, parseJoinInput } from '@/lib/community';
 import { env } from '@/lib/env';
 import { report, type AppError } from '@/lib/errors';
+import { pickerHost } from '@/lib/member-address';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
@@ -17,9 +19,11 @@ import { colors, space } from '@/theme';
 /**
  * "Find your community" (connect-crm docs/ONBOARDING_PLAN.md §7): shown on a
  * new install before the welcome screen, and from Settings › Switch community.
- * Search lists live communities only; a sandbox opens only with its join code
- * (typed, scanned from a poster's QR code, or from a
- * communityconnect://join/<code> link).
+ * The dropdown lists the organizations (active sandboxes too, until a live one
+ * exists: pickableCommunities). Search lists live communities only; a sandbox
+ * opens with its join code (typed, scanned from a poster's QR code, or from a
+ * communityconnect://join/<code> link). On app.<member domain> this page is the
+ * front door, and choosing an organization goes to its own address.
  */
 export function FindCommunityScreen() {
   const t = useT();
@@ -44,6 +48,11 @@ export function FindCommunityScreen() {
   // The build's own community (JSH for the JSH build), offered as one tap. Read by its web name,
   // not through search: search never lists a sandbox, and the build's community may be one.
   const suggested = useLoad(() => communityBySlug(env.centerSlug), [env.centerSlug], 'load the suggested community');
+  // The dropdown of organizations to choose from.
+  const communities = useLoad(() => listCommunities(), [], 'load the list of organizations');
+  const [picked, setPicked] = useState('');
+  const labelOf = (c: CommunityResult) => [c.name, c.place, c.sandbox ? t('community.pickSandbox') : null].filter(Boolean).join(' · ');
+  const byLabel = new Map((communities.data ?? []).map((c) => [labelOf(c), c] as const));
 
   const lookUp = async (raw: string) => {
     setCodeError(null);
@@ -118,7 +127,41 @@ export function FindCommunityScreen() {
 
       {openError ? <Banner tone="error" message={openError.userMessage} /> : null}
 
-      {suggested.data && suggested.data.slug !== app.center?.slug ? (
+      <View style={{ gap: space.sm }}>
+        {communities.error ? (
+          <Banner tone="error" message={communities.error.userMessage} action={{ label: t('common.retry'), onPress: () => void communities.reload() }} />
+        ) : communities.loading ? (
+          <Txt variant="small" color="muted">
+            {t('community.listLoading')}
+          </Txt>
+        ) : byLabel.size > 0 ? (
+          <SelectField
+            label={t('community.pickLabel')}
+            placeholder={t('community.pickPlaceholder')}
+            value={picked}
+            options={[...byLabel.keys()]}
+            size="md"
+            editable={!opening}
+            onChange={(label) => {
+              const c = byLabel.get(label);
+              if (!c) return;
+              setPicked(label);
+              void open(c);
+            }}
+          />
+        ) : (
+          <Txt variant="small" color="muted">
+            {t('community.noneListed')}
+          </Txt>
+        )}
+        {opening ? (
+          <Txt variant="small" color="muted">
+            {t('community.opening')}
+          </Txt>
+        ) : null}
+      </View>
+
+      {!pickerHost && suggested.data && suggested.data.slug !== app.center?.slug ? (
         <Button
           label={opening === suggested.data.slug ? t('community.opening') : t('community.suggested', { name: suggested.data.name })}
           busy={opening === suggested.data.slug}
