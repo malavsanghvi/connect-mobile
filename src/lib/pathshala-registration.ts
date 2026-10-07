@@ -797,9 +797,21 @@ export function chargedNow(r: Pick<RegistrationResult, 'lines' | 'dueNowCents'>)
   return { cents, count: cents > 0 ? seats.length : 0 };
 }
 
-/** The amount to pay now in a pay-now term: the database's `pay.amount_cents`, else what it bills (never in a pledge-mode term). */
-export function payNowCents(r: Pick<RegistrationResult, 'lines' | 'pay' | 'dueNowCents'>): number {
-  return r.pay ? r.pay.amountCents : chargedNow(r).cents;
+/**
+ * The amount to pay now: the database's `pay.amount_cents` (a pay-now term only; its answer says nothing in a pledge-mode
+ * term, where what is billed is due on each pledge's own date, never now). Never worked out from the lines.
+ */
+export function payNowCents(r: Pick<RegistrationResult, 'pay'>): number {
+  return r.pay ? r.pay.amountCents : 0;
+}
+
+/**
+ * Seat lines with a fee that no pledge was made for (a registration's answer): the fee is not in the family's pledges.
+ * Either the family asked about fee assistance (billing waits for the decision) or the community does not bill fees in
+ * the app (Pledges & donations is off: the line is kept "not billed" and the office says how to pay).
+ */
+export function unbilledSeatLines(r: Pick<RegistrationResult, 'lines'>): RegLine[] {
+  return r.lines.filter((l) => l.outcome === 'seat' && l.totalCents > 0 && !l.pledge);
 }
 
 /**

@@ -4,6 +4,7 @@ import { Banner, Button, Card, Chip, ChipGroup, Txt, VStack } from '@/components
 import type { RegistrationTerm } from '@/lib/api/pathshala';
 import { formatCents, formatLongDate } from '@/lib/format';
 import { membershipState, startBlock, type RegistrationOptions } from '@/lib/pathshala-registration';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { space } from '@/theme';
 
@@ -13,7 +14,8 @@ import { FactLine, StepHeader, whenText } from './shared';
  * Step 0, "Before you start" (plan §3.1): which term (when there is more than one), which household (an adult of more
  * than one, P32), the window (open, late with its fee, closed, opens on a date), membership (P6: register now, seats
  * wait for it) and what registering does in this term's payment mode. A closed window or the database's own reason
- * stops here.
+ * stops here. Membership only matters while the community's Membership module is on: with it off nobody could ever be
+ * let in, so the database does not hold anyone for it (0590 `pathshala_membership_hold_applies`).
  */
 export function StartStep({
   options,
@@ -36,6 +38,8 @@ export function StartStep({
   const w = term.window;
   const block = startBlock(options);
   const membership = membershipState(household.membership);
+  const membershipOn = useModule('membership');
+  const membershipMatters = term.membershipRequired && membershipOn;
 
   const windowLine =
     w.state === 'late'
@@ -109,7 +113,7 @@ export function StartStep({
       ) : null}
       <Card>
         {windowLine ? <FactLine text={windowLine} tone={w.state === 'late' ? 'brown' : 'green'} /> : null}
-        {term.membershipRequired ? (
+        {membershipMatters ? (
           <FactLine text={membership === 'member' ? t('reg.start.member') : membership === 'applying' ? t('reg.start.applying') : t('reg.start.notMember')} tone={membership === 'member' ? 'green' : 'brown'} />
         ) : null}
         <FactLine text={modeLine} />
@@ -118,7 +122,7 @@ export function StartStep({
         {term.firstClassOn ? <FactLine text={t('reg.start.firstClass', { date: whenText(term.firstClassOn, timeZone) })} /> : null}
         {term.ageCutoffOn ? <FactLine text={t('reg.start.ages', { date: formatLongDate(term.ageCutoffOn) })} /> : null}
       </Card>
-      {term.membershipRequired && membership === 'none' && !block ? <Button label={t('reg.start.applyCta')} tone="secondary" size="md" icon="ribbon-outline" onPress={() => router.push('/guide/apply')} /> : null}
+      {membershipMatters && membership === 'none' && !block ? <Button label={t('reg.start.applyCta')} tone="secondary" size="md" icon="ribbon-outline" onPress={() => router.push('/guide/apply')} /> : null}
       {blockText ? <Banner tone="warning" message={blockText} /> : null}
     </VStack>
   );

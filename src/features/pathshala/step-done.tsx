@@ -14,6 +14,7 @@ import {
   lineNames,
   linePledges,
   outcomeKey,
+  unbilledSeatLines,
   type OfficeChoice,
   type RegEnrollment,
   type RegistrationOptions,
@@ -113,6 +114,9 @@ export function DoneStep({
   const now = useNow(30000, held);
   const countdown = held ? holdCountdown(holdUntil, now) : null;
   const pledges = linePledges(result);
+  // Seats with a fee that no pledge was made for: said plainly, never left looking as if the fee were billed.
+  const unbilled = unbilledSeatLines(result);
+  const unbilledNames = [...new Set(result.lines.flatMap((l, i) => (unbilled.includes(l) && names[i] ? [names[i]] : [])))];
   const title = mode === 'pay_now' && pay ? (held ? t('reg.done.titleHeld') : placedNow || paid ? t('reg.done.titlePaid') : t('reg.done.title')) : t('reg.done.title');
 
   return (
@@ -174,6 +178,14 @@ export function DoneStep({
             <Button label={t('reg.done.payOptional')} tone="secondary" size="md" onPress={onPayPledges} busy={paying} />
           )}
           {payError ? <Banner tone="error" message={payError} /> : null}
+        </Card>
+      ) : null}
+
+      {unbilledNames.length > 0 ? (
+        <Card>
+          <Txt variant="small" color="ink2">
+            {t('reg.done.unbilled', { names: unbilledNames.join(', ') })}
+          </Txt>
         </Card>
       ) : null}
 
