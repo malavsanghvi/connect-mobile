@@ -72,7 +72,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
   const [termId, setTermId] = useState<string | null>(askedTerm);
   const [householdId, setHouseholdId] = useState<string>(member.household?.id ?? '');
   const term = terms.data ? chooseTerm(terms.data, termId, (x) => registrationOpen(x, new Date())) : null;
-  const optionsState = useLoad(() => (term && householdId ? loadRegistrationOptions(term.id, householdId) : Promise.resolve(null)), [term?.id ?? null, householdId], 'load Pathshala registration');
+  const optionsState = useLoad(() => (term ? loadRegistrationOptions(term.id, householdId || null) : Promise.resolve(null)), [term?.id ?? null, householdId], 'load Pathshala registration');
 
   const [legacy, setLegacy] = useState(false);
   const [step, setStep] = useState<Step>('start');
@@ -118,7 +118,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
   if (legacy || answer?.kind === 'missing') return <LegacyEnrollForm centerId={center.id} member={member} />;
   // Another term or household was chosen: its options are on their way, or could not be had. The previous ones are not
   // shown meanwhile (they are another term's or another family's).
-  const switching = !!options && !!term && (optionsState.loading || !!optionsState.error) && (options.term.id !== term.id || options.household.id !== householdId);
+  const switching = !!options && !!term && (optionsState.loading || !!optionsState.error) && (options.term.id !== term.id || (!!householdId && options.household.id !== householdId));
   if (terms.data === undefined || (term && optionsState.data === undefined) || switching) {
     const error = terms.error ?? optionsState.error;
     return (

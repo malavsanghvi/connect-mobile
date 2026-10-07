@@ -50,13 +50,15 @@ let loggedMissing = false;
  * A failed call as the AppError the screen shows: the database's own sentence when it wrote one for people ("The fee
  * changed since you looked; please review the new total ($130.00)."), with a final period, its code and its HINT (a
  * RegistrationRefusal: the screen routes on `review_again`, see registerRoute); else the generic words for `action`.
- * Postgres' own permission and row-level-security messages stay generic. The technical detail is kept and logged.
+ * Postgres' own permission and row-level-security messages stay generic, and so does anything that does not start like a
+ * sentence (a capital letter, or a digit: a term name such as "2026-27 takes the fee online only." begins a real one). The
+ * technical detail is kept and logged.
  */
 export function pathshalaError(err: unknown, action: string): AppError {
   const e = err && typeof err === 'object' ? (err as { code?: unknown; message?: unknown }) : {};
   const code = typeof e.code === 'string' ? e.code : null;
   const message = typeof e.message === 'string' ? e.message.trim() : '';
-  if (code && REFUSAL_CODES.has(code) && /^["A-Z$]/.test(message) && !/permission denied|row-level security|violates|does not exist|syntax error/i.test(message)) {
+  if (code && REFUSAL_CODES.has(code) && /^["A-Z0-9$]/.test(message) && !/permission denied|row-level security|violates|does not exist|syntax error/i.test(message)) {
     const hint = errorHint(err);
     const out = new RegistrationRefusal(/[.!?]$/.test(message) ? message : `${message}.`, `${action}: ${message} | code=${code}${hint ? ` | hint=${hint}` : ''}`, code, hint);
     logError(action, out);
@@ -93,8 +95,9 @@ export async function loadRegistrationTerms(centerId: string, today: string): Pr
  * Everything the flow needs for one term and household (`app.pathshala_registration_options`). Rejects with a
  * plain-English AppError when it cannot be had; a function that is not deployed yet is `missing`, logged once.
  */
-export async function loadRegistrationOptions(termId: string, householdId: string): Promise<OptionsAnswer> {
-  const res = await rpc('pathshala_registration_options', { p_term: termId, p_household: householdId });
+export async function loadRegistrationOptions(termId: string, householdId: string | null): Promise<OptionsAnswer> {
+  // No household named: the database answers for the caller's own (primary) household (0590 `pathshala_registration_options`).
+  const res = await rpc('pathshala_registration_options', householdId ? { p_term: termId, p_household: householdId } : { p_term: termId });
   if (res.error) {
     if (isMissingRpcError(res.error)) {
       if (!loggedMissing) {
@@ -218,18 +221,78 @@ export function termAllowsOffice(row: Record<string, unknown>): boolean {
 /** Who is looking at an enrollment: an adult of the household, or a child (P30: a child never sees fees). */
 export type HoldViewer = { adult: boolean };
 
+/** A table that is not deployed yet (PostgREST: not in the schema cache; Postgres: undefined_table). */
+function isMissingTableError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; message?: unknown };
+  const message = typeof e.message === 'string' ? e.message.toLowerCase() : '';
+  return e.code === 'PGRST205' || e.code === '42P01' || message.includes('could not find the table');
+}
+
+type UntypedFrom = { from: (table: string) => { select: (columns: string) => { in: (column: string, values: string[]) => PromiseLike<{ data: unknown; error: unknown }> } } };
+
+let loggedNoFeeLine = false;
+
 /**
- * THE one place the app reads where an enrollment's seat stands beyond its status: whether it is held and why (0591
- * `hold_reason`), until when (`hold_expires_at`), an offer from the waitlist (`offered_at`) and the registration it
- * belongs to (`registration_id`). Today these are columns of the `pathshala_enrollments` row the caller already read
- * (`select('*')`: they are not in the generated types yet). The reasons about the fee (payment, office_payment,
- * assistance) are moving off that row into rows a child cannot read (P30), and the household's adults will get them
- * from `app.pathshala_registration_options`; until then a child's view leaves them out here. When the database moves
- * them, only this adapter changes: the screens read `HoldInfo` and nothing else reads those columns (nor
- * `withdrawal_reason`, which the app never reads).
+ * Why each seat is held, for the household's adults: `hold_reason` (membership, payment, office_payment, assistance,
+ * waiver), which 0591 keeps on the fee line (`pathshala_enrollment_fees`, connect-crm review item 11: a child never
+ * reads it, RLS gives the household's adults, the principal and giving staff). Only enrollments that wait are asked
+ * about (a hold needs status `requested`). A database without the table has no holds: nothing is held, logged once.
  */
-export async function enrollmentHolds(rows: readonly Pick<Tables<'pathshala_enrollments'>, 'id'>[], viewer: HoldViewer): Promise<Map<string, HoldInfo>> {
-  return new Map(rows.map((r) => [r.id, holdForViewer(holdInfo(r as unknown as Record<string, unknown>), viewer.adult)]));
+async function feeLineHolds(enrollmentIds: string[]): Promise<Map<string, string>> {
+  const reasons = new Map<string, string>();
+  if (enrollmentIds.length === 0) return reasons;
+  const res = await (supabase as unknown as UntypedFrom).from('pathshala_enrollment_fees').select('enrollment_id, hold_reason').in('enrollment_id', enrollmentIds);
+  if (res.error) {
+    if (isMissingTableError(res.error)) {
+      if (!loggedNoFeeLine) {
+        loggedNoFeeLine = true;
+        logError('Pathshala holds: app.pathshala_enrollment_fees is not deployed yet (connect-crm 0590), so no seat is shown as held', res.error);
+      }
+      return reasons;
+    }
+    throw report(res.error, 'load why your Pathshala seats are held');
+  }
+  for (const row of Array.isArray(res.data) ? res.data : []) {
+    const r = row as { enrollment_id?: unknown; hold_reason?: unknown };
+    if (typeof r.enrollment_id === 'string' && typeof r.hold_reason === 'string') reasons.set(r.enrollment_id, r.hold_reason);
+  }
+  return reasons;
+}
+
+/**
+ * THE one place the app reads where an enrollment's seat stands beyond its status: whether it is held and why, until
+ * when (`hold_expires_at`), an offer from the waitlist (`offered_at`) and the registration it belongs to
+ * (`registration_id`). `hold_expires_at`, `offered_at`, `registration_id` and `track_id` are columns of the
+ * `pathshala_enrollments` row the caller already read (`select('*')`: they are not in the generated types yet).
+ * The WHY (`hold_reason`) is about the fee, so 0591 keeps it on the fee line, which a child cannot read (P30): the
+ * household's adults get it from there (`feeLineHolds`; the same value `app.pathshala_registration_options` answers
+ * in `learners[].enrollments[]`), a child gets none, and a database that still has it on the row is read as before.
+ * The screens read `HoldInfo` and nothing else reads these columns (nor `withdrawal_reason`, which the app never reads).
+ */
+export async function enrollmentHolds(rows: readonly (Pick<Tables<'pathshala_enrollments'>, 'id'> & { status?: string })[], viewer: HoldViewer): Promise<Map<string, HoldInfo>> {
+  const raw = rows as unknown as Record<string, unknown>[];
+  const needReason = viewer.adult ? raw.filter((r) => r.status === 'requested' && typeof r.hold_reason !== 'string').map((r) => String(r.id)) : [];
+  const reasons = await feeLineHolds(needReason);
+  return new Map(
+    raw.map((r) => {
+      const id = String(r.id);
+      return [id, holdForViewer(holdInfo({ ...r, hold_reason: r.hold_reason ?? reasons.get(id) ?? null }), viewer.adult)];
+    }),
+  );
+}
+
+/** The enrollment columns about the fee that the adapter owns (0591; moving to rows a child cannot read): the hold's reason and the withdrawal's. */
+const FEE_COLUMNS = ['hold_reason', 'withdrawal_reason'] as const;
+
+/**
+ * An enrollment row without the fee columns: screens hold the row (spread into `Enrollment`) and read `hold` from
+ * `enrollmentHolds`, so a screen can never show a hold or withdrawal reason a child may not see by reading the row.
+ */
+export function withoutFeeColumns<T extends object>(row: T): T {
+  const copy = { ...row } as Record<string, unknown>;
+  for (const column of FEE_COLUMNS) delete copy[column];
+  return copy as T;
 }
 
 export type HeldSeat = {

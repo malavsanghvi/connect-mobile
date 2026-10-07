@@ -11,7 +11,7 @@ import { buildGyanSummary, goalProgress, GYAN_SUMMARY_COLUMNS, isLevelDone, isSt
 import type { FeePledge, HoldInfo } from '../pathshala-registration';
 
 import type { Center } from './member';
-import { enrollmentHolds, loadFeePledges, termAllowsOffice } from './pathshala';
+import { enrollmentHolds, loadFeePledges, termAllowsOffice, withoutFeeColumns } from './pathshala';
 
 // The progress arithmetic is pure and lives in src/lib/gyan-progress.ts (with the summary Home reads); it is re-exported here so every screen keeps one place to import from.
 export { goalProgress, isLevelDone, isStepDone, lastActivityByGoal };
@@ -282,7 +282,7 @@ export async function loadPathshala(householdId: string, opts: { adult?: boolean
     const cls = classes.find((c) => c.id === r.class_id);
     const term = terms.find((t) => t.id === r.term_id);
     return {
-      ...r,
+      ...withoutFeeColumns(r),
       termName: term?.name ?? null,
       className: cls?.name ?? null,
       levelName: levels.find((l) => l.id === r.requested_level_id)?.name ?? null,

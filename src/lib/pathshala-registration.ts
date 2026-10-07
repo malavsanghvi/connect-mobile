@@ -721,6 +721,8 @@ export function learnersArg(selections: Selection[], assistanceRequested: boolea
           track_id: c.trackId,
           level_id: levelId,
           note,
+          // The database keeps the request with the child's waiting registration (0591 `pathshala_pending_registrations.quote`)
+          // and bills nothing until the decision when the child is added.
           assistance_requested: assistanceRequested,
         };
       }
