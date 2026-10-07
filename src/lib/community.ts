@@ -27,6 +27,81 @@ export function searchableCommunities<T extends { sandbox: boolean }>(rows: read
   return rows.filter((r) => !r.sandbox);
 }
 
+/**
+ * The communities the "choose your organization" list offers (owner decision 2026-10-07). While no live
+ * community exists there is nothing else to pick, so the active sandboxes are listed too. As soon as one live
+ * community exists the 2026-09-25 rule applies by itself: live communities only, and a sandbox opens with its
+ * join code. Nothing to switch back on later.
+ */
+export function pickableCommunities<T extends { sandbox: boolean }>(rows: readonly T[]): T[] {
+  const live = rows.filter((r) => !r.sandbox);
+  return live.length > 0 ? live : [...rows];
+}
+
+// ── Addresses: <slug>.<base domain> opens that community ─────────────────────
+
+/**
+ * Names that belong to the platform, never to a community: app.<base> is the "choose your organization" page,
+ * admin.<base> is the staff portal. An organization cannot be reached at these.
+ */
+export const RESERVED_ADDRESS_LABELS: readonly string[] = ['app', 'admin', 'www', 'events', 'api', 'mail'];
+
+const SLUG_LABEL = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/** Lower-case host name without scheme, path, port or trailing dot ("https://JSH.Example.org:8443/x" → "jsh.example.org"); null when empty. */
+export function normalizeHost(raw: string | null | undefined): string | null {
+  const h = (raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/:\d+$/, '')
+    .replace(/\.$/, '');
+  return h || null;
+}
+
+/** True when the address is the member domain itself or any name under it (jsh.weaverams.org, app.weaverams.org). */
+export function onMemberDomain(hostname: string | null | undefined, baseDomain: string | null | undefined): boolean {
+  const host = normalizeHost(hostname);
+  const base = normalizeHost(baseDomain);
+  return !!host && !!base && (host === base || host.endsWith(`.${base}`));
+}
+
+/**
+ * The community an address names: "jsh.weaverams.org" on the base domain "weaverams.org" → "jsh". Null for the
+ * choose-your-organization address (app.<base>), any other reserved name, the bare base domain, a name with more
+ * labels than <slug>.<base>, an IP address, localhost, or when no base domain is configured.
+ */
+export function communityFromHost(hostname: string | null | undefined, baseDomain: string | null | undefined): string | null {
+  const host = normalizeHost(hostname);
+  const base = normalizeHost(baseDomain);
+  if (!host || !base || !host.endsWith(`.${base}`)) return null;
+  const label = host.slice(0, -(base.length + 1));
+  if (label.includes('.') || RESERVED_ADDRESS_LABELS.includes(label) || !SLUG_LABEL.test(label)) return null;
+  return label;
+}
+
+/** Where a community lives on the member domain: "https://jsh.weaverams.org/". */
+export function communityAddress(slug: string, baseDomain: string): string {
+  return `https://${slug}.${normalizeHost(baseDomain) ?? baseDomain}/`;
+}
+
+/** The choose-your-organization address: "https://app.weaverams.org/". */
+export function pickerAddress(baseDomain: string): string {
+  return `https://app.${normalizeHost(baseDomain) ?? baseDomain}/`;
+}
+
+/**
+ * Where choosing a community should take the browser, or null to just open it here: a visitor on the member
+ * domain who picks an organization other than the one in the address goes to that organization's own address,
+ * so the address always says where they are (and can be bookmarked or shared).
+ */
+export function addressForChoice(input: { hostname: string | null | undefined; baseDomain: string | null | undefined; hostSlug: string | null; slug: string }): string | null {
+  if (!input.baseDomain || !onMemberDomain(input.hostname, input.baseDomain)) return null;
+  if (input.hostSlug === input.slug) return null;
+  return communityAddress(input.slug, input.baseDomain);
+}
+
 export function formatJoinCode(code: string): string {
   const c = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
   return c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c;
@@ -49,17 +124,26 @@ export function isCommunityChoice(v: unknown): v is CommunityChoice {
  *   the sign-in page) — that link belongs to the build's community →
  *   none: a plain first launch shows "Find your community".
  * `openedAt` is the path the app was opened on ("/", "/events/…", "/join/…").
+ *
+ * On the web, the address comes first: `hostSlug` ("jsh" for jsh.weaverams.org) always wins, and on the
+ * choose-your-organization address (`pickerHost`, app.<base>) a plain visit or a join link shows the list
+ * every time, even for someone who chose a community here before.
  */
 export function communityToOpen(input: {
   saved: CommunityChoice | null;
   signedIn: boolean;
   defaultSlug: string;
   openedAt?: string | null;
+  hostSlug?: string | null;
+  pickerHost?: boolean;
 }): string | null {
+  if (input.hostSlug) return input.hostSlug;
+  const path = (input.openedAt ?? '/').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+  const plainVisit = path === '/' || /^\/join(\/|$)/i.test(path);
+  if (input.pickerHost && plainVisit) return null;
   if (input.saved) return input.saved.slug;
   if (input.signedIn) return input.defaultSlug;
-  const path = (input.openedAt ?? '/').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
-  if (path !== '/' && !/^\/join(\/|$)/i.test(path)) return input.defaultSlug;
+  if (!plainVisit) return input.defaultSlug;
   return null;
 }
 

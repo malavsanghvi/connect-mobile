@@ -26,6 +26,10 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://qenubcnvjcmsxhmehvat.supabase.co' }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || 'sb_publishable_EfX8-WUrsYuSkUB4vAFAIQ_ukUY01jy' }}
       EXPO_PUBLIC_CENTER_SLUG: ${{ vars.CENTER_SLUG || 'jsh' }}
+      # Optional: the web domain whose names open a community (jsh.<domain> opens JSH, app.<domain>
+      # lists the organizations). Unset: one address for everyone, as before. Needs the same name in
+      # connect-crm's MEMBER_BASE_DOMAIN (the server side) — docs/DEPLOY.md there.
+      EXPO_PUBLIC_MEMBER_BASE_DOMAIN: ${{ vars.MEMBER_BASE_DOMAIN }}
     steps:
       - name: Check settings
         env:

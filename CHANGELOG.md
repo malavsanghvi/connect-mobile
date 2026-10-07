@@ -14,6 +14,16 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.9.0 — 2026-10-07
+
+- **Choose your organization.** The first screen for a new install now has a dropdown of the organizations, so you no
+  longer need to search or have a join code. Until an organization is live, the ones still being set up are listed too
+  (marked **Sandbox**); once one is live, only live organizations are listed, with no change needed.
+- **One web address per organization.** On the web app, `jsh.weaverams.org` opens JSH directly and
+  `app.weaverams.org` shows the list of organizations; choosing one goes to its own address. **Switch community** on an
+  organization's address goes back to that list. Phones and any other address work exactly as before.
+- Members sign in once per address (the browser keeps the sign-in per website).
+
 ## 1.8.0 — 2026-10-06
 
 - **Homework.** When your community sets homework on a Gyan Path level, it shows under the lesson's first step, on the

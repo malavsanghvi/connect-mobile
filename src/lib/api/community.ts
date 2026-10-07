@@ -1,4 +1,4 @@
-import { searchableCommunities } from '../community';
+import { pickableCommunities, searchableCommunities } from '../community';
 import { maybe, must } from '../errors';
 import { supabase } from '../supabase';
 
@@ -26,6 +26,26 @@ export async function findCommunity(query: string): Promise<CommunityResult[]> {
     place: place(r.city, r.state_region),
     sandbox: r.environment === 'sandbox',
   })));
+}
+
+/**
+ * The "choose your organization" list: active communities, read like the app's own community (public read of
+ * centers). Sandboxes are included only while no live community exists (pickableCommunities).
+ */
+export async function listCommunities(): Promise<CommunityResult[]> {
+  const rows = must(
+    await supabase.from('centers').select('slug, name, short_name, state_region, environment').eq('status', 'active').order('name'),
+    'load the list of organizations',
+  );
+  return pickableCommunities(
+    rows.map((r) => ({
+      slug: String(r.slug),
+      name: r.name,
+      shortName: r.short_name,
+      place: place(null, r.state_region),
+      sandbox: r.environment === 'sandbox',
+    })),
+  );
 }
 
 /** The community a join code opens, or null when the code is wrong, replaced or expired. */
