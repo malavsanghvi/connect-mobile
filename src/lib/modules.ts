@@ -85,6 +85,16 @@ export function parseModuleRows(rows: unknown): { map: ModuleMap; labels: Partia
   return { map, labels };
 }
 
+/**
+ * The settings to hold after a read of `my_modules`. A failed read (a weak connection) keeps the last good answer for the same
+ * community, so a module an administrator switched off does not reappear until the next good read; only the first read of a
+ * community may fall back to the built-in answer. The same answer again keeps the object (nothing redraws).
+ */
+export function nextModuleSettings<T extends { map: ModuleMap; failed?: boolean }>(prev: { centerId: string; value: T } | null, centerId: string, next: T): { centerId: string; value: T } {
+  if (prev && prev.centerId === centerId && (next.failed || JSON.stringify(prev.value) === JSON.stringify(next))) return prev;
+  return { centerId, value: next };
+}
+
 /** Is this module on? Off when the database says so, or when a module it depends on is off. */
 export function isModuleOn(map: ModuleMap, key: ModuleKey, seen: readonly ModuleKey[] = []): boolean {
   if (CORE_MODULES.includes(key)) return true;

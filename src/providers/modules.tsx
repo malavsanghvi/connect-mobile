@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import { loadModuleSettings, type ModuleSettings } from '@/lib/api/modules';
 import { mergeModuleMap } from '@/lib/categories';
-import { ALL_ON, anyModuleOn, isModuleOn, type ModuleKey, type ModuleMap } from '@/lib/modules';
+import { ALL_ON, anyModuleOn, isModuleOn, nextModuleSettings, type ModuleKey, type ModuleMap } from '@/lib/modules';
 import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
@@ -46,8 +46,8 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
     let active = true;
     // loadModuleSettings never rejects (it logs and falls back to "all on").
     void loadModuleSettings(centerId).then((value) => {
-      // The same answer again (a foreground refresh that found nothing new) changes nothing and redraws nothing.
-      if (active) setSettings((prev) => (prev && prev.centerId === centerId && JSON.stringify(prev.value) === JSON.stringify(value) ? prev : { centerId, value }));
+      // The same answer again changes nothing; a failed refresh keeps the last good answer (nextModuleSettings).
+      if (active) setSettings((prev) => nextModuleSettings(prev, centerId, value));
     });
     return () => {
       active = false;
