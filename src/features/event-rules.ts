@@ -249,7 +249,8 @@ export function routeForNotification(data: unknown, actionId: string | null): No
     if (actionId === ACTION_CONFIRM_CHANGE) return { kind: 'confirm_screen', eventId };
     return { kind: 'confirm_popup', eventId };
   }
-  if (type === 'lunch' || type === 'lunch_reminder' || type === 'tickets' || type === 'check_in') return eventId ? { kind: 'tickets', eventId } : null;
+  // 'lunch_reminder' (connect-crm 0596/0598) is opened by the registry in src/lib/notification-routes.ts, exactly once.
+  if (type === 'lunch' || type === 'tickets' || type === 'check_in') return eventId ? { kind: 'tickets', eventId } : null;
   if (type === 'feedback' || type === 'survey' || type === 'event_feedback') {
     const surveyId = str(d.survey_id) ?? str(d.surveyId);
     if (surveyId) return { kind: 'survey', surveyId };

@@ -205,3 +205,63 @@ function pathshalaTarget(d: NotificationData): NotificationTarget {
 }
 
 registerNotificationRoute(PATHSHALA, { open: pathshalaTarget });
+
+// ---------------------------------------------------------------------------
+// Bolis (connect-crm 0596 and 0598). "boli_outbid": another family pledged more (to the family that was on top);
+// "boli_closing": the boli closes within 24 hours (to each person who pledged on it). Both carry `type`, a `deep_link`
+// "/boli/<id>", `boli_id` and, when the boli belongs to an event, `event_id`. A tap opens the boli (its pledge screen).
+// No boli id (an old or odd payload) opens nothing: the app just opens.
+// ---------------------------------------------------------------------------
+
+export const BOLI_OUTBID = 'boli_outbid';
+export const BOLI_CLOSING = 'boli_closing';
+
+/** The boli a push points at: data.boli_id, else data.deep_link "/boli/<id>". Null if neither is a boli id. */
+export function boliIdFromData(d: NotificationData): string | null {
+  const direct = uuidField(d.boli_id);
+  if (direct) return direct;
+  const link = str(d.deep_link);
+  const m = link ? /^\/?boli\/([^/?#]+)\/?$/i.exec(link) : null;
+  return m && UUID.test(m[1]) ? m[1] : null;
+}
+
+function boliTarget(d: NotificationData): NotificationTarget | null {
+  const id = boliIdFromData(d);
+  return id ? { pathname: '/boli/[id]', params: { id } } : null;
+}
+
+registerNotificationRoute(BOLI_OUTBID, { open: boliTarget });
+registerNotificationRoute(BOLI_CLOSING, { open: boliTarget });
+
+// ---------------------------------------------------------------------------
+// Satvik Store (0598): "your order is ready" (type store_order_ready, deep_link "/store", order_id). The store screen
+// lists "Your orders" with the status of each, so the push opens the store.
+// ---------------------------------------------------------------------------
+
+export const STORE_ORDER_READY = 'store_order_ready';
+
+registerNotificationRoute(STORE_ORDER_READY, { open: () => ({ pathname: '/store' }) });
+
+// ---------------------------------------------------------------------------
+// Lunch (0596; type, deep_link and event_id since 0598): "your lunch slot starts at …" opens the event's tickets, where
+// the lunch card is. It used to be opened by the event-notification router (src/features/event-rules.ts), which still
+// opens its other aliases ("lunch", "tickets", "check_in"); this type lives here so it is opened exactly once.
+// ---------------------------------------------------------------------------
+
+export const LUNCH_REMINDER = 'lunch_reminder';
+
+/** The event a push points at: data.event_id, else data.deep_link "/event/<id>/…". Null if neither is an event id. */
+export function eventIdFromData(d: NotificationData): string | null {
+  const direct = uuidField(d.event_id);
+  if (direct) return direct;
+  const link = str(d.deep_link);
+  const m = link ? /^\/?event\/([^/?#]+)(?:\/[a-z-]+)?\/?$/i.exec(link) : null;
+  return m && UUID.test(m[1]) ? m[1] : null;
+}
+
+registerNotificationRoute(LUNCH_REMINDER, {
+  open: (d) => {
+    const id = eventIdFromData(d);
+    return id ? { pathname: '/event/[id]/tickets', params: { id } } : null;
+  },
+});

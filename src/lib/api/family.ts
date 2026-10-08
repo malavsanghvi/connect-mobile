@@ -5,6 +5,7 @@ import { normalizeCity, normalizeState, normalizeZip, type AddressSuggestion } f
 import { AppError, check, logError, maybe, must } from '../errors';
 import { formatDob, formatPhone, isValidEmail, parseDobInput, toE164 } from '../format';
 import { planEmailChanges, type EmailDraft } from '../emails';
+import { topicHasSender } from '../notification-topics';
 import { withAuditReason } from '../request-context';
 import { supabase } from '../supabase';
 
@@ -132,7 +133,7 @@ export async function loadContactPrefs(centerId: string, personId: string, house
     supabase.from('people').select('contact_channels').eq('id', personId).single(),
     supabase.from('person_emails').select('*').eq('person_id', personId).order('created_at'),
   ]);
-  const topics = must(topicsRes, 'load notification topics');
+  const topics = must(topicsRes, 'load notification topics').filter(topicHasSender);
   const prefs = must(prefsRes, 'load your notification choices');
   const optins = must(optinsRes, 'load your contact choices');
   const consent = must(consentRes, 'load your mail choice');

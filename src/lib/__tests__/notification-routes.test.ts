@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { routeForNotification } from '../../features/event-rules';
-import { familyCircleRecipient, notificationTarget, registerNotificationRoute, surveyIdFromData } from '../notification-routes';
+import { boliIdFromData, eventIdFromData, familyCircleRecipient, notificationTarget, registerNotificationRoute, surveyIdFromData } from '../notification-routes';
 
 const SURVEY = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const EVENT = '5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9';
@@ -145,5 +145,82 @@ describe('notification routes', () => {
       expect(notificationTarget({ deep_link: `/pathshala?person=${LEARNER}` })).toEqual(learn);
       expect(notificationTarget({ deep_link: '/settings' })).toBeNull();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// connect-crm 0596 / 0598: the pushes the server sends, with the payloads it really queues. Each is opened by exactly one
+// of the two routers (this registry, or the event-notification router in src/features/event-rules.ts).
+// ---------------------------------------------------------------------------
+describe('notice pushes (connect-crm 0596 and 0598)', () => {
+  const BOLI = '99999999-9999-4999-8999-999999999999';
+  const ORDER = '88888888-8888-4888-8888-888888888888';
+  const DAY = '77777777-7777-4777-8777-777777777777';
+  const SLOT = '66666666-6666-4666-8666-666666666666';
+
+  // What the worker forwards (pushRouting): type, deep_link and the routing ids; never the recipient.
+  const payloads = {
+    boli_outbid: { type: 'boli_outbid', deep_link: `/boli/${BOLI}`, boli_id: BOLI, event_id: EVENT },
+    boli_closing: { type: 'boli_closing', deep_link: `/boli/${BOLI}`, boli_id: BOLI },
+    store_order_ready: { type: 'store_order_ready', deep_link: '/store', order_id: ORDER },
+    lunch_reminder: { type: 'lunch_reminder', deep_link: `/event/${EVENT}/tickets`, event_id: EVENT },
+    rsvp_confirm: { type: 'rsvp_confirm', deep_link: `/event/${EVENT}/confirm`, event_id: EVENT },
+    special_day: { type: 'special_day', deep_link: `/labh/${DAY}`, special_day_id: DAY },
+  };
+
+  it('opens the boli for "another family pledged more" and for the notice before it closes', () => {
+    const target = { pathname: '/boli/[id]', params: { id: BOLI } };
+    expect(notificationTarget(payloads.boli_outbid)).toEqual(target);
+    expect(notificationTarget(payloads.boli_closing)).toEqual(target);
+    // The id from the deep link when boli_id is missing.
+    expect(notificationTarget({ type: 'boli_outbid', deep_link: `/boli/${BOLI}` })).toEqual(target);
+    expect(notificationTarget({ type: 'boli_closing', deep_link: `boli/${BOLI}/` })).toEqual(target);
+    expect(boliIdFromData({ boli_id: BOLI })).toBe(BOLI);
+  });
+  it('opens the app only when a boli push names no usable boli', () => {
+    expect(notificationTarget({ type: 'boli_outbid' })).toBeNull();
+    expect(notificationTarget({ type: 'boli_outbid', boli_id: 'not-an-id' })).toBeNull();
+    expect(notificationTarget({ type: 'boli_closing', deep_link: '/boli/not-an-id' })).toBeNull();
+    expect(notificationTarget({ type: 'boli_closing', deep_link: `/give/${BOLI}` })).toBeNull();
+    expect(notificationTarget({ type: 'boli_closing', deep_link: `/boli/${BOLI}/../../x` })).toBeNull();
+  });
+  it('opens the store for "your order is ready"', () => {
+    expect(notificationTarget(payloads.store_order_ready)).toEqual({ pathname: '/store' });
+    expect(notificationTarget({ type: 'store_order_ready' })).toEqual({ pathname: '/store' });
+  });
+  it('opens the event tickets for the lunch reminder, by event id or by deep link (old payloads had only event_id and slot_id)', () => {
+    const target = { pathname: '/event/[id]/tickets', params: { id: EVENT } };
+    expect(notificationTarget(payloads.lunch_reminder)).toEqual(target);
+    expect(notificationTarget({ type: 'lunch_reminder', event_id: EVENT, slot_id: SLOT })).toEqual(target);
+    expect(notificationTarget({ type: 'lunch_reminder', deep_link: `/event/${EVENT}/tickets` })).toEqual(target);
+    expect(notificationTarget({ type: 'lunch_reminder' })).toBeNull();
+    expect(notificationTarget({ type: 'lunch_reminder', event_id: 'nope', deep_link: '/event/nope/tickets' })).toBeNull();
+    expect(eventIdFromData({ deep_link: `/event/${EVENT}/confirm` })).toBe(EVENT);
+  });
+
+  it('leaves the RSVP confirmation and the special-day prompt to the event router (confirm pop-up with Yes / Change, the labh screen)', () => {
+    expect(routeForNotification(payloads.rsvp_confirm, null)).toEqual({ kind: 'confirm_popup', eventId: EVENT });
+    expect(routeForNotification(payloads.rsvp_confirm, 'confirm_yes')).toEqual({ kind: 'confirm_yes', eventId: EVENT });
+    expect(routeForNotification(payloads.rsvp_confirm, 'confirm_change')).toEqual({ kind: 'confirm_screen', eventId: EVENT });
+    expect(routeForNotification(payloads.special_day, null)).toEqual({ kind: 'labh', dayId: DAY });
+    expect(notificationTarget(payloads.rsvp_confirm)).toBeNull();
+    expect(notificationTarget(payloads.special_day)).toBeNull();
+  });
+
+  it('opens each push exactly once: one router answers, never both (no double navigation)', () => {
+    for (const [template, data] of Object.entries(payloads)) {
+      const registry = notificationTarget(data);
+      const events = routeForNotification(data, null);
+      expect([template, Number(registry !== null) + Number(events !== null)]).toEqual([template, 1]);
+    }
+    // The event feedback pushes (0596) too: the registry only.
+    const survey = { type: 'event_survey', survey_id: SURVEY, event_id: EVENT, deep_link: `survey/${SURVEY}` };
+    expect(Number(notificationTarget(survey) !== null) + Number(routeForNotification(survey, null) !== null)).toBe(1);
+  });
+
+  it('just opens the app for an old, unknown or empty payload', () => {
+    for (const data of [undefined, null, {}, [], 'boli', { type: 'something_new' }, { type: 'boli' }, { deep_link: `/boli/${BOLI}` }, { type: 'rsvp_confirm' }]) {
+      expect([data, notificationTarget(data) === null && routeForNotification(data, null) === null]).toEqual([data, true]);
+    }
   });
 });
