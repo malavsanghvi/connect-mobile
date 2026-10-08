@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/states';
 import { Button, LinkText, Txt, VStack } from '@/components/ui';
 import { openAfterGuest, useGuestDoors } from '@/features/guest-door';
 import { GUEST_DOORS, type GuestDoor } from '@/lib/access';
+import { welcomeSignInChoices } from '@/lib/auth-config';
 import { useAccess } from '@/providers/access';
 import { useApp } from '@/providers/app';
 import { useT } from '@/providers/settings';
@@ -48,8 +49,10 @@ export default function WelcomeScreen() {
           {t('welcome.subtitle')}
         </Txt>
         <View style={{ gap: 10, paddingTop: space.xl }}>
-          <Button label={t('welcome.email')} onPress={() => router.push({ pathname: '/sign-in', params: { mode: 'email' } })} />
-          <Button label={t('welcome.mobile')} tone="secondary" onPress={() => router.push({ pathname: '/sign-in', params: { mode: 'phone' } })} />
+          {/* Email only while the mobile number is switched off (src/lib/auth-config.ts): one button, no "or" divider. */}
+          {welcomeSignInChoices().map((choice) => (
+            <Button key={choice.mode} label={t(choice.labelKey)} tone={choice.tone} onPress={() => router.push({ pathname: '/sign-in', params: { mode: choice.mode } })} />
+          ))}
           {doors.length > 0 ? (
             <VStack gap={10} style={{ paddingTop: space.md }}>
               <Txt variant="eyebrow" color="muted" accessibilityRole="header">

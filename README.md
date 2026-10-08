@@ -79,7 +79,9 @@ account and a service-account key (`submit.production.android`).
 
 - **Email OTP**: the email template must include the 6-digit code (`{{ .Token }}`),
   not only a magic link. OTP length 6.
-- **Phone OTP**: an SMS provider must be configured for "Continue with mobile number".
+- **Phone OTP**: hidden since 1.15.0 (the app signs in and creates accounts with an email only). It needs no SMS
+  provider while hidden; to bring "Continue with mobile number" back, set `PHONE_SIGN_IN_ENABLED = true` in
+  `src/lib/auth-config.ts` and configure an SMS provider.
 - **Push**: builds need an EAS `projectId` (`extra.eas.projectId`) to register Expo
   push tokens in `app.push_devices`; without it Settings explains why push is off.
 
@@ -127,7 +129,7 @@ load it. Builds made before OTA was set up have no updater; install one fresh bu
 
 ```
 src/app/            expo-router routes
-  (auth)/           welcome, sign-in (email / mobile OTP)
+  (auth)/           welcome, sign-in (email OTP; mobile OTP behind PHONE_SIGN_IN_ENABLED, off)
   (onboarding)/     family match → about you → your family → contact & mail → done
   (app)/(tabs)/     Home · Events · Give · Jain Way · Family
   (app)/…           event RSVP / tickets / confirm, survey, opportunity, pledges, bolis,

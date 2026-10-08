@@ -6,6 +6,7 @@ import { Pressable, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { Banner, Button, Card, Chip, ChipGroup, Divider, ListRow, Pill, Row, SectionTitle, Toggle, Txt } from '@/components/ui';
 import { LANGUAGES, type Language } from '@/i18n';
+import { securitySubKey, signOutBodyKey } from '@/lib/auth-config';
 import { biometricSupport, readBiometricOptIn, writeBiometricOptIn, type BiometricSupport } from '@/lib/biometrics';
 import { createDataRequest, deactivateAccount, QUIET_HOURS_RANGE, reactivateAccount, requestDeletion, setDirectoryOptIn, updateAccount } from '@/lib/api/settings';
 import { check, logError, report } from '@/lib/errors';
@@ -98,7 +99,7 @@ export default function SettingsScreen() {
     const copy = {
       deactivate: { title: t('settings.deactivateTitle'), body: t('settings.deactivateBody'), cta: t('settings.deactivate'), tone: 'brown' as const },
       delete: { title: t('settings.deleteTitle'), body: t('settings.deleteBody'), cta: t('settings.delete'), tone: 'danger' as const },
-      signout: { title: t('settings.signOutTitle'), body: t('settings.signOutBody'), cta: t('settings.signOut'), tone: 'primary' as const },
+      signout: { title: t('settings.signOutTitle'), body: t(signOutBodyKey(member)), cta: t('settings.signOut'), tone: 'primary' as const },
     }[kind];
     const ok = await confirm({ title: copy.title, body: copy.body, confirmLabel: copy.cta, tone: copy.tone });
     if (!ok) return;
@@ -149,7 +150,7 @@ export default function SettingsScreen() {
         <Divider />
         <ListRow title={t('settings.switchCommunity')} subtitle={t('settings.switchCommunitySub', { center: center.name })} onPress={switchCommunity} />
         <Divider />
-        <ListRow title={t('settings.security')} subtitle={t('settings.securitySub')} onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.person.id } })} />
+        <ListRow title={t('settings.security')} subtitle={t(securitySubKey())} onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.person.id } })} />
         <Divider />
         {bio ? (
           bio.available ? (

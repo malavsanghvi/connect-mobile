@@ -10,6 +10,7 @@ import { roleLabel } from '@/features/labels';
 import { listDisplayName, whenText } from '@/features/special-days';
 import { listOpenHouseholdRequests, listSpecialDays, loadEligibility } from '@/lib/api/family';
 import { myApplication, myReferenceRequests } from '@/lib/api/membership';
+import { signOutBodyKey } from '@/lib/auth-config';
 import { applicationStatusKey } from '@/features/membership';
 import { rememberedName } from '@/features/remembrance';
 import { logError } from '@/lib/errors';
@@ -70,7 +71,7 @@ export default function FamilyScreen() {
     .slice(0, 2);
 
   const doSignOut = async () => {
-    const ok = await confirm({ title: t('settings.signOutTitle'), body: t('settings.signOutBody'), confirmLabel: t('settings.signOut') });
+    const ok = await confirm({ title: t('settings.signOutTitle'), body: t(signOutBodyKey(member)), confirmLabel: t('settings.signOut') });
     if (ok) signOut().catch((err: unknown) => logError('signing out', err));
   };
 

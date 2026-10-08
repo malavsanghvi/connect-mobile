@@ -4,18 +4,21 @@ import { Platform, Pressable } from 'react-native';
 
 import { Banner, Button, Checkbox, Row, TextField, Txt } from '@/components/ui';
 import { OnboardingFrame } from '@/features/onboarding/frame';
+import { phoneOnlyNoticeKey, signInIntroKey, signInMode } from '@/lib/auth-config';
 import { biometricSupport, writeBiometricOptIn, type BiometricSupport } from '@/lib/biometrics';
 import { logError, report } from '@/lib/errors';
 import { formatOtp, isValidEmail, toE164 } from '@/lib/format';
-import { passwordErrorKey, signInMode } from '@/lib/password-sign-in';
+import { passwordErrorKey } from '@/lib/password-sign-in';
 import { supabase } from '@/lib/supabase';
 import { useT } from '@/providers/settings';
 
 const RESEND_SECONDS = 60;
 
 /**
- * Onboarding step 1: email or mobile → one-time code (Supabase OTP). A third mode, `?mode=password`, signs in an
- * account that has a password (the demo account testers and app reviewers use); members have none.
+ * Onboarding step 1: email → one-time code (Supabase OTP). Signing in or creating an account with a mobile number is
+ * hidden behind PHONE_SIGN_IN_ENABLED (src/lib/auth-config.ts, off): `signInMode` then turns a link that asks for the mobile mode into
+ * the email screen, and the mobile branches below stay for the day it is switched back on. Another mode,
+ * `?mode=password`, signs in an account that has a password (the demo account testers and app reviewers use); members have none.
  */
 
 // The code length is a Supabase project setting (6–10 digits); accept any of them.
@@ -37,6 +40,8 @@ export default function SignInScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The error is about sending the code: its banner offers "Try again" (a wrong code is fixed in the box instead).
+  const [sendFailed, setSendFailed] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [bio, setBio] = useState<BiometricSupport | null>(null);
@@ -59,6 +64,7 @@ export default function SignInScreen() {
 
   const sendCode = async () => {
     setError(null);
+    setSendFailed(false);
     setFieldError(null);
     let target: string | null;
     if (mode === 'email') {
@@ -71,7 +77,10 @@ export default function SignInScreen() {
     setBusy(true);
     const { error: err } = await supabase.auth.signInWithOtp(mode === 'email' ? { email: target, options: { shouldCreateUser: true } } : { phone: target, options: { shouldCreateUser: true } });
     setBusy(false);
-    if (err) return setError(report(err, 'send your sign-in code').userMessage);
+    if (err) {
+      setSendFailed(true);
+      return setError(report(err, 'send your sign-in code').userMessage);
+    }
     setSentTo(target);
     setCode('');
     setStage('code');
@@ -82,6 +91,7 @@ export default function SignInScreen() {
     const token = code.replace(/\D/g, '');
     if (token.length < CODE_MIN || token.length > CODE_MAX) return setFieldError(t('signin.codeInvalid'));
     setError(null);
+    setSendFailed(false);
     setFieldError(null);
     setBusy(true);
     const { error: err } = await supabase.auth.verifyOtp(mode === 'email' ? { email: sentTo, token, type: 'email' } : { phone: sentTo, token, type: 'sms' });
@@ -165,12 +175,20 @@ export default function SignInScreen() {
   }
 
   const codeSent = stage === 'code';
+  // With email as the only way in: a line saying what happens, and a note for someone who signed up with a mobile number.
+  const introKey = mode === 'email' ? signInIntroKey() : null;
+  const noticeKey = mode === 'email' ? phoneOnlyNoticeKey() : null;
   const mmss = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
 
   // Onboarding.dc.html s1: one "Sign in" screen — address, code, resend, Verify, then the Face ID checkbox.
   return (
     <OnboardingFrame step="signIn" title={t('signin.title')} onBack={() => router.back()}>
-      {error ? <Banner tone="error" message={error} /> : null}
+      {error ? <Banner tone="error" message={error} action={sendFailed ? { label: t('common.retry'), onPress: () => void sendCode() } : undefined} /> : null}
+      {introKey && !codeSent ? (
+        <Txt variant="small" color="ink2">
+          {t(introKey)}
+        </Txt>
+      ) : null}
       <TextField
         size="lg"
         label={t(mode === 'email' ? 'signin.emailLabel' : 'signin.phoneLabel')}
@@ -198,6 +216,11 @@ export default function SignInScreen() {
                 {t('signin.havePassword')}
               </Txt>
             </Pressable>
+          ) : null}
+          {noticeKey ? (
+            <Txt variant="meta" color="muted">
+              {t(noticeKey)}
+            </Txt>
           ) : null}
         </>
       ) : (

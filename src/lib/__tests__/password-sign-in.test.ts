@@ -1,17 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { passwordErrorKey, signInMode } from '../password-sign-in';
+import { passwordErrorKey } from '../password-sign-in';
 
-describe('signInMode', () => {
-  it('reads phone and password, and treats anything else as the email code', () => {
-    expect(signInMode('phone')).toBe('phone');
-    expect(signInMode('password')).toBe('password');
-    expect(signInMode('email')).toBe('email');
-    expect(signInMode(undefined)).toBe('email');
-    expect(signInMode('admin')).toBe('email');
-    expect(signInMode(['password', 'phone'])).toBe('password');
-  });
-});
+// signInMode (which screen a link opens) lives in auth-config.ts with the mobile-number switch; see auth-config.test.ts.
 
 describe('passwordErrorKey', () => {
   it("names a wrong email or password without saying which part was wrong", () => {
