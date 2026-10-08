@@ -1,6 +1,24 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { brandAssetUrl, brandColors, brandPalette, communityToOpen, formatJoinCode, isCommunityChoice, mixHex, openedPath, parseJoinInput, searchableCommunities } from '../community';
+import {
+  addressForChoice,
+  brandAssetUrl,
+  brandColors,
+  brandPalette,
+  communityAddress,
+  communityFromHost,
+  communityToOpen,
+  formatJoinCode,
+  isCommunityChoice,
+  mixHex,
+  normalizeHost,
+  onMemberDomain,
+  openedPath,
+  parseJoinInput,
+  pickableCommunities,
+  pickerAddress,
+  searchableCommunities,
+} from '../community';
 
 describe('parseJoinInput', () => {
   it('reads a typed code in any case, with spaces or a dash', () => {
@@ -57,6 +75,85 @@ describe('communityToOpen', () => {
     expect(isCommunityChoice({ slug: 'Bad Slug', name: 'x' })).toBe(false);
     expect(isCommunityChoice('jsh')).toBe(false);
     expect(isCommunityChoice(null)).toBe(false);
+  });
+
+  describe('on the web address (jsh.weaverams.org)', () => {
+    it("the address wins over the saved choice, the build default and the signed-in rule", () => {
+      expect(communityToOpen({ saved: choice, signedIn: true, defaultSlug: 'jsh', hostSlug: 'austin' })).toBe('austin');
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/', hostSlug: 'austin' })).toBe('austin');
+    });
+    it('shows the list on app.<domain> for a plain visit or a join link, even for someone who chose before', () => {
+      expect(communityToOpen({ saved: choice, signedIn: true, defaultSlug: 'jsh', openedAt: '/', pickerHost: true })).toBeNull();
+      expect(communityToOpen({ saved: choice, signedIn: false, defaultSlug: 'jsh', openedAt: '/join/7K4MQ2PD', pickerHost: true })).toBeNull();
+    });
+    it('still opens a deep link on app.<domain> in the remembered or default community', () => {
+      expect(communityToOpen({ saved: choice, signedIn: false, defaultSlug: 'jsh', openedAt: '/e/12', pickerHost: true })).toBe('jcnj');
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/e/12', pickerHost: true })).toBe('jsh');
+    });
+    it('changes nothing without an address (native apps, a bare IP, localhost)', () => {
+      expect(communityToOpen({ saved: choice, signedIn: false, defaultSlug: 'jsh', openedAt: '/', hostSlug: null, pickerHost: false })).toBe('jcnj');
+    });
+  });
+});
+
+describe('addresses on the member domain', () => {
+  it('reads the community an address names', () => {
+    expect(communityFromHost('jsh.weaverams.org', 'weaverams.org')).toBe('jsh');
+    expect(communityFromHost('JSH.Weaverams.org:443', 'weaverams.org')).toBe('jsh');
+    expect(communityFromHost('jain-center-austin-sandbox.weaverams.org', 'weaverams.org')).toBe('jain-center-austin-sandbox');
+    expect(communityFromHost('jsh.weaverams.org', 'https://WeaverAMS.org/')).toBe('jsh');
+  });
+  it('names no community for the platform names, the bare domain, deeper names, IPs, other domains or no base domain', () => {
+    for (const host of ['app.weaverams.org', 'admin.weaverams.org', 'www.weaverams.org', 'events.weaverams.org', 'weaverams.org', 'a.b.weaverams.org', 'jsh.example.org', '146.190.72.109', 'localhost', '']) {
+      expect(communityFromHost(host, 'weaverams.org')).toBeNull();
+    }
+    expect(communityFromHost('jsh.weaverams.org', '')).toBeNull();
+    expect(communityFromHost('jsh.weaverams.org', null)).toBeNull();
+    expect(communityFromHost(null, 'weaverams.org')).toBeNull();
+    expect(communityFromHost('-bad.weaverams.org', 'weaverams.org')).toBeNull();
+  });
+  it('knows whether an address is on the member domain', () => {
+    expect(onMemberDomain('jsh.weaverams.org', 'weaverams.org')).toBe(true);
+    expect(onMemberDomain('app.weaverams.org', 'weaverams.org')).toBe(true);
+    expect(onMemberDomain('weaverams.org', 'weaverams.org')).toBe(true);
+    expect(onMemberDomain('evilweaverams.org', 'weaverams.org')).toBe(false);
+    expect(onMemberDomain('146.190.72.109', 'weaverams.org')).toBe(false);
+    expect(onMemberDomain('app.weaverams.org', '')).toBe(false);
+  });
+  it('normalizes what it is given', () => {
+    expect(normalizeHost('https://Jsh.Weaverams.org:8443/join/AB?x=1')).toBe('jsh.weaverams.org');
+    expect(normalizeHost('weaverams.org.')).toBe('weaverams.org');
+    expect(normalizeHost('  ')).toBeNull();
+  });
+  it('builds the two addresses', () => {
+    expect(communityAddress('jsh', 'weaverams.org')).toBe('https://jsh.weaverams.org/');
+    expect(pickerAddress('weaverams.org')).toBe('https://app.weaverams.org/');
+    expect(pickerAddress('https://WeaverAMS.org/')).toBe('https://app.weaverams.org/');
+  });
+  it("sends a choice to the community's own address, only on the member domain and only when it is another one", () => {
+    const base = { baseDomain: 'weaverams.org' };
+    expect(addressForChoice({ ...base, hostname: 'app.weaverams.org', hostSlug: null, slug: 'jsh' })).toBe('https://jsh.weaverams.org/');
+    expect(addressForChoice({ ...base, hostname: 'jsh.weaverams.org', hostSlug: 'jsh', slug: 'austin' })).toBe('https://austin.weaverams.org/');
+    expect(addressForChoice({ ...base, hostname: 'jsh.weaverams.org', hostSlug: 'jsh', slug: 'jsh' })).toBeNull();
+    expect(addressForChoice({ ...base, hostname: '146.190.72.109', hostSlug: null, slug: 'jsh' })).toBeNull();
+    expect(addressForChoice({ ...base, hostname: null, hostSlug: null, slug: 'jsh' })).toBeNull();
+    expect(addressForChoice({ baseDomain: '', hostname: 'app.weaverams.org', hostSlug: null, slug: 'jsh' })).toBeNull();
+  });
+});
+
+describe('pickableCommunities', () => {
+  const jsh = { slug: 'jsh', sandbox: true };
+  const austin = { slug: 'austin', sandbox: true };
+  const live = { slug: 'jcnj', sandbox: false };
+  it('lists the sandboxes while no live community exists (owner decision 2026-10-07)', () => {
+    expect(pickableCommunities([jsh, austin]).map((c) => c.slug)).toEqual(['jsh', 'austin']);
+    expect(pickableCommunities([jsh]).map((c) => c.slug)).toEqual(['jsh']);
+  });
+  it('goes back to live communities only, by itself, once one exists', () => {
+    expect(pickableCommunities([jsh, live, austin]).map((c) => c.slug)).toEqual(['jcnj']);
+  });
+  it('lists nothing when there is nothing', () => {
+    expect(pickableCommunities([])).toEqual([]);
   });
 });
 

@@ -41,7 +41,6 @@ export default function GyanGoalScreen() {
     <Screen
       title={goal?.name ?? t('learn.gyanPath')}
       tabBar={false}
-      niva={false}
       scroll={false}
       headerRight={<GyanHeaderChips />}
       contentStyle={{ flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0, maxWidth: undefined }}

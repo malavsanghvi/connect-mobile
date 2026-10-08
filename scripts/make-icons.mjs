@@ -1,11 +1,12 @@
 /**
- * Regenerates the Community Connect app icon, adaptive icon layers, favicon
- * and splash image from the vector mark below. Renders with Playwright's
- * Chromium (not a project dependency; run with a global install):
+ * RETIRED (owner 2026-10-08): this drew the earlier mark (a saffron lotus on navy). The app icon, adaptive icon layers,
+ * favicon and splash image in assets/images are now the Weaver W, exported from connect-crm
+ * (src/components/brand/weaver-mark.tsx). Do not run this script: it would put the lotus back.
+ *
+ * It rendered with Playwright's Chromium (not a project dependency; run with a global install):
  *
  *   PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers NODE_PATH=$(npm root -g) node scripts/make-icons.mjs
  *
- * Mark: a saffron lotus over a cream water line on a navy (#1B2C5C) square.
  * The community's own logo is tenant branding and never appears here.
  */
 import { writeFileSync } from 'node:fs';

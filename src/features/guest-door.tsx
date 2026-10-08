@@ -1,10 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
-import { doorCheckFor, GUEST_DOORS, guestAreas, guestDoorsToShow, type GuestDoor } from '@/lib/access';
+import { doorCheckFor, GUEST_DOORS, guestAreas, guestDoorStep, guestDoorsToShow, type GuestDoor } from '@/lib/access';
 import { loadGyan } from '@/lib/api/gyan';
 import { loadToday } from '@/lib/api/home';
 import { darshanDoorVisible } from '@/lib/darshan';
+import { logError } from '@/lib/errors';
+import { createHandoff } from '@/lib/handoff';
+import { pushSoon } from '@/lib/push-soon';
 import { useLoad } from '@/lib/use-load';
 import { useAccess } from '@/providers/access';
 import { useApp } from '@/providers/app';
@@ -17,11 +20,11 @@ import { findPuja, NAVANG_GOAL_KEY } from './puja/puja-logic';
  * opened once the app is in guest mode. Kept in memory: the (app) screens only exist after guest mode is
  * on, so the Welcome screen cannot push them itself.
  */
-let pending: string | null = null;
+const chosenDoor = createHandoff<string>();
 
 /** Call just before entering guest mode from the Welcome screen. */
 export function openAfterGuest(door: GuestDoor): void {
-  pending = GUEST_DOORS[door].route;
+  chosenDoor.set(GUEST_DOORS[door].route);
 }
 
 /**
@@ -61,10 +64,19 @@ export function OpenGuestDoor() {
   const { guest } = useApp();
 
   useEffect(() => {
-    const route = pending;
-    if (!route) return;
-    pending = null;
-    if (guest) router.push(route);
+    const step = guestDoorStep({ pending: chosenDoor.peek(), guest });
+    if (step === 'idle') return;
+    // Taken through the handoff, never `const route = pending; pending = null;` here: the React Compiler turned that
+    // into "pending = null; use(pending)", so the screen was always null (the buttons blanked the page in 1.9.0 and
+    // did nothing in 1.9.1 to 1.9.4). See src/lib/handoff.ts.
+    const route = chosenDoor.take();
+    if (step !== 'open' || !route) return;
+    // This mounts with the (app) navigator: push a moment later, and again if it throws, so the person stays on Home
+    // rather than on a blank page.
+    pushSoon(
+      () => router.push(route),
+      (err) => logError('opening the screen you chose on the Welcome screen (you are on Home)', err),
+    );
   }, [guest, router]);
 
   return null;

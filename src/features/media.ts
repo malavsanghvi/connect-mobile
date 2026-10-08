@@ -37,7 +37,7 @@ export async function shareText(message: string, url?: string | null): Promise<b
         throw new AppError("Sharing didn't work in this browser.", err instanceof Error ? err.message : String(err));
       }
     }
-    throw new AppError("This browser can't open a share sheet. Try from the Community Connect app on your phone.", 'navigator.share unavailable');
+    throw new AppError("This browser can't open a share sheet. Try from the Weaver app on your phone.", 'navigator.share unavailable');
   }
   const res = await Share.share(url ? { message: `${message}\n${url}`, url } : { message });
   return res.action !== Share.dismissedAction;
@@ -139,7 +139,7 @@ export async function savePhotos(items: { url: string; fileName: string }[]): Pr
     return n;
   }
   const perm = await MediaLibrary.requestPermissionsAsync(true);
-  if (perm.status !== 'granted') throw new AppError("Photo library access is off for Community Connect. Turn it on in your phone's settings to save photos.", `media library permission ${perm.status}`);
+  if (perm.status !== 'granted') throw new AppError("Photo library access is off for Weaver. Turn it on in your phone's settings to save photos.", `media library permission ${perm.status}`);
   let n = 0;
   for (const it of items) {
     const file = await downloadToCache(it.url, it.fileName);

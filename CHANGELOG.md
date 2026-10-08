@@ -14,7 +14,7 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
-## 1.9.0 — 2026-10-07
+## 1.11.0 — 2026-10-08
 
 - **Register for Pathshala in the app.** An adult of the family registers several learners at once: children, and adults
   for the adult classes, themselves included. Choose who is joining (with their age on the term's cut-off date), a level
@@ -34,6 +34,65 @@ How a release is made:
   (children never see fees). Home shows "Pay to keep Riya's seat · 5 h left" while a seat is held. Pathshala
   notifications open the right screen.
 - A community whose portal is not updated yet keeps the simple request form.
+
+## 1.10.0 — 2026-10-08
+
+- **The app is now called Weaver.** Everything the app says about itself (Settings › About, the lock screen, permission
+  and reminder messages, the calendar file) says Weaver instead of Community Connect. The new W logo is in the app icon,
+  the Android adaptive icon, the splash screen and the web tab icon. The over-the-air update changes the words;
+  **the name and icon on the phone's home screen, the splash screen and the Android notification settings change only
+  with the next full app build**, because the phone fixes them when the app is installed. The web tab icon changes with
+  the next web deploy.
+
+## 1.9.5 — 2026-10-08
+
+- **Fixed for good: "Watch live darshan" and "Do puja" on the Welcome screen open their screens.** The cause was in how
+  the app is built: it rewrote the code that hands the chosen screen over so the screen was always empty (first a blank
+  page, then nothing happening). The hand-over is now built so that cannot happen.
+- **Fixed: coming back to the event after signing in, and reopening an event link after switching community.** Both used
+  the same hand-over and would have failed the same way (an error right after signing in, or after switching community
+  from a flyer's link).
+
+## 1.9.4 — 2026-10-08
+
+- **Fixed again: "Watch live darshan" and "Do puja" on the Welcome screen now really open their screens.** In 1.9.3 the
+  app asked too early, while it was still switching into guest mode, and the request was silently dropped. It now waits a
+  moment, checks that the screen opened and asks again if it did not; if it still cannot, you stay on Home.
+
+
+## 1.9.3 — 2026-10-08
+
+- **Fixed: "Watch live darshan" and "Do puja" on the Welcome screen now open their screens.** 1.9.2 stopped the blank
+  page but waited for a signal that never arrived, so you stayed on Home. The app now just tries again for a few seconds
+  until the screen opens; if it still cannot, you stay on Home.
+
+## 1.9.2 — 2026-10-08
+
+- **Fixed: "Watch live darshan" and "Do puja" on the Welcome screen led to a blank page** on the web app. The screen is
+  now opened a moment after you enter guest mode, once the app is ready for it, and tried again if it is not; if it still
+  cannot open you stay on Home instead of seeing a blank page. The same two buttons on Home were never affected.
+
+## 1.9.1 — 2026-10-07
+
+- **Niva is in the bottom bar.** The floating Niva button that sat over the cards is gone. Niva is now the sixth item of
+  the bottom bar, after Family, wherever the bar shows; tap it to open the chat (its suggested questions are there), and
+  it is highlighted while the chat is open. It shows for the same people as before: not for a visitor, and not below the
+  access level your organization sets for Ask Niva.
+- **Smaller cards on Home.** Event posters are now thumbnails, about three and a half across on a phone instead of two and a
+  half (a lone event is no longer a screenful). Events without a flyer keep the date, name and venue in smaller type; the
+  time is on the event itself. Giving opportunities are compact cards, with no empty gap above the amount, so the next one
+  peeks in. The Special days row is unchanged.
+
+
+## 1.9.0 — 2026-10-07
+
+- **Choose your organization.** The first screen for a new install now has a dropdown of the organizations, so you no
+  longer need to search or have a join code. Until an organization is live, the ones still being set up are listed too
+  (marked **Sandbox**); once one is live, only live organizations are listed, with no change needed.
+- **One web address per organization.** On the web app, `jsh.weaverams.org` opens JSH directly and
+  `app.weaverams.org` shows the list of organizations; choosing one goes to its own address. **Switch community** on an
+  organization's address goes back to that list. Phones and any other address work exactly as before.
+- Members sign in once per address (the browser keeps the sign-in per website).
 
 ## 1.8.0 — 2026-10-06
 

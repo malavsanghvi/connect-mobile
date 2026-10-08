@@ -254,6 +254,19 @@ export function guestDoorsToShow(open: readonly GuestDoor[], checks: Record<Gues
   return open.filter((door) => checks[door] === 'leads' || checks[door] === 'failed');
 }
 
+/**
+ * What the hand-off from the Welcome screen does on a render (`OpenGuestDoor` in src/features/guest-door.tsx):
+ * `idle` (no door was chosen), `drop` (the app opened for someone who is not a guest: forget the choice) or
+ * `open` (go to the screen). Pushing in the instant the new navigator mounts throws on the web ("Cannot read
+ * properties of null (reading 'pathname')") and blanks the page, so `open` pushes later and retries (src/lib/push-soon.ts).
+ */
+export type GuestDoorStep = 'idle' | 'drop' | 'open';
+
+export function guestDoorStep(input: { pending: string | null; guest: boolean }): GuestDoorStep {
+  if (!input.pending) return 'idle';
+  return input.guest ? 'open' : 'drop';
+}
+
 // ---------------------------------------------------------------------------
 // Holding the answer (src/providers/access.tsx)
 // ---------------------------------------------------------------------------

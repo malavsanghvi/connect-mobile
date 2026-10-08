@@ -26,7 +26,6 @@ export function LessonFrame({ frame, answered, footer, children }: { frame: Fram
     <Screen
       title={frame.title}
       tabBar={false}
-      niva={false}
       scroll={false}
       headerRight={<GyanHeaderChips />}
       contentStyle={{ flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 }}

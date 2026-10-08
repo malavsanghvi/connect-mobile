@@ -28,7 +28,7 @@ export default function HomeworkListScreen() {
   const personId = typeof person === 'string' && person ? person : (member?.person.id ?? '');
   if (!member || !center) {
     return (
-      <Screen title={t('hw.title')} tabBar={false} niva={false}>
+      <Screen title={t('hw.title')} tabBar={false}>
         <Card tone="panel">
           <Txt variant="small">{t('hw.signIn')}</Txt>
           <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
@@ -40,7 +40,7 @@ export default function HomeworkListScreen() {
   const family = member.members.find((m) => m.person.id === personId)?.person;
   const today = todayAt(center.time_zone);
   return (
-    <Screen title={t('hw.title')} tabBar={false} niva={false} headerRight={mine ? <GyanHeaderChips /> : undefined} onRefresh={async () => invalidate()}>
+    <Screen title={t('hw.title')} tabBar={false} headerRight={mine ? <GyanHeaderChips /> : undefined} onRefresh={async () => invalidate()}>
       <Loaded state={load.state}>
         {(answer) => {
           // No answer yet: the load before the access check answered gave nothing; the real one follows (Loaded says so when it failed).

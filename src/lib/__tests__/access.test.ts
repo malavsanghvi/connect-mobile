@@ -15,6 +15,7 @@ import {
   GUEST_DOORS,
   guestAreas,
   guestDoorsToShow,
+  guestDoorStep,
   isFeatureKey,
   OPEN_BEFORE_LEVELS,
   parseAccess,
@@ -299,6 +300,20 @@ describe('Welcome: without signing in', () => {
     expect(GUEST_DOORS.puja).toEqual({ route: '/puja', label: 'puja.entry' });
     expect(t(GUEST_DOORS.darshan.label)).toBe('Watch live darshan');
     expect(t(GUEST_DOORS.puja.label)).toBe('Do puja');
+  });
+});
+
+describe('Welcome: handing over to the chosen door', () => {
+  it('does nothing when no door was chosen', () => {
+    expect(guestDoorStep({ pending: null, guest: true })).toBe('idle');
+    expect(guestDoorStep({ pending: null, guest: false })).toBe('idle');
+  });
+  it('opens the chosen screen once guest mode is on (the push itself waits and retries: src/lib/push-soon.ts)', () => {
+    expect(guestDoorStep({ pending: '/puja', guest: true })).toBe('open');
+    expect(guestDoorStep({ pending: '/darshan', guest: true })).toBe('open');
+  });
+  it('drops the choice when the app opened for someone who is not a guest', () => {
+    expect(guestDoorStep({ pending: '/darshan', guest: false })).toBe('drop');
   });
 });
 

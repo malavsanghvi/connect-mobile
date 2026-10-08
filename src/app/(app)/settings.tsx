@@ -124,7 +124,7 @@ export default function SettingsScreen() {
           : push.status.reason;
 
   return (
-    <Screen title={t('settings.title')} niva={false}>
+    <Screen title={t('settings.title')}>
       <Card>
         <Row gap={space.md}>
           <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">

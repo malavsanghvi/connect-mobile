@@ -34,7 +34,7 @@ export default function MemberCardScreen() {
   const tag = [roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id].filter(Boolean).join(' · ');
 
   return (
-    <Screen title={t('card.title')} niva={false}>
+    <Screen title={t('card.title')}>
       <View style={{ backgroundColor: colors.navy, borderRadius: radii.sheet, paddingVertical: 22, paddingHorizontal: space.gutter, alignItems: 'center', gap: 14 }}>
         <Txt variant="caption" color="onNavy" center style={{ fontFamily: fonts.body, letterSpacing: tracking.eyebrow * 1.3, textTransform: 'uppercase' }}>
           {center?.name ?? ''}

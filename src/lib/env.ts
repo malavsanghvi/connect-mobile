@@ -9,9 +9,11 @@ export const env = {
   supabaseAnonKey: (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim(),
   /** Default center (tenant) slug; JSH is tenant #1. */
   centerSlug: (process.env.EXPO_PUBLIC_CENTER_SLUG ?? '').trim() || 'jsh',
+  /** The web domain whose names open a community ("weaverams.org": jsh.weaverams.org opens JSH, app.weaverams.org lists them). Empty: one address for everyone, as before. */
+  memberBaseDomain: (process.env.EXPO_PUBLIC_MEMBER_BASE_DOMAIN ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
   /** Public community dashboard (drawer link) when centers.branding.dashboard_url is not set. */
   communityDashboardUrl: (process.env.EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL ?? '').trim(),
-  /** The Community Connect portal that creates online checkouts (/api/payments/intent). Without it, online payment is off. */
+  /** The Weaver portal that creates online checkouts (/api/payments/intent). Without it, online payment is off. */
   portalUrl: (process.env.EXPO_PUBLIC_PORTAL_URL ?? '').trim().replace(/\/+$/, ''),
 } as const;
 
@@ -43,6 +45,12 @@ export function envStatus(): EnvVar[] {
       present: (process.env.EXPO_PUBLIC_CENTER_SLUG ?? '').trim().length > 0,
     },
     {
+      name: 'EXPO_PUBLIC_MEMBER_BASE_DOMAIN',
+      purpose: 'Web domain whose names open a community, e.g. weaverams.org (optional; web build only. Unset: one address for everyone).',
+      required: false,
+      present: env.memberBaseDomain.length > 0,
+    },
+    {
       name: 'EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL',
       purpose: 'Public community dashboard linked from the menu (optional; centers.branding.dashboard_url wins).',
       required: false,
@@ -50,7 +58,7 @@ export function envStatus(): EnvVar[] {
     },
     {
       name: 'EXPO_PUBLIC_PORTAL_URL',
-      purpose: 'Community Connect portal address for online payments, e.g. https://jsh.communityconnect.app (optional; without it the Pay sheet says online payment is not set up).',
+      purpose: 'Weaver portal address for online payments, e.g. https://jsh.communityconnect.app (optional; without it the Pay sheet says online payment is not set up).',
       required: false,
       present: env.portalUrl.length > 0,
     },
