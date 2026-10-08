@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.14.1 — 2026-10-08
+
+- **The community is read through the public-read functions** (connect-crm 0614): the community row, the "choose your
+  organization" list and the community of a web address or a flyer's event come from `app.community_public`,
+  `app.community_public_by_id` and `app.communities_public_list` instead of the `centers` table. A member, staff or the owner
+  still gets the full settings; a guest, or someone signed in who is not yet part of the community, gets only the public part
+  (the keys this app reads), so nothing on screen changes. On a database from before 0614 the app reads the table as before.
+  This is what lets connect-crm close the table to guests later (0615), once installed apps have this update.
+
 ## 1.14.0 — 2026-10-08
 
 - **Tapping a notification opens the right screen.** "Another family pledged more" and the new "closing soon" notice open
