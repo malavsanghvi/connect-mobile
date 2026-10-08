@@ -31,6 +31,27 @@ export function translate(lang: Language, key: StringKey, vars?: Vars): string {
 
 export type Translate = (key: StringKey, vars?: Vars) => string;
 
+/**
+ * Words that stand in place of the dictionary's for one kind of organization (src/i18n/categories). `en` applies in every
+ * language (the reviewed Gujarati and Hindi texts are Jain Center's own words, so another kind of organization shows the
+ * English one rather than a translation of a Jain word); a language's own entry wins in that language.
+ */
+export type WordSet = Partial<Record<Language, Partial<Record<StringKey, string>>>>;
+
+/** True when the set holds at least one word. */
+export function hasWords(words: WordSet | null | undefined): words is WordSet {
+  return !!words && Object.values(words).some((w) => !!w && Object.keys(w).length > 0);
+}
+
+/**
+ * `translate`, looking in the organization's words first. With no words (Jain Center) it is `translate`, word for word:
+ * the same lookup, the same fallback to English, the same placeholders.
+ */
+export function translateWith(lang: Language, key: StringKey, vars: Vars | undefined, words: WordSet | null | undefined): string {
+  const own = words?.[lang]?.[key] ?? words?.en?.[key];
+  return own === undefined ? translate(lang, key, vars) : interpolate(own, vars);
+}
+
 /** Pick a translated title/body from a row's `translations` jsonb ({gu: {title, body_md}}). */
 export function pickTranslation<T extends Record<string, unknown>>(
   base: T,

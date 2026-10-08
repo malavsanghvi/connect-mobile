@@ -9,7 +9,7 @@ import { roleLabel } from '@/features/labels';
 import { ProfileFields } from '@/features/onboarding/profile-fields';
 import { MoreAboutYou } from '@/features/profile-details/more-about-you';
 import { formatMemberCustomValue } from '@/features/custom-fields';
-import { INTERESTS, normalizeInterests, relationshipChanged, toggle, type InterestKey } from '@/features/profile';
+import { normalizeInterests, relationshipChanged, toggle, type InterestKey } from '@/features/profile';
 import { LANGUAGES, isLanguage, type Language, type StringKey } from '@/i18n';
 import {
   BEST_CALL_TIMES,
@@ -31,12 +31,14 @@ import {
   type ProfileErrors,
 } from '@/lib/api/family';
 import type { FamilyMember } from '@/lib/api/member';
+import { INTEREST_CATALOG, interestsToOffer } from '@/lib/categories';
 import { check, report } from '@/lib/errors';
 import { fullName } from '@/lib/format';
 import { ageOn } from '@/lib/rules';
 import { supabase } from '@/lib/supabase';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useFeedback } from '@/providers/feedback';
 import { useSettings, useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
@@ -90,6 +92,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
   const { t, setLanguage } = useSettings();
   const router = useRouter();
   const { member, center, refreshMember, orgMemberLabel } = useApp();
+  const { layout } = useCategory();
   const { toast } = useFeedback();
   const community = center?.short_name || center?.name || '';
   const recordedRelationship = roleLabel(t, fm.role);
@@ -308,9 +311,9 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
       <Section>
         <CardTitle>{t('profile.interests')}</CardTitle>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {INTERESTS.map((k) => {
+          {interestsToOffer(layout).map((k) => {
             const on = interests.includes(k);
-            const label = t(`profile.interest.${k}` as StringKey);
+            const label = t(INTEREST_CATALOG[k].labelKey);
             return (
               <Pressable
                 key={k}

@@ -27,3 +27,15 @@ describe('barItems (what the bottom bar holds)', () => {
     expect(barItems(off, true)).toEqual(['index', 'family', 'niva']);
   });
 });
+
+describe('barItems for a kind of organization with no fourth tab', () => {
+  it('leaves "jain-way" out even though its library module is on, and keeps Niva last', () => {
+    expect(barItems(ALL_ON, true, false)).toEqual(['index', 'events', 'give', 'family', 'niva']);
+    expect(barItems(ALL_ON, false, false)).toEqual(['index', 'events', 'give', 'family']);
+  });
+
+  it('keeps the original five tabs when the kind has a practice tab (the default)', () => {
+    expect(barItems(ALL_ON, false, true)).toEqual([...TABS]);
+    expect(barItems(ALL_ON, false)).toEqual([...TABS]);
+  });
+});

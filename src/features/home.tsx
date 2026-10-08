@@ -7,7 +7,7 @@ import { ErrorState, LoadingState } from '@/components/states';
 import { StrokeIcon } from '@/components/stroke-icon';
 import { Banner, Button, Card, Chevron, Row, Txt, VStack } from '@/components/ui';
 import { listSpecialDays, nextTithiDates, type SpecialDay } from '@/lib/api/family';
-import { listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type Alert, type FeedbackHome, type HomeEvents, type TodayInfo } from '@/lib/api/home';
+import { basicToday, listAlerts, loadFeedbackHome, loadHomeEvents, loadToday, type Alert, type FeedbackHome, type HomeEvents, type TodayInfo } from '@/lib/api/home';
 import { reactivateAccount } from '@/lib/api/settings';
 import { logError, report } from '@/lib/errors';
 import { formatDay, formatTime, formatTimeOfDay, monthShortUpper, parseISODate, todayAt } from '@/lib/format';
@@ -18,6 +18,7 @@ import { readPref, writePref } from '@/lib/storage';
 import { pointsLine } from '@/lib/survey-popup';
 import { useLoad, type LoadState } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
@@ -143,10 +144,14 @@ function TimeTile({ label, value }: { label: string; value: string }) {
 
 const TODAY_HIDDEN_KEY = 'homeTodayHidden';
 
-/** The day's tithi, timings and live darshan link. One load: Today and the My Jain Way tile beside it both read it. */
+/**
+ * The day's tithi, timings and live darshan link. One load: Today and the My Jain Way tile beside it both read it. A kind of
+ * organization without a panchang (layout.todayCard 'basic') has only the date.
+ */
 export function useTodayInfo(): LoadState<TodayInfo> {
   const { center } = useApp();
-  return useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], "load today's timings");
+  const basic = useCategory().layout.todayCard === 'basic';
+  return useLoad(() => (center ? (basic ? Promise.resolve(basicToday(center)) : loadToday(center)) : Promise.reject(new Error('no center'))), [center?.id, basic], "load today's timings");
 }
 
 /** Whether the member hid "Today at {center}" on this device (the one-line greeting stays in its place), and the switch. */
@@ -168,10 +173,11 @@ export function useTodayHidden(): [boolean, (hidden: boolean) => void] {
   return [hidden, set];
 }
 
-/** What stands in for Today at {center} while it is hidden: "Jai Jinendra, {family}" and a button to bring it back. */
+/** What stands in for Today at {center} while it is hidden: "Jai Jinendra, {family}" (the kind of organization's greeting) and a button to bring it back. */
 export function TodayGreeting({ onShow }: { onShow: () => void }) {
   const t = useT();
   const { center, member } = useApp();
+  const { profile } = useCategory();
   const community = center?.short_name || center?.name || '';
   const family = member?.household?.display_name ?? null;
   return (
@@ -185,7 +191,7 @@ export function TodayGreeting({ onShow }: { onShow: () => void }) {
             </Txt>
           </>
         ) : (
-          t('welcome.jaiJinendra')
+          profile.terms.greeting
         )}
       </Txt>
       <Pressable
@@ -209,6 +215,9 @@ export function TodayGreeting({ onShow }: { onShow: () => void }) {
 export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHide: () => void }) {
   const t = useT();
   const { center, member } = useApp();
+  const { layout, profile } = useCategory();
+  // A kind of organization with no panchang (a chamber of commerce) has the greeting and the date, and nothing that is not there.
+  const basic = layout.todayCard === 'basic';
   const community = center?.short_name || center?.name || '';
   const family = member?.household?.display_name ?? null;
   if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <TileLoading />;
@@ -225,13 +234,13 @@ export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHi
       <Row align="flex-start" gap={space.sm}>
         <View style={{ flex: 1 }}>
           <Txt variant="meta" color="muted">
-            {family ? t('home.greetingFamily', { family }) : t('welcome.jaiJinendra')}
+            {family ? t('home.greetingFamily', { family }) : profile.terms.greeting}
           </Txt>
           <Txt variant="cardTitle" accessibilityRole="header">
             {t('home.todayAt', { center: community })}
           </Txt>
           <Txt variant="meta" color="muted">
-            {tithi ? `${formatDay(today)} · ${tithiLabel(tithi)}` : formatDay(today)}
+            {tithi && !basic ? `${formatDay(today)} · ${tithiLabel(tithi)}` : formatDay(today)}
           </Txt>
         </View>
         <Pressable
@@ -243,7 +252,7 @@ export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHi
           <StrokeIcon name="close" size={16} color={colors.muted} strokeWidth={2} />
         </Pressable>
       </Row>
-      {tiles.length ? (
+      {basic ? null : tiles.length ? (
         <Row gap={space.sm} align="stretch">
           {tiles.map((x) => (
             <TimeTile key={x.label} label={x.label} value={x.value} />
@@ -254,7 +263,7 @@ export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHi
           {t('home.noTimings')}
         </Txt>
       )}
-      <TodayDoors hasStream={!!darshan} aarti={aarti} />
+      {basic ? null : <TodayDoors hasStream={!!darshan} aarti={aarti} />}
     </Card>
   );
 }

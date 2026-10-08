@@ -9,7 +9,8 @@ import { supabase } from '../supabase';
  */
 type UntypedRpc = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> };
 
-export type ModuleSettings = { map: ModuleMap; labels: Partial<Record<ModuleKey, string>> };
+/** `failed`: the read did not work and `map` is only the "all on" fallback; a refresh keeps the last good answer instead (nextModuleSettings). */
+export type ModuleSettings = { map: ModuleMap; labels: Partial<Record<ModuleKey, string>>; failed?: true };
 
 const logged = new Set<string>();
 
@@ -37,11 +38,11 @@ export async function loadModuleSettings(centerId: string): Promise<ModuleSettin
         const msg = typeof (res.error as { message?: unknown }).message === 'string' ? (res.error as { message: string }).message : 'error';
         logOnce(`error:${msg}`, 'loading switched-on modules failed, so every module is shown', res.error);
       }
-      return { map: ALL_ON, labels: {} };
+      return { map: ALL_ON, labels: {}, failed: true };
     }
     return parseModuleRows(res.data);
   } catch (err) {
     logOnce(`thrown:${err instanceof Error ? err.message : String(err)}`, 'loading switched-on modules failed, so every module is shown', err);
-    return { map: ALL_ON, labels: {} };
+    return { map: ALL_ON, labels: {}, failed: true };
   }
 }

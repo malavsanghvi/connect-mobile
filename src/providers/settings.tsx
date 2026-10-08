@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-import { isLanguage, translate, type Language, type StringKey, type Translate, type Vars } from '@/i18n';
+import { hasWords, isLanguage, translate, translateWith, type Language, type StringKey, type Translate, type Vars, type WordSet } from '@/i18n';
 import { logError } from '@/lib/errors';
 import { readPref, writePref } from '@/lib/storage';
 import { textScales, type TextSize } from '@/theme';
@@ -56,6 +56,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       {children}
     </SettingsContext.Provider>
   );
+}
+
+/**
+ * Lays an organization's own words over the dictionary for everything below it (src/i18n/categories): `useT()` and
+ * `useSettings().t` there look in `words` first. It sits under the provider that knows the community
+ * (src/providers/category.tsx), which is below SettingsProvider. With no words (Jain Center) it adds nothing, so
+ * every caller keeps the very same `t` it always had.
+ */
+export function WordsProvider({ words, children }: { words: WordSet | null; children: ReactNode }) {
+  const settings = useSettings();
+  if (!hasWords(words)) return <>{children}</>;
+  const value: SettingsContextValue = { ...settings, t: (key: StringKey, vars?: Vars) => translateWith(settings.language, key, vars, words) };
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
 export function useSettings(): SettingsContextValue {

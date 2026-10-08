@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import type { ReactElement, ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -7,6 +7,7 @@ import { AREA_LABEL, FEATURE_MODULE, type FeatureKey } from '@/lib/access';
 import { blockingModule, routeFeature, type ModuleKey } from '@/lib/modules';
 import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, space } from '@/theme';
@@ -16,13 +17,14 @@ import { Screen } from './screen';
 import { StrokeIcon } from './stroke-icon';
 import { Button, Txt, VStack } from './ui';
 
-/** Member-facing name of a module (translatable; falls back to the database label). */
+/** Member-facing name of a module: the kind of organization's own name for it ("Religious school"), else translatable, else the database label. */
 export function useModuleLabel(key: ModuleKey): string {
   const t = useT();
   const { labels } = useModules();
+  const { moduleLabels } = useCategory();
   const k = `modules.label.${key}` as StringKey;
   const translated = t(k);
-  return translated === k ? (labels[key] ?? key) : translated;
+  return moduleLabels[key] ?? (translated === k ? (labels[key] ?? key) : translated);
 }
 
 /**
@@ -104,11 +106,20 @@ export function moduleStackLayout({ route, children }: { route: { name: string; 
   );
 }
 
-/** `screenLayout` for the tabs: a tab whose modules are all off can't be opened by a link either. */
+/** The fourth tab ("jain-way") when the kind of organization has none: a link to it opens Home instead. */
+function PracticeTabGate({ routeName, children }: { routeName: string; children: ReactNode }) {
+  const { layout } = useCategory();
+  if (routeName === 'jain-way' && !layout.practiceTab) return <Redirect href="/" />;
+  return <>{children}</>;
+}
+
+/** `screenLayout` for the tabs: a tab whose modules are all off (or that the kind of organization does not have) can't be opened by a link either. */
 export function moduleTabLayout({ route, children }: { route: { name: string }; children: ReactElement }): ReactElement {
   return (
-    <ModuleRouteGate routeName={route.name} root>
-      {children}
-    </ModuleRouteGate>
+    <PracticeTabGate routeName={route.name}>
+      <ModuleRouteGate routeName={route.name} root>
+        {children}
+      </ModuleRouteGate>
+    </PracticeTabGate>
   );
 }

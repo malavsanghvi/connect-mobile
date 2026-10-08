@@ -28,6 +28,7 @@ import { streakDisplay, streakLabel } from '@/lib/rules';
 import { useLoad, type LoadState } from '@/lib/use-load';
 import { useAccess, useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useModule, useModules } from '@/providers/modules';
 import { usePlayer } from '@/providers/player';
 import { useT } from '@/providers/settings';
@@ -103,21 +104,22 @@ export type LazyRow = Extract<HomeRow, 'events' | 'give' | 'learnListen'>;
 export function HomeRows({ reveal, underToday }: { reveal: RailReveal<LazyRow>; underToday?: ReactNode }) {
   const { center, member } = useApp();
   const { map } = useModules();
+  const { layout } = useCategory();
   const access = useAccess();
   const guide = useFeature('guide');
   const learn = useFeature('learn');
   const listen = useFeature('listen');
   const look = useFeature('look');
   // Plan a special day: its load starts now. Until it knows whether it has days, the rows under it are held (see above).
-  const hasDaysRow = !!member?.household && isHomeCardVisible(map, 'specialDay');
+  const hasDaysRow = layout.specialDays && !!member?.household && isHomeCardVisible(map, 'specialDay');
   const days = useHomeSpecialDays(hasDaysRow);
   const held = useHold(hasDaysRow && days.data === undefined && !days.error, SPECIAL_DAYS_HOLD_MS);
   if (!center) return null;
   const who: HomeMember = member ? { isAdult: member.isAdult, hasHousehold: !!member.household } : null;
-  const rows = homeRows({ rules: center.rules, modules: map, member: who, access: { guide: guide.allowed, learn: learn.allowed, listen: listen.allowed, look: look.allowed } });
+  const rows = homeRows({ rules: center.rules, modules: map, member: who, access: { guide: guide.allowed, learn: learn.allowed, listen: listen.allowed, look: look.allowed }, layout });
   // Learn & listen waits for what this person may use. When that could not be read, the row says so, with Try again, instead of its tiles being quietly missing.
-  const tilesIfAllowed = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: true, listen: true, look: true } }).length;
-  const tilesNow = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed } }).length;
+  const tilesIfAllowed = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: true, listen: true, look: true }, defaultShortcuts: layout.shortcuts }).length;
+  const tilesNow = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed }, defaultShortcuts: layout.shortcuts }).length;
   const accessProblem = access.error && tilesIfAllowed > tilesNow ? { error: access.error, retry: () => void access.reload() } : null;
   const slot = (row: LazyRow): RailSlot => ({ shown: reveal.revealed.includes(row), onPlace: (top) => reveal.place(row, top) });
   const under = <Fragment key="under-today">{underToday}</Fragment>;
@@ -650,9 +652,10 @@ function LifeRow({ held }: { held: boolean }) {
   const router = useRouter();
   const { center, member } = useApp();
   const { map } = useModules();
+  const { layout } = useCategory();
   const guide = useFeature('guide');
   const community = communityName(center);
-  const keys = lifeTiles({ modules: map, guideAllowed: guide.allowed, member: member ? { isAdult: member.isAdult, hasHousehold: !!member.household } : null });
+  const keys = lifeTiles({ modules: map, guideAllowed: guide.allowed, member: member ? { isAdult: member.isAdult, hasHousehold: !!member.household } : null, specialDays: layout.specialDays });
   const title = t('home.row.life', { center: community });
   return (
     <Rail
@@ -726,10 +729,11 @@ function LearnListenRow({ shown, onPlace, held, accessProblem }: RailSlot & { he
   const t = useT();
   const { center, member } = useApp();
   const { map } = useModules();
+  const { layout } = useCategory();
   const learn = useFeature('learn');
   const listen = useFeature('listen');
   const look = useFeature('look');
-  const order = center ? learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed } }) : [];
+  const order = center ? learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed }, defaultShortcuts: layout.shortcuts }) : [];
   const tz = center?.time_zone ?? null;
   const state = useRailLoad(
     shown,

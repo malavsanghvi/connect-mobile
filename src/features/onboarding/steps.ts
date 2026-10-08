@@ -14,11 +14,18 @@ const ADULT_ONLY: readonly OnboardingStep[] = ['address', 'details', 'planDays',
 const BEFORE_KNOWN = ONBOARDING_ORDER.indexOf('about');
 
 /** Who is walking the steps. `isAdult` is null until the login is linked to a person (sign-in, family match). */
-export type OnboardingWalker = { isAdult: boolean | null; commsOn: boolean };
+export type OnboardingWalker = {
+  isAdult: boolean | null;
+  commsOn: boolean;
+  /** The kind of organization has special days, so "Plan special days" is a step (default: yes, as in a Jain Center). */
+  specialDays?: boolean;
+};
 
 /** The steps this person walks, in order. Until their age is known, the adult path (the longest). */
 export function onboardingPath(who: OnboardingWalker): OnboardingStep[] {
-  return ONBOARDING_ORDER.filter((s) => !(who.isAdult === false && ADULT_ONLY.includes(s)) && !(s === 'whatsapp' && !who.commsOn));
+  return ONBOARDING_ORDER.filter(
+    (s) => !(who.isAdult === false && ADULT_ONLY.includes(s)) && !(s === 'whatsapp' && !who.commsOn) && !(s === 'planDays' && who.specialDays === false),
+  );
 }
 
 /**
@@ -43,9 +50,13 @@ export function onboardingProgress(step: OnboardingStep, who: OnboardingWalker):
 
 export type OnboardingRoute = '/plan-days' | '/whatsapp-groups' | '/contact';
 
-/** Where "Your family" leads: special days for an adult, contact preferences for a child. */
-export function stepAfterFamily(isAdult: boolean): OnboardingRoute {
-  return isAdult ? '/plan-days' : '/contact';
+/**
+ * Where "Your family" leads: special days for an adult (when the kind of organization has them, else the WhatsApp groups step,
+ * which passes itself over when there is nothing to ask), contact preferences for a child.
+ */
+export function stepAfterFamily(isAdult: boolean, specialDays: boolean = true): OnboardingRoute {
+  if (!isAdult) return '/contact';
+  return specialDays ? '/plan-days' : '/whatsapp-groups';
 }
 
 /**

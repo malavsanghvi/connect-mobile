@@ -20,6 +20,7 @@
  * The rows themselves are drawn in src/features/home-rails.tsx; their tiles are built from the data in
  * src/features/home-rail-items.ts.
  */
+import { JAIN_LAYOUT, type CategoryLayout } from './categories';
 import { configuredShortcuts, type HomeShortcut } from './home-shortcuts';
 import { isGuideSectionVisible, isHomeCardVisible, type GuideSection, type HomeCard, type ModuleMap } from './modules';
 import { space } from '../theme';
@@ -44,6 +45,8 @@ export type HomeRowsInput = {
   modules: ModuleMap;
   member: HomeMember;
   access: HomeAccess;
+  /** What the kind of organization decides: special days, and the Home shortcuts a community starts with (default: a Jain Center's). */
+  layout?: Pick<CategoryLayout, 'specialDays' | 'shortcuts'>;
 };
 
 /**
@@ -56,21 +59,21 @@ export type HomeRowsInput = {
  * - Giving opportunities: adults only (money), and only with the Giving module on.
  * - Life@JSH and Learn & listen: those with at least one tile.
  */
-export function homeRows({ rules, modules, member, access }: HomeRowsInput): HomeRow[] {
+export function homeRows({ rules, modules, member, access, layout = JAIN_LAYOUT }: HomeRowsInput): HomeRow[] {
   return HOME_ROWS.filter((row) => {
     switch (row) {
       case 'today':
         return isHomeCardVisible(modules, 'today');
       case 'specialDays':
-        return !!member?.hasHousehold && isHomeCardVisible(modules, 'specialDay');
+        return layout.specialDays && !!member?.hasHousehold && isHomeCardVisible(modules, 'specialDay');
       case 'events':
         return isHomeCardVisible(modules, 'railEvents');
       case 'give':
         return !!member?.isAdult && isHomeCardVisible(modules, 'giving');
       case 'life':
-        return lifeTiles({ modules, guideAllowed: access.guide, member }).length > 0;
+        return lifeTiles({ modules, guideAllowed: access.guide, member, specialDays: layout.specialDays }).length > 0;
       case 'learnListen':
-        return learnListenTiles({ rules, modules, signedIn: !!member, access }).length > 0;
+        return learnListenTiles({ rules, modules, signedIn: !!member, access, defaultShortcuts: layout.shortcuts }).length > 0;
     }
   });
 }
@@ -99,6 +102,8 @@ export type LifeInput = {
   /** The access level for the community guide lets this person in (useFeature('guide')). */
   guideAllowed: boolean;
   member: HomeMember;
+  /** The kind of organization has special days (default: yes). */
+  specialDays?: boolean;
 };
 
 /**
@@ -108,9 +113,9 @@ export type LifeInput = {
  * a member with a household and keeps "Add a special day" a tap away when the Plan a special day row is hidden
  * because nothing is coming up.
  */
-export function lifeTiles({ modules, guideAllowed, member }: LifeInput): LifeTile[] {
+export function lifeTiles({ modules, guideAllowed, member, specialDays = true }: LifeInput): LifeTile[] {
   return LIFE_TILES.filter((tile) => {
-    if (tile === 'specialDays') return !!member?.hasHousehold && isHomeCardVisible(modules, 'specialDay');
+    if (tile === 'specialDays') return specialDays && !!member?.hasHousehold && isHomeCardVisible(modules, 'specialDay');
     const section = LIFE_TILE_SECTION[tile];
     if (tile === 'timings') return section !== null && isGuideSectionVisible(modules, section);
     if (!guideAllowed || !isHomeCardVisible(modules, 'guide')) return false;
@@ -159,6 +164,8 @@ export type LearnListenInput = {
   /** Signed in. Every tile leads to a screen that is for signed-in members today (the library lists, the playlist, albums, Gyan Path progress). */
   signedIn: boolean;
   access: Pick<HomeAccess, 'learn' | 'listen' | 'look'>;
+  /** The shortcuts a community that has not chosen its own starts with (the kind of organization's; default: all six). */
+  defaultShortcuts?: readonly HomeShortcut[];
 };
 
 /**
@@ -166,9 +173,9 @@ export type LearnListenInput = {
  * shortcut for it (still the portal's setting), its module on (a module off means no tile), and the access
  * level of its area. One the person may not use is left out, not shown locked.
  */
-export function learnListenTiles({ rules, modules, signedIn, access }: LearnListenInput): LearnListenTile[] {
+export function learnListenTiles({ rules, modules, signedIn, access, defaultShortcuts }: LearnListenInput): LearnListenTile[] {
   if (!signedIn) return [];
-  const shortcuts = configuredShortcuts(rules);
+  const shortcuts = configuredShortcuts(rules, defaultShortcuts);
   return LEARN_LISTEN_TILES.filter((tile) => {
     if (!shortcuts.includes(LEARN_LISTEN_SHORTCUT[tile])) return false;
     if (!isHomeCardVisible(modules, LEARN_LISTEN_CARD[tile])) return false;

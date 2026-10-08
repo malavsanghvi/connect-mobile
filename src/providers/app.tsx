@@ -4,17 +4,23 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 
 import { pendingSteps, type LegalStepDoc } from '@/features/legal-step';
 import { loadLegalSteps } from '@/lib/api/legal';
-import { loadCenter, loadMember, orgIdentifierRules, type Center, type Member } from '@/lib/api/member';
+import { centerChanged, loadCenter, loadMember, orgIdentifierRules, type Center, type Member } from '@/lib/api/member';
 import { modeAfterMemberLoad, type OnboardingMode } from '@/features/onboarding/steps';
 import { brandPalette, communityToOpen, isCommunityChoice, openedPath, type CommunityChoice } from '@/lib/community';
 import { env, isConfigured } from '@/lib/env';
 import { AppError, logError, report } from '@/lib/errors';
+import { refreshDue } from '@/lib/foreground';
 import { addressFor, goTo, hostSlug, pickerHost, switchAddress } from '@/lib/member-address';
 import { readPref, writePref } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
+import { useDataVersion } from '@/providers/data-version';
+import { useForegroundTick } from '@/providers/foreground';
 import { applyPalette } from '@/theme';
 
 const COMMUNITY_PREF = 'community';
+
+/** The community row is read again at most this often (ms) when the app returns to the foreground or after a write. */
+const CENTER_REFRESH_MS = 15_000;
 
 type Loaded<T> = { key: string; value?: T; error?: AppError };
 
@@ -75,6 +81,8 @@ export type AppContextValue = {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { version } = useDataVersion();
+  const tick = useForegroundTick();
   const [bootNonce, setBootNonce] = useState(0);
   const [centerResult, setCenterResult] = useState<Loaded<Center> | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -115,6 +123,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? undefined
       : communityToOpen({ saved, signedIn: !!session, defaultSlug: env.centerSlug, openedAt, hostSlug, pickerHost });
   const centerKey = `${slug ?? ''}#${bootNonce}`;
+  // When the community row was last read, for the foreground refresh below.
+  const centerReadAt = useRef<number | null>(null);
 
   // Resolve the center (public read — works for guests too) and theme the app from its brand kit.
   useEffect(() => {
@@ -123,6 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadCenter(slug)
       .then((value) => {
         if (!active) return;
+        centerReadAt.current = Date.now();
         applyPalette(brandPalette(value.branding));
         setCenterResult({ key: centerKey, value });
       })
@@ -131,6 +142,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       active = false;
     };
   }, [centerKey, slug]);
+
+  // Keep the community row fresh while the app is open: its kind of organization, the Home shortcuts and the other settings an
+  // administrator can change, and its brand colours. It runs when the app returns to the foreground (and every few minutes),
+  // and after a write (pull to refresh); a failed refresh keeps what is shown, and the cause is logged. Nothing redraws when
+  // nothing changed.
+  useEffect(() => {
+    if (!isConfigured || !slug) return;
+    if (!refreshDue(centerReadAt.current, Date.now(), CENTER_REFRESH_MS)) return;
+    let active = true;
+    loadCenter(slug)
+      .then((value) => {
+        if (!active) return;
+        centerReadAt.current = Date.now();
+        setCenterResult((prev) => {
+          if (!prev || prev.key !== centerKey || !prev.value) return prev;
+          if (!centerChanged(prev.value, value)) return prev;
+          if (JSON.stringify(prev.value.branding) !== JSON.stringify(value.branding)) applyPalette(brandPalette(value.branding));
+          return { key: centerKey, value };
+        });
+      })
+      .catch((err: unknown) => logError('refreshing your community (keeping what is shown)', err));
+    return () => {
+      active = false;
+    };
+    // Only `tick` (the app came back, or has been open a while) and `version` (a write) start a refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, version]);
 
   // Track the auth session.
   useEffect(() => {

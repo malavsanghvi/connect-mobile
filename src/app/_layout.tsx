@@ -25,8 +25,10 @@ import { logError } from '@/lib/errors';
 import { setClientScreen } from '@/lib/request-context';
 import { AccessProvider } from '@/providers/access';
 import { AppProvider, useApp } from '@/providers/app';
+import { CategoryProvider, useCategory } from '@/providers/category';
 import { DataVersionProvider } from '@/providers/data-version';
 import { FeedbackProvider } from '@/providers/feedback';
+import { ForegroundProvider } from '@/providers/foreground';
 import { ModulesProvider } from '@/providers/modules';
 import { SettingsProvider, useT } from '@/providers/settings';
 import { colors, layout } from '@/theme';
@@ -60,19 +62,25 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <SettingsProvider>
           <DataVersionProvider>
-            <AppProvider>
-              <ModulesProvider>
-                {/* What this person may use (access levels): read for a visitor who is not signed in too, so it sits above the (auth) screens. */}
-                <AccessProvider>
-                  <FeedbackProvider>
-                    <StatusBar style="dark" />
-                    <ScreenTracker />
-                    <RootNavigator />
-                    <PayHost />
-                  </FeedbackProvider>
-                </AccessProvider>
-              </ModulesProvider>
-            </AppProvider>
+            {/* Goes up when the app returns to the foreground (and every few minutes), so what an administrator changed shows without an update. */}
+            <ForegroundProvider>
+              <AppProvider>
+                {/* The community's kind of organization and its words: below the community, above the modules (their defaults come from the kind). */}
+                <CategoryProvider>
+                  <ModulesProvider>
+                    {/* What this person may use (access levels): read for a visitor who is not signed in too, so it sits above the (auth) screens. */}
+                    <AccessProvider>
+                      <FeedbackProvider>
+                        <StatusBar style="dark" />
+                        <ScreenTracker />
+                        <RootNavigator />
+                        <PayHost />
+                      </FeedbackProvider>
+                    </AccessProvider>
+                  </ModulesProvider>
+                </CategoryProvider>
+              </AppProvider>
+            </ForegroundProvider>
           </DataVersionProvider>
         </SettingsProvider>
       </SafeAreaProvider>
@@ -106,12 +114,15 @@ function ScreenTracker() {
 
 function RootNavigator() {
   const app = useApp();
+  const category = useCategory();
   const t = useT();
 
   if (!app.configured) return <SetupScreen />;
   // A new install (or Settings › Switch community): choose the community first.
   if (app.needsCommunity || app.choosingCommunity) return <FindCommunityScreen />;
   if (app.booting) return <FullScreenLoading />;
+  // A kind of organization this build has no layout for waits for its first answer rather than flashing another layout.
+  if (!app.bootError && !category.ready) return <FullScreenLoading />;
   if (app.bootError) {
     return (
       <FullScreenError

@@ -14,6 +14,23 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.12.0 — 2026-10-08
+
+- **The app now knows what kind of organization a community is** (a Jain Center, a chamber of commerce, a community
+  organization, a faith community of another tradition), and follows it while it is open. This is the groundwork for
+  organizations that are not Jain: **nothing changes for JSH or any Jain community**, and an app of this version works
+  with a database from before and after the change.
+- **Changes show without an update.** What Community Connect or an organization's administrators change (the kind of
+  organization, which parts of the app are switched on or off, the Home shortcuts, the access levels, the colours) now
+  shows when the app comes back to the front after a short while, every few minutes while it stays open, and when a screen
+  is pulled down to refresh. No new version or restart is needed.
+- **No flash of the wrong screen.** The app knows its kind of organization from the same read that opens the community,
+  and remembers the last answer for each community on the phone, so the right tabs are there on the first frame. A kind of
+  organization it has never seen waits on a plain loading screen for its first answer instead of showing a layout that may be wrong.
+- **Words and layout come from the organization.** Tabs, the Today card on Home, the special days, the topics asked at
+  sign-up and the starting Home shortcuts follow what the organization's kind says; a kind the app does not know yet
+  still gets a complete, neutral app.
+
 ## 1.11.0 — 2026-10-08
 
 - **Register for Pathshala in the app.** An adult of the family registers several learners at once: children, and adults
