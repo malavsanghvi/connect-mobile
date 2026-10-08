@@ -9,7 +9,7 @@
  *   dashboard_url public community dashboard (drawer link)
  *   logo_path / mark_path  brand-kit uploads in the public `branding` bucket
  *                 (connect-crm Setup); used when no *_url is set
- * The community is the tenant; the product is "Community Connect".
+ * The community is the tenant; the product is "Weaver".
  */
 
 import { brandAssetUrl } from './community';

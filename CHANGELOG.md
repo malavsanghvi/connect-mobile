@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.10.0 — 2026-10-08
+
+- **The app is now called Weaver.** Everything the app says about itself (Settings › About, the lock screen, permission
+  and reminder messages, the calendar file) says Weaver instead of Community Connect. The new W logo is in the app icon,
+  the Android adaptive icon, the splash screen and the web tab icon. The over-the-air update changes the words;
+  **the name and icon on the phone's home screen, the splash screen and the Android notification settings change only
+  with the next full app build**, because the phone fixes them when the app is installed. The web tab icon changes with
+  the next web deploy.
+
 ## 1.9.3 — 2026-10-08
 
 - **Fixed: "Watch live darshan" and "Do puja" on the Welcome screen now open their screens.** 1.9.2 stopped the blank

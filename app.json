@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Community Connect",
+    "name": "Weaver",
     "slug": "connect-mobile",
-    "version": "1.9.3",
+    "version": "1.10.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": ["connect", "communityconnect"],
@@ -17,7 +17,7 @@
     "android": {
       "package": "org.connectplatform.member",
       "adaptiveIcon": {
-        "backgroundColor": "#1B2C5C",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -57,15 +57,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Community Connect to use the camera to scan event tickets when you volunteer at check-in.",
-          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
+          "cameraPermission": "Allow Weaver to use the camera to scan event tickets when you volunteer at check-in.",
+          "microphonePermission": "Allow Weaver to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow Community Connect to use Face ID to unlock the app."
+          "faceIDPermission": "Allow Weaver to use Face ID to unlock the app."
         }
       ],
       [
@@ -77,7 +77,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Community Connect to choose photos you want to add to an event album.",
+          "photosPermission": "Allow Weaver to choose photos you want to add to an event album.",
           "cameraPermission": false,
           "microphonePermission": false
         }
@@ -85,23 +85,23 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow Community Connect to save event photos to your library.",
-          "savePhotosPermission": "Allow Community Connect to save event photos to your library.",
+          "photosPermission": "Allow Weaver to save event photos to your library.",
+          "savePhotosPermission": "Allow Weaver to save event photos to your library.",
           "isAccessMediaLocationEnabled": false
         }
       ],
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
+          "microphonePermission": "Allow Weaver to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
           "enableBackgroundPlayback": false
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow Community Connect to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
-          "speechRecognitionPermission": "Allow Community Connect to turn what you say into text, so it can check your Navkar Mantra and sutra practice. The app keeps only your score, not your voice.",
+          "microphonePermission": "Allow Weaver to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
+          "speechRecognitionPermission": "Allow Weaver to turn what you say into text, so it can check your Navkar Mantra and sutra practice. The app keeps only your score, not your voice.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox", "com.google.android.as"]
         }
       ]

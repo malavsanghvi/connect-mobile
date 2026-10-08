@@ -184,7 +184,7 @@ export type IcsItem = { uid: string; date: string; title: string; description?: 
 /** All-day VEVENTs for the chosen calendars (RFC 5545), for "Add these calendars to my phone". */
 export function buildIcs(calName: string, items: IcsItem[], stamp: Date): string {
   const dt = stamp.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Community Connect//Member app//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${icsEscape(calName)}`];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Weaver//Member app//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${icsEscape(calName)}`];
   for (const it of items) {
     const start = it.date.replace(/-/g, '');
     const end = addDays(it.date, 1).replace(/-/g, '');
