@@ -76,7 +76,7 @@ describe('the words the app has for kinds of organization', () => {
   });
 
   it('keep every placeholder of the word they replace', () => {
-    const placeholders = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort();
+    const placeholders = (s: string): string[] => s.match(/\{\w+\}/g) ?? [];
     for (const [name, set] of sets) {
       for (const [key, value] of Object.entries(set.en ?? {})) {
         const base = en[key as StringKey];

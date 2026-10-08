@@ -24,7 +24,6 @@ const row = { id: 'c1', slug: 'jsh', name: 'Jain Society of Houston', short_name
 beforeEach(() => {
   mockSelects.length = 0;
   mockAnswers = [];
-  jest.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
 describe('opening the community', () => {

@@ -20,7 +20,6 @@ jest.mock('../storage', () => ({
 beforeEach(() => {
   mockRpc.mockReset();
   mockPrefs.clear();
-  jest.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
 describe('reading the kind of organization (app.category_profile)', () => {
@@ -35,24 +34,29 @@ describe('reading the kind of organization (app.category_profile)', () => {
   });
 
   it('says "missing" when the database does not have the function yet, and logs it once', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     const missing = { code: 'PGRST202', message: 'Could not find the function app.category_profile(p_center) in the schema cache' };
     mockRpc.mockResolvedValue({ data: null, error: missing });
     expect(await loadCategoryProfile('center-1')).toEqual({ kind: 'missing' });
     expect(await loadCategoryProfile('center-1')).toEqual({ kind: 'missing' });
-    const calls = (console.error as jest.Mock).mock.calls.filter((c) => String(c[0]).includes('category_profile is not deployed'));
-    expect(calls).toHaveLength(1);
+    expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
   });
 
   it('says "failed" (and keeps the last known layout) when the read does not work, without throwing', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'That community was not found.' } });
     expect(await loadCategoryProfile('center-2')).toEqual({ kind: 'failed' });
     mockRpc.mockRejectedValueOnce(new TypeError('Network request failed'));
     expect(await loadCategoryProfile('center-3')).toEqual({ kind: 'failed' });
+    log.mockRestore();
   });
 
   it('says "failed" for an answer that is not a profile', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     mockRpc.mockResolvedValueOnce({ data: { nothing: true }, error: null });
     expect(await loadCategoryProfile('center-4')).toEqual({ kind: 'failed' });
+    log.mockRestore();
   });
 });
 
