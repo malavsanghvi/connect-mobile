@@ -305,19 +305,15 @@ describe('Welcome: without signing in', () => {
 
 describe('Welcome: handing over to the chosen door', () => {
   it('does nothing when no door was chosen', () => {
-    expect(guestDoorStep({ pending: null, guest: true, navReady: true })).toBe('idle');
-    expect(guestDoorStep({ pending: null, guest: false, navReady: false })).toBe('idle');
+    expect(guestDoorStep({ pending: null, guest: true })).toBe('idle');
+    expect(guestDoorStep({ pending: null, guest: false })).toBe('idle');
   });
-  it('waits, and keeps the choice, until the navigator that just mounted can take a push', () => {
-    // Pushing too early threw on the web and blanked the page.
-    expect(guestDoorStep({ pending: '/darshan', guest: true, navReady: false })).toBe('wait');
-  });
-  it('opens the screen once guest mode is on and the navigator is ready', () => {
-    expect(guestDoorStep({ pending: '/puja', guest: true, navReady: true })).toBe('open');
+  it('opens the chosen screen once guest mode is on (the push itself waits and retries: src/lib/push-soon.ts)', () => {
+    expect(guestDoorStep({ pending: '/puja', guest: true })).toBe('open');
+    expect(guestDoorStep({ pending: '/darshan', guest: true })).toBe('open');
   });
   it('drops the choice when the app opened for someone who is not a guest', () => {
-    expect(guestDoorStep({ pending: '/darshan', guest: false, navReady: true })).toBe('drop');
-    expect(guestDoorStep({ pending: '/darshan', guest: false, navReady: false })).toBe('drop');
+    expect(guestDoorStep({ pending: '/darshan', guest: false })).toBe('drop');
   });
 });
 
