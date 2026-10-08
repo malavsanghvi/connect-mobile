@@ -5,6 +5,7 @@ import { AppError, check, logError, maybe, must } from '../errors';
 import { todayAt } from '../format';
 import { splitRemembered } from '@/features/remembrance';
 import { isMissingColumnError, JAIN_CENTER } from '../categories';
+import { isMissingRpcError } from '../modules';
 import { isAdult, orgIdDisplay } from '../rules';
 import { supabase } from '../supabase';
 
@@ -43,7 +44,38 @@ export type Member = {
 
 const ROLE_ORDER: Record<HouseholdRole, number> = { primary: 0, spouse: 1, parent: 2, sibling: 3, other: 4, child: 5 };
 
+/**
+ * The community row through app.community_public (connect-crm 0614): the full settings for a member, staff or the owner;
+ * for a guest, or a signed-in person not yet linked, only the public part (the keys this app reads: identifier labels,
+ * Home shortcuts, point values, the gift-pack price; the brand kit). A database from before 0614 has no such function:
+ * the table is read the old way, so the app never depends on the order of deploys.
+ */
 export async function loadCenter(slug: string): Promise<Center> {
+  const res = await supabase.rpc('community_public', { p_slug: slug });
+  if (res.error && isMissingRpcError(res.error)) {
+    logError('opening your community: app.community_public is not in this database yet, so the community is read from the table', res.error);
+    return loadCenterFromTable(slug);
+  }
+  const row = maybe(res, 'open your center')?.[0];
+  if (!row) throw noSuchCommunity(slug);
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    short_name: row.short_name,
+    state_region: row.state_region,
+    time_zone: row.time_zone,
+    tradition: row.tradition,
+    branding: row.branding,
+    feature_flags: row.feature_flags,
+    rules: row.rules,
+    environment: row.environment,
+    category_key: row.category_key,
+  };
+}
+
+/** The community row read from the table, as before connect-crm 0614. */
+async function loadCenterFromTable(slug: string): Promise<Center> {
   const res = await supabase
     .from('centers')
     .select('id, slug, name, short_name, state_region, time_zone, tradition, branding, feature_flags, rules, environment, category_key')
