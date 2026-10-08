@@ -2150,7 +2150,7 @@ export const en = {
   'reg.review.payNow': 'Pay {amount} now to register. Seats are held for {hours} hours while you pay.',
   'reg.review.nothingNow': 'Nothing to pay now: each line says when it is.',
   'reg.review.nothingToPay': 'nothing to pay now',
-  'reg.review.withdraw': 'Withdraw by {date} and the fee is cancelled (anything already paid is kept as credit for your family). After that, the fee stays due.',
+  'reg.review.withdraw': 'If a learner withdraws by {date}, their fee is cancelled (anything already paid is kept as credit for your family). After that, the fee stays due. To withdraw, ask the Pathshala office.',
   'reg.review.assistanceAsk': 'Ask about fee assistance',
   'reg.review.assistanceSub': 'Private: your children, the teachers and the Pathshala committee do not see it. The principal and the treasurer decide.',
   'reg.review.unpriced': 'Fee: worked out when the office places {name}',

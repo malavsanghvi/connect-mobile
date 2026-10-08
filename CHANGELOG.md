@@ -34,6 +34,7 @@ How a release is made:
   (children never see fees). Home shows "Pay to keep Riya's seat · 5 h left" while a seat is held. Pathshala
   notifications open the right screen.
 - A community whose portal is not updated yet keeps the simple request form.
+- A gift to a Pathshala campaign is recorded as an ordinary gift, never as a Pathshala fee.
 
 ## 1.10.0 — 2026-10-08
 
