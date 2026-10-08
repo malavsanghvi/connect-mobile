@@ -15,6 +15,7 @@ import {
   GUEST_DOORS,
   guestAreas,
   guestDoorsToShow,
+  guestDoorStep,
   isFeatureKey,
   OPEN_BEFORE_LEVELS,
   parseAccess,
@@ -299,6 +300,24 @@ describe('Welcome: without signing in', () => {
     expect(GUEST_DOORS.puja).toEqual({ route: '/puja', label: 'puja.entry' });
     expect(t(GUEST_DOORS.darshan.label)).toBe('Watch live darshan');
     expect(t(GUEST_DOORS.puja.label)).toBe('Do puja');
+  });
+});
+
+describe('Welcome: handing over to the chosen door', () => {
+  it('does nothing when no door was chosen', () => {
+    expect(guestDoorStep({ pending: null, guest: true, navReady: true })).toBe('idle');
+    expect(guestDoorStep({ pending: null, guest: false, navReady: false })).toBe('idle');
+  });
+  it('waits, and keeps the choice, until the navigator that just mounted can take a push', () => {
+    // Pushing too early threw on the web and blanked the page.
+    expect(guestDoorStep({ pending: '/darshan', guest: true, navReady: false })).toBe('wait');
+  });
+  it('opens the screen once guest mode is on and the navigator is ready', () => {
+    expect(guestDoorStep({ pending: '/puja', guest: true, navReady: true })).toBe('open');
+  });
+  it('drops the choice when the app opened for someone who is not a guest', () => {
+    expect(guestDoorStep({ pending: '/darshan', guest: false, navReady: true })).toBe('drop');
+    expect(guestDoorStep({ pending: '/darshan', guest: false, navReady: false })).toBe('drop');
   });
 });
 
