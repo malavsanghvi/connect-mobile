@@ -115,6 +115,8 @@ export const en = {
   'signin.sentTo': 'We sent a sign-in code to {target}.',
   'signin.emailLabel': 'Email',
   'signin.phoneLabel': 'Mobile number',
+  'signin.emailIntro': "Enter your email address and we'll send you a sign-in code. No password needed.",
+  'signin.phoneOnlyNotice': 'Signed up with a mobile number only? Signing in with a mobile number is paused for now. Please contact the office and they will help you get back in.',
   'signin.emailInvalid': 'Enter an email address like name@example.com.',
   'signin.phoneInvalid': 'Enter a 10-digit US number, or an international number starting with +.',
   'signin.sendCode': 'Send code',
@@ -1587,6 +1589,7 @@ export const en = {
   'settings.profileFamilySub': 'Names, contact details, family members',
   'settings.security': 'Sign-in and security',
   'settings.securitySub': 'Email one-time code, change email or mobile',
+  'settings.securitySubEmail': 'Email one-time code, change your email',
   'settings.biometric': '{method} sign-in',
   'settings.biometricSub': 'Unlock the app without a code',
   'settings.devices': 'Signed-in devices',
@@ -1651,6 +1654,7 @@ export const en = {
   'settings.signOut': 'Sign out',
   'settings.signOutTitle': 'Sign out?',
   'settings.signOutBody': "You'll need a one-time code to sign in again.",
+  'settings.signOutBodyPhoneOnly': "This account signs in with a mobile number, and signing in with a mobile number is paused for now. If you sign out you may not be able to get back in. Please contact the office first.",
 
   // Legal
   'legal.version': 'Last updated {date} · version {version}',

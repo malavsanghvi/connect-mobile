@@ -14,6 +14,20 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.15.0 — 2026-10-08
+
+- **Sign in and create an account with your email only.** The welcome screen offers "Continue with email" alone, and the
+  sign-in screen asks for your email address and emails you a one-time code (no password), with a "Try again" next to any
+  failure to send it. "Continue with mobile number" and the mobile sign-in screen are hidden, and a link that asks for the
+  mobile way opens the email screen. Nothing is deleted: the whole mobile path is behind one switch,
+  `PHONE_SIGN_IN_ENABLED` in `src/lib/auth-config.ts` (now `false`); setting it to `true` brings today's behaviour back.
+  Mobile numbers are still collected as contact details (your profile, WhatsApp, reminders); only signing in with one is hidden.
+- **Someone who signed up with a mobile number only** (a login with no email) stays signed in on their phone, and is told so
+  before they sign out ("you may not be able to get back in; contact the office first"); the sign-in screen has a line for them
+  ("signed up with a mobile number only? … contact the office"). No database or backend function changes; no account linking.
+- The Settings "Sign-in and security" row no longer mentions a mobile number while it is hidden.
+- runtimeVersion stays 3; no new native module, so this reaches installed apps as an over-the-air update.
+
 ## 1.14.1 — 2026-10-08
 
 - **The community is read through the public-read functions** (connect-crm 0614): the community row, the "choose your
