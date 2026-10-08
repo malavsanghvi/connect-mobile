@@ -3,8 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import { pushSoon } from '../push-soon';
 
 describe('pushSoon', () => {
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   it('pushes after a moment, not in the same tick', () => {
     const push = jest.fn();
