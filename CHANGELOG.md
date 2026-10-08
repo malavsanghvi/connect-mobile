@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.9.5 — 2026-10-08
+
+- **Fixed for good: "Watch live darshan" and "Do puja" on the Welcome screen open their screens.** The cause was in how
+  the app is built: it rewrote the code that hands the chosen screen over so the screen was always empty (first a blank
+  page, then nothing happening). The hand-over is now built so that cannot happen.
+- **Fixed: coming back to the event after signing in, and reopening an event link after switching community.** Both used
+  the same hand-over and would have failed the same way (an error right after signing in, or after switching community
+  from a flyer's link).
+
 ## 1.9.4 — 2026-10-08
 
 - **Fixed again: "Watch live darshan" and "Do puja" on the Welcome screen now really open their screens.** In 1.9.3 the
