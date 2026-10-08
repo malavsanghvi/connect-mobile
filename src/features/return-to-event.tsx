@@ -2,18 +2,23 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
 import { flyerLinkPath, isUuid } from '@/lib/flyer';
+import { createHandoff } from '@/lib/handoff';
 import { useApp } from '@/providers/app';
+
+// Both hand-offs below are taken through createHandoff, never `const x = pending; pending = null;` inside the
+// components: the React Compiler turned that into "pending = null; use(pending)", so the value was always null and
+// using it threw (src/lib/handoff.ts).
 
 /**
  * The event a guest was looking at when they pressed Sign in (for example a members-only event
  * opened from a flyer's QR link), reopened once they are in the app as a member. Kept in memory:
  * the sign-in code is typed into the app, so the page never reloads in between.
  */
-let pending: { eventId: string; centerId: string } | null = null;
+const eventToReturnTo = createHandoff<{ eventId: string; centerId: string }>();
 
 /** Call just before leaving guest mode for the sign-in screen. */
 export function returnToEventAfterSignIn(eventId: string, centerId: string | null | undefined): void {
-  pending = centerId && isUuid(eventId) ? { eventId: eventId.toLowerCase(), centerId } : null;
+  eventToReturnTo.set(centerId && isUuid(eventId) ? { eventId: eventId.toLowerCase(), centerId } : null);
 }
 
 /**
@@ -28,9 +33,8 @@ export function ReturnToEvent() {
   const centerId = center?.id ?? null;
 
   useEffect(() => {
-    const p = pending;
+    const p = eventToReturnTo.take();
     if (!p) return;
-    pending = null;
     if (signedIn && p.centerId === centerId) router.push(`/event/${p.eventId}`);
   }, [signedIn, centerId, router]);
 
@@ -42,11 +46,11 @@ export function ReturnToEvent() {
  * loads, the loading screen replaces the root navigator, which then starts again on its first
  * screen (welcome, family matching or home) and forgets the link; so the link is kept here.
  */
-let switching: { eventId: string; slug: string } | null = null;
+const eventLinkToReopen = createHandoff<{ eventId: string; slug: string }>();
 
 /** Call just before chooseCommunity on /e/<id>, and with null when the switch failed. */
 export function reopenEventLinkAfterSwitch(link: { eventId: string; slug: string } | null): void {
-  switching = link && link.slug && isUuid(link.eventId) ? { eventId: link.eventId.toLowerCase(), slug: link.slug } : null;
+  eventLinkToReopen.set(link && link.slug && isUuid(link.eventId) ? { eventId: link.eventId.toLowerCase(), slug: link.slug } : null);
 }
 
 /**
@@ -59,9 +63,8 @@ export function ReopenEventLink() {
   const slug = useApp().center?.slug ?? null;
 
   useEffect(() => {
-    const link = switching;
+    const link = eventLinkToReopen.take();
     if (!link) return;
-    switching = null;
     if (slug && link.slug === slug) router.replace(flyerLinkPath(link.eventId, slug));
   }, [slug, router]);
 
