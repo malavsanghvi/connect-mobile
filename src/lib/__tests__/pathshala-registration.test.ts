@@ -841,7 +841,7 @@ describe('the rest of the review', () => {
     );
     expect(lineNames(lines, o.learners, [])).toEqual(['Anya', 'Dev']);
     // An answer without first_name falls back to who was sent.
-    const bare = parseRegistrationResult({ lines: [{ person_id: null, track_id: ID.jainism, outcome: 'pending_child', total_cents: 4500, base_fee_cents: 4500 }, { person_id: ID.dev, track_id: ID.jainism, outcome: 'seat', total_cents: 13000, base_fee_cents: 13000 }], total_cents: 17500 });
+    const bare = parseRegistrationResult({ lines: [{ person_id: null, track_id: ID.jainism, outcome: 'pending_child', total_cents: 4500, base_fee_cents: 4500 }, { person_id: ID.dev, track_id: ID.jainism, outcome: 'seat', total_cents: 13000, base_fee_cents: 13000 }], total_cents: 17500, due_now_cents: 13000 });
     const sel: Selection[] = [{ key: 'new:1', personId: null, newChild: { firstName: 'Kavi', lastName: 'Shah', dateOfBirth: '2021-05-01', relationship: 'Child' }, tracks: [{ trackId: ID.jainism, levelId: ID.toddler, unsure: false }], note: '' }];
     expect(bare && lineNames(bare, o.learners, sel)).toEqual(['Kavi', 'Dev']);
   });
@@ -871,6 +871,14 @@ describe('the rest of the review', () => {
     expect(parseRegistrationResult({ ...raw, total_cents: null })).toBeNull();
     expect(parseRegistrationResult({ ...raw, pay: { amount_cents: 'lots' } })).toBeNull();
     expect(parseRegistrationResult({ ...raw, due_now_cents: 'some' })).toBeNull();
+    // What registering bills is the database's own number: an answer without it is not read (nothing is worked out from the lines).
+    expect(parseRegistrationResult({ ...raw, due_now_cents: undefined })).toBeNull();
+    expect(parseRegistrationResult({ ...raw, due_now_cents: null })).toBeNull();
+    // A pledge on a line carries its amount in whole cents, or the line (so the answer) is not read.
+    const withPledge = lines.map((l, i) => (i === 0 ? { ...l, pledge: { id: 'pl-x', number: 'JSH-PL-1', due_on: '2026-09-20', amount_cents: 'a lot' } } : l));
+    expect(parseRegistrationResult({ ...raw, lines: withPledge })).toBeNull();
+    const noAmount = lines.map((l, i) => (i === 0 ? { ...l, pledge: { id: 'pl-x', number: 'JSH-PL-1', due_on: '2026-09-20' } } : l));
+    expect(parseRegistrationResult({ ...raw, lines: noAmount })).toBeNull();
     expect(parseRegistrationResult({ ...raw, lines: 'none' })).toBeNull();
     expect(parseRegistrationResult(null)).toBeNull();
   });

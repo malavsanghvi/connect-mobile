@@ -139,12 +139,11 @@ export function DoneStep({
           const e = liveEnrollment(options, line);
           const view = e && e.status ? enrollmentStatus(e.status, holdOf(e)) : null;
           const status = view ? statusText(view, t, whenText(view.until, timeZone)) : t(outcomeKey(line, mode), { name: names[i] });
-          const pledgeAmount = money(line.pledge?.amountCents ?? line.totalCents);
           const pledge = line.pledge
             ? line.pledge.number
               ? line.pledge.dueOn
-                ? t('reg.done.linePledge', { number: line.pledge.number, amount: pledgeAmount, date: whenText(line.pledge.dueOn, timeZone) })
-                : t('reg.done.linePledgeNoDate', { number: line.pledge.number, amount: pledgeAmount })
+                ? t('reg.done.linePledge', { number: line.pledge.number, amount: money(line.pledge.amountCents), date: whenText(line.pledge.dueOn, timeZone) })
+                : t('reg.done.linePledgeNoDate', { number: line.pledge.number, amount: money(line.pledge.amountCents) })
               : null
             : null;
           return (

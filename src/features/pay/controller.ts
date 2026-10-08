@@ -33,6 +33,11 @@ export type PaymentRequest = {
   /** Several saved pledges (Family pledges → Pay N pledges). */
   pledgeIds?: string[];
   /**
+   * The household the pledges belong to, when it is not the member's own: a Pathshala registration made under another
+   * household the member is an adult of ("Register under"). The checkout is asked for that family's pledges.
+   */
+  householdId?: string | null;
+  /**
    * Where the payment was started from. `pathshala` is a Pathshala fee (connect-crm 0591 adds it to the checkout
    * contexts): the success screen says "Fee paid", never the donation thank-you or a tax receipt.
    */

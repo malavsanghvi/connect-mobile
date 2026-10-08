@@ -2079,6 +2079,7 @@ export const en = {
   'reg.who.title': 'Who is joining',
   'reg.who.intro': 'Choose everyone in your family who will take Pathshala this term: children, and adults for the adult classes.',
   'reg.who.none': 'Everyone in your family is already registered for this term.',
+  'reg.who.skipped': 'Part of this list could not be read, so someone or a class may be missing here. Close this screen and open it again, or ask the Pathshala office.',
   'reg.who.me': '{name} (me)',
   'reg.who.age': 'age {n}',
   'reg.who.adult': 'Adult learner: pays the adult class fee, no sibling discount.',

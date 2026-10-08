@@ -273,6 +273,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
     payFees({
       amountCents: pay.amountCents,
       pledgeIds: pay.pledgeIds,
+      householdId: options.household.id,
       forLabel: pay.forLabel ?? feeForLabel(t, options.term.name, lineNames(res, options.learners, selections)),
       office: pay.officePaymentAllowed && res.registrationId ? { label: t('reg.done.officeInstead'), run: () => chooseOffice(res) } : null,
     })
@@ -291,7 +292,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
     if (p.ids.length === 0 || p.cents <= 0) return;
     setPaying(true);
     setPayError(null);
-    payFees({ amountCents: p.cents, pledgeIds: p.ids, forLabel: feeForLabel(t, options.term.name, lineNames(res, options.learners, selections).filter((_, i) => !!res.lines[i].pledge)) })
+    payFees({ amountCents: p.cents, pledgeIds: p.ids, householdId: options.household.id, forLabel: feeForLabel(t, options.term.name, lineNames(res, options.learners, selections).filter((_, i) => !!res.lines[i].pledge)) })
       .then((outcome) => {
         if (outcome.status === 'paid') {
           setPaid(true);

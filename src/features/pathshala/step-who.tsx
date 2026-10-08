@@ -60,6 +60,7 @@ export function WhoStep({
       <Txt variant="small" color="ink2">
         {t('reg.who.intro')}
       </Txt>
+      {options.skipped > 0 ? <Banner tone="warning" message={t('reg.who.skipped')} /> : null}
       {!anySelectable && newChildren.length === 0 ? <Banner tone="info" message={t('reg.who.none')} /> : null}
       <Card>
         {rows.map((row, i) => {

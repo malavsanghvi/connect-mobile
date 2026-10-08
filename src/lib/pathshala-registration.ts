@@ -165,8 +165,8 @@ export type RegistrationOptions = {
   skipped: number;
 };
 
-/** A fee pledge a registration made for a line (0591): due on `dueOn` (pledge mode: never "now"). */
-export type RegPledge = { id: string; number: string | null; dueOn: string | null; amountCents: number | null };
+/** A fee pledge a registration made for a line (0591): due on `dueOn` (pledge mode: never "now"). Its amount is the database's, whole cents. */
+export type RegPledge = { id: string; number: string | null; dueOn: string | null; amountCents: number };
 
 export type RegLine = {
   personId: string | null;
@@ -206,9 +206,10 @@ export type RegistrationResult = {
   /**
    * What this registration bills (0590/0591 `due_now_cents`: the seat lines' fees, less a line waiting for a fee
    * assistance decision). In a pledge-mode term these are pledges due on each `pledge.dueOn`, never "pay now": what is
-   * paid now is `pay.amountCents`. Null when an answer does not carry it.
+   * paid now is `pay.amountCents`. Both functions always send it; an answer without it is unusable (see
+   * `parseRegistrationResult`), so the app never works the amount out itself.
    */
-  dueNowCents: number | null;
+  dueNowCents: number;
   /** Pay-now terms: what to pay now and for which pledges. Null in a pledge-mode term. */
   pay: RegPay | null;
   /**
@@ -447,7 +448,13 @@ function parseLine(v: unknown): RegLine | null {
   if (baseFeeCents - siblingDiscountCents - capReductionCents + lateFeeCents - assistanceCents !== totalCents) return null;
   const priced = v.priced !== false;
   if (!priced && totalCents !== 0) return null;
-  const pledge = isObject(v.pledge) && str(v.pledge.id) ? { id: str(v.pledge.id) as string, number: str(v.pledge.number), dueOn: str(v.pledge.due_on), amountCents: count(v.pledge.amount_cents) } : null;
+  // The pledge the registration made for this line (null when nothing is billed). It is money: its amount is whole cents or the line is not read.
+  let pledge: RegPledge | null = null;
+  if (isObject(v.pledge) && str(v.pledge.id)) {
+    const pledgeCents = count(v.pledge.amount_cents);
+    if (pledgeCents === null) return null;
+    pledge = { id: str(v.pledge.id) as string, number: str(v.pledge.number), dueOn: str(v.pledge.due_on), amountCents: pledgeCents };
+  }
   return {
     personId: str(v.person_id),
     firstName: str(v.first_name),
@@ -501,8 +508,10 @@ export function parseRegistrationResult(raw: unknown): RegistrationResult | null
   const pay = parsePay(raw.pay);
   if (totalCents === null || pay === undefined) return null;
   if (lines.reduce((sum, l) => sum + l.totalCents, 0) !== totalCents) return null;
-  const dueNow = raw.due_now_cents === undefined || raw.due_now_cents === null ? null : count(raw.due_now_cents);
-  if (dueNow === null && raw.due_now_cents !== undefined && raw.due_now_cents !== null) return null;
+  // What registering bills is the database's own number (0590 `preview_pathshala_registration`, 0591 `register_pathshala_children`
+  // always send it): without it nothing is guessed from the lines.
+  const dueNow = count(raw.due_now_cents);
+  if (dueNow === null) return null;
   return {
     registrationId: str(raw.registration_id),
     lines,
@@ -872,15 +881,14 @@ export function outcomeKey(l: Pick<RegLine, 'outcome' | 'levelId'>, mode: Paymen
 }
 
 /**
- * What registering bills, as the database counted it (`due_now_cents`), and how many seat lines with a fee that is. In
- * a pledge-mode term these become pledges due later (each line's `pledge.dueOn`), never "pay now"; a line waiting for a
- * fee assistance decision is not billed yet, so with assistance asked the database bills nothing now. Without
- * `due_now_cents` (an answer that does not carry it): the seat lines' totals.
+ * What registering bills, as the database counted it (`due_now_cents`, never worked out here), and how many seat lines
+ * with a fee that is. In a pledge-mode term these become pledges due later (each line's `pledge.dueOn`), never "pay
+ * now"; a line waiting for a fee assistance decision is not billed yet, so with assistance asked the database bills
+ * nothing now.
  */
 export function chargedNow(r: Pick<RegistrationResult, 'lines' | 'dueNowCents'>): { cents: number; count: number } {
   const seats = r.lines.filter((l) => l.outcome === 'seat' && l.totalCents > 0);
-  const cents = r.dueNowCents ?? seats.reduce((sum, l) => sum + l.totalCents, 0);
-  return { cents, count: cents > 0 ? seats.length : 0 };
+  return { cents: r.dueNowCents, count: r.dueNowCents > 0 ? seats.length : 0 };
 }
 
 /**
@@ -933,7 +941,7 @@ export function linePledges(r: Pick<RegistrationResult, 'lines'>): { ids: string
   const due = [...new Set(lines.map((l) => l.pledge?.dueOn).filter((d): d is string => !!d))].sort();
   return {
     ids: lines.map((l) => (l.pledge as RegPledge).id),
-    cents: lines.reduce((s, l) => s + (l.pledge?.amountCents ?? l.totalCents), 0),
+    cents: lines.reduce((s, l) => s + (l.pledge as RegPledge).amountCents, 0),
     dueOn: due[0] ?? null,
     sameDue: due.length <= 1,
   };
