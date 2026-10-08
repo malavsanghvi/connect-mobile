@@ -1,10 +1,12 @@
-import { useRouter } from 'expo-router';
+import { useRootNavigationState, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
-import { doorCheckFor, GUEST_DOORS, guestAreas, guestDoorsToShow, type GuestDoor } from '@/lib/access';
+import { doorCheckFor, GUEST_DOORS, guestAreas, guestDoorStep, guestDoorsToShow, type GuestDoor } from '@/lib/access';
 import { loadGyan } from '@/lib/api/gyan';
 import { loadToday } from '@/lib/api/home';
 import { darshanDoorVisible } from '@/lib/darshan';
+import { logError } from '@/lib/errors';
+import { pushSoon } from '@/lib/push-soon';
 import { useLoad } from '@/lib/use-load';
 import { useAccess } from '@/providers/access';
 import { useApp } from '@/providers/app';
@@ -59,13 +61,23 @@ export function useGuestDoors(): GuestDoor[] {
 export function OpenGuestDoor() {
   const router = useRouter();
   const { guest } = useApp();
+  // This mounts together with the (app) navigator. Until the root navigation state exists the router has no route
+  // information, and a push in that same moment threw "Cannot read properties of null (reading 'pathname')" on
+  // the web, which blanked the page (the Welcome door buttons went to a blank screen).
+  const navReady = !!useRootNavigationState()?.key;
 
   useEffect(() => {
+    const step = guestDoorStep({ pending, guest, navReady });
+    if (step === 'idle' || step === 'wait') return;
     const route = pending;
-    if (!route) return;
     pending = null;
-    if (guest) router.push(route);
-  }, [guest, router]);
+    if (step !== 'open' || !route) return;
+    // A moment later, and again if it throws: the person stays on Home rather than on a blank page.
+    pushSoon(
+      () => router.push(route),
+      (err) => logError('opening the screen you chose on the Welcome screen (you are on Home)', err),
+    );
+  }, [guest, navReady, router]);
 
   return null;
 }
