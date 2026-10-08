@@ -5,7 +5,7 @@ import { ErrorState } from '@/components/states';
 import { Banner, Button, Card, Chip, ChipGroup, LinkText, Row, TextField, Txt } from '@/components/ui';
 import { CheckRow } from '@/features/give/parts';
 import { turningAge } from '@/features/give/rules';
-import { OCCASIONS, asClause, canPlanLabh, kindLabel, labhDedication, labhToPledge, listDisplayName, reminderSpan, splitTithi, type Occasion } from '@/features/special-days';
+import { asClause, occasionsFor, canPlanLabh, kindLabel, labhDedication, labhToPledge, listDisplayName, reminderSpan, splitTithi, type Occasion } from '@/features/special-days';
 import { saveSpecialDay } from '@/lib/api/family';
 import { commitLabh, loadLabhOptions, type LabhOption } from '@/lib/api/giving';
 import { report } from '@/lib/errors';
@@ -13,6 +13,7 @@ import { formatCents, formatDob, fullName, parseDobInput } from '@/lib/format';
 import { nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useModule } from '@/providers/modules';
@@ -61,7 +62,8 @@ export function PlanDaysQuestion({ question, onYes, onNotNow }: { question: stri
 export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => void; /** Preview of onboarding: check the form as usual but save nothing. */ preview?: boolean }) {
   const t = useT();
   const { member, center } = useApp();
-  const givingOn = useModule('giving');
+  const labhOn = useModule('labh');
+  const { layout } = useCategory();
   const { invalidate } = useDataVersion();
   const { toast } = useFeedback();
   const [who, setWho] = useState<string | null>(member?.members[0]?.person.id ?? null);
@@ -78,8 +80,8 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
   const [savedDay, setSavedDay] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Money is adults only and needs the Giving module; children never load the options.
-  const labhAllowed = givingOn && !!member?.isAdult;
+  // Money is adults only and needs the Labh module (which needs Giving); children never load the options.
+  const labhAllowed = labhOn && !!member?.isAdult;
   const labhOptions = useLoad(() => (center && labhAllowed ? loadLabhOptions(center.id) : Promise.resolve<LabhOption[]>([])), [center?.id, labhAllowed], 'load the labh options');
   if (!member?.household || !center) return null;
   const householdId = member.household.id;
@@ -97,7 +99,7 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
   const calendarDate = by === 'date' ? parseDobInput(date) : null;
   const person = who ? (member.members.find((m) => m.person.id === who)?.person ?? null) : null;
   const heading = listDisplayName(t, { label: label.trim() || null, person_id: who, kind, calendar_date: calendarDate, tithi: by === 'tithi' ? (splitTithi(tithi)?.tithi ?? null) : null }, member.members);
-  const labhAsked = canPlanLabh({ givingOn, isAdult: member.isAdult, occasion, labhPromptEnabled: true });
+  const labhAsked = canPlanLabh({ labhOn, isAdult: member.isAdult, occasion, labhPromptEnabled: true });
   const options = labhOptions.data ?? [];
   const { chosen, totalCents } = labhToPledge(options, picked, labhAsked && options.length > 0);
   const age = kind === 'birthday' && calendarDate ? turningAge(person?.date_of_birth, nextOccurrence(calendarDate, member.today)) : null;
@@ -235,15 +237,19 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
       {who === null ? <TextField size="sm" label={t('days.label')} value={label} onChangeText={setLabel} placeholder={t('days.labelPlaceholder')} /> : null}
       <FieldLabel>{t('days.occasion')}</FieldLabel>
       <ChipGroup>
-        {OCCASIONS.map((k) => (
+        {occasionsFor(layout.tradition).map((k) => (
           <Chip key={k} label={kindLabel(t, k)} selected={occasion === k} onPress={() => pickOccasion(k)} />
         ))}
       </ChipGroup>
-      <FieldLabel>{t('days.rememberBy')}</FieldLabel>
-      <ChipGroup columns={2}>
-        <Chip grid label={t('days.byDate')} selected={by === 'date'} onPress={() => setBy('date')} />
-        <Chip grid label={t('days.byTithi')} selected={by === 'tithi'} onPress={() => setBy('tithi')} />
-      </ChipGroup>
+      {layout.tradition ? (
+        <>
+          <FieldLabel>{t('days.rememberBy')}</FieldLabel>
+          <ChipGroup columns={2}>
+            <Chip grid label={t('days.byDate')} selected={by === 'date'} onPress={() => setBy('date')} />
+            <Chip grid label={t('days.byTithi')} selected={by === 'tithi'} onPress={() => setBy('tithi')} />
+          </ChipGroup>
+        </>
+      ) : null}
       {by === 'date' ? (
         <TextField size="sm" label={t('days.date')} value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" keyboardType="numbers-and-punctuation" />
       ) : (

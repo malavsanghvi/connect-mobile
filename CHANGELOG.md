@@ -14,6 +14,33 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.13.0 — 2026-10-08
+
+- **Weaver for organizations that are not Jain.** A chamber of commerce, a community organization and a faith community of
+  another tradition each get their own app, laid out and worded from the kind of organization they are: **nothing changes
+  for JSH or any Jain community**. Home greets with "Welcome" and the date (no tithi, timings or darshan and puja doors),
+  and the tabs follow the kind: Home, Events, Pay, My business for a chamber; Home, Events, Give, Family for a community
+  organization; Home, Events, Give, Learn, Family for another faith (Learn shows while its library, religious school or
+  learning path is on).
+- **Words that fit.** About a hundred lines on the shared screens (the guide, Give and Pay, the store, Ask Niva, listening
+  and watching, sign-up, the profile) are written for each kind with no "Jai Jinendra", tithi, puja or Pathshala in them:
+  a chamber speaks of businesses, contacts, dues and sponsorships; another faith speaks of a place of worship, devotional
+  music and its own religious school; a kind the app has never heard of starts from the neutral words. Where the
+  dictionary says "Pathshala" or "Gyan Path" a faith community that names its school and learning path differently sees
+  its own names, and a text that points at the Give or Family tab uses the names the kind gives them.
+- **Topics and shortcuts of the kind.** Sign-up asks the topics that fit (a chamber: events, networking, volunteering,
+  committees), skips "Plan special days" where the kind has none, offers birthdays and anniversaries by calendar date
+  where there is no panchang, and a community that has not chosen its Home shortcuts starts with the ones that suit its
+  kind (event photos and the guide; for another faith also Learn and podcasts). The administrator's own choice always wins.
+- **Jain things stay with the Jain tradition.** The pachchakhan library, the "Fully Jain only" recipe filter, special days
+  kept by tithi and the live darshan card (shown without a stream) appear only for a Jain Center; another kind of
+  organization shows a live stream only when it has one.
+- **Labh is its own part of the app.** A labh is offered with a special day only while the Labh module is on (it needs
+  Pledges & donations); a chamber, a community organization and another faith never have it. This needs the database
+  part that adds the module; until then every Jain community keeps its labh as before.
+- A new kind of organization needs no app update to be laid out: the app reads its names, modules and layout from the
+  database, and its words can come from there too.
+
 ## 1.12.0 — 2026-10-08
 
 - **The app now knows what kind of organization a community is** (a Jain Center, a chamber of commerce, a community

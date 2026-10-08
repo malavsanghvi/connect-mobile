@@ -37,7 +37,7 @@ const off = (...keys: (typeof MODULE_KEYS)[number][]): ModuleMap => Object.fromE
 describe('module keys', () => {
   it('matches the contract list exactly', () => {
     expect([...MODULE_KEYS].sort()).toEqual(
-      ['people', 'membership', 'events', 'giving', 'bolis', 'store', 'pathshala', 'gyan_path', 'jain_way', 'content', 'calendar', 'comms', 'surveys', 'volunteers', 'accounting', 'reports', 'niva', 'governance'].sort(),
+      ['people', 'membership', 'events', 'giving', 'labh', 'bolis', 'store', 'pathshala', 'gyan_path', 'jain_way', 'content', 'calendar', 'comms', 'surveys', 'volunteers', 'accounting', 'reports', 'niva', 'governance'].sort(),
     );
   });
   it('only refers to known keys in every map', () => {

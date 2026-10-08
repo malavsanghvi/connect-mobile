@@ -16,6 +16,7 @@ export const MODULE_KEYS = [
   'membership',
   'events',
   'giving',
+  'labh',
   'bolis',
   'store',
   'pathshala',
@@ -42,6 +43,7 @@ export const MODULE_DEPENDS_ON: Partial<Record<ModuleKey, readonly ModuleKey[]>>
   membership: ['people'],
   events: ['people'],
   giving: ['people'],
+  labh: ['giving'],
   bolis: ['giving'],
   store: ['people'],
   pathshala: ['people'],
@@ -201,7 +203,7 @@ export const GIVE_SECTION_MODULE = {
   opportunities: 'giving',
   recurring: 'giving',
   pledges: 'giving',
-  labh: 'giving',
+  labh: 'labh',
 } as const satisfies Record<string, ModuleKey>;
 
 export type GiveSection = keyof typeof GIVE_SECTION_MODULE;
@@ -319,7 +321,7 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   pledges: 'giving',
   recurring: 'giving',
   'recurring-setup': 'giving',
-  'labh/[dayId]': 'giving',
+  'labh/[dayId]': 'labh',
   'zelle-report': 'giving',
   // bolis
   bolis: 'bolis',

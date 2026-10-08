@@ -14,6 +14,7 @@ import type { QueueItem } from '@/lib/player-queue';
 import { useLoad } from '@/lib/use-load';
 import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useModules } from '@/providers/modules';
 import { usePlayer } from '@/providers/player';
 import { useT } from '@/providers/settings';
@@ -50,6 +51,7 @@ function lessonQueueItem(t: T, c: ContentItem): QueueItem {
  */
 export function ListenSection() {
   const { member } = useApp();
+  const { layout } = useCategory();
   const { isOn } = useModules();
   const listen = useFeature('listen');
   return (
@@ -62,7 +64,7 @@ export function ListenSection() {
       ) : (
         <FeatureNotice feature="listen" />
       )}
-      <PachchakhanShelf />
+      {layout.tradition ? <PachchakhanShelf /> : null}
     </VStack>
   );
 }

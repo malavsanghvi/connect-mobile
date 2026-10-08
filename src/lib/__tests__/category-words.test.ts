@@ -4,7 +4,7 @@ import { CATEGORY_WORDS, GENERIC_WORDS, wordsFor } from '../../i18n/categories';
 import { en } from '../../i18n/en';
 import { gu } from '../../i18n/gu';
 import { hi } from '../../i18n/hi';
-import { hasWords, translate, translateWith, type Language, type StringKey, type WordSet } from '../../i18n';
+import { applySwaps, hasWords, translate, translateWith, type Language, type StringKey, type WordSet } from '../../i18n';
 import { genericProfile, JAIN_PROFILE, parseCategoryProfile } from '../categories';
 import { newExperiencePayload } from './categories-fixtures';
 
@@ -96,6 +96,6 @@ describe('the words the app has for kinds of organization', () => {
     // a kind the app has no entry for still speaks neutrally: the generic set, then its terms
     const generic = wordsFor(genericProfile('x'));
     expect(generic?.en?.['home.greetingFamily']).toBe('Welcome, {family}');
-    expect(generic?.en?.['drawer.store']).toBe('Store');
+    expect(applySwaps(en['drawer.store'], generic?.swap ?? [])).toBe('Store');
   });
 });

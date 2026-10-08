@@ -23,33 +23,72 @@ function interpolate(template: string, vars?: Vars): string {
   return template.replace(/\{(\w+)\}/g, (m, name: string) => (name in vars ? String(vars[name]) : m));
 }
 
+/** The text of a key before placeholders are filled in; untranslated keys fall back to English. */
+function rawText(lang: Language, key: StringKey): string {
+  return dictionaries[lang]?.[key] ?? en[key] ?? key;
+}
+
 /** Look up a string; untranslated keys fall back to English. */
 export function translate(lang: Language, key: StringKey, vars?: Vars): string {
-  const value = dictionaries[lang]?.[key] ?? en[key] ?? key;
-  return interpolate(value, vars);
+  return interpolate(rawText(lang, key), vars);
 }
 
 export type Translate = (key: StringKey, vars?: Vars) => string;
 
 /**
+ * A word of the dictionary that a kind of organization says differently wherever it appears ("Pathshala" is "Religious
+ * school" for a faith community that names it so). `fit` is for a common noun: in the middle of a sentence the replacement
+ * starts with a small letter ("your Pathshala classes" → "your religious school classes"), at the start of a sentence or
+ * label it keeps its capital.
+ */
+export type Swap = { from: string; to: string; fit?: boolean };
+
+/**
  * Words that stand in place of the dictionary's for one kind of organization (src/i18n/categories). `en` applies in every
  * language (the reviewed Gujarati and Hindi texts are Jain Center's own words, so another kind of organization shows the
- * English one rather than a translation of a Jain word); a language's own entry wins in that language.
+ * English one rather than a translation of a Jain word); a language's own entry wins in that language. `swap` changes a
+ * word wherever the dictionary uses it, for the keys no entry names.
  */
-export type WordSet = Partial<Record<Language, Partial<Record<StringKey, string>>>>;
+export type WordSet = Partial<Record<Language, Partial<Record<StringKey, string>>>> & { swap?: readonly Swap[] };
 
-/** True when the set holds at least one word. */
+/** True when the set holds at least one word or swap. */
 export function hasWords(words: WordSet | null | undefined): words is WordSet {
-  return !!words && Object.values(words).some((w) => !!w && Object.keys(w).length > 0);
+  if (!words) return false;
+  const some = (w: Partial<Record<StringKey, string>> | undefined) => !!w && Object.keys(w).length > 0;
+  return some(words.en) || some(words.gu) || some(words.hi) || (words.swap?.length ?? 0) > 0;
+}
+
+function replaceFitting(text: string, from: string, to: string): string {
+  const small = /^[A-Z][a-z]/.test(to) ? to.charAt(0).toLowerCase() + to.slice(1) : to;
+  let out = '';
+  let at = 0;
+  for (;;) {
+    const found = text.indexOf(from, at);
+    if (found < 0) return out + text.slice(at);
+    out += text.slice(at, found) + (/[a-z,;] $/.test(text.slice(0, found)) ? small : to);
+    at = found + from.length;
+  }
+}
+
+/** The text with each swap applied, in order. */
+export function applySwaps(text: string, swaps: readonly Swap[]): string {
+  let out = text;
+  for (const { from, to, fit } of swaps) {
+    if (out.includes(from)) out = fit ? replaceFitting(out, from, to) : out.split(from).join(to);
+  }
+  return out;
 }
 
 /**
- * `translate`, looking in the organization's words first. With no words (Jain Center) it is `translate`, word for word:
- * the same lookup, the same fallback to English, the same placeholders.
+ * `translate`, looking in the organization's words first: an entry for the key, else the dictionary's text with the
+ * organization's swaps applied. With no words (Jain Center) it is `translate`, word for word: the same lookup, the same
+ * fallback to English, the same placeholders.
  */
 export function translateWith(lang: Language, key: StringKey, vars: Vars | undefined, words: WordSet | null | undefined): string {
   const own = words?.[lang]?.[key] ?? words?.en?.[key];
-  return own === undefined ? translate(lang, key, vars) : interpolate(own, vars);
+  if (own !== undefined) return interpolate(own, vars);
+  if (!words?.swap?.length) return translate(lang, key, vars);
+  return interpolate(applySwaps(rawText(lang, key), words.swap), vars);
 }
 
 /** Pick a translated title/body from a row's `translations` jsonb ({gu: {title, body_md}}). */

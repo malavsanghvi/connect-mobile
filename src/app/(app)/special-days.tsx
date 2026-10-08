@@ -38,7 +38,7 @@ const TINT: Record<Occasion | 'diksha', { bg: string; fg: string }> = {
  */
 export default function SpecialDaysScreen() {
   const t = useT();
-  const givingOn = useModule('giving');
+  const labhOn = useModule('labh');
   const router = useRouter();
   const { member, center } = useApp();
   const { invalidate } = useDataVersion();
@@ -103,7 +103,7 @@ export default function SpecialDaysScreen() {
               const soon = isWithinReminder(next, today, day.reminder_days_before);
               const span = reminderSpan(t, day.reminder_days_before);
               const remind = soon ? t('days.reminderSent', { span }) : t('days.reminderBefore', { span, when: whenText(t, today, next) });
-              const canPlan = canPlanLabh({ givingOn, isAdult: member.isAdult, occasion: occ, labhPromptEnabled: day.labh_prompt_enabled });
+              const canPlan = canPlanLabh({ labhOn, isAdult: member.isAdult, occasion: occ, labhPromptEnabled: day.labh_prompt_enabled });
               return (
                 <View key={day.id} style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.row, paddingVertical: space.md, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: space.md }}>
                   <View style={{ width: 48, height: 52, borderRadius: radii.lg, backgroundColor: tint.bg, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no">

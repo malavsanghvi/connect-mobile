@@ -257,10 +257,10 @@ function SpecialDaysRow({ state }: { state: LoadState<HomeSpecialDaysData> }) {
 function SpecialDayTile({ x, today, ctx, members, adult }: { x: { day: SpecialDay; next: string; inDays: number }; today: string; ctx: TileCtx; members: FamilyMember[]; adult: boolean }) {
   const t = useT();
   const router = useRouter();
-  const givingOn = useModule('giving');
+  const labhOn = useModule('labh');
   const title = specialDayTitle(t, x.day, x.next, members);
   const when = specialDayWhen(t, today, x.next, x.inDays);
-  const labh = canPlanLabh({ givingOn, isAdult: adult, occasion: occasionOf(x.day), labhPromptEnabled: x.day.labh_prompt_enabled });
+  const labh = canPlanLabh({ labhOn, isAdult: adult, occasion: occasionOf(x.day), labhPromptEnabled: x.day.labh_prompt_enabled });
   const action = labh ? t('home.planLabh') : t('home.planDay');
   const open = () => (labh ? router.push(`/labh/${encodeURIComponent(x.day.id)}` as Href) : router.push('/special-days'));
   return (
@@ -956,9 +956,10 @@ function PodcastsTileView({ latest, picture, ctx }: { latest: CardOf<'podcasts'>
 function RecipesTileView({ latest, picture, ctx }: { latest: CardOf<'recipes'>['latest']; picture: string | null; ctx: TileCtx }) {
   const t = useT();
   const router = useRouter();
+  const { layout } = useCategory();
   const sub = latest ? t('home.ll.latest', { title: latest.title }) : t('home.ll.recipesLine');
   return (
-    <RailTile ctx={ctx} label={[t('home.ll.recipes'), sub].join('. ')} hint={t('home.rail.openHint')} onPress={() => router.push({ pathname: '/media/[kind]', params: { kind: 'recipe', fullyJain: '1' } })}>
+    <RailTile ctx={ctx} label={[t('home.ll.recipes'), sub].join('. ')} hint={t('home.rail.openHint')} onPress={() => router.push({ pathname: '/media/[kind]', params: layout.tradition ? { kind: 'recipe', fullyJain: '1' } : { kind: 'recipe' } })}>
       <TileFrame ctx={ctx} bg={colors.greenTint}>
         <TilePicture uri={picture} cacheKey={pictureKey(latest)} what={`the photo of ${latest?.title ?? 'the recipes'}`} fallback={<Icon name={KIND_ICON.recipe} size={44} color={colors.green} />} />
       </TileFrame>

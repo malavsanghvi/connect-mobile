@@ -15,6 +15,7 @@ import { onlyFullyJain } from '@/lib/media-library';
 import { useLoad } from '@/lib/use-load';
 import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -31,12 +32,13 @@ const SHELF = 3;
  */
 export function LookSection() {
   const { member } = useApp();
+  const { layout } = useCategory();
   const darshan = useFeature('darshan');
   const look = useFeature('look');
   return (
     <VStack gap={18}>
-      {/* While the answer loads, or when it could not be had, the notice for Look below says so (once). */}
-      {darshan.allowed ? <DarshanTile /> : darshan.loading || darshan.error ? null : <FeatureNotice feature="darshan" />}
+      {/* While the answer loads, or when it could not be had, the notice for Look below says so (once). A kind of organization without a darshan tradition has the tile only when it has a stream. */}
+      {darshan.allowed ? <DarshanTile /> : darshan.loading || darshan.error || !layout.tradition ? null : <FeatureNotice feature="darshan" />}
       {look.allowed && member ? <LookShelves /> : <FeatureNotice feature="look" />}
       {/* The event photo albums are not an area of their own: they stay for every member. */}
       {member ? <PhotosCard /> : null}
@@ -49,6 +51,7 @@ export function DarshanTile() {
   const t = useT();
   const router = useRouter();
   const { center } = useApp();
+  const { layout } = useCategory();
   const today = useLoad(() => (center ? loadToday(center) : Promise.reject(new Error('no center'))), [center?.id], 'load live darshan');
   const darshan = today.data?.darshan ?? null;
   const aarti = today.data?.timings?.aarti ? formatTimeOfDay(today.data.timings.aarti) : null;
@@ -66,6 +69,7 @@ export function DarshanTile() {
 
   if (today.error && !today.data) return <ErrorState error={today.error} onRetry={() => void today.reload()} />;
   if (today.loading && !today.data) return <LoadingState />;
+  if (!layout.tradition && !darshan) return null;
   return (
     <VStack gap={space.sm}>
       <View style={{ height: 196, borderRadius: radii.xxl, backgroundColor: colors.videoTile, alignItems: 'center', justifyContent: 'center' }}>
@@ -102,6 +106,7 @@ function LookShelves() {
   const t = useT();
   const router = useRouter();
   const { center } = useApp();
+  const { layout } = useCategory();
   const actions = useMediaActions();
   const watch = useWatch();
   const [fullyJain, setFullyJain] = useState(false);
@@ -146,7 +151,7 @@ function LookShelves() {
             ) : (
               <>
                 <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
-                  <Chip label={t('media.fullyJainOnly')} selected={fullyJain} onPress={() => setFullyJain(!fullyJain)} tone="brown" />
+                  {layout.tradition ? <Chip label={t('media.fullyJainOnly')} selected={fullyJain} onPress={() => setFullyJain(!fullyJain)} tone="brown" /> : null}
                   <Button label={t('threeL.surpriseRecipe')} tone="outlineBrown" size="sm" icon="shuffle" fill={false} onPress={() => router.push('/recipe/random')} />
                 </Row>
                 {recipes.length === 0 ? (

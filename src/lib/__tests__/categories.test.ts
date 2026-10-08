@@ -9,7 +9,7 @@ import {
   chooseProfile,
   fallbackProfile,
   genericProfile,
-  INTEREST_CATALOG,
+  interestLabel,
   interestsToOffer,
   isBuiltinCategory,
   isMissingColumnError,
@@ -44,6 +44,7 @@ describe('Jain Center is today, exactly', () => {
       practiceTab: true,
       todayCard: 'full',
       specialDays: true,
+      tradition: true,
       interests: ['events', 'pathshala', 'volunteering', 'youth', 'seniors', 'giving'],
       shortcuts: ['learn', 'playlist', 'photos', 'recipe', 'podcast', 'guide'],
     });
@@ -86,7 +87,7 @@ describe('Jain Center is today, exactly', () => {
 
   it('offers the six interests in their original order, each with its original label', () => {
     expect(interestsToOffer(JAIN_LAYOUT)).toEqual(JAIN_INTERESTS);
-    expect(INTERESTS_FOR_TESTS.map((k) => en[INTEREST_CATALOG[k].labelKey])).toEqual(['Events', 'Pathshala', 'Volunteering', 'Youth programs', 'Seniors', 'Giving opportunities']);
+    expect(INTERESTS_FOR_TESTS.map((k) => interestLabel((key) => en[key], k))).toEqual(['Events', 'Pathshala', 'Volunteering', 'Youth programs', 'Seniors', 'Giving opportunities']);
     expect(KNOWN_INTERESTS.slice(0, 6)).toEqual(JAIN_INTERESTS);
   });
 
@@ -151,9 +152,10 @@ describe('a kind of organization the app has no entry for (a new experience, dat
       'tab.give': 'Offerings',
       'tab.family': 'My household',
       'tab.jainWay': 'Satsang',
-      'drawer.store': 'Prasad shop',
+      'jw.title': 'Satsang',
       'home.greetingFamily': 'Welcome, {family}',
       'home.greetingLead': 'Welcome,',
+      'welcome.jaiJinendra': 'Welcome',
     });
     expect(wordsFor(profile)?.en?.['tab.give']).toBe('Offerings');
     expect(wordsFor(profile)?.en?.['home.todayAt']).toBe('Today here');
@@ -220,7 +222,7 @@ describe('what the database says is read carefully', () => {
   it('ignores modules this build does not know and availabilities it does not understand', () => {
     const p = parseCategoryProfile({
       category: { key: 'k', label: 'K', faith_based: false, uses_tradition: false, terms: {} },
-      modules: { events: { availability: 'default_on', label: null }, labh: { availability: 'not_available' }, store: { availability: 'sometimes' }, bolis: { availability: 'not_available', label: ' ' } },
+      modules: { events: { availability: 'default_on', label: null }, quantum: { availability: 'not_available' }, store: { availability: 'sometimes' }, bolis: { availability: 'not_available', label: ' ' } },
     });
     expect(p?.modules).toEqual({ events: { availability: 'default_on', label: null }, bolis: { availability: 'not_available', label: null } });
   });
@@ -269,7 +271,7 @@ describe('what the database says is read carefully', () => {
   });
 
   it('knows no interests it has no label for', () => {
-    for (const k of KNOWN_INTERESTS) expect(en[INTEREST_CATALOG[k].labelKey]).toBeTruthy();
+    for (const k of KNOWN_INTERESTS) expect(interestLabel((key) => en[key], k)).toBeTruthy();
     expect(interestsToOffer({ interests: ['events', 'unheard_of'] })).toEqual(['events']);
   });
 });
