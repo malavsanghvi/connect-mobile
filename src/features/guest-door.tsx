@@ -21,6 +21,16 @@ import { findPuja, NAVANG_GOAL_KEY } from './puja/puja-logic';
  */
 let pending: string | null = null;
 
+/**
+ * Whether the screen is open. Only the web shows its address, so there the address is compared; elsewhere there is
+ * nothing to compare and the push is taken as done.
+ */
+function screenIsOpen(route: string): boolean {
+  const location = typeof window === 'undefined' ? undefined : window.location;
+  if (!location || typeof location.pathname !== 'string') return true;
+  return location.pathname.replace(/\/+$/, '') === route.replace(/\/+$/, '');
+}
+
 /** Call just before entering guest mode from the Welcome screen. */
 export function openAfterGuest(door: GuestDoor): void {
   pending = GUEST_DOORS[door].route;
@@ -68,14 +78,19 @@ export function OpenGuestDoor() {
     const route = pending;
     pending = null;
     if (step !== 'open' || !route) return;
-    // This mounts together with the (app) navigator. In that same instant the web router has no route information
-    // yet, and a push threw "Cannot read properties of null (reading 'pathname')", which blanked the page. So push a
-    // moment later and keep trying for a few seconds; if it never works the person stays on Home. (Do not gate this
-    // on useRootNavigationState: from a nested layout it never reports ready, and the door never opened.)
+    // This mounts together with the (app) navigator, while the app is still switching into guest mode. Two things
+    // went wrong there on the web: pushing at once threw "Cannot read properties of null (reading 'pathname')" and
+    // blanked the page (1.9.1), and, once that was caught, a push that did not throw was still discarded when the
+    // navigator finished switching, so the screen never opened and nothing was reported (1.9.2). So wait for the
+    // switch, check the address after each try (on the web) and try again; `navigate` cannot stack a second copy of
+    // the screen if an earlier try lands late. If it never opens the person stays on Home. (Do not gate this on
+    // useRootNavigationState: from a nested layout it never reports ready.)
+    console.info('[connect] guest door: opening', route);
     pushSoon(
-      () => router.push(route),
+      () => router.navigate(route),
       (err) => logError('opening the screen you chose on the Welcome screen (you are on Home)', err),
-      [0, 100, 250, 500, 1000, 2000],
+      [250, 500, 1000, 2000],
+      () => screenIsOpen(route),
     );
   }, [guest, router]);
 

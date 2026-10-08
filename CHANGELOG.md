@@ -14,6 +14,12 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.9.4 — 2026-10-08
+
+- **Fixed again: "Watch live darshan" and "Do puja" on the Welcome screen now really open their screens.** In 1.9.3 the
+  app asked too early, while it was still switching into guest mode, and the request was silently dropped. It now waits a
+  moment, checks that the screen opened and asks again if it did not; if it still cannot, you stay on Home.
+
 ## 1.9.3 — 2026-10-08
 
 - **Fixed: "Watch live darshan" and "Do puja" on the Welcome screen now open their screens.** 1.9.2 stopped the blank
