@@ -19,6 +19,7 @@ import {
   pickerAddress,
   searchableCommunities,
 } from '../community';
+import { communityDefaults } from '../env';
 
 describe('parseJoinInput', () => {
   it('reads a typed code in any case, with spaces or a dash', () => {
@@ -75,6 +76,47 @@ describe('communityToOpen', () => {
     expect(isCommunityChoice({ slug: 'Bad Slug', name: 'x' })).toBe(false);
     expect(isCommunityChoice('jsh')).toBe(false);
     expect(isCommunityChoice(null)).toBe(false);
+  });
+
+  describe('neutral first launch: no organization is suggested or opened for a new install', () => {
+    const jsh = { slug: 'jsh', name: 'Jain Society of Houston' };
+    const legacy = communityDefaults(undefined).centerSlug; // the shared app: no build community, the legacy default
+    const forJsh = communityDefaults('jsh').centerSlug; // a build made for JSH (EXPO_PUBLIC_CENTER_SLUG=jsh)
+
+    it('shows the finder for a new install on a plain launch, in the shared app and in a build made for one organization', () => {
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: legacy, openedAt: '/' })).toBeNull();
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: forJsh, openedAt: '/' })).toBeNull();
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: legacy })).toBeNull();
+    });
+    it('suggests no organization in the shared app, and JSH in a build made for JSH', () => {
+      expect(communityDefaults(undefined).buildCommunity).toBe('');
+      expect(communityDefaults('jsh').buildCommunity).toBe('jsh');
+    });
+    it('still opens JSH for an install that already chose it, whatever the build', () => {
+      expect(communityToOpen({ saved: jsh, signedIn: false, defaultSlug: legacy, openedAt: '/' })).toBe('jsh');
+      expect(communityToOpen({ saved: jsh, signedIn: true, defaultSlug: legacy, openedAt: '/' })).toBe('jsh');
+      expect(communityToOpen({ saved: jsh, signedIn: true, defaultSlug: forJsh, openedAt: '/' })).toBe('jsh');
+    });
+    it('still opens JSH on jsh.weaverams.org, even for a brand-new visitor', () => {
+      const hostSlug = communityFromHost('jsh.weaverams.org', 'weaverams.org');
+      expect(hostSlug).toBe('jsh');
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: legacy, openedAt: '/', hostSlug })).toBe('jsh');
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: forJsh, openedAt: '/', hostSlug })).toBe('jsh');
+    });
+    it('still opens the build\'s organization for a build with EXPO_PUBLIC_CENTER_SLUG set: signed in already, or on a link into a screen', () => {
+      expect(communityToOpen({ saved: null, signedIn: true, defaultSlug: forJsh })).toBe('jsh');
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: forJsh, openedAt: '/events/12' })).toBe('jsh');
+      const forJcnj = communityDefaults('jcnj').centerSlug;
+      expect(communityToOpen({ saved: null, signedIn: true, defaultSlug: forJcnj })).toBe('jcnj');
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: forJcnj, openedAt: '/e/12' })).toBe('jcnj');
+    });
+    it('keeps an old install that was signed in before communities could be chosen in JSH, with no build community named', () => {
+      expect(communityToOpen({ saved: null, signedIn: true, defaultSlug: legacy })).toBe('jsh');
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: legacy, openedAt: '/events/12' })).toBe('jsh');
+    });
+    it('shows the list on app.<domain> to a new visitor, with no organization chosen for them', () => {
+      expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: legacy, openedAt: '/', pickerHost: true })).toBeNull();
+    });
   });
 
   describe('on the web address (jsh.weaverams.org)', () => {

@@ -18,6 +18,11 @@ describe('i18n', () => {
     expect(Object.keys(gu).sort()).toEqual(keys);
     expect(Object.keys(hi).sort()).toEqual(keys);
   });
+  it('names no tradition or organization on the screens before an organization is chosen (Find your community)', () => {
+    const offenders = Object.entries(en).filter(([k, v]) => k.startsWith('community.') && /jain|jsh|houston|jinendra|derasar|temple/i.test(v));
+    expect(offenders).toEqual([]);
+    expect(en['community.subtitle']).toBe('Weaver is used by many organizations. Choose yours to continue.');
+  });
   it('never says "bid" — bolis are always pledges', () => {
     const offenders = Object.entries(en).filter(([, v]) => /\bbid(s|ding)?\b|\boutbid\b/i.test(v));
     expect(offenders).toEqual([]);

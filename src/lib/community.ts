@@ -118,11 +118,12 @@ export function isCommunityChoice(v: unknown): v is CommunityChoice {
 /**
  * Which community to open:
  *   the member's saved choice →
- *   the build's default (EXPO_PUBLIC_CENTER_SLUG) for an install that is already
- *   signed in (every existing JSH member keeps working, with no new step), or
+ *   the default (`defaultSlug`: the build's own community, else JSH, see env.ts) for an install
+ *   that is already signed in (every existing JSH member keeps working, with no new step), or
  *   when the app was opened on a link into one of its screens (an event link,
  *   the sign-in page) — that link belongs to the build's community →
- *   none: a plain first launch shows "Find your community".
+ *   none: a plain first launch shows "Find your community", with no organization suggested
+ *   unless the build was made for one.
  * `openedAt` is the path the app was opened on ("/", "/events/…", "/join/…").
  *
  * On the web, the address comes first: `hostSlug` ("jsh" for jsh.weaverams.org) always wins, and on the

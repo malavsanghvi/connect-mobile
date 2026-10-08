@@ -2508,7 +2508,7 @@ export const en = {
 
   // Find your community (onboarding: more than one organization in the app)
   'community.title': 'Find your community',
-  'community.subtitle': 'Weaver serves many Jain communities. Choose yours to continue.',
+  'community.subtitle': 'Weaver is used by many organizations. Choose yours to continue.',
   'community.switchTitle': 'Switch community',
   'community.switchSubtitle': 'You are in {current}. Choose another community — you stay signed in.',
   'community.suggested': 'Continue with {name}',
@@ -2518,7 +2518,7 @@ export const en = {
   'community.listLoading': 'Loading organizations…',
   'community.noneListed': 'No organizations are listed yet. Search below, or use the join code from your organization.',
   'community.searchLabel': 'Search by name, city or state',
-  'community.searchPlaceholder': 'e.g. Houston or Jain Society',
+  'community.searchPlaceholder': "e.g. your city, or part of your organization's name",
   'community.searchHint': 'Type at least 2 letters.',
   'community.searching': 'Searching…',
   'community.noResults': 'No community matches "{query}". Check the spelling, or use the join code from your community.',

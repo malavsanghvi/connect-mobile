@@ -2,8 +2,10 @@
 
 # Project context
 
-**Connect Mobile** is the member app (iOS, Android, web) of the multi-tenant
-Connect platform for Jain communities. JSH (Jain Society of Houston) is tenant #1.
+**Connect Mobile** is the member app (iOS, Android, web) of Weaver, a multi-tenant
+platform for associations and communities of every kind (faith-based or not). It is neutral
+until an organization is chosen; a tradition shows only for an organization that has it.
+JSH (Jain Society of Houston) was the first organization and is the example used here.
 Platform conventions live in `connect-crm/docs/ARCHITECTURE.md` — read it first.
 
 - **The schema is owned by connect-crm** (`connect-crm/supabase/migrations`). Never
