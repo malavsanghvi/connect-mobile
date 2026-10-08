@@ -214,6 +214,10 @@ describe('the words of each experience', () => {
     expect(say(CHAMBER_PROFILE)('home.greetingFamily', { family: 'Patel' })).toBe('Welcome, Patel');
     expect(say(FAITH_OTHER_PROFILE)('home.greetingLead')).toBe('Welcome,');
     expect(say(JAIN_PROFILE)('home.greetingFamily', { family: 'Shah' })).toBe('Jai Jinendra, Shah');
+    // the Welcome screen, before sign-in, greets in the kind's word too; a Jain Center still reads "Jai Jinendra"
+    expect(say(JAIN_PROFILE)('welcome.jaiJinendra')).toBe('Jai Jinendra');
+    for (const [, p] of KINDS) expect(say(p)('welcome.jaiJinendra')).toBe('Welcome');
+    expect(say(genericProfile('anything'))('welcome.jaiJinendra')).toBe('Welcome');
   });
 
   it('call the household of a chamber a business, wherever the dictionary says family', () => {
@@ -250,6 +254,7 @@ describe('the words of each experience', () => {
     const t = say(genericProfile('swaminarayan_temple'));
     expect(t('paid.title')).toBe('Thank you!');
     expect(t('guide.heroEyebrow')).toBe('Welcome');
+    expect(isModuleOn(categoryModuleMap(genericProfile('swaminarayan_temple')), 'labh')).toBe(false); // a kind the app does not know never has a labh
     expect(GENERIC_WORDS.en?.['niva.q4']).toBe('How can I volunteer?');
   });
 
@@ -285,7 +290,7 @@ describe('swapping a word wherever the dictionary says it', () => {
 
 describe('no Jain word on a screen another experience can open', () => {
   // Features that only a Jain Center has: their screens never open elsewhere (their modules are "never"), or are before sign-in.
-  const NOT_FOR_OTHERS = ['gyan', 'learn', 'hw', 'saathi', 'jw', 'puja', 'labh', 'bolis', 'reg', 'teach', 'enrollReq', 'attend', 'attendStatus', 'darshan', 'library', 'welcome', 'community', 'signin', 'legal', 'setup', 'lock', 'boot', 'notFound', 'onboarding', 'player'];
+  const NOT_FOR_OTHERS = ['gyan', 'learn', 'hw', 'saathi', 'jw', 'puja', 'labh', 'bolis', 'reg', 'teach', 'enrollReq', 'attend', 'attendStatus', 'darshan', 'library', 'community', 'signin', 'legal', 'setup', 'lock', 'boot', 'notFound', 'onboarding', 'player'];
   // Wording that is Jain on purpose and is reached by a Jain feature only (a filter on recipes, the dietary choice a Jain Center seeds, a Jain panchang layer, home cards that need Jain modules).
   const ALLOWED = new Set<string>([
     'details.dietary.jain',

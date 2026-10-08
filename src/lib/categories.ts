@@ -171,6 +171,7 @@ export const GENERIC_TERMS: CategoryTerms = {
 /** Until the database says otherwise, an unknown category has none of the Jain-only modules. */
 const GENERIC_MODULES: Partial<Record<ModuleKey, ModuleAvailability>> = {
   bolis: { availability: 'not_available', label: null },
+  labh: { availability: 'not_available', label: null },
   jain_way: { availability: 'not_available', label: null },
   pathshala: { availability: 'not_available', label: null },
   gyan_path: { availability: 'not_available', label: null },
@@ -531,6 +532,7 @@ export function termWords(terms: CategoryTerms): WordOverlay {
   if (greeting) {
     out['home.greetingFamily'] = `${greeting}, {family}`;
     out['home.greetingLead'] = `${greeting},`;
+    out['welcome.jaiJinendra'] = greeting; // the Welcome screen's greeting (src/app/(auth)/welcome.tsx)
   }
   return out;
 }

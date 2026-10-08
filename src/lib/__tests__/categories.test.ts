@@ -155,6 +155,7 @@ describe('a kind of organization the app has no entry for (a new experience, dat
       'jw.title': 'Satsang',
       'home.greetingFamily': 'Welcome, {family}',
       'home.greetingLead': 'Welcome,',
+      'welcome.jaiJinendra': 'Welcome',
     });
     expect(wordsFor(profile)?.en?.['tab.give']).toBe('Offerings');
     expect(wordsFor(profile)?.en?.['home.todayAt']).toBe('Today here');
