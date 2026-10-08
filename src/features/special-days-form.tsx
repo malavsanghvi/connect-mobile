@@ -237,11 +237,11 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
       {who === null ? <TextField size="sm" label={t('days.label')} value={label} onChangeText={setLabel} placeholder={t('days.labelPlaceholder')} /> : null}
       <FieldLabel>{t('days.occasion')}</FieldLabel>
       <ChipGroup>
-        {occasionsFor(layout.tithiDates).map((k) => (
+        {occasionsFor(layout.tradition).map((k) => (
           <Chip key={k} label={kindLabel(t, k)} selected={occasion === k} onPress={() => pickOccasion(k)} />
         ))}
       </ChipGroup>
-      {layout.tithiDates ? (
+      {layout.tradition ? (
         <>
           <FieldLabel>{t('days.rememberBy')}</FieldLabel>
           <ChipGroup columns={2}>

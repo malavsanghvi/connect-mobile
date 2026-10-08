@@ -9,6 +9,7 @@ import { useRandomPick } from '@/features/three-l/use-random-pick';
 import { getMediaItem, randomMedia } from '@/lib/api/media';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useT } from '@/providers/settings';
 import { space } from '@/theme';
 
@@ -21,10 +22,12 @@ export default function RandomRecipeScreen() {
   const t = useT();
   const router = useRouter();
   const { center, member } = useApp();
+  const { layout } = useCategory();
+  // Only a kind of organization with the Jain tradition asks for fully Jain recipes.
   const { state, again } = useRandomPick(
-    () => (center && member ? randomMedia(center.id, 'recipe', true) : Promise.resolve(null)),
+    () => (center && member ? randomMedia(center.id, 'recipe', layout.tradition) : Promise.resolve(null)),
     (id) => (center ? getMediaItem(id, center.id) : Promise.resolve(null)),
-    [center?.id ?? null, member?.person.id ?? null],
+    [center?.id ?? null, member?.person.id ?? null, layout.tradition],
     'pick a recipe',
   );
   const none = state.data === null;

@@ -32,6 +32,9 @@ How a release is made:
   committees), skips "Plan special days" where the kind has none, offers birthdays and anniversaries by calendar date
   where there is no panchang, and a community that has not chosen its Home shortcuts starts with the ones that suit its
   kind (event photos and the guide; for another faith also Learn and podcasts). The administrator's own choice always wins.
+- **Jain things stay with the Jain tradition.** The pachchakhan library, the "Fully Jain only" recipe filter, special days
+  kept by tithi and the live darshan card (shown without a stream) appear only for a Jain Center; another kind of
+  organization shows a live stream only when it has one.
 - **Labh is its own part of the app.** A labh is offered with a special day only while the Labh module is on (it needs
   Pledges & donations); a chamber, a community organization and another faith never have it. This needs the database
   part that adds the module; until then every Jain community keeps its labh as before.

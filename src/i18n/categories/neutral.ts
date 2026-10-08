@@ -66,6 +66,14 @@ export const NEUTRAL_EN: WordOverlay = {
   'guide.regPathshala': 'Program enrollment',
   'apply.notePlaceholder': 'e.g. Neighbors for 6 years, fellow volunteers',
 
+  // A live stream
+  'library.darshanCaption': '{title} · Live at {time}',
+  'library.darshanPlay': 'Play live stream',
+  'library.darshanOffline': 'Live stream is offline',
+  'library.darshanOfflineSub': 'Next live at {time}',
+  'darshan.title': 'Live stream',
+  'darshan.aarti': 'Live at {time}',
+
   // The store (switched on by the organization)
   'store.heroBody': 'Made to order and ready for pickup.',
   'store.pickup': 'Pickup at the office',

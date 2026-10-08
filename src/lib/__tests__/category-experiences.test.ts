@@ -86,6 +86,8 @@ describe('the bottom bar of each experience', () => {
   it('is Home, Events, Give, Learn, Family for another faith, Learn while Learning path, Religious school or the library is on', () => {
     expect(barItems(categoryModuleMap(FAITH_OTHER_PROFILE), false, layoutFor(FAITH_OTHER_PROFILE).practiceTab)).toEqual(['index', 'events', 'give', 'jain-way', 'family']);
     expect(say(FAITH_OTHER_PROFILE)('tab.jainWay')).toBe('Learn');
+    expect(say(FAITH_OTHER_PROFILE)('jw.title')).toBe('Learn'); // the tab's own screen is titled like the tab
+    expect(say(FAITH_OTHER_PROFILE)('jw.signIn')).toBe("Sign in to see your community's library and learning.");
     const noLibrary = mergeModuleMap(categoryModuleMap(FAITH_OTHER_PROFILE), { content: false });
     expect(barItems(noLibrary, false, true)).not.toContain('jain-way'); // nothing left in it
     expect(barItems(mergeModuleMap(noLibrary, { gyan_path: true }), false, true)).toContain('jain-way');
@@ -164,10 +166,10 @@ describe('sign-up and the profile for each experience', () => {
     expect(layoutFor(CHAMBER_PROFILE).specialDays).toBe(false);
     expect(layoutFor(COMMUNITY_PROFILE).specialDays).toBe(false);
     expect(layoutFor(FAITH_OTHER_PROFILE).specialDays).toBe(true);
-    expect(layoutFor(FAITH_OTHER_PROFILE).tithiDates).toBe(false);
+    expect(layoutFor(FAITH_OTHER_PROFILE).tradition).toBe(false);
     expect(occasionsFor(false)).toEqual(['birthday', 'anniversary', 'other']);
     expect(occasionsFor(true)).toEqual(['birthday', 'anniversary', 'birth_tithi', 'punyatithi', 'other']);
-    expect(layoutFor(JAIN_PROFILE).tithiDates).toBe(true);
+    expect(layoutFor(JAIN_PROFILE).tradition).toBe(true);
   });
 });
 

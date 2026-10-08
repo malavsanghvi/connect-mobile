@@ -21,6 +21,7 @@ export const FAITH_OTHER_WORDS: WordSet = {
     'media.empty.stavan': 'No devotional songs yet — your community has not added any.',
     'threeL.signIn': "Sign in to see your community's devotional music, videos, podcasts and recipes.",
     'threeL.nothingYet': 'Nothing to play yet — your community has not added any devotional music or podcasts.',
+    'jw.signIn': "Sign in to see your community's library and learning.",
     'guide.aartiToday': 'Service today',
     'guide.tile.timingsSub': 'Hours, services and address',
     'guide.tile.registrationsSub': 'Religious school, events, membership',

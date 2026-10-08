@@ -13,8 +13,8 @@ export const OCCASIONS = ['birthday', 'anniversary', 'birth_tithi', 'punyatithi'
 export type Occasion = (typeof OCCASIONS)[number];
 
 /** The occasions offered: with no tithi dates (a kind of organization without a panchang) only Birthday, Anniversary and Other. */
-export function occasionsFor(tithiDates: boolean): Occasion[] {
-  return OCCASIONS.filter((o) => tithiDates || (o !== 'birth_tithi' && o !== 'punyatithi'));
+export function occasionsFor(tradition: boolean): Occasion[] {
+  return OCCASIONS.filter((o) => tradition || (o !== 'birth_tithi' && o !== 'punyatithi'));
 }
 /** Kept for older call sites. */
 export const SPECIAL_DAY_KINDS = OCCASIONS;

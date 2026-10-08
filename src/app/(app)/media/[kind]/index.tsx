@@ -12,6 +12,7 @@ import { isMediaKind, onlyFullyJain, searchQuery, type MediaItem, type MediaSort
 import { useDebounced } from '@/lib/use-debounced';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
 import { usePlayer } from '@/providers/player';
 import { useT } from '@/providers/settings';
@@ -35,13 +36,14 @@ export default function MediaLibraryScreen() {
   const { kind: rawKind, fullyJain: fullyJainParam } = useLocalSearchParams<{ kind: string; fullyJain?: string }>();
   const kind = isMediaKind(rawKind) ? rawKind : null;
   const { center, member } = useApp();
+  const { layout } = useCategory();
   const { invalidate } = useDataVersion();
   const player = usePlayer();
   const actions = useMediaActions();
   const watch = useWatch();
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<MediaSort>('title');
-  const [fullyJain, setFullyJain] = useState(fullyJainParam === '1');
+  const [fullyJain, setFullyJain] = useState(fullyJainParam === '1' && layout.tradition);
   const [nothingToPlay, setNothingToPlay] = useState(false);
   const q = useDebounced(searchQuery(query), 300);
   const state = useLoad(
@@ -93,7 +95,7 @@ export default function MediaLibraryScreen() {
         {SORTS.map((s) => (
           <Chip key={s.value} label={t(s.label)} selected={sort === s.value} onPress={() => setSort(s.value)} />
         ))}
-        {kind === 'recipe' ? <Chip label={t('media.fullyJainOnly')} selected={fullyJain} onPress={() => setFullyJain(!fullyJain)} tone="brown" /> : null}
+        {kind === 'recipe' && layout.tradition ? <Chip label={t('media.fullyJainOnly')} selected={fullyJain} onPress={() => setFullyJain(!fullyJain)} tone="brown" /> : null}
       </ChipGroup>
       {audio || kind === 'recipe' ? (
         <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>

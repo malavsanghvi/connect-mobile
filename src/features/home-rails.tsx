@@ -956,9 +956,10 @@ function PodcastsTileView({ latest, picture, ctx }: { latest: CardOf<'podcasts'>
 function RecipesTileView({ latest, picture, ctx }: { latest: CardOf<'recipes'>['latest']; picture: string | null; ctx: TileCtx }) {
   const t = useT();
   const router = useRouter();
+  const { layout } = useCategory();
   const sub = latest ? t('home.ll.latest', { title: latest.title }) : t('home.ll.recipesLine');
   return (
-    <RailTile ctx={ctx} label={[t('home.ll.recipes'), sub].join('. ')} hint={t('home.rail.openHint')} onPress={() => router.push({ pathname: '/media/[kind]', params: { kind: 'recipe', fullyJain: '1' } })}>
+    <RailTile ctx={ctx} label={[t('home.ll.recipes'), sub].join('. ')} hint={t('home.rail.openHint')} onPress={() => router.push({ pathname: '/media/[kind]', params: layout.tradition ? { kind: 'recipe', fullyJain: '1' } : { kind: 'recipe' } })}>
       <TileFrame ctx={ctx} bg={colors.greenTint}>
         <TilePicture uri={picture} cacheKey={pictureKey(latest)} what={`the photo of ${latest?.title ?? 'the recipes'}`} fallback={<Icon name={KIND_ICON.recipe} size={44} color={colors.green} />} />
       </TileFrame>

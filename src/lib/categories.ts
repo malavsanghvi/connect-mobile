@@ -58,8 +58,12 @@ export type CategoryLayout = {
   todayCard: 'full' | 'basic';
   /** Special days (birthdays, anniversaries): the sign-up step "Plan special days", Home's row and tile, the Family tab's card. */
   specialDays: boolean;
-  /** Special days can be kept by tithi (birth tithi, punyatithi): the form offers them. Otherwise by calendar date only. */
-  tithiDates: boolean;
+  /**
+   * The Jain tradition's own features, for a kind of organization with a panchang: special days kept by tithi (birth tithi,
+   * punyatithi), the pachchakhan library, the "fully Jain" recipe filter, the live darshan tile whether or not there is a
+   * stream. Otherwise special days are kept by calendar date and these are left out.
+   */
+  tradition: boolean;
   /** Which topics "Interested in" offers (keys of INTEREST_CATALOG). */
   interests: readonly string[];
   /** The Home shortcuts a community that has not chosen its own starts with. */
@@ -128,7 +132,7 @@ export const JAIN_LAYOUT: CategoryLayout = {
   practiceTab: true,
   todayCard: 'full',
   specialDays: true,
-  tithiDates: true,
+  tradition: true,
   interests: JAIN_INTERESTS,
   shortcuts: HOME_SHORTCUT_KEYS,
 };
@@ -379,7 +383,7 @@ export function parseLayoutHints(raw: unknown): Partial<CategoryLayout> | null {
   const out: Partial<CategoryLayout> = {};
   if (o.today_card === 'full' || o.today_card === 'basic') out.todayCard = o.today_card;
   if (typeof o.special_days === 'boolean') out.specialDays = o.special_days;
-  if (typeof o.tithi_dates === 'boolean') out.tithiDates = o.tithi_dates;
+  if (typeof o.tradition === 'boolean') out.tradition = o.tradition;
   if (typeof o.practice_tab === 'boolean') out.practiceTab = o.practice_tab;
   if (Array.isArray(o.interests)) {
     const list = o.interests.filter((k): k is string => typeof k === 'string' && Object.prototype.hasOwnProperty.call(INTEREST_CATALOG, k));
@@ -468,7 +472,7 @@ export function layoutFor(profile: CategoryProfile): CategoryLayout {
     practiceTab: profile.terms.practice_tab !== null,
     todayCard: profile.usesTradition ? 'full' : 'basic',
     specialDays: profile.faithBased,
-    tithiDates: profile.usesTradition,
+    tradition: profile.usesTradition,
     interests: own.interests,
     shortcuts: own.shortcuts,
     ...(profile.layoutHints ?? {}),
@@ -517,7 +521,10 @@ export function termWords(terms: CategoryTerms): WordOverlay {
   const family = differs('family_tab');
   if (family) out['tab.family'] = family;
   const practice = differs('practice_tab');
-  if (practice) out['tab.jainWay'] = practice;
+  if (practice) {
+    out['tab.jainWay'] = practice;
+    out['jw.title'] = practice; // the fourth tab's own screen is titled like the tab
+  }
   const school = differs('school');
   if (school) out['drawer.pathshala'] = school;
   const greeting = differs('greeting');

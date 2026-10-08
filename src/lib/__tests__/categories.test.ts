@@ -44,7 +44,7 @@ describe('Jain Center is today, exactly', () => {
       practiceTab: true,
       todayCard: 'full',
       specialDays: true,
-      tithiDates: true,
+      tradition: true,
       interests: ['events', 'pathshala', 'volunteering', 'youth', 'seniors', 'giving'],
       shortcuts: ['learn', 'playlist', 'photos', 'recipe', 'podcast', 'guide'],
     });
@@ -152,6 +152,7 @@ describe('a kind of organization the app has no entry for (a new experience, dat
       'tab.give': 'Offerings',
       'tab.family': 'My household',
       'tab.jainWay': 'Satsang',
+      'jw.title': 'Satsang',
       'home.greetingFamily': 'Welcome, {family}',
       'home.greetingLead': 'Welcome,',
     });
