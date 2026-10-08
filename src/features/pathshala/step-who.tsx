@@ -5,7 +5,7 @@ import { Banner, Button, Card, Checkbox, Chip, ChipGroup, LinkText, Row, TextFie
 import { saveBirthDate } from '@/lib/api/pathshala';
 import { report } from '@/lib/errors';
 import { parseDobInput } from '@/lib/format';
-import { enrollmentStatus, myWaiverHolds, type LearnerRow, type NewChild, type RegistrationOptions, type Selection } from '@/lib/pathshala-registration';
+import { enrollmentStatus, holdOf, myWaiverHolds, statusText, type LearnerRow, type NewChild, type RegistrationOptions, type Selection } from '@/lib/pathshala-registration';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
@@ -69,8 +69,9 @@ export function WhoStep({
           const sub = [
             row.group === 'adult' ? t('reg.who.adult') : null,
             ...row.live.map((e) => {
-              const view = enrollmentStatus(e.status ?? 'requested', { holdReason: e.holdReason, holdUntil: e.holdExpiresAt, offered: false, registrationId: null, trackId: e.trackId });
-              const status = t(view.key, { until: whenText(view.until, timeZone) });
+              // Where it stands as the options say (a held seat's end, an offer, the waitlist place), in the same words as everywhere.
+              const view = enrollmentStatus(e.status ?? 'requested', holdOf(e));
+              const status = statusText(view, t, whenText(view.until, timeZone));
               const track = trackName(e.trackId);
               return track ? t('reg.who.taken', { track, status }) : status;
             }),
