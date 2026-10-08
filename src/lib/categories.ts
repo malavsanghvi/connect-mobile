@@ -20,6 +20,7 @@
  * Pure (no React, no Supabase) so every rule is unit-tested. The loader is src/lib/api/category.ts, the provider
  * src/providers/category.tsx.
  */
+import type { Swap, Translate } from '../i18n';
 import { en, type StringKey } from '../i18n/en';
 
 import { HOME_SHORTCUT_KEYS, isHomeShortcut, type HomeShortcut } from './home-shortcuts';
@@ -57,6 +58,8 @@ export type CategoryLayout = {
   todayCard: 'full' | 'basic';
   /** Special days (birthdays, anniversaries): the sign-up step "Plan special days", Home's row and tile, the Family tab's card. */
   specialDays: boolean;
+  /** Special days can be kept by tithi (birth tithi, punyatithi): the form offers them. Otherwise by calendar date only. */
+  tithiDates: boolean;
   /** Which topics "Interested in" offers (keys of INTEREST_CATALOG). */
   interests: readonly string[];
   /** The Home shortcuts a community that has not chosen its own starts with. */
@@ -96,15 +99,27 @@ export const JAIN_TERMS: CategoryTerms = {
   assistant_context: 'a Jain community',
 };
 
-/** "Interested in" topics (people.interests holds the keys). The six of the original app first, in their original order. */
-export const INTEREST_CATALOG: Record<string, { labelKey: StringKey }> = {
+/**
+ * "Interested in" topics (people.interests holds the keys). The six of the original app first, in their original order. A
+ * topic has a dictionary key for its label, or (for a topic only some kinds of organization ask) its English label here.
+ */
+export const INTEREST_CATALOG: Record<string, { labelKey?: StringKey; label?: string }> = {
   events: { labelKey: 'profile.interest.events' },
   pathshala: { labelKey: 'profile.interest.pathshala' },
   volunteering: { labelKey: 'profile.interest.volunteering' },
   youth: { labelKey: 'profile.interest.youth' },
   seniors: { labelKey: 'profile.interest.seniors' },
   giving: { labelKey: 'profile.interest.giving' },
+  networking: { label: 'Networking' },
+  committees: { label: 'Committees' },
 };
+
+/** The words for a topic: its dictionary label, else its English one. */
+export function interestLabel(t: Translate, key: string): string {
+  const entry = INTEREST_CATALOG[key];
+  if (!entry) return key;
+  return entry.labelKey ? t(entry.labelKey) : (entry.label ?? key);
+}
 
 export const JAIN_INTERESTS: readonly string[] = ['events', 'pathshala', 'volunteering', 'youth', 'seniors', 'giving'];
 
@@ -113,6 +128,7 @@ export const JAIN_LAYOUT: CategoryLayout = {
   practiceTab: true,
   todayCard: 'full',
   specialDays: true,
+  tithiDates: true,
   interests: JAIN_INTERESTS,
   shortcuts: HOME_SHORTCUT_KEYS,
 };
@@ -170,6 +186,12 @@ export const GENERIC_LAYOUT_DATA: Pick<CategoryLayout, 'interests' | 'shortcuts'
  */
 export const LAYOUT_BY_CATEGORY: Record<string, Pick<CategoryLayout, 'interests' | 'shortcuts'>> = {
   [JAIN_CENTER]: { interests: JAIN_INTERESTS, shortcuts: HOME_SHORTCUT_KEYS },
+  // A chamber of commerce: events, networking, volunteering, committees; event photos and the guide.
+  chamber_of_commerce: { interests: ['events', 'networking', 'volunteering', 'committees'], shortcuts: ['photos', 'guide'] },
+  // A community organization (not faith-based): the neutral one.
+  nonprofit_secular: { interests: ['events', 'volunteering', 'youth', 'seniors', 'giving'], shortcuts: ['photos', 'guide'] },
+  // Another faith: the six topics (the religious school is "pathshala" in the data, whatever it is called), Learn, photos, podcast, the guide.
+  faith_other: { interests: JAIN_INTERESTS, shortcuts: ['learn', 'photos', 'podcast', 'guide'] },
 };
 
 /** A profile for a category key this build has no built-in for (a newer database): neutral words, no Jain modules. */
@@ -189,9 +211,64 @@ export function genericProfile(key: string, label?: string | null): CategoryProf
   };
 }
 
-/** Profiles built into the app, so the right layout is on the first frame (no wait for the network). Keyed by category. */
+const never = (label: string | null = null): ModuleAvailability => ({ availability: 'not_available', label });
+const off = (label: string | null = null): ModuleAvailability => ({ availability: 'default_off', label });
+
+/** Chamber of commerce (0594 seed): no Bolis, Labh, Pathshala, Gyan Path or My Jain Way; Store and Niva start off. */
+export const CHAMBER_PROFILE: CategoryProfile = {
+  key: 'chamber_of_commerce',
+  label: 'Chamber of commerce',
+  faithBased: false,
+  usesTradition: false,
+  pathLabel: null,
+  terms: { greeting: 'Welcome', practice_tab: null, give_tab: 'Pay', family_tab: 'My business', store: 'Store', school: null, learning: null, place: 'office', assistant_context: 'a chamber of commerce' },
+  modules: { bolis: never(), labh: never(), pathshala: never(), gyan_path: never(), jain_way: never(), store: off('Store'), niva: off(), giving: { availability: 'default_on', label: 'Dues & payments' } },
+  paths: [],
+  defaultPath: null,
+  words: null,
+  layoutHints: null,
+};
+
+/** Community organization, not faith-based (0594 seed, key nonprofit_secular): the neutral one. */
+export const COMMUNITY_PROFILE: CategoryProfile = {
+  key: 'nonprofit_secular',
+  label: 'Non-profit (not faith-based)',
+  faithBased: false,
+  usesTradition: false,
+  pathLabel: null,
+  terms: { greeting: 'Welcome', practice_tab: null, give_tab: 'Give', family_tab: 'Family', store: 'Store', school: null, learning: null, place: 'office', assistant_context: 'a non-profit organization' },
+  modules: { bolis: never(), labh: never(), pathshala: never(), gyan_path: never(), jain_way: never(), store: off('Store'), niva: off() },
+  paths: [],
+  defaultPath: null,
+  words: null,
+  layoutHints: null,
+};
+
+/** Faith-based, other faiths (0594 seed): a Learn tab, a religious school and a learning path of its own when switched on; never Bolis, Labh or My Jain Way. */
+export const FAITH_OTHER_PROFILE: CategoryProfile = {
+  key: 'faith_other',
+  label: 'Faith-based non-profit (other faiths)',
+  faithBased: true,
+  usesTradition: false,
+  pathLabel: null,
+  terms: { greeting: 'Welcome', practice_tab: 'Learn', give_tab: 'Give', family_tab: 'Family', store: 'Store', school: 'Religious school', learning: 'Learning path', place: 'place of worship', assistant_context: 'a faith community' },
+  modules: { bolis: never(), labh: never(), jain_way: never(), pathshala: off('Religious school'), gyan_path: off('Learning path'), store: off('Store'), niva: off() },
+  paths: [],
+  defaultPath: null,
+  words: null,
+  layoutHints: null,
+};
+
+/**
+ * Profiles built into the app, so the right layout is on the first frame (no wait for the network). They are the database's
+ * seed (connect-crm 0594) for the kinds the app has words for; the database's own answer replaces them as soon as it is read.
+ * A new kind needs none of this: the database describes it, the generic layout and its terms lay it out.
+ */
 export const BUILTIN_PROFILES: Record<string, CategoryProfile> = {
   [JAIN_CENTER]: JAIN_PROFILE,
+  chamber_of_commerce: CHAMBER_PROFILE,
+  nonprofit_secular: COMMUNITY_PROFILE,
+  faith_other: FAITH_OTHER_PROFILE,
 };
 
 /** The profile to use before the database has answered: the app's own for a category it knows, else the generic one. */
@@ -302,6 +379,7 @@ export function parseLayoutHints(raw: unknown): Partial<CategoryLayout> | null {
   const out: Partial<CategoryLayout> = {};
   if (o.today_card === 'full' || o.today_card === 'basic') out.todayCard = o.today_card;
   if (typeof o.special_days === 'boolean') out.specialDays = o.special_days;
+  if (typeof o.tithi_dates === 'boolean') out.tithiDates = o.tithi_dates;
   if (typeof o.practice_tab === 'boolean') out.practiceTab = o.practice_tab;
   if (Array.isArray(o.interests)) {
     const list = o.interests.filter((k): k is string => typeof k === 'string' && Object.prototype.hasOwnProperty.call(INTEREST_CATALOG, k));
@@ -336,6 +414,20 @@ export function parseCategoryProfile(raw: unknown): CategoryProfile | null {
 // Which profile to lay the app out with
 // ---------------------------------------------------------------------------
 
+/**
+ * The database's answer, with the app's own module availability filling any module the answer does not mention (a database
+ * from before a module existed does not know it is "never" for a chamber of commerce). What the database says always wins.
+ */
+export function withBuiltinModules(profile: CategoryProfile): CategoryProfile {
+  const own = BUILTIN_PROFILES[profile.key];
+  if (!own || own === profile) return profile;
+  const missing = (Object.keys(own.modules) as ModuleKey[]).filter((k) => !(k in profile.modules));
+  if (missing.length === 0) return profile;
+  const modules = { ...profile.modules };
+  for (const k of missing) modules[k] = own.modules[k];
+  return { ...profile, modules };
+}
+
 export type ProfileChoice = {
   profile: CategoryProfile;
   /** The database just now, this device's last answer for the community, or the app's own for that kind. */
@@ -356,8 +448,8 @@ export type ProfileChoice = {
 export function chooseProfile(input: { hint: string | null; live: CategoryProfile | null; cached: CategoryProfile | null; settled: boolean }): ProfileChoice {
   const { hint, live, cached, settled } = input;
   const usable = (p: CategoryProfile | null): p is CategoryProfile => !!p && (!hint || p.key === hint);
-  if (usable(live)) return { profile: live, source: 'live', ready: true };
-  if (usable(cached)) return { profile: cached, source: 'cache', ready: true };
+  if (usable(live)) return { profile: withBuiltinModules(live), source: 'live', ready: true };
+  if (usable(cached)) return { profile: withBuiltinModules(cached), source: 'cache', ready: true };
   return { profile: fallbackProfile(hint), source: 'builtin', ready: !hint || isBuiltinCategory(hint) || settled };
 }
 
@@ -376,6 +468,7 @@ export function layoutFor(profile: CategoryProfile): CategoryLayout {
     practiceTab: profile.terms.practice_tab !== null,
     todayCard: profile.usesTradition ? 'full' : 'basic',
     specialDays: profile.faithBased,
+    tithiDates: profile.usesTradition,
     interests: own.interests,
     shortcuts: own.shortcuts,
     ...(profile.layoutHints ?? {}),
@@ -425,14 +518,34 @@ export function termWords(terms: CategoryTerms): WordOverlay {
   if (family) out['tab.family'] = family;
   const practice = differs('practice_tab');
   if (practice) out['tab.jainWay'] = practice;
-  const store = differs('store');
-  if (store) out['drawer.store'] = store;
   const school = differs('school');
   if (school) out['drawer.pathshala'] = school;
   const greeting = differs('greeting');
   if (greeting) {
     out['home.greetingFamily'] = `${greeting}, {family}`;
     out['home.greetingLead'] = `${greeting},`;
+  }
+  return out;
+}
+
+/**
+ * The words of the dictionary that the category's terms change wherever they appear, so no screen's text has to be written
+ * out for them: the store's name, a school and a learning path where the category has them, and the names of the Give and
+ * Family tabs where a text points at them ("Pay anytime from Give › Family pledges"). Only where a term differs from Jain
+ * Center's, so Jain Center adds none. (The greeting is not here: it stands in sentences of its own, see termWords.)
+ */
+export function termSwaps(terms: CategoryTerms): Swap[] {
+  const out: Swap[] = [];
+  if (terms.store !== JAIN_TERMS.store) out.push({ from: 'Satvik Store', to: terms.store, fit: true });
+  if (terms.school && terms.school !== JAIN_TERMS.school) out.push({ from: 'Pathshala', to: terms.school, fit: true });
+  if (terms.learning && terms.learning !== JAIN_TERMS.learning) out.push({ from: 'Gyan Path', to: terms.learning, fit: true });
+  if (terms.give_tab !== JAIN_TERMS.give_tab) {
+    const g = terms.give_tab;
+    out.push({ from: 'Give →', to: `${g} →` }, { from: 'Give ›', to: `${g} ›` }, { from: 'the Give tab', to: `the ${g} tab` }, { from: 'Back to Give', to: `Back to ${g}` });
+  }
+  if (terms.family_tab !== JAIN_TERMS.family_tab) {
+    const f = terms.family_tab;
+    out.push({ from: 'Family tab', to: `${f} tab` }, { from: 'Family ›', to: `${f} ›` });
   }
   return out;
 }

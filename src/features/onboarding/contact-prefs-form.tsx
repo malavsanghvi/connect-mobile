@@ -7,7 +7,7 @@ import { normalizeInterests, toggle, type InterestKey } from '@/features/profile
 import { LANGUAGES, type Language, type StringKey, isLanguage } from '@/i18n';
 import { BEST_CALL_TIMES, CONTACT_CHANNELS, loadContactPrefs, saveContactPrefs, saveDocumentsChoice, type BestCallTime, type ContactChannel, type ContactPrefs } from '@/lib/api/family';
 import type { Member } from '@/lib/api/member';
-import { INTEREST_CATALOG, interestsToOffer } from '@/lib/categories';
+import { interestLabel, interestsToOffer } from '@/lib/categories';
 import { check, report } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { useLoad } from '@/lib/use-load';
@@ -187,7 +187,7 @@ function Editor({ initial, member, centerId, onSaved, preview }: { initial: Cont
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
           {interestsToOffer(layout).map((k) => {
             const on = interests.includes(k);
-            const label = t(INTEREST_CATALOG[k].labelKey);
+            const label = interestLabel(t, k);
             return (
               <Pressable
                 key={k}

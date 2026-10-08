@@ -11,6 +11,11 @@ import { daysBetween, monthName, parseISODate } from '@/lib/format';
  */
 export const OCCASIONS = ['birthday', 'anniversary', 'birth_tithi', 'punyatithi', 'other'] as const;
 export type Occasion = (typeof OCCASIONS)[number];
+
+/** The occasions offered: with no tithi dates (a kind of organization without a panchang) only Birthday, Anniversary and Other. */
+export function occasionsFor(tithiDates: boolean): Occasion[] {
+  return OCCASIONS.filter((o) => tithiDates || (o !== 'birth_tithi' && o !== 'punyatithi'));
+}
 /** Kept for older call sites. */
 export const SPECIAL_DAY_KINDS = OCCASIONS;
 
@@ -25,10 +30,11 @@ export function occasionOf(day: Pick<SpecialDay, 'kind' | 'calendar_date' | 'tit
  * Whether a special day offers "Plan labh" (the pledge options for the day). It is offered on every
  * eligible day, however far off: the reminder window only decides when the reminder is sent, and
  * app.commit_labh takes no date check, so a family can plan ahead. Not offered for a punyatithi, for a
- * day whose family switched the prompt off, to children, or when the giving module is off.
+ * day whose family switched the prompt off, to children, or when the Labh module is off (`labhOn`: the module is on, which
+ * needs Pledges & donations on too; a chamber of commerce never has it).
  */
-export function canPlanLabh(args: { givingOn: boolean; isAdult: boolean; occasion: Occasion | 'diksha'; labhPromptEnabled: boolean }): boolean {
-  return args.givingOn && args.isAdult && args.labhPromptEnabled && args.occasion !== 'punyatithi';
+export function canPlanLabh(args: { labhOn: boolean; isAdult: boolean; occasion: Occasion | 'diksha'; labhPromptEnabled: boolean }): boolean {
+  return args.labhOn && args.isAdult && args.labhPromptEnabled && args.occasion !== 'punyatithi';
 }
 
 /**

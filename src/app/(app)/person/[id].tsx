@@ -31,7 +31,7 @@ import {
   type ProfileErrors,
 } from '@/lib/api/family';
 import type { FamilyMember } from '@/lib/api/member';
-import { INTEREST_CATALOG, interestsToOffer } from '@/lib/categories';
+import { interestLabel, interestsToOffer } from '@/lib/categories';
 import { check, report } from '@/lib/errors';
 import { fullName } from '@/lib/format';
 import { ageOn } from '@/lib/rules';
@@ -313,7 +313,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {interestsToOffer(layout).map((k) => {
             const on = interests.includes(k);
-            const label = t(INTEREST_CATALOG[k].labelKey);
+            const label = interestLabel(t, k);
             return (
               <Pressable
                 key={k}

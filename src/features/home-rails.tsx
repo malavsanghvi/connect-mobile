@@ -257,10 +257,10 @@ function SpecialDaysRow({ state }: { state: LoadState<HomeSpecialDaysData> }) {
 function SpecialDayTile({ x, today, ctx, members, adult }: { x: { day: SpecialDay; next: string; inDays: number }; today: string; ctx: TileCtx; members: FamilyMember[]; adult: boolean }) {
   const t = useT();
   const router = useRouter();
-  const givingOn = useModule('giving');
+  const labhOn = useModule('labh');
   const title = specialDayTitle(t, x.day, x.next, members);
   const when = specialDayWhen(t, today, x.next, x.inDays);
-  const labh = canPlanLabh({ givingOn, isAdult: adult, occasion: occasionOf(x.day), labhPromptEnabled: x.day.labh_prompt_enabled });
+  const labh = canPlanLabh({ labhOn, isAdult: adult, occasion: occasionOf(x.day), labhPromptEnabled: x.day.labh_prompt_enabled });
   const action = labh ? t('home.planLabh') : t('home.planDay');
   const open = () => (labh ? router.push(`/labh/${encodeURIComponent(x.day.id)}` as Href) : router.push('/special-days'));
   return (

@@ -3,7 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { translate, type StringKey, type Vars } from '../../i18n';
 import { asClause, canPlanLabh, labhDedication, labhToPledge, listDisplayName } from '../special-days';
 
-const base = { givingOn: true, isAdult: true, occasion: 'birthday' as const, labhPromptEnabled: true };
+const base = { labhOn: true, isAdult: true, occasion: 'birthday' as const, labhPromptEnabled: true };
 const t = (key: StringKey, vars?: Vars) => translate('en', key, vars);
 
 describe('canPlanLabh', () => {
@@ -23,7 +23,7 @@ describe('canPlanLabh', () => {
 
   it('is not offered to children or when the giving module is off', () => {
     expect(canPlanLabh({ ...base, isAdult: false })).toBe(false);
-    expect(canPlanLabh({ ...base, givingOn: false })).toBe(false);
+    expect(canPlanLabh({ ...base, labhOn: false })).toBe(false);
   });
 });
 
