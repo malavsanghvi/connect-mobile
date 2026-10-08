@@ -14,6 +14,12 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.9.3 — 2026-10-08
+
+- **Fixed: "Watch live darshan" and "Do puja" on the Welcome screen now open their screens.** 1.9.2 stopped the blank
+  page but waited for a signal that never arrived, so you stayed on Home. The app now just tries again for a few seconds
+  until the screen opens; if it still cannot, you stay on Home.
+
 ## 1.9.2 — 2026-10-08
 
 - **Fixed: "Watch live darshan" and "Do puja" on the Welcome screen led to a blank page** on the web app. The screen is
