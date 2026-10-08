@@ -13,7 +13,7 @@ export const env = {
   memberBaseDomain: (process.env.EXPO_PUBLIC_MEMBER_BASE_DOMAIN ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
   /** Public community dashboard (drawer link) when centers.branding.dashboard_url is not set. */
   communityDashboardUrl: (process.env.EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL ?? '').trim(),
-  /** The Community Connect portal that creates online checkouts (/api/payments/intent). Without it, online payment is off. */
+  /** The Weaver portal that creates online checkouts (/api/payments/intent). Without it, online payment is off. */
   portalUrl: (process.env.EXPO_PUBLIC_PORTAL_URL ?? '').trim().replace(/\/+$/, ''),
 } as const;
 
@@ -58,7 +58,7 @@ export function envStatus(): EnvVar[] {
     },
     {
       name: 'EXPO_PUBLIC_PORTAL_URL',
-      purpose: 'Community Connect portal address for online payments, e.g. https://jsh.communityconnect.app (optional; without it the Pay sheet says online payment is not set up).',
+      purpose: 'Weaver portal address for online payments, e.g. https://jsh.communityconnect.app (optional; without it the Pay sheet says online payment is not set up).',
       required: false,
       present: env.portalUrl.length > 0,
     },

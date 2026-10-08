@@ -1,6 +1,6 @@
 /**
  * Waiting for the provider: after the member finishes on the Stripe/PayPal
- * page, the payment exists in Community Connect only once the provider's
+ * page, the payment exists in Weaver only once the provider's
  * webhook has been recorded. Poll app.checkout_status until it is paid, or
  * failed/expired, or the wait runs out — then say honestly what we know.
  */
