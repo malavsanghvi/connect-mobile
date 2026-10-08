@@ -45,9 +45,14 @@ export function FindCommunityScreen() {
   }, [query]);
 
   const results = useLoad(() => (debounced.length >= 2 ? findCommunity(debounced) : Promise.resolve([])), [debounced], 'search for communities');
-  // The build's own community (JSH for the JSH build), offered as one tap. Read by its web name,
-  // not through search: search never lists a sandbox, and the build's community may be one.
-  const suggested = useLoad(() => communityBySlug(env.centerSlug), [env.centerSlug], 'load the suggested community');
+  // The build's own community, offered as one tap, only for a build made for one organization
+  // (EXPO_PUBLIC_CENTER_SLUG set). The shared app names none: it asks. Read by its web name, not
+  // through search: search never lists a sandbox, and the build's community may be one.
+  const suggested = useLoad(
+    () => (env.buildCommunity ? communityBySlug(env.buildCommunity) : Promise.resolve(null)),
+    [env.buildCommunity],
+    'load the suggested community',
+  );
   // The dropdown of organizations to choose from.
   const communities = useLoad(() => listCommunities(), [], 'load the list of organizations');
   const [picked, setPicked] = useState('');

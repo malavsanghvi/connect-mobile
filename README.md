@@ -1,11 +1,16 @@
 # Connect — member app
 
-The member app of **Connect**, a multi-tenant platform for Jain communities.
-Families use it for events and RSVPs (tickets, lunch times), giving (opportunities,
-pledges, bolis, recurring gifts), My Jain Way (practices, Gyan Path, Saathi,
-pachchakhan library), their family record and member cards, the center guide, the
-Satvik Store and — for volunteers — event check-in. The Jain Society of Houston
-(JSH) is tenant #1.
+The member app of **Weaver** (the repos are named `connect-*`), a multi-tenant platform
+for associations and communities of every kind: congregations and temples of any faith,
+chambers of commerce, clubs and other non-profits. Members use it for events and RSVPs
+(tickets, lunch times), giving (opportunities, pledges, recurring gifts), their family
+record and member cards, the community guide, a store and — for volunteers — event
+check-in. What an organization offers is decided by its modules, category and experience:
+modules such as bolis, My Jain Way (practices, Gyan Path, Saathi, pachchakhan library)
+and Pathshala exist for the organizations that have them. Nothing names a tradition before
+someone has chosen an organization: the first screen is "Find your community". The Jain
+Society of Houston (JSH) was the first organization and is the example used in the docs
+and tests.
 
 It is one of three apps on a single Supabase backend:
 
@@ -42,7 +47,7 @@ it never falls back to sample data.
 |---|---|---|
 | `EXPO_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | yes | Anon / publishable key (RLS protects data). Never a service-role key. |
-| `EXPO_PUBLIC_CENTER_SLUG` | no | Center to open, resolved from `app.centers.slug`. Default `jsh`. |
+| `EXPO_PUBLIC_CENTER_SLUG` | no | Set **only for a build made for one organization** (resolved from `app.centers.slug`): the finder then offers "Continue with" it, and an install that is signed in already or opened on a link into a screen opens it. **Leave it unset for the shared app**: a new install is asked "Find your community" and no organization is suggested. (Unset, an install that was signed in before communities could be chosen, or that opens a link with nothing chosen, still opens JSH, as it always did.) |
 | `EXPO_PUBLIC_MEMBER_BASE_DOMAIN` | no | Web build only. The domain whose names open a community (`weaverams.org`): `jsh.weaverams.org` opens JSH, `app.weaverams.org` lists the organizations. Unset: one address for everyone. See "One web address per organization". |
 | `EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL` | no | Public community dashboard linked from the menu. `centers.branding.dashboard_url` wins; hidden when neither is set. |
 

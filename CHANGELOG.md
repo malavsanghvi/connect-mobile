@@ -14,6 +14,19 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.13.0 — 2026-10-08
+
+- **A neutral first launch.** The first thing a new install sees is "Find your community", and it no longer assumes
+  a tradition or an organization: the subtitle says "Weaver is used by many organizations", the search hint suggests a
+  city or an organization's name, and **no organization is suggested** ("Continue with ..." appears only in a build made
+  for one organization, `EXPO_PUBLIC_CENTER_SLUG`). The default JSH build setting is gone from the deploy workflow.
+- **Nothing changes for JSH.** An install that already chose JSH, anyone on jsh.weaverams.org, a build made for JSH, an install
+  that was signed in before communities could be chosen, and a link into a screen opened with nothing chosen all land in JSH
+  exactly as before (tests for each case).
+- **Permission texts** (next native build only: an over-the-air update cannot change them) no longer name Gyan Path,
+  Pathshala or the Navkar Mantra; the microphone and speech texts describe recording and practising a lesson your
+  organization offers. `runtimeVersion` is unchanged, so this version is JavaScript-only until the next build.
+
 ## 1.12.0 — 2026-10-08
 
 - **The app now knows what kind of organization a community is** (a Jain Center, a chamber of commerce, a community

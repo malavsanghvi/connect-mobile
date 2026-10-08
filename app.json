@@ -2,7 +2,7 @@
   "expo": {
     "name": "Weaver",
     "slug": "connect-mobile",
-    "version": "1.12.0",
+    "version": "1.13.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": ["connect", "communityconnect"],
@@ -58,7 +58,7 @@
         "expo-camera",
         {
           "cameraPermission": "Allow Weaver to use the camera to scan event tickets when you volunteer at check-in.",
-          "microphonePermission": "Allow Weaver to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
+          "microphonePermission": "Allow Weaver to use the microphone to record your recitation for a lesson your organization offers, and to listen while you practise it.",
           "recordAudioAndroid": false
         }
       ],
@@ -93,15 +93,15 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow Weaver to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
+          "microphonePermission": "Allow Weaver to use the microphone to record your recitation for a lesson your organization offers, and to listen while you practise it.",
           "enableBackgroundPlayback": false
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow Weaver to use the microphone to record your Gyan Path recitation for your Pathshala teacher, and to listen while you practise saying the Navkar Mantra.",
-          "speechRecognitionPermission": "Allow Weaver to turn what you say into text, so it can check your Navkar Mantra and sutra practice. The app keeps only your score, not your voice.",
+          "microphonePermission": "Allow Weaver to use the microphone to record your recitation for a lesson your organization offers, and to listen while you practise it.",
+          "speechRecognitionPermission": "Allow Weaver to turn what you say into text, so it can check your practice of a lesson. The app keeps only your score, not your voice.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox", "com.google.android.as"]
         }
       ]

@@ -4,11 +4,30 @@
  * See .env.example and README.md.
  */
 
+/**
+ * The organization every install made before communities could be chosen belongs to: JSH was the only one. It is NOT a default
+ * for a new install (a new install is asked, with no organization suggested); it only keeps an install that signed in before the
+ * chooser existed, or that was opened on a link into a screen with nothing chosen, on the community it has always opened.
+ */
+export const LEGACY_COMMUNITY_SLUG = 'jsh';
+
+/**
+ * What EXPO_PUBLIC_CENTER_SLUG means. `buildCommunity` is set only by a build made for ONE organization: the finder then offers
+ * "Continue with ..." for it. The shared app leaves it empty and suggests none. `centerSlug` is the community an install with
+ * nothing chosen opens in the two legacy cases (signed in already, or a link into a screen): the build's own, else the legacy one.
+ */
+export function communityDefaults(raw: string | undefined): { buildCommunity: string; centerSlug: string } {
+  const buildCommunity = (raw ?? '').trim();
+  return { buildCommunity, centerSlug: buildCommunity || LEGACY_COMMUNITY_SLUG };
+}
+
 export const env = {
   supabaseUrl: (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim(),
   supabaseAnonKey: (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim(),
-  /** Default center (tenant) slug; JSH is tenant #1. */
-  centerSlug: (process.env.EXPO_PUBLIC_CENTER_SLUG ?? '').trim() || 'jsh',
+  /** The organization this build was made for (EXPO_PUBLIC_CENTER_SLUG), or '' in the shared app, which asks "Find your community" and suggests none. */
+  buildCommunity: communityDefaults(process.env.EXPO_PUBLIC_CENTER_SLUG).buildCommunity,
+  /** The community an install with nothing chosen opens when it is already signed in or was opened on a link into a screen (see LEGACY_COMMUNITY_SLUG). */
+  centerSlug: communityDefaults(process.env.EXPO_PUBLIC_CENTER_SLUG).centerSlug,
   /** The web domain whose names open a community ("weaverams.org": jsh.weaverams.org opens JSH, app.weaverams.org lists them). Empty: one address for everyone, as before. */
   memberBaseDomain: (process.env.EXPO_PUBLIC_MEMBER_BASE_DOMAIN ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
   /** Public community dashboard (drawer link) when centers.branding.dashboard_url is not set. */
@@ -40,7 +59,7 @@ export function envStatus(): EnvVar[] {
     },
     {
       name: 'EXPO_PUBLIC_CENTER_SLUG',
-      purpose: 'Center to open (optional, defaults to "jsh").',
+      purpose: 'The one organization this build is made for (optional). Leave it unset for the shared app, which asks "Find your community".',
       required: false,
       present: (process.env.EXPO_PUBLIC_CENTER_SLUG ?? '').trim().length > 0,
     },
