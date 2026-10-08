@@ -99,4 +99,51 @@ describe('notification routes', () => {
       expect(notificationTarget({ type: 'homework_review', assignment_id: ASSIGNMENT, submission_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', learner_id: PERSON })).toBeNull();
     });
   });
+
+  describe('Pathshala pushes (connect-crm 0591: the data the push worker forwards is type, deep_link and learner_id)', () => {
+    const TERM = '22222222-2222-4222-8222-222222222222';
+    const LEARNER = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const learn = { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } };
+    it("open 3L › Learn for every learner's news (/pathshala?person=<id>) until the learner's page exists", () => {
+      // pathshala_registered, _payment_due, _hold_reminder, _hold_released, _waitlisted, _placed, _membership_hold,
+      // _hold_lifted, _child_added and the registration summary all send this link (app._pathshala_vars).
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/pathshala?person=${LEARNER}`, learner_id: LEARNER })).toEqual(learn);
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/pathshala?person=${LEARNER}` })).toEqual(learn);
+    });
+    it('open registration for the term the link names (the summary of a child being added, "child not added")', () => {
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/pathshala-enroll?term=${TERM}` })).toEqual({ pathname: '/pathshala-enroll', params: { term: TERM } });
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/pathshala-enroll?term=not-an-id' })).toEqual({ pathname: '/pathshala-enroll' });
+    });
+    it('open a real screen for every message 0591 sends (app._pathshala_route keeps type, deep_link and learner_id, nulls stripped)', () => {
+      const learner = (template: string) => ({ template, data: { type: 'pathshala', deep_link: `/pathshala?person=${LEARNER}`, learner_id: LEARNER }, opens: learn });
+      const table = [
+        // app._pathshala_vars: one learner's news to the household's adults.
+        learner('pathshala_registered'),
+        learner('pathshala_payment_due'),
+        learner('pathshala_hold_reminder'),
+        learner('pathshala_hold_released'),
+        learner('pathshala_waitlisted'),
+        learner('pathshala_placed'),
+        learner('pathshala_membership_hold'),
+        learner('pathshala_hold_lifted'),
+        learner('pathshala_child_added'),
+        // register_pathshala_children: the summary links the first line's learner, or the term when that line is a child being added.
+        learner('pathshala_registration_received'),
+        { template: 'pathshala_registration_received', data: { type: 'pathshala', deep_link: `/pathshala-enroll?term=${TERM}` }, opens: { pathname: '/pathshala-enroll', params: { term: TERM } } },
+        // pathshala_change_request_trigger: the office declined to add the child.
+        { template: 'pathshala_child_not_added', data: { type: 'pathshala', deep_link: `/pathshala-enroll?term=${TERM}` }, opens: { pathname: '/pathshala-enroll', params: { term: TERM } } },
+      ];
+      for (const row of table) expect([row.template, notificationTarget(row.data)]).toEqual([row.template, row.opens]);
+    });
+    it('open 3L › Learn for a Pathshala push without a usable link', () => {
+      expect(notificationTarget({ type: 'pathshala' })).toEqual(learn);
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/somewhere/${LEARNER}` })).toEqual(learn);
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/guide/membership' })).toEqual(learn);
+    });
+    it('follow a Pathshala link without a type too, and nothing else', () => {
+      expect(notificationTarget({ deep_link: `/pathshala-enroll?term=${TERM}` })).toEqual({ pathname: '/pathshala-enroll', params: { term: TERM } });
+      expect(notificationTarget({ deep_link: `/pathshala?person=${LEARNER}` })).toEqual(learn);
+      expect(notificationTarget({ deep_link: '/settings' })).toBeNull();
+    });
+  });
 });

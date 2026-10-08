@@ -8,8 +8,10 @@ import { isMissingBucket } from './photos';
 
 import { classSchedule, continueGoalId, registrationOpen, todayAtMinutes, type AttendanceMark, type DailyMinutes } from '../learning';
 import { buildGyanSummary, goalProgress, GYAN_SUMMARY_COLUMNS, isLevelDone, isStepDone, lastActivityByGoal, type GoalProgress as GoalProgressOf, type GyanSummary, type ProgressMark } from '../gyan-progress';
+import { NO_HOLD, type FeePledge, type HoldInfo } from '../pathshala-registration';
 
 import type { Center } from './member';
+import { loadEnrollmentDetails } from './pathshala';
 
 // The progress arithmetic is pure and lives in src/lib/gyan-progress.ts (with the summary Home reads); it is re-exported here so every screen keeps one place to import from.
 export { goalProgress, isLevelDone, isStepDone, lastActivityByGoal };
@@ -240,17 +242,42 @@ export type Enrollment = Tables<'pathshala_enrollments'> & {
   attendance: AttendanceMark[];
   /** Published progress reports, newest first. */
   reports: ProgressReport[];
+  /**
+   * A seat held for payment, an offer from the waitlist, the waitlist place, another hold (connect-crm 0591; all null
+   * before 0591): from `app.pathshala_registration_options` (`learners[].enrollments[]`), never from the table. A child's
+   * answer carries no reason (P30).
+   */
+  hold: HoldInfo;
+  /** Why the seat was released, when it was because of the fee; adults only (the options answer). */
+  withdrawalReason: string | null;
+  /** The database's sentence of where the registration stands; adults only. */
+  state: string | null;
+  /** The term lets a family pay at the office instead (0590; false before). */
+  officePaymentAllowed: boolean;
+  /** The enrollment's fee pledge from the options (`fee.pledge`): adults only; a child never sees fees (plan P30). */
+  fees: FeePledge[];
 };
 
-export async function loadPathshala(householdId: string): Promise<Enrollment[]> {
-  const rows = must(await supabase.from('pathshala_enrollments').select('*').eq('household_id', householdId).neq('status', 'withdrawn').order('registered_at', { ascending: false }), 'load Pathshala enrollments');
+/**
+ * The household's enrollments for 3L › Learn. `adult`: the viewer is an adult of the household (the fees, the holds and
+ * the sentences about them are theirs to see, P30). Where each seat stands beyond its status, the fee and the term's
+ * payment rules come from one options call for each term (`loadEnrollmentDetails`); a seat released because the fee was
+ * not paid in time stays in the list for an adult, with the database's sentence, until it is registered again.
+ */
+export async function loadPathshala(householdId: string, opts: { adult?: boolean } = {}): Promise<Enrollment[]> {
+  const all = must(await supabase.from('pathshala_enrollments').select('*').eq('household_id', householdId).order('registered_at', { ascending: false }), 'load Pathshala enrollments');
+  if (all.length === 0) return [];
+  const termIds = [...new Set(all.map((r) => r.term_id))];
+  const adult = opts.adult === true;
+  const terms = must(await supabase.from('pathshala_terms').select('id, name').in('id', termIds), 'load Pathshala terms');
+  const details = await loadEnrollmentDetails(householdId, terms);
+  // A withdrawn enrollment is not shown, except a seat released for the fee (the sentence is the adults').
+  const rows = all.filter((r) => r.status !== 'withdrawn' || (adult && !!details.get(r.id)?.withdrawalReason));
   if (rows.length === 0) return [];
-  const termIds = [...new Set(rows.map((r) => r.term_id))];
   const classIds = [...new Set(rows.map((r) => r.class_id).filter((x): x is string => !!x))];
   const levelIds = [...new Set(rows.map((r) => r.requested_level_id).filter((x): x is string => !!x))];
   const enrollmentIds = rows.map((r) => r.id);
-  const [terms, classes, levels, marks, reports] = await Promise.all([
-    supabase.from('pathshala_terms').select('id, name').in('id', termIds).then((r) => must(r, 'load Pathshala terms')),
+  const [classes, levels, marks, reports] = await Promise.all([
     classIds.length ? supabase.from('pathshala_classes').select('id, name, meets_on, starts_time, level_id').in('id', classIds).then((r) => must(r, 'load Pathshala classes')) : Promise.resolve([]),
     levelIds.length ? supabase.from('pathshala_levels').select('id, name').in('id', levelIds).then((r) => must(r, 'load Pathshala levels')) : Promise.resolve([]),
     supabase.from('pathshala_attendance').select('enrollment_id, status, marked_at').in('enrollment_id', enrollmentIds).then((r) => must(r, 'load Pathshala attendance')),
@@ -264,15 +291,22 @@ export async function loadPathshala(householdId: string): Promise<Enrollment[]> 
   ]);
   return rows.map((r) => {
     const cls = classes.find((c) => c.id === r.class_id);
+    const term = terms.find((t) => t.id === r.term_id);
+    const detail = details.get(r.id);
     return {
       ...r,
-      termName: terms.find((t) => t.id === r.term_id)?.name ?? null,
+      termName: term?.name ?? null,
       className: cls?.name ?? null,
       levelName: levels.find((l) => l.id === r.requested_level_id)?.name ?? null,
       schedule: cls ? classSchedule(cls.meets_on, cls.starts_time) : null,
       // Parents can't read pathshala_sessions, so the class day is when it was marked.
       attendance: marks.filter((m) => m.enrollment_id === r.id).map((m) => ({ status: m.status, held_on: m.marked_at.slice(0, 10) })),
       reports: reports.filter((p) => p.enrollment_id === r.id),
+      hold: detail?.hold ?? NO_HOLD,
+      withdrawalReason: adult ? (detail?.withdrawalReason ?? null) : null,
+      state: adult ? (detail?.state ?? null) : null,
+      officePaymentAllowed: detail?.officeAllowed ?? false,
+      fees: adult ? (detail?.pledges ?? []) : [],
     };
   });
 }

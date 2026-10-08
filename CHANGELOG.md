@@ -14,6 +14,26 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.11.0 — 2026-10-08
+
+- **Register for Pathshala in the app.** An adult of the family registers several learners at once: children, and adults
+  for the adult classes, themselves included. Choose who is joining (with their age on the term's cut-off date), a level
+  for each (the suggested one first, with the reason), then check the fee line by line exactly as your community priced
+  it (level fee, sibling discount, family cap, late fee) and **Register**. A child who is not on your family yet can be
+  added in the same registration: the office adds them first and the registration keeps its time. Another adult learner
+  agrees to the waiver in their own app; until then they have no seat and nothing is charged.
+- **Pay later or pay now, as your community chose.** In a "pay later" term the fee is added to your family's pledges,
+  each due on its own date (**Pay now** is optional). In a "pay when registering" term the Pay sheet opens at once, seats
+  are held while you pay (with a countdown) and, when the term allows it, **Pay at the office instead** holds them for
+  the office window. If the fee or a seat changed since you looked, you are shown the new lines before anything is saved,
+  and a registration that was sent twice is never made twice.
+- **Where each learner stands.** Jain Way › 3L › Learn says Registered, Seat held until …, Seat offered: pay by …,
+  Waitlist, Waiting for membership, for the waiver or for the Pathshala office, and adults see the fee with **Pay**
+  (children never see fees). Home shows "Pay to keep Riya's seat · 5 h left" while a seat is held. Pathshala
+  notifications open the right screen.
+- A community whose portal is not updated yet keeps the simple request form.
+- A gift to a Pathshala campaign is recorded as an ordinary gift, never as a Pathshala fee.
+
 ## 1.10.0 — 2026-10-08
 
 - **The app is now called Weaver.** Everything the app says about itself (Settings › About, the lock screen, permission

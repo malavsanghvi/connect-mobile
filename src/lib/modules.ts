@@ -154,6 +154,8 @@ export const HOME_CARD_MODULE = {
   railRecipes: 'content',
   /** The "Needs your OK" strip (a child's homework waiting for a parent) and the Family tab's homework lines. */
   homework: 'gyan_path',
+  /** The strip for a Pathshala seat held for payment or offered from the waitlist ("Pay to keep Riya's seat · 5 h left"). */
+  pathshalaSeats: 'pathshala',
 } as const satisfies Record<string, ModuleKey | null>;
 
 export type HomeCard = keyof typeof HOME_CARD_MODULE;

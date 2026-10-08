@@ -35,15 +35,15 @@ function str(v: unknown): string | null {
 /**
  * Target for a notification's data, or null when nothing here knows it (the
  * app just opens). A push without a `type` may still carry a `deep_link`
- * ("survey/<id>", as connect-crm queues for event feedback, or
- * "/gyan/homework/<id>?person=<id>" for homework); that opens too (survey and
- * homework links are the only ones known).
+ * ("survey/<id>", as connect-crm queues for event feedback,
+ * "/gyan/homework/<id>?person=<id>" for homework, or a Pathshala link); that
+ * opens too (survey, homework and Pathshala links are the only ones known).
  */
 export function notificationTarget(data: unknown): NotificationTarget | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const d = data as NotificationData;
   const type = str(d.type);
-  if (!type) return surveyTarget(d) ?? homeworkLinkTarget(d, false);
+  if (!type) return surveyTarget(d) ?? homeworkLinkTarget(d, false) ?? pathshalaLinkTarget(str(d.deep_link));
   const route = routes.get(type);
   if (!route) return null;
   return route.open(d);
@@ -163,3 +163,45 @@ function homeworkParentTarget(d: NotificationData): NotificationTarget | null {
 
 registerNotificationRoute(HOMEWORK, { open: homeworkTarget });
 registerNotificationRoute(HOMEWORK_PARENT, { open: homeworkParentTarget });
+
+// ---------------------------------------------------------------------------
+// Pathshala (connect-crm 0591, plan §2.14): every Pathshala message is a push to a household adult (never a child)
+// whose payload carries `type: "pathshala"`, a `deep_link` and, for one learner's news, `learner_id` (the push worker
+// forwards only `type` and those routing keys: no template key, no term id). The links 0591 sends, and where they open:
+//   /pathshala?person=<id>        the learner's page (connect-mobile PR 8); until then 3L › Learn, where each
+//                                 learner's status, fee and Pay are. Every learner's news (registered, payment due,
+//                                 hold reminder, hold released, waitlisted, placed, membership hold, hold lifted,
+//                                 child added) and the registration summary.
+//   /pathshala-enroll?term=<id>   registration for that term: the summary when its first line is a child the office
+//                                 adds first, and "child not added".
+// A Pathshala push without a usable link opens 3L › Learn. `person_id` is the RECIPIENT and is never read as the learner.
+// ---------------------------------------------------------------------------
+
+export const PATHSHALA = 'pathshala';
+
+const PATHSHALA_LEARN: NotificationTarget = { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } };
+
+/** A Pathshala deep link as an app location, or null when it is not one of the two links above. */
+function pathshalaLinkTarget(link: string | null): NotificationTarget | null {
+  if (!link) return null;
+  const m = /^\/?([a-z-]+)\/?(?:\?(.*))?$/i.exec(link);
+  if (!m) return null;
+  const path = m[1].toLowerCase();
+  const query = new Map<string, string>();
+  for (const pair of (m[2] ?? '').split('&')) {
+    const [k, v = ''] = pair.split('=');
+    if (k) query.set(k, v);
+  }
+  if (path === 'pathshala-enroll') {
+    const term = uuidField(query.get('term'));
+    return term ? { pathname: '/pathshala-enroll', params: { term } } : { pathname: '/pathshala-enroll' };
+  }
+  if (path === 'pathshala') return PATHSHALA_LEARN;
+  return null;
+}
+
+function pathshalaTarget(d: NotificationData): NotificationTarget {
+  return pathshalaLinkTarget(str(d.deep_link)) ?? PATHSHALA_LEARN;
+}
+
+registerNotificationRoute(PATHSHALA, { open: pathshalaTarget });

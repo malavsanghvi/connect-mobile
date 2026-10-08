@@ -29,7 +29,7 @@ function badge(t: Translate, s: RegistrationStatus): { label: string; fg: string
 export default function RegistrationsScreen() {
   const t = useT();
   const router = useRouter();
-  const { center } = useApp();
+  const { center, member } = useApp();
   const today = todayAt(center?.time_zone);
   const state = useLoad(() => (center ? loadRegistrations(center.id, today) : Promise.resolve(null)), [center?.id, today], 'load what is open for registration');
 
@@ -46,7 +46,8 @@ export default function RegistrationsScreen() {
               name: t('guide.regPathshala'),
               sub: [facts.pathshala.name, facts.pathshala.membership_required ? t('guide.regMembershipRequired') : null].filter(Boolean).join(' · '),
               status: registrationStatus(facts.pathshala.registration_opens_at, facts.pathshala.registration_closes_at, now),
-              href: { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } },
+              // A household adult goes straight to registering for that term; anyone else to Pathshala in 3L › Learn.
+              href: member?.isAdult && member.household ? { pathname: '/pathshala-enroll', params: { term: facts.pathshala.id } } : { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } },
             });
           }
           regs.push({

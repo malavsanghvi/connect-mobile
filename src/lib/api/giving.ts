@@ -116,15 +116,17 @@ export async function getOpportunity(id: string): Promise<OpportunityWithCampaig
   return { ...opp, campaign };
 }
 
-/** Which pledge source a campaign's opportunities create (limited to member-allowed sources). */
+/**
+ * Which pledge source a campaign's opportunities create (limited to member-allowed sources). A gift to a Pathshala-kind
+ * campaign is an ordinary gift (`general`), never a fee: since connect-crm 0591 a member cannot insert a `pathshala_fee`
+ * pledge (the database creates those itself, one per enrollment, when a family registers), and a gift is not a fee.
+ */
 export function pledgeSourceFor(campaign: Campaign | null): PledgeSource {
   switch (campaign?.kind) {
     case 'sponsorship':
       return 'sponsorship';
     case 'construction':
       return 'construction';
-    case 'pathshala':
-      return 'pathshala_fee';
     case 'membership':
       return 'membership_fee';
     default:

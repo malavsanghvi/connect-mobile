@@ -68,7 +68,7 @@ export function usePaymentMethods(): { methods: PaymentMethods | null; error: st
       const label = processorLabel(method.processor);
       const start = await startCheckout({
         centerId: center.id,
-        householdId,
+        householdId: req.householdId ?? householdId,
         amountCents: req.amountCents,
         pledgeIds: req.pledgeIds ?? (req.pledgeId ? [req.pledgeId] : []),
         context: req.context,
