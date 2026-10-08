@@ -9,6 +9,7 @@ import { loadPaymentMethods } from '@/lib/api/payments';
 import {
   countdownText,
   enrollmentStatus,
+  FEE_ASSISTANCE_OFFERED,
   holdCountdown,
   holdOf,
   lineLevel,
@@ -195,7 +196,7 @@ export function DoneStep({
       {unbilledNames.length > 0 ? (
         <Card>
           <Txt variant="small" color="ink2">
-            {t('reg.done.unbilled', { names: unbilledNames.join(', ') })}
+            {t(FEE_ASSISTANCE_OFFERED ? 'reg.done.unbilledAssistance' : 'reg.done.unbilled', { names: unbilledNames.join(', ') })}
           </Txt>
         </Card>
       ) : null}

@@ -772,6 +772,15 @@ export const SUGGESTION_KEY: Record<SuggestionReason, StringKey> = {
   age: 'reg.suggest.age',
 };
 
+/**
+ * Whether the review offers "Ask about fee assistance". connect-crm builds the decision (propose, approve, bill) in 0592.
+ * Until then `app._pathshala_plan` (0590) refuses a preview or registration with any line asking for it ("Fee assistance
+ * opens in the next release. Ask the Pathshala office.", 22023), before anything is priced or written, because a seat
+ * would otherwise be given with no pledge for ever. So the app does not offer it yet and sends `assistance_requested:
+ * false`. Turn this on when 0592 is deployed (everything else for it is built and tested).
+ */
+export const FEE_ASSISTANCE_OFFERED = false;
+
 /** One learner's choices: a track each with a level, or "let the office decide" (pledge-mode terms only, P25). */
 export type TrackChoice = { trackId: string; levelId: string | null; unsure: boolean };
 

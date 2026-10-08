@@ -3,6 +3,7 @@ import { Banner, Card, Pill, Row, Toggle, Txt, VStack } from '@/components/ui';
 import type { StringKey } from '@/i18n/en';
 import {
   chargedNow,
+  FEE_ASSISTANCE_OFFERED,
   isAdultLine,
   lineLevel,
   lineNames,
@@ -74,6 +75,8 @@ export function ReviewStep({
       {notice ? <Banner tone="warning" title={t('reg.review.changed')} message={notice} /> : null}
       {preview.status === 'loading' || preview.status === 'idle' ? <LoadingState label={t('reg.review.loading')} /> : null}
       {preview.status === 'error' ? <Banner tone="error" title={preview.refused ? t('reg.review.cannotTitle') : undefined} message={preview.message} /> : null}
+      {/* The request can always be taken back, so a refusal that came with it never leaves the family stuck here. */}
+      {FEE_ASSISTANCE_OFFERED && preview.status === 'error' && assistance ? <Toggle label={t('reg.review.assistanceAsk')} sub={t('reg.review.assistanceSub')} value={assistance} onChange={onAssistance} /> : null}
       {preview.status === 'ready' ? <ReviewLines options={options} result={preview.result} selections={selections} assistance={assistance} timeZone={timeZone} onAssistance={onAssistance} /> : null}
     </VStack>
   );
@@ -178,7 +181,7 @@ function ReviewLines({
           </Txt>
         ) : null}
       </Card>
-      {anyFee ? <Toggle label={t('reg.review.assistanceAsk')} sub={t('reg.review.assistanceSub')} value={assistance} onChange={onAssistance} /> : null}
+      {FEE_ASSISTANCE_OFFERED && anyFee ? <Toggle label={t('reg.review.assistanceAsk')} sub={t('reg.review.assistanceSub')} value={assistance} onChange={onAssistance} /> : null}
     </VStack>
   );
 }

@@ -27,8 +27,6 @@ How a release is made:
   are held while you pay (with a countdown) and, when the term allows it, **Pay at the office instead** holds them for
   the office window. If the fee or a seat changed since you looked, you are shown the new lines before anything is saved,
   and a registration that was sent twice is never made twice.
-- **Fee assistance, privately.** On the review you can ask about fee assistance: nothing is billed until the principal
-  and the treasurer decide, your seats are kept meanwhile, and your children, the teachers and the committee never see it.
 - **Where each learner stands.** Jain Way › 3L › Learn says Registered, Seat held until …, Seat offered: pay by …,
   Waitlist, Waiting for membership, for the waiver or for the Pathshala office, and adults see the fee with **Pay**
   (children never see fees). Home shows "Pay to keep Riya's seat · 5 h left" while a seat is held. Pathshala

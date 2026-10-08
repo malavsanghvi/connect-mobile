@@ -483,6 +483,8 @@ export const ERRORS = {
   moduleOff: dbError('42501', 'The Pathshala module is switched off for this community.'),
   // 75: a pay-now term while Pledges & donations is off
   givingOff: dbError('22023', 'Summer 2027 takes the fee when you register, and Pledges & donations is switched off, so registration cannot be completed. Ask the Pathshala office.'),
+  // 75/76 (database review fix): fee assistance opens with 0592; a preview or registration with any line asking for it is refused
+  feeAssistance: dbError('22023', 'Fee assistance opens in the next release. Ask the Pathshala office.'),
   // 0524 request_add_family_member: a bare `raise exception` (SQLSTATE P0001)
   alreadyPending: dbError('P0001', 'There is already a pending request to add Tara -- no need to send it twice'),
   // Postgres' own words are never shown

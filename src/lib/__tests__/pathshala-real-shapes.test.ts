@@ -7,6 +7,7 @@ import {
   countdownText,
   enrollmentStatus,
   expectedOutcomes,
+  FEE_ASSISTANCE_OFFERED,
   feeSummary,
   holdCountdown,
   holdForViewer,
@@ -449,6 +450,7 @@ describe('the calls, with the answers and refusals the SQL tests show', () => {
     ['the same key with other details', 'otherDetails', 'refused'],
     ['Pathshala switched off', 'moduleOff', 'refused'],
     ['Pledges & donations switched off in a pay-now term', 'givingOff', 'refused'],
+    ['fee assistance asked for before the database can decide it (opens with 0592)', 'feeAssistance', 'refused'],
     ['a pending request to add the child exists (the bare raise of request_add_family_member)', 'alreadyPending', 'refused'],
   ];
   it.each(cases)('registering: %s', async (_name, key, route) => {
@@ -461,6 +463,19 @@ describe('the calls, with the answers and refusals the SQL tests show', () => {
     expect((err as AppError).userMessage).toBe(/[.!?]$/.test(e.message) ? e.message : `${e.message}.`);
     expect((err as AppError).code).toBe(e.code);
     expect(registerRoute(err)).toBe(route);
+    log.mockRestore();
+  });
+
+  it('does not offer fee assistance while the database refuses it: every line says assistance_requested false, and the preview refusal is shown as it comes', async () => {
+    expect(FEE_ASSISTANCE_OFFERED).toBe(false);
+    const one: Selection[] = [{ key: P.ved, personId: P.ved, newChild: null, tracks: [{ trackId: T.jainism, levelId: L.j2, unsure: false }], note: '' }];
+    expect(learnersArg(one, FEE_ASSISTANCE_OFFERED)).toEqual([{ person_id: P.ved, track_id: T.jainism, level_id: L.j2, note: null, assistance_requested: false }]);
+    // If it were ever sent, the preview is refused (test 75), shown in the database's words, and it is not a reason to try again.
+    const log = quiet();
+    mockRpc.mockResolvedValueOnce({ data: null, error: ERRORS.feeAssistance });
+    const err = await previewRegistration({ termId: TERM.t2, householdId: H.desai, learners: learnersArg(one, true) }).catch((x: unknown) => x);
+    expect((err as AppError).userMessage).toBe('Fee assistance opens in the next release. Ask the Pathshala office.');
+    expect((err as AppError).code).toBe('22023');
     log.mockRestore();
   });
 

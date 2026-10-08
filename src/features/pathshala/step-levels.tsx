@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Button, Card, LinkText, Radio, Row, TextField, Txt, VStack } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import {
+  FEE_ASSISTANCE_OFFERED,
   levelGroups,
   levelUnavailable,
   officeConfirms,
@@ -86,7 +87,7 @@ export function LevelsStep({
                 ))}
               </Row>
             ) : null}
-            <TextField label={t('reg.levels.note', { name: learner.name })} hint={t('reg.levels.noteHint')} value={s.note} onChangeText={(v) => onNote(s.key, v)} multiline maxLength={500} />
+            <TextField label={t('reg.levels.note', { name: learner.name })} hint={t(FEE_ASSISTANCE_OFFERED ? 'reg.levels.noteHintAssistance' : 'reg.levels.noteHint')} value={s.note} onChangeText={(v) => onNote(s.key, v)} multiline maxLength={500} />
           </Card>
         );
       })}

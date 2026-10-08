@@ -251,8 +251,9 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   its reason, the levels for their age first, "Other levels" (the office confirms), fee and Seats open / Waitlist /
   Full, and "Not sure, let the office decide" in pledge-mode terms only. The review shows each line exactly as the
   database priced it (level fee, sibling discount, family cap, late fee, fee assistance, total; adults outside the
-  discount and the cap), the totals, what registering does and the withdrawal rule; "Ask about fee assistance" prices
-  it again. Then the published waiver ("I agree" for each child and for themself) and Register: the database prices
+  discount and the cap), the totals, what registering does and the withdrawal rule. ("Ask about fee assistance" is built
+  but not offered yet: connect-crm refuses a registration that asks for it until 0592, so `FEE_ASSISTANCE_OFFERED` in
+  `src/lib/pathshala-registration.ts` is `false`.) Then the published waiver ("I agree" for each child and for themself) and Register: the database prices
   it again and refuses a changed total or a seat taken meanwhile, which sends the family back to the review with its
   sentence; Try again after a lost answer sends the same client key, so nothing is registered twice. Afterwards: in a
   pledge-mode term "Added to your pledges" with Pay now (optional); in a pay-now term the Pay sheet opens at once
