@@ -1,13 +1,14 @@
 import type { User } from '@supabase/supabase-js';
 
 import type { Enums, Tables } from '../database.types';
-import { AppError, check, maybe, must } from '../errors';
+import { AppError, check, logError, maybe, must } from '../errors';
 import { todayAt } from '../format';
 import { splitRemembered } from '@/features/remembrance';
+import { isMissingColumnError, JAIN_CENTER } from '../categories';
 import { isAdult, orgIdDisplay } from '../rules';
 import { supabase } from '../supabase';
 
-export type Center = Pick<Tables<'centers'>, 'id' | 'slug' | 'name' | 'short_name' | 'state_region' | 'time_zone' | 'tradition' | 'branding' | 'feature_flags' | 'rules' | 'environment'>;
+export type Center = Pick<Tables<'centers'>, 'id' | 'slug' | 'name' | 'short_name' | 'state_region' | 'time_zone' | 'tradition' | 'branding' | 'feature_flags' | 'rules' | 'environment' | 'category_key'>;
 export type Person = Tables<'people'>;
 export type Household = Tables<'households'>;
 export type HouseholdRole = Enums<'person_role_in_household'>;
@@ -45,17 +46,40 @@ const ROLE_ORDER: Record<HouseholdRole, number> = { primary: 0, spouse: 1, paren
 export async function loadCenter(slug: string): Promise<Center> {
   const res = await supabase
     .from('centers')
-    .select('id, slug, name, short_name, state_region, time_zone, tradition, branding, feature_flags, rules, environment')
+    .select('id, slug, name, short_name, state_region, time_zone, tradition, branding, feature_flags, rules, environment, category_key')
     .eq('slug', slug)
     .maybeSingle();
-  const center = maybe(res, 'open your center');
-  if (!center) {
-    throw new AppError(
-      `We couldn't find the community "${slug}". It may no longer be active — choose your community again, or ask its office.`,
-      `no active center with slug ${slug}`,
-    );
+  // A database from before organization categories (connect-crm 0594) has no `category_key`: read the community without it
+  // and treat it as a Jain Center, which is what every community was, so the app never depends on the order of deploys.
+  if (res.error && isMissingColumnError(res.error)) {
+    logError('opening your community: centers.category_key is not in this database yet, so it is treated as a Jain Center', res.error);
+    const old = await supabase
+      .from('centers')
+      .select('id, slug, name, short_name, state_region, time_zone, tradition, branding, feature_flags, rules, environment')
+      .eq('slug', slug)
+      .maybeSingle();
+    const row = maybe(old, 'open your center');
+    if (!row) throw noSuchCommunity(slug);
+    return { ...row, category_key: JAIN_CENTER };
   }
+  const center = maybe(res, 'open your center');
+  if (!center) throw noSuchCommunity(slug);
   return center;
+}
+
+function noSuchCommunity(slug: string): AppError {
+  return new AppError(
+    `We couldn't find the community "${slug}". It may no longer be active — choose your community again, or ask its office.`,
+    `no active center with slug ${slug}`,
+  );
+}
+
+/**
+ * Did anything the app shows from the community row change since `before` was read? (A foreground refresh keeps the old object
+ * when nothing did, so nothing redraws for nothing.)
+ */
+export function centerChanged(before: Center, after: Center): boolean {
+  return JSON.stringify(before) !== JSON.stringify(after);
 }
 
 /** centers.rules.identifiers — labels for the org's own IDs (connect-crm 0013/0015). */

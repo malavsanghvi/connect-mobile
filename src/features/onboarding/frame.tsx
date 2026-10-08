@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Banner, IconButton, LinkText, ProgressBar, Row, Txt } from '@/components/ui';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, layout, space } from '@/theme';
@@ -34,8 +35,9 @@ export function OnboardingFrame({
   const t = useT();
   const { member, onboardingPreview, setOnboarding } = useApp();
   const commsOn = useModule('comms');
+  const { layout: category } = useCategory();
   // Before the login is linked (sign-in, family match) nobody knows yet whether a child is signing up.
-  const progress = onboardingProgress(step, { isAdult: member ? member.isAdult : null, commsOn });
+  const progress = onboardingProgress(step, { isAdult: member ? member.isAdult : null, commsOn, specialDays: category.specialDays });
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ground }}>
       {/* Onboarding.dc.html top bar: padding 16/20/8, back · skip, 6px progress (the "Step n of N" label is gone). */}

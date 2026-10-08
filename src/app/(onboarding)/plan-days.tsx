@@ -12,6 +12,7 @@ import { formatDay, todayAt } from '@/lib/format';
 import { nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useT } from '@/providers/settings';
 import { fonts, space } from '@/theme';
 
@@ -25,11 +26,14 @@ export default function PlanDaysStepScreen() {
   const router = useRouter();
   const t = useT();
   const { member, center, onboardingPreview } = useApp();
+  const { layout } = useCategory();
   const [adding, setAdding] = useState(false);
   const householdId = member?.household?.id ?? null;
   const state = useLoad(() => (householdId ? listSpecialDays(householdId) : Promise.resolve([])), [householdId], 'load your special days');
   if (!member || !center) return null;
   if (!member.isAdult) return <Redirect href="/contact" />;
+  // A kind of organization with no special days (a chamber of commerce) skips this step.
+  if (!layout.specialDays) return <Redirect href="/whatsapp-groups" />;
   const days = state.data ?? [];
   const today = todayAt(center.time_zone);
   const next = () => router.push('/whatsapp-groups');

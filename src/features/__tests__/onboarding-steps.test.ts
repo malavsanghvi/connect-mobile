@@ -64,3 +64,29 @@ describe('onboarding steps', () => {
     expect(modeAfterMemberLoad(true)).toBe('off');
   });
 });
+
+describe('onboarding steps for a kind of organization with no special days', () => {
+  it('leaves "Plan special days" out, and keeps everything else', () => {
+    const chamber: OnboardingWalker = { isAdult: true, commsOn: true, specialDays: false };
+    expect(onboardingPath(chamber)).toEqual(ONBOARDING_ORDER.filter((s) => s !== 'planDays'));
+    expect(onboardingPath({ ...chamber, isAdult: false })).toEqual(['signIn', 'match', 'about', 'family', 'contact']);
+  });
+
+  it('is the same path as before when the kind has special days (or says nothing)', () => {
+    expect(onboardingPath({ isAdult: true, commsOn: true, specialDays: true })).toEqual([...ONBOARDING_ORDER]);
+    expect(onboardingPath(adult)).toEqual([...ONBOARDING_ORDER]);
+  });
+
+  it('still fills the bar in even steps, ending full on the last step', () => {
+    const chamber: OnboardingWalker = { isAdult: true, commsOn: true, specialDays: false };
+    const values = onboardingPath(chamber).map((s) => onboardingProgress(s, chamber));
+    expect(values[values.length - 1]).toBe(1);
+    expect(values.every((v, i) => i === 0 || v > values[i - 1])).toBe(true);
+  });
+
+  it('sends an adult from "Your family" past special days to the WhatsApp groups step', () => {
+    expect(stepAfterFamily(true, false)).toBe('/whatsapp-groups');
+    expect(stepAfterFamily(true, true)).toBe('/plan-days');
+    expect(stepAfterFamily(false, false)).toBe('/contact');
+  });
+});

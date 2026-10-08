@@ -5,6 +5,7 @@ import { loadAccess } from '@/lib/api/access';
 import { report, type AppError } from '@/lib/errors';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
+import { useForegroundTick } from '@/providers/foreground';
 import { useModules } from '@/providers/modules';
 
 export type AccessValue = {
@@ -42,6 +43,7 @@ async function readAccess(centerId: string, signedIn: boolean): Promise<AccessRe
 export function AccessProvider({ children }: { children: ReactNode }) {
   const { center, session, member, memberLoading } = useApp();
   const { version } = useDataVersion();
+  const tick = useForegroundTick();
   const centerId = center?.id ?? null;
   const signedIn = !!session;
   // The person the login is linked to in this community: the answer changes when the link is made.
@@ -69,8 +71,9 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-    // `scope` is the community, the login and the person it is linked to; `version` reads again after a write.
-  }, [centerId, signedIn, memberLoading, scope, version, settle]);
+    // `scope` is the community, the login and the person it is linked to; `version` reads again after a write and
+    // `tick` when the app returns to the foreground, so a level the organization changed shows without a restart.
+  }, [centerId, signedIn, memberLoading, scope, version, tick, settle]);
 
   const reload = useCallback(async () => {
     const { centerId: c, signedIn: s, scope: sc, waiting } = latest.current;

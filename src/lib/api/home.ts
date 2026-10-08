@@ -17,6 +17,14 @@ export type TodayInfo = {
   darshan: Darshan | null;
 };
 
+/**
+ * Today for a kind of organization with no panchang (a chamber of commerce, a community organization): the date at the
+ * center, with no tithi, timings or darshan to look up. Nothing is read, so there is nothing to wait for.
+ */
+export function basicToday(center: Center): TodayInfo {
+  return { today: todayAt(center.time_zone), tithi: null, timings: null, darshan: null };
+}
+
 /** Today at the center: tithi (center row beats the shared tradition row), timings, live darshan link. */
 export async function loadToday(center: Center): Promise<TodayInfo> {
   const today = todayAt(center.time_zone);

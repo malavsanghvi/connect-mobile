@@ -9,6 +9,7 @@ import { barItems, TABS, type BarItem, type TabName } from '@/lib/nav-bar';
 import { clearedPaneParams, hasPaneParams } from '@/lib/tab-params';
 import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, components, fonts } from '@/theme';
@@ -42,8 +43,9 @@ export function TabBarView({ active, onSelect }: { active: BarItem | null; onSel
   const insets = useSafeAreaInsets();
   const { map } = useModules();
   const { center } = useApp();
+  const { layout } = useCategory();
   const nivaAllowed = useFeature('niva').allowed;
-  const items = barItems(map, nivaAllowed);
+  const items = barItems(map, nivaAllowed, layout.practiceTab);
   const { t, scale } = useSettings();
   const labelScale = Math.min(scale, 1.15);
   const spec = components.tabBar;

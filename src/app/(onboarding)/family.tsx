@@ -4,6 +4,7 @@ import { FamilyReview } from '@/features/onboarding/family-review';
 import { OnboardingFrame } from '@/features/onboarding/frame';
 import { stepAfterFamily } from '@/features/onboarding/steps';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useT } from '@/providers/settings';
 
 /** Onboarding step 6: Your family (review / edit members; adults vs children). */
@@ -11,6 +12,7 @@ export default function FamilyStepScreen() {
   const router = useRouter();
   const t = useT();
   const { member, onboardingPreview } = useApp();
+  const { layout } = useCategory();
   if (!member) return null;
   return (
     <OnboardingFrame
@@ -19,7 +21,7 @@ export default function FamilyStepScreen() {
       subtitle={t('familyStep.subtitle')}
       onBack={() => router.back()}
       onSkip={() => router.push({ pathname: '/done', params: { skipped: '1' } })}>
-      <FamilyReview readOnly={onboardingPreview} onContinue={() => router.push(stepAfterFamily(member.isAdult))} />
+      <FamilyReview readOnly={onboardingPreview} onContinue={() => router.push(stepAfterFamily(member.isAdult, layout.specialDays))} />
     </OnboardingFrame>
   );
 }

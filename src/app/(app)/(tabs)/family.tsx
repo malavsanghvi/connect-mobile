@@ -18,6 +18,7 @@ import { isHomeCardVisible } from '@/lib/modules';
 import { ageOn, nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useModule, useModules } from '@/providers/modules';
@@ -37,6 +38,7 @@ export default function FamilyScreen() {
   const { confirm } = useFeedback();
   const membershipOn = useModule('membership');
   const { map: modules } = useModules();
+  const { layout } = useCategory();
   const refs = useLoad(() => (member && membershipOn ? myReferenceRequests() : Promise.resolve([])), [member?.person.id, membershipOn], 'load the reference requests');
   const application = useLoad(() => (member && center && membershipOn ? myApplication(center.id) : Promise.resolve(null)), [member?.person.id, center?.id, membershipOn], 'load your membership application');
   const days = useLoad(() => (member?.household ? listSpecialDays(member.household.id) : Promise.resolve([])), [member?.household?.id], 'load special days');
@@ -116,6 +118,7 @@ export default function FamilyScreen() {
       ) : null}
       {application.error ? <Banner tone="error" message={application.error.userMessage} action={{ label: t('common.retry'), onPress: () => void application.reload() }} /> : null}
 
+      {layout.specialDays ? (
       <Pressable
         onPress={() => router.push('/special-days')}
         accessibilityRole="button"
@@ -148,6 +151,7 @@ export default function FamilyScreen() {
           ))
         )}
       </Pressable>
+      ) : null}
 
       <Card style={{ paddingVertical: 6, gap: 0 }}>
         {member.members.map((fm) => {

@@ -3,14 +3,16 @@ import { Pressable, View } from 'react-native';
 
 import { Loaded } from '@/components/states';
 import { Banner, Button, Chip, ChipGroup, Txt, VStack } from '@/components/ui';
-import { INTERESTS, normalizeInterests, toggle, type InterestKey } from '@/features/profile';
+import { normalizeInterests, toggle, type InterestKey } from '@/features/profile';
 import { LANGUAGES, type Language, type StringKey, isLanguage } from '@/i18n';
 import { BEST_CALL_TIMES, CONTACT_CHANNELS, loadContactPrefs, saveContactPrefs, saveDocumentsChoice, type BestCallTime, type ContactChannel, type ContactPrefs } from '@/lib/api/family';
 import type { Member } from '@/lib/api/member';
+import { INTEREST_CATALOG, interestsToOffer } from '@/lib/categories';
 import { check, report } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useSettings } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -95,6 +97,7 @@ export function ContactPrefsForm({ member, centerId, onSaved, preview = false }:
 function Editor({ initial, member, centerId, onSaved, preview }: { initial: ContactPrefs; member: Member; centerId: string; onSaved: (summary: ContactSummary) => void; preview: boolean }) {
   const { t, setLanguage } = useSettings();
   const { center } = useApp();
+  const { layout } = useCategory();
   const person = member.person;
   const community = center?.short_name || center?.name || '';
   const [channels, setChannels] = useState<ContactChannel[]>(initial.channelsChosen ? initial.channels : ['phone_call', 'sms', 'whatsapp', 'email']);
@@ -182,9 +185,9 @@ function Editor({ initial, member, centerId, onSaved, preview }: { initial: Cont
       <Block>
         <Label>{t('prefs.topics')}</Label>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-          {INTERESTS.map((k) => {
+          {interestsToOffer(layout).map((k) => {
             const on = interests.includes(k);
-            const label = t(`profile.interest.${k}` as StringKey);
+            const label = t(INTEREST_CATALOG[k].labelKey);
             return (
               <Pressable
                 key={k}
