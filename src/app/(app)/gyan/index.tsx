@@ -48,7 +48,7 @@ export default function GyanGoalsScreen() {
   };
 
   return (
-    <Screen title={t('learn.gyanPath')} tabBar={false} niva={false} headerRight={<GyanHeaderChips />}>
+    <Screen title={t('learn.gyanPath')} tabBar={false} headerRight={<GyanHeaderChips />}>
       <View style={{ backgroundColor: colors.navy, borderRadius: radii.pill, paddingVertical: 18, paddingHorizontal: 20, gap: space.sm }}>
         <Txt variant="meta" color="onNavy">
           {t('learn.goalsGreeting', { name: member?.person.preferred_name || member?.person.first_name || '' })}

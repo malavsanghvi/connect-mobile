@@ -37,7 +37,7 @@ export default function CartScreen() {
 
   if (member && !member.isAdult) {
     return (
-      <Screen title={t('store.orderTitle')} niva={false}>
+      <Screen title={t('store.orderTitle')}>
         <LockedState />
       </Screen>
     );
@@ -45,7 +45,7 @@ export default function CartScreen() {
 
   if (cart.lines.length === 0) {
     return (
-      <Screen title={t('store.orderTitle')} niva={false}>
+      <Screen title={t('store.orderTitle')}>
         <EmptyState icon="basket-outline" title={t('store.cartEmpty')} action={{ label: t('store.browse'), onPress: () => router.replace('/store') }} />
       </Screen>
     );
@@ -99,7 +99,7 @@ export default function CartScreen() {
   const giftLabel = (on: boolean) => (on ? t('store.giftPacked') : t('store.giftPack', { amount: formatCents(giftCents ?? 0, { alwaysCents: true }) }));
 
   return (
-    <Screen title={t('store.orderTitle')} niva={false}>
+    <Screen title={t('store.orderTitle')}>
       <Card style={{ paddingVertical: 4, gap: 0 }}>
         {cart.lines.map((l) => {
           const item = { id: l.itemId, name: l.name, price_cents: l.unitCents };

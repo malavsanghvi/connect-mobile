@@ -206,7 +206,6 @@ export const radii = {
   sheet: 24,
   cta: 26,
   cart: 28,
-  fab: 30,
   round: 999,
 } as const;
 
@@ -229,7 +228,6 @@ export const touch = {
   secondary: 48,
   cta: 52,
   row: 56,
-  fab: 60,
   drawerRow: 64,
 } as const;
 
@@ -270,7 +268,6 @@ export const tracking = {
 
 /** Shadows (prototype box-shadows translated to RN; elevation for Android). */
 export const shadows = {
-  fab: { shadowColor: '#8A4608', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
   cart: { shadowColor: '#2F5D50', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
   menu: { shadowColor: '#14120E', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 15, elevation: 10 },
   drawer: { shadowColor: '#14120E', shadowOffset: { width: 8, height: 0 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 16 },
@@ -294,7 +291,6 @@ export const components = {
   toast: { top: 76, x: 20, r: 14, padY: 12, padX: 14, size: 14 },
   dialog: { r: 24, padY: 22, padX: 20, gap: 12, titleSize: 22, bodySize: 14, bodyLine: 1.55 },
   drawer: { width: 304, edgeR: 24, markHeight: 52, nameSize: 19, rowH: 64, rowR: 14, tile: 44, tileR: 12, iconSize: 22 },
-  fab: { h: 60, r: 30, right: 16, bottom: 92, size: 15 },
 } as const;
 
 /** Text-size setting → multiplier (Settings › Text size). */

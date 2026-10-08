@@ -14,6 +14,17 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.9.1 — 2026-10-07
+
+- **Niva is in the bottom bar.** The floating Niva button that sat over the cards is gone. Niva is now the sixth item of
+  the bottom bar, after Family, wherever the bar shows; tap it to open the chat (its suggested questions are there), and
+  it is highlighted while the chat is open. It shows for the same people as before: not for a visitor, and not below the
+  access level your organization sets for Ask Niva.
+- **Smaller cards on Home.** Event posters are now thumbnails, about three and a half across on a phone instead of two and a
+  half (a lone event is no longer a screenful). Events without a flyer keep the date, name and venue in smaller type; the
+  time is on the event itself. Giving opportunities are compact cards, with no empty gap above the amount, so the next one
+  peeks in. The Special days row is unchanged.
+
 ## 1.9.0 — 2026-10-07
 
 - **Choose your organization.** The first screen for a new install now has a dropdown of the organizations, so you no

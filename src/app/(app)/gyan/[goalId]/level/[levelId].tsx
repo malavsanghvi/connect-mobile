@@ -66,7 +66,7 @@ export default function GyanLevelScreen() {
   const current = snapshot ?? state.data;
   if (!current || !current.goal || !current.level || !member) {
     return (
-      <Screen title={current?.goal?.name ?? t('learn.gyanPath')} tabBar={false} niva={false}>
+      <Screen title={current?.goal?.name ?? t('learn.gyanPath')} tabBar={false}>
         <Loaded state={state}>{() => <EmptyState title={t('learn.goalMissing')} />}</Loaded>
       </Screen>
     );
@@ -123,7 +123,7 @@ function Lesson({ data, goal, level, content, startStepId, backToPuja }: { data:
 
   if (screens.length === 0 || !center) {
     return (
-      <Screen title={goal.name} tabBar={false} niva={false} headerRight={<GyanHeaderChips />}>
+      <Screen title={goal.name} tabBar={false} headerRight={<GyanHeaderChips />}>
         <EmptyState icon="hourglass-outline" title={t('learn.noSteps')} body={t('learn.noStepsBody')} />
       </Screen>
     );
