@@ -23,6 +23,22 @@ How a release is made:
   with the next full app build**, because the phone fixes them when the app is installed. The web tab icon changes with
   the next web deploy.
 
+## 1.9.5 — 2026-10-08
+
+- **Fixed for good: "Watch live darshan" and "Do puja" on the Welcome screen open their screens.** The cause was in how
+  the app is built: it rewrote the code that hands the chosen screen over so the screen was always empty (first a blank
+  page, then nothing happening). The hand-over is now built so that cannot happen.
+- **Fixed: coming back to the event after signing in, and reopening an event link after switching community.** Both used
+  the same hand-over and would have failed the same way (an error right after signing in, or after switching community
+  from a flyer's link).
+
+## 1.9.4 — 2026-10-08
+
+- **Fixed again: "Watch live darshan" and "Do puja" on the Welcome screen now really open their screens.** In 1.9.3 the
+  app asked too early, while it was still switching into guest mode, and the request was silently dropped. It now waits a
+  moment, checks that the screen opened and asks again if it did not; if it still cannot, you stay on Home.
+
+
 ## 1.9.3 — 2026-10-08
 
 - **Fixed: "Watch live darshan" and "Do puja" on the Welcome screen now open their screens.** 1.9.2 stopped the blank
