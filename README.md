@@ -194,7 +194,7 @@ src/i18n/           en (complete), gu, hi (all keys, English fallback)
   for a visitor who is not signed in too, and `useFeature(area)` decides what to show:
   Home's "Watch live darshan" and "Do puja" (`src/features/today-doors.tsx`), Welcome ›
   Without signing in (only the doors that lead somewhere here: a stream or an aarti
-  time, the Navang puja lesson; `useGuestDoors`), the 3L sections, the Niva button and
+  time, the Navang puja lesson; `useGuestDoors`), the 3L sections, Niva (the sixth item of the bottom bar) and
   the screens of each area (`ROUTE_FEATURE` in `src/lib/modules.ts`; a library item is
   gated by its own kind, `MediaItemView`). Today's timings are in the portal's list but
   the app does not gate them (public in the database, shown on Home, the darshan

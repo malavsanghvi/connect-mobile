@@ -39,7 +39,7 @@ export default function DarshanScreen() {
   };
 
   return (
-    <Screen title={t('darshan.title')} niva={false} contentStyle={{ flexGrow: 1 }}>
+    <Screen title={t('darshan.title')} contentStyle={{ flexGrow: 1 }}>
       {today.error && !today.data ? (
         <ErrorState error={today.error} onRetry={() => void today.reload()} />
       ) : today.loading && !today.data ? (

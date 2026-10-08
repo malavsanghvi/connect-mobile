@@ -136,7 +136,7 @@ export function Celebration({
     : [];
 
   return (
-    <Screen title={goal.name} tabBar={false} niva={false} scroll={false} headerRight={<GyanHeaderChips />} contentStyle={{ flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 }}>
+    <Screen title={goal.name} tabBar={false} scroll={false} headerRight={<GyanHeaderChips />} contentStyle={{ flex: 1, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 }}>
       <View style={{ flex: 1 }}>
         <ScrollView style={{ flex: 1, backgroundColor: colors.navy }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', paddingTop: 30, paddingHorizontal: 24, paddingBottom: 24, gap: 14 }}>
           <Txt variant="eyebrow" style={{ color: colors.gold, letterSpacing: 1 }}>

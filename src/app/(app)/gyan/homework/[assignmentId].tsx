@@ -25,7 +25,7 @@ export default function HomeworkScreen() {
   const personId = typeof person === 'string' && person ? person : (member?.person.id ?? '');
   if (!member) {
     return (
-      <Screen title={t('hw.title')} tabBar={false} niva={false}>
+      <Screen title={t('hw.title')} tabBar={false}>
         <Card tone="panel">
           <Txt variant="small">{t('hw.signIn')}</Txt>
           <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
@@ -34,7 +34,7 @@ export default function HomeworkScreen() {
     );
   }
   return (
-    <Screen title={t('hw.title')} tabBar={false} niva={false} headerRight={personId === member.person.id ? <GyanHeaderChips /> : undefined} onRefresh={async () => invalidate()}>
+    <Screen title={t('hw.title')} tabBar={false} headerRight={personId === member.person.id ? <GyanHeaderChips /> : undefined} onRefresh={async () => invalidate()}>
       <Loaded state={load.state}>
         {(answer) => {
           // No answer yet: the load before the access check answered gave nothing; the real one follows (Loaded says so when it failed).

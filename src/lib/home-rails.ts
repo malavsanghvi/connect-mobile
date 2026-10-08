@@ -183,10 +183,11 @@ export function learnListenTiles({ rules, modules, signedIn, access }: LearnList
 
 /**
  * Tile shapes. `hero` is Today and My Jain Way (as wide as the room allows, the next tile peeking in a fixed
- * sliver), `poster` 2:3 (event flyers), `wide` 16:9 (Learn & listen), `card` (special days and giving: as tall
- * as their words), `feature` (Life@JSH: an icon, a label and a line).
+ * sliver), `poster` 2:3 (event flyers), `wide` 16:9 (Learn & listen), `card` (special days: as tall as their
+ * words), `offer` (giving opportunities: a compact card, as tall as its words), `feature` (Life@JSH: an icon, a
+ * label and a line).
  */
-export type TileShape = 'hero' | 'poster' | 'wide' | 'card' | 'feature';
+export type TileShape = 'hero' | 'poster' | 'wide' | 'card' | 'offer' | 'feature';
 
 type ShapeSpec = {
   /** Height ÷ width of the picture; null when the words set the height. */
@@ -204,9 +205,13 @@ export const TILE_SHAPES: Record<TileShape, ShapeSpec> = {
   // A hero is never narrower than 280: that is what Today's three timings need to show whole ("8:03 AM", "Chauvihar" in a third
   // of the card), as the old card had on the smallest phone. Where the room is less than that plus the sliver, the sliver shrinks.
   hero: { ratio: null, min: 280, max: 440, peek: 0, aloneMax: Number.POSITIVE_INFINITY },
-  poster: { ratio: 1.5, min: 112, max: 168, peek: 0.4, aloneMax: 340 },
+  // A poster is a thumbnail (owner, 2026-10-07: the Home cards were too large): about three and a half across on a phone, the
+  // flyer's own words are read on the event. A lone event is a little larger, but nowhere near a screenful (it was 340 wide, 510 tall).
+  poster: { ratio: 1.5, min: 88, max: 116, peek: 0.45, aloneMax: 240 },
   wide: { ratio: 9 / 16, min: 200, max: 280, peek: 0.3, aloneMax: 440 },
   card: { ratio: null, min: 200, max: 260, peek: 0.3, aloneMax: 440 },
+  // A giving opportunity: about as wide as two thirds of a phone, so the next one peeks in, and only as tall as its words.
+  offer: { ratio: null, min: 160, max: 208, peek: 0.3, aloneMax: 360 },
   feature: { ratio: null, min: 128, max: 176, peek: 0.4, aloneMax: 440 },
 };
 

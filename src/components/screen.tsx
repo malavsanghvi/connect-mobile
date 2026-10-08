@@ -3,14 +3,12 @@ import { useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useFeature } from '@/providers/access';
 import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, components, layout, space } from '@/theme';
 
 import { CenterMark, Wordmark } from './brand';
 import { useDrawer } from './drawer';
-import { NivaFab } from './niva-fab';
 import { SubScreenTabBar } from './tab-bar';
 import { IconButton, Row, Txt } from './ui';
 
@@ -73,12 +71,6 @@ export type ScreenProps = {
    */
   tabBar?: boolean;
   /**
-   * Show the Niva floating button (default: wherever the tab bar shows).
-   * The prototype hides it on Settings, Legal, Niva, Store, Cart and the
-   * member card (Main.dc.html L2208).
-   */
-  niva?: boolean;
-  /**
    * Where the scrolled content is: how far down it has scrolled (`y`) and how
    * tall the visible part is, on layout and while scrolling. Home uses it to
    * load each row only as it comes near (src/lib/home-rails.ts revealRails).
@@ -86,8 +78,8 @@ export type ScreenProps = {
   onViewport?: (viewport: { y: number; height: number }) => void;
 };
 
-/** Every screen: safe area, header (menu/back · title · member card), scroll, pull-to-refresh, tab bar, Niva. */
-export function Screen({ title, root, showWordmark, children, footer, sticky, onRefresh, headerRight, scroll = true, contentStyle, hideHeader, tabBar = true, niva, onViewport }: ScreenProps) {
+/** Every screen: safe area, header (menu/back · title · member card), scroll, pull-to-refresh, tab bar (which carries Niva). */
+export function Screen({ title, root, showWordmark, children, footer, sticky, onRefresh, headerRight, scroll = true, contentStyle, hideHeader, tabBar = true, onViewport }: ScreenProps) {
   const [refreshing, setRefreshing] = useState(false);
   // The last scroll position, for the viewport reported when the screen's size changes.
   const scrolledY = useRef(0);
@@ -102,16 +94,12 @@ export function Screen({ title, root, showWordmark, children, footer, sticky, on
       }
     : undefined;
 
-  // The Niva button is there only for someone who may use Ask Niva (the organization's access level for it,
-  // and its module on): not for a visitor, and not below the level the organization asks for.
-  const nivaOn = useFeature('niva').allowed;
   const ownTabBar = !root && tabBar;
-  const showNiva = nivaOn && (niva ?? (root || tabBar));
 
   const inner = (
     <View
       style={[
-        { width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center', paddingHorizontal: space.gutter, paddingTop: space.xxs, paddingBottom: showNiva ? space.xl + components.fab.h : space.xl, gap: space.lg },
+        { width: '100%', maxWidth: layout.maxContentWidth, alignSelf: 'center', paddingHorizontal: space.gutter, paddingTop: space.xxs, paddingBottom: space.xl, gap: space.lg },
         contentStyle,
       ]}>
       {children}
@@ -148,7 +136,6 @@ export function Screen({ title, root, showWordmark, children, footer, sticky, on
           ) : (
             <View style={{ flex: 1 }}>{inner}</View>
           )}
-          {showNiva ? <NivaFab /> : null}
         </View>
         {footer ? (
           <View style={{ paddingHorizontal: space.gutter, paddingTop: space.md, paddingBottom: space.md, backgroundColor: colors.ground, borderTopWidth: 1, borderTopColor: colors.divider, gap: space.sm }}>
