@@ -1,19 +1,24 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { chooseOfficePayment, enrollmentHolds, loadRegistrationOptions, pathshalaError, previewRegistration, registerLearners, termAllowsOffice, withoutFeeColumns } from '../api/pathshala';
+import { chooseOfficePayment, loadEnrollmentDetails, loadHeldSeats, loadRegistrationOptions, pathshalaError, previewRegistration, registerLearners } from '../api/pathshala';
 import { AppError } from '../errors';
 import { errorHint, registerRoute, RegistrationRefusal } from '../pathshala-registration';
 
-import { ID, optionsRaw, ownerLines, postgrestError, previewRaw, registerRaw } from './pathshala-fixtures';
+import { childEnrollmentRaw, enrollmentRaw, ID, optionsRaw, ownerLines, postgrestError, previewRaw, registerRaw } from './pathshala-fixtures';
 
 type Result = { data: unknown; error: unknown };
 const mockRpc = jest.fn<(name: string, args: unknown) => Promise<Result>>();
-const mockFrom = jest.fn<(table: string, columns: string, ids: string[]) => Promise<Result>>();
+const mockFrom = jest.fn<(table: string) => Promise<Result>>();
 
 jest.mock('../supabase', () => ({
   supabase: {
     rpc: (name: string, args: unknown) => mockRpc(name, args),
-    from: (table: string) => ({ select: (columns: string) => ({ in: (_column: string, ids: string[]) => mockFrom(table, columns, ids) }) }),
+    from: (table: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const m of ['select', 'eq', 'in']) chain[m] = () => chain;
+      chain.then = (resolve: (r: Result) => unknown, reject: (e: unknown) => unknown) => mockFrom(table).then(resolve, reject);
+      return chain;
+    },
   },
 }));
 
@@ -199,82 +204,131 @@ describe('refusal sentences', () => {
   });
 });
 
-describe('the one place the hold columns are read (the adapter)', () => {
-  const requested = (id: string, over: Record<string, unknown> = {}) => ({ id, status: 'requested', hold_expires_at: null, offered_at: null, registration_id: ID.registration, track_id: ID.jainism, ...over });
+describe('where a seat stands comes from the options (one call for each term), never from the tables', () => {
+  const NOW = new Date('2026-08-20T12:00:00Z');
+  const learner = (id: string, name: string, enrollments: Record<string, unknown>[], over: Record<string, unknown> = {}) => ({ person_id: id, first_name: name, age_on_cutoff: 9, counts_as_child: true, enrollments, suggested: [], ...over });
+  const held = (id: string, over: Record<string, unknown> = {}) =>
+    enrollmentRaw({
+      enrollment_id: id,
+      status: 'requested',
+      hold_reason: 'payment',
+      hold_expires_at: '2026-08-22T18:00:00-05:00',
+      fee: { status: 'billed', total_cents: 13000, priced: true, assistance_requested: false, pledge: { id: `pl-${id}`, number: `N-${id}`, amount_cents: 13000, paid_cents: 3000, status: 'partially_paid', due_on: '2026-08-20' } },
+      ...over,
+    });
+  const optionsFor = (learners: Record<string, unknown>[]) => optionsRaw('pay_now', { learners });
+  const tables = (data: Record<string, unknown[]>) => mockFrom.mockImplementation((table) => Promise.resolve({ data: data[table] ?? [], error: null }));
 
-  it("asks the fee line why a household's seats wait (0591 keeps hold_reason there, a child never reads it) and reads the rest from the row", async () => {
-    mockFrom.mockResolvedValueOnce({
-      data: [
-        { enrollment_id: 'f1', hold_reason: 'payment' },
-        { enrollment_id: 'f2', hold_reason: 'membership' },
-        { enrollment_id: 'f3', hold_reason: null },
-      ],
+  it('lists every enrollment of the household with its hold, fee pledge and sentence, from one options call for each term', async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: optionsFor([
+        learner(ID.riya, 'Riya', [held('e1')]),
+        learner(ID.dev, 'Dev', [enrollmentRaw({ enrollment_id: 'e2', status: 'waitlisted', waitlist_position: 2, fee: null, registration_id: null, state: 'on the waitlist for Jainism 5 (number 2), no charge unless a seat opens' })]),
+      ]),
       error: null,
     });
-    const holds = await enrollmentHolds([requested('f1', { hold_expires_at: '2026-08-22T23:00:00Z', offered_at: '2026-08-20T10:00:00Z' }), requested('f2'), requested('f3'), { id: 'f4', status: 'placed' }], { adult: true });
-    expect(mockFrom).toHaveBeenLastCalledWith('pathshala_enrollment_fees', 'enrollment_id, hold_reason', ['f1', 'f2', 'f3']);
-    expect(holds.get('f1')).toEqual({ holdReason: 'payment', holdUntil: '2026-08-22T23:00:00Z', offered: true, registrationId: ID.registration, trackId: ID.jainism });
-    expect(holds.get('f2')?.holdReason).toBe('membership');
-    expect(holds.get('f3')?.holdReason).toBeNull();
-    expect(holds.get('f4')?.holdReason).toBeNull();
+    const details = await loadEnrollmentDetails(ID.household, [{ id: ID.term, name: '2026-27' }]);
+    expect(mockRpc).toHaveBeenLastCalledWith('pathshala_registration_options', { p_term: ID.term, p_household: ID.household });
+    expect([...details.keys()]).toEqual(['e1', 'e2']);
+    expect(details.get('e1')).toMatchObject({
+      personId: ID.riya,
+      termId: ID.term,
+      termName: '2026-27',
+      status: 'requested',
+      hold: { holdReason: 'payment', holdUntil: '2026-08-22T18:00:00-05:00', offered: false, registrationId: ID.registration, waitlistPosition: null },
+      officeAllowed: true,
+    });
+    // What is left to pay is the pledge's amount less what was paid.
+    expect(details.get('e1')?.pledges).toEqual([{ id: 'pl-e1', number: 'N-e1', amountCents: 13000, paidCents: 3000, status: 'partially_paid', dueOn: '2026-08-20', enrollmentId: 'e1' }]);
+    expect(details.get('e2')).toMatchObject({ status: 'waitlisted', hold: { waitlistPosition: 2 }, pledges: [], fee: null });
   });
 
-  it('asks nothing for a child, or when no seat waits, or when the row still has the reason', async () => {
+  it('asks the options once for each term and reads no hold or fee column from any table', async () => {
+    mockRpc.mockReset();
     mockFrom.mockClear();
-    await enrollmentHolds([requested('c1')], { adult: false });
-    await enrollmentHolds([{ id: 'c2', status: 'placed' }, { id: 'c3', status: 'waitlisted' }], { adult: true });
-    await enrollmentHolds([requested('c4', { hold_reason: 'office_payment' })], { adult: true });
+    mockRpc.mockImplementation((_name, args) => Promise.resolve({ data: optionsRaw('pledge', { term: { ...(optionsRaw('pledge').term as object), id: (args as { p_term: string }).p_term } }), error: null }));
+    await loadEnrollmentDetails(ID.household, [
+      { id: 't-a', name: 'A' },
+      { id: 't-b', name: 'B' },
+    ]);
+    expect(mockRpc.mock.calls.map((c) => [c[0], (c[1] as { p_term: string }).p_term])).toEqual([
+      ['pathshala_registration_options', 't-a'],
+      ['pathshala_registration_options', 't-b'],
+    ]);
     expect(mockFrom).not.toHaveBeenCalled();
+    mockRpc.mockReset();
   });
 
-  it('shows no seat as held before the fee line is deployed (logged once), and fails in plain English for any other error', async () => {
+  it("a child's answer carries none of it: no reason, no sentence, no fee, no pledge", async () => {
+    mockRpc.mockResolvedValueOnce({ data: optionsFor([learner(ID.dev, 'Dev', [childEnrollmentRaw({ enrollment_id: 'c1', status: 'requested', hold_expires_at: '2026-08-22T18:00:00-05:00' })])]), error: null });
+    const details = await loadEnrollmentDetails(ID.household, [{ id: ID.term, name: '2026-27' }]);
+    expect(details.get('c1')).toMatchObject({ hold: { holdReason: null, registrationId: null }, withdrawalReason: null, state: null, fee: null, pledges: [] });
+  });
+
+  it('has nothing to say about a database without the options, or a term the caller may not see', async () => {
     const log = quiet();
-    mockFrom.mockResolvedValueOnce({ data: null, error: postgrestError('PGRST205', "Could not find the table 'app.pathshala_enrollment_fees' in the schema cache") });
-    expect((await enrollmentHolds([requested('m1')], { adult: true })).get('m1')?.holdReason).toBeNull();
-    mockFrom.mockResolvedValueOnce({ data: null, error: postgrestError('42P01', 'relation "app.pathshala_enrollment_fees" does not exist') });
-    await enrollmentHolds([requested('m2')], { adult: true });
-    expect(log).toHaveBeenCalledTimes(1);
-    mockFrom.mockResolvedValueOnce({ data: null, error: new TypeError('Network request failed') });
-    const err = await enrollmentHolds([requested('m3')], { adult: true }).catch((e: unknown) => e);
+    mockRpc.mockResolvedValueOnce({ data: null, error: postgrestError('PGRST202', 'Could not find the function app.pathshala_registration_options') });
+    mockRpc.mockResolvedValueOnce({ data: null, error: postgrestError('P0002', 'That term was not found.') });
+    const details = await loadEnrollmentDetails(ID.household, [
+      { id: 't-a', name: 'A' },
+      { id: 't-b', name: 'B' },
+    ]);
+    expect(details.size).toBe(0);
+    log.mockRestore();
+  });
+
+  it('fails in plain English for any other failure (never a silent empty list)', async () => {
+    const log = quiet();
+    mockRpc.mockResolvedValueOnce({ data: null, error: new TypeError('Network request failed') });
+    const err = await loadEnrollmentDetails(ID.household, [{ id: ID.term, name: '2026-27' }]).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     log.mockRestore();
   });
 
-  const rows = [
-    { id: 'e1', hold_reason: 'payment', hold_expires_at: '2026-08-22T23:00:00Z', offered_at: '2026-08-20T10:00:00Z', registration_id: ID.registration, track_id: ID.jainism },
-    { id: 'e2', hold_reason: 'membership', hold_expires_at: null, offered_at: null, registration_id: ID.registration, track_id: ID.gujarati },
-    { id: 'e3', hold_reason: 'assistance', hold_expires_at: null, offered_at: null, registration_id: ID.registration, track_id: ID.jainism },
-    { id: 'e4', hold_reason: 'office_payment', hold_expires_at: '2026-08-27T23:00:00Z', offered_at: null, registration_id: ID.registration, track_id: ID.jainism },
-    { id: 'e5', hold_reason: 'waiver', hold_expires_at: null, offered_at: null, registration_id: null, track_id: ID.jainism },
-    { id: 'e6' },
-  ];
-
-  it("gives an adult of the household everything: why, until when, an offer from the waitlist, the registration", async () => {
-    const holds = await enrollmentHolds(rows, { adult: true });
-    expect(holds.get('e1')).toEqual({ holdReason: 'payment', holdUntil: '2026-08-22T23:00:00Z', offered: true, registrationId: ID.registration, trackId: ID.jainism });
-    expect(holds.get('e3')?.holdReason).toBe('assistance');
-    expect(holds.get('e4')).toMatchObject({ holdReason: 'office_payment', holdUntil: '2026-08-27T23:00:00Z' });
-    expect(holds.get('e6')).toEqual({ holdReason: null, holdUntil: null, offered: false, registrationId: null, trackId: null });
+  it("keeps a released seat's sentence for the adults (withdrawal_reason)", async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: optionsFor([learner(ID.riya, 'Riya', [enrollmentRaw({ enrollment_id: 'w1', status: 'withdrawn', withdrawal_reason: 'The fee was not paid by Thu Oct 8, 6:00 pm, so the seat was released.', hold_reason: null, fee: null })])]),
+      error: null,
+    });
+    const details = await loadEnrollmentDetails(ID.household, [{ id: ID.term, name: '2026-27' }]);
+    expect(details.get('w1')?.withdrawalReason).toBe('The fee was not paid by Thu Oct 8, 6:00 pm, so the seat was released.');
   });
 
-  it('never tells a child about a fee: payment, office and assistance holds and offers are dropped; membership and waiver stay (P30)', async () => {
-    const holds = await enrollmentHolds(rows, { adult: false });
-    expect(holds.get('e1')).toMatchObject({ holdReason: null, holdUntil: null, offered: false });
-    expect(holds.get('e3')?.holdReason).toBeNull();
-    expect(holds.get('e4')).toMatchObject({ holdReason: null, holdUntil: null });
-    expect(holds.get('e2')?.holdReason).toBe('membership');
-    expect(holds.get('e5')?.holdReason).toBe('waiver');
+  it('Home: only the seats held for payment that are still live, with their pledges, from the terms that have a seat waiting', async () => {
+    tables({
+      pathshala_enrollments: [
+        { id: 'e1', term_id: ID.term },
+        { id: 'e2', term_id: ID.term },
+      ],
+      pathshala_terms: [{ id: ID.term, name: '2026-27' }],
+    });
+    mockRpc.mockResolvedValueOnce({
+      data: optionsFor([
+        learner(ID.riya, 'Riya', [held('e1')]),
+        learner(ID.dev, 'Dev', [held('e2', { hold_reason: 'office_payment', hold_expires_at: '2026-08-27T18:00:00-05:00', offered_at: '2026-08-20T08:00:00-05:00' })]),
+        learner(ID.anya, 'Anya', [held('e3', { hold_reason: 'assistance', hold_expires_at: null })]),
+        learner(ID.raj, 'Raj', [held('e4', { hold_expires_at: '2026-08-19T18:00:00-05:00' })]),
+        learner(ID.mira, 'Mira', [held('e5', { status: 'placed', hold_reason: null, hold_expires_at: null })]),
+      ]),
+      error: null,
+    });
+    mockFrom.mockClear();
+    const seats = await loadHeldSeats(ID.household, NOW);
+    expect(seats.map((s) => [s.enrollmentId, s.personId, s.hold.holdReason])).toEqual([
+      ['e1', ID.riya, 'payment'],
+      ['e2', ID.dev, 'office_payment'],
+    ]);
+    expect(seats[0]).toMatchObject({ termName: '2026-27', officeAllowed: true, view: { key: 'reg.status.heldUntil', heldForPayment: true } });
+    expect(seats[1]).toMatchObject({ hold: { offered: true }, view: { heldForPayment: true } });
+    expect(seats[0].pledges.map((p) => [p.id, p.amountCents - p.paidCents])).toEqual([['pl-e1', 10000]]);
+    // The only table reads are the ids and terms of the seats that wait, and the terms' names.
+    expect(mockFrom.mock.calls.map((c) => c[0])).toEqual(['pathshala_enrollments', 'pathshala_terms']);
   });
 
-  it('keeps the fee columns off the row a screen holds (the hold is read through the adapter, never from the row)', () => {
-    const row = { id: 'e1', status: 'requested', hold_reason: 'assistance', withdrawal_reason: 'Moving away', hold_expires_at: '2026-08-22T23:00:00Z', offered_at: null, track_id: ID.jainism };
-    expect(withoutFeeColumns(row)).toEqual({ id: 'e1', status: 'requested', hold_expires_at: '2026-08-22T23:00:00Z', offered_at: null, track_id: ID.jainism });
-    expect(row.hold_reason).toBe('assistance');
-  });
-
-  it('reads whether a term lets a family pay at the office (pathshala_terms.office_payment_allowed)', () => {
-    expect(termAllowsOffice({ office_payment_allowed: true })).toBe(true);
-    expect(termAllowsOffice({ office_payment_allowed: false })).toBe(false);
-    expect(termAllowsOffice({})).toBe(false);
+  it('Home: no seat waiting means no call at all', async () => {
+    mockRpc.mockClear();
+    tables({ pathshala_enrollments: [] });
+    expect(await loadHeldSeats(ID.household, NOW)).toEqual([]);
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });

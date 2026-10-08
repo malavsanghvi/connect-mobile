@@ -87,13 +87,39 @@ export type RegTerm = {
 
 export type RegHousehold = { id: string; name: string; number: string | null };
 
+/** The fee line of an enrollment in `learners[].enrollments[].fee` (0591; adults and the office only): status, the locked total and the one fee pledge. */
+export type RegFee = {
+  status: string | null;
+  totalCents: number;
+  priced: boolean;
+  assistanceRequested: boolean;
+  pledge: FeePledge | null;
+};
+
+/**
+ * One enrollment of a learner this term as `app.pathshala_registration_options` answers it (0591). Everyone who may read
+ * the learner (a child with a login too) gets the neutral part: ids, status, when a held seat ends, when a waitlisted
+ * learner was offered the seat, the waitlist place. The rest is the family's adults' business (P30) and is null for a
+ * child: the registration, why a seat waits (`holdReason`), why it was released, where the registration stands in a
+ * sentence and the fee. The apps read none of this from the tables.
+ */
 export type RegEnrollment = {
   enrollmentId: string | null;
   trackId: string | null;
   levelId: string | null;
+  classId: string | null;
   status: EnrollmentStatus | null;
   holdReason: HoldReason | null;
   holdExpiresAt: string | null;
+  /** When a waitlisted learner was offered the seat (a seat held for payment after an offer). */
+  offeredAt: string | null;
+  /** The place on the waitlist, only while the status is `waitlisted`. */
+  waitlistPosition: number | null;
+  registrationId: string | null;
+  withdrawalReason: string | null;
+  /** One plain sentence of where the registration stands (lower case, no full stop: it is made to sit in other sentences). */
+  state: string | null;
+  fee: RegFee | null;
 };
 
 export type RegSuggestion = { trackId: string; levelId: string; reason: SuggestionReason | null };
@@ -185,8 +211,11 @@ export type RegistrationResult = {
   dueNowCents: number | null;
   /** Pay-now terms: what to pay now and for which pledges. Null in a pledge-mode term. */
   pay: RegPay | null;
-  /** Children the office must add to the family first (pending registrations). */
-  pendingCount: number;
+  /**
+   * The children the office must add to the family first, one entry for each CHILD: a new child in two tracks has two
+   * pending lines and two `pending[]` entries but one add-member request (the same `change_request_id`), and is one child here.
+   */
+  pendingChildren: RegPendingChild[];
   /** Registered in the late window: each learner's first priced line carries the late fee once. */
   late: boolean;
   /** The registration's payment mode at that moment (register only; null in a preview). */
@@ -265,16 +294,48 @@ function parseTerm(v: unknown): RegTerm | null {
   };
 }
 
+/** The fee pledge of an enrollment's fee line: whole cents or nothing (money is never shown half-read). */
+function parseFeePledge(v: unknown, enrollmentId: string | null): FeePledge | null {
+  if (!isObject(v)) return null;
+  const id = str(v.id);
+  const amountCents = count(v.amount_cents);
+  const paidCents = v.paid_cents === undefined || v.paid_cents === null ? 0 : count(v.paid_cents);
+  const status = str(v.status);
+  if (!id || amountCents === null || paidCents === null || !status) return null;
+  return { id, number: str(v.number), amountCents, paidCents, status, dueOn: str(v.due_on), enrollmentId };
+}
+
+function parseFee(v: unknown, enrollmentId: string | null): RegFee | null {
+  if (!isObject(v)) return null;
+  const totalCents = count(v.total_cents);
+  if (totalCents === null) return null;
+  return {
+    status: str(v.status),
+    totalCents,
+    priced: v.priced !== false,
+    assistanceRequested: v.assistance_requested === true,
+    pledge: parseFeePledge(v.pledge, enrollmentId),
+  };
+}
+
 function parseEnrollment(v: unknown): RegEnrollment | null {
   if (!isObject(v)) return null;
+  const enrollmentId = str(v.enrollment_id);
   return {
-    enrollmentId: str(v.enrollment_id),
+    enrollmentId,
     trackId: str(v.track_id),
     levelId: str(v.level_id),
+    classId: str(v.class_id),
     // Kept even when the status is one this build does not know: such an enrollment still takes its track.
     status: oneOf(v.status, ENROLLMENT_STATUSES),
     holdReason: oneOf(v.hold_reason, HOLD_REASONS),
     holdExpiresAt: str(v.hold_expires_at),
+    offeredAt: str(v.offered_at),
+    waitlistPosition: count(v.waitlist_position),
+    registrationId: str(v.registration_id),
+    withdrawalReason: str(v.withdrawal_reason),
+    state: str(v.state),
+    fee: parseFee(v.fee, enrollmentId),
   };
 }
 
@@ -450,11 +511,34 @@ export function parseRegistrationResult(raw: unknown): RegistrationResult | null
     totalCents,
     dueNowCents: dueNow,
     pay,
-    pendingCount: list(raw.pending).length,
+    pendingChildren: pendingChildren(raw.pending),
     late: raw.late === true,
     paymentMode: oneOf(raw.payment_mode, PAYMENT_MODES),
     replayed: raw.replayed === true,
   };
+}
+
+/** A new child waiting to be added to the family: their first name and the add-member request (preview: none yet). */
+export type RegPendingChild = { firstName: string; requestId: string | null };
+
+/**
+ * Reads `pending[]` of a preview or registration (0590 `{first_name, last_name, track_id, level_id}`, 0591 adds
+ * `pending_registration_id` and `change_request_id`) as children: entries of one add-member request, or, without one,
+ * of one first and last name, are one child.
+ */
+function pendingChildren(raw: unknown): RegPendingChild[] {
+  const seen = new Set<string>();
+  const out: RegPendingChild[] = [];
+  for (const item of list(raw)) {
+    if (!isObject(item)) continue;
+    const firstName = str(item.first_name) ?? '';
+    const requestId = str(item.change_request_id);
+    const key = requestId ?? `${firstName} ${str(item.last_name) ?? ''}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ firstName, requestId });
+  }
+  return out;
 }
 
 /** What "Pay at the office instead" answered (0591 `app.choose_pathshala_office_payment`): the seats are held until `holdUntil`. */
@@ -943,19 +1027,25 @@ export function countdownText(c: Countdown, t: (key: StringKey, vars?: Record<st
 }
 
 /**
- * What an enrollment says beyond its status, from the 0591 columns; all null before 0591. Read only through the adapter
- * in src/lib/api/pathshala.ts (`enrollmentHolds`), which knows where these come from and who is looking.
+ * What an enrollment says beyond its status (0591), taken from `app.pathshala_registration_options` (`holdOf`): why it
+ * waits and the registration it belongs to are the family's adults' (null for a child), when a held seat ends, an offer
+ * from the waitlist and the waitlist place are neutral. The apps never read these from the tables.
  */
-export type HoldInfo = { holdReason: HoldReason | null; holdUntil: string | null; offered: boolean; registrationId: string | null; trackId: string | null };
+export type HoldInfo = {
+  holdReason: HoldReason | null;
+  holdUntil: string | null;
+  offered: boolean;
+  registrationId: string | null;
+  trackId: string | null;
+  waitlistPosition: number | null;
+};
 
-export function holdInfo(row: Record<string, unknown>): HoldInfo {
-  return {
-    holdReason: oneOf(row.hold_reason, HOLD_REASONS),
-    holdUntil: str(row.hold_expires_at),
-    offered: !!str(row.offered_at),
-    registrationId: str(row.registration_id),
-    trackId: str(row.track_id),
-  };
+/** No hold, no offer, no place: an enrollment the options do not carry (before 0591). */
+export const NO_HOLD: HoldInfo = { holdReason: null, holdUntil: null, offered: false, registrationId: null, trackId: null, waitlistPosition: null };
+
+/** The hold of an enrollment as the options answer it. */
+export function holdOf(e: Pick<RegEnrollment, 'holdReason' | 'holdExpiresAt' | 'offeredAt' | 'registrationId' | 'trackId' | 'waitlistPosition'>): HoldInfo {
+  return { holdReason: e.holdReason, holdUntil: e.holdExpiresAt, offered: !!e.offeredAt, registrationId: e.registrationId, trackId: e.trackId, waitlistPosition: e.waitlistPosition };
 }
 
 /** The hold reasons that are about the fee: a seat held for payment online or at the office, or for a fee assistance decision (private, P8). */
@@ -964,48 +1054,83 @@ const FEE_HOLDS: ReadonlySet<HoldReason> = new Set<HoldReason>(['payment', 'offi
 /**
  * What a viewer may see of a hold (P30: a child never sees fees). An adult of the household: all of it. A child: nothing
  * that is about the fee (no reason, no "held until", no offer); their line then simply waits. Membership and waiver
- * holds are not about the fee and stay.
+ * holds are not about the fee and stay. (The database already sends a child no reason; this keeps it so.)
  */
 export function holdForViewer(hold: HoldInfo, adult: boolean): HoldInfo {
   if (adult || !hold.holdReason || !FEE_HOLDS.has(hold.holdReason)) return hold;
   return { ...hold, holdReason: null, holdUntil: null, offered: false };
 }
 
+/**
+ * A seat held for payment that can still be paid: the enrollment is `requested`, its hold is for payment (online or at
+ * the office) and its time has not ended. A hold with no time is live (the database ends it, the app never guesses).
+ */
+export function holdIsLive(status: string, hold: Pick<HoldInfo, 'holdReason' | 'holdUntil'>, now: Date): boolean {
+  if (status !== 'requested' || (hold.holdReason !== 'payment' && hold.holdReason !== 'office_payment')) return false;
+  if (!hold.holdUntil) return true;
+  const end = new Date(hold.holdUntil).getTime();
+  return !Number.isFinite(end) || end > now.getTime();
+}
+
 export type StatusView = {
   key: StringKey;
   /** The time the line names ("Seat held until Thu 6:00 PM"), to format in the community's time zone. */
   until: string | null;
+  /** The waitlist place a waitlisted line names ("Waitlist: number 2"). */
+  n: number | null;
   tone: 'green' | 'amber' | 'muted';
   /** A seat held (or offered) until the fee is paid online: Pay keeps it. */
   heldForPayment: boolean;
 };
 
+const statusView = (key: StringKey, tone: StatusView['tone'], over: Partial<StatusView> = {}): StatusView => ({ key, until: null, n: null, tone, heldForPayment: false, ...over });
+
 /**
  * One enrollment's status in the family's words (§3.1 step 7): registered, held until, waitlisted, seat offered, placed.
  * A child (`adult: false`) is never told about charges (P30): their waitlist line has no "no charge" words, and the
- * holds they are shown were already stripped of the fee ones (holdForViewer).
+ * holds they are shown were already stripped of the fee ones (holdForViewer). The waitlist place is for everyone.
  */
 export function enrollmentStatus(status: string, hold: HoldInfo, viewer: { adult: boolean } = { adult: true }): StatusView {
-  if (status === 'placed') return { key: 'reg.status.placed', until: null, tone: 'green', heldForPayment: false };
-  if (status === 'active') return { key: 'reg.status.active', until: null, tone: 'green', heldForPayment: false };
-  if (status === 'completed') return { key: 'reg.status.completed', until: null, tone: 'green', heldForPayment: false };
-  if (status === 'withdrawn') return { key: 'reg.status.withdrawn', until: null, tone: 'muted', heldForPayment: false };
-  if (status === 'waitlisted') return { key: viewer.adult ? 'reg.status.waitlisted' : 'reg.status.waitlistedChild', until: null, tone: 'amber', heldForPayment: false };
+  if (status === 'placed') return statusView('reg.status.placed', 'green');
+  if (status === 'active') return statusView('reg.status.active', 'green');
+  if (status === 'completed') return statusView('reg.status.completed', 'green');
+  if (status === 'withdrawn') return statusView('reg.status.withdrawn', 'muted');
+  if (status === 'waitlisted') {
+    const n = hold.waitlistPosition && hold.waitlistPosition > 0 ? hold.waitlistPosition : null;
+    if (viewer.adult) return statusView(n ? 'reg.status.waitlistedAt' : 'reg.status.waitlisted', 'amber', { n });
+    return statusView(n ? 'reg.status.waitlistedChildAt' : 'reg.status.waitlistedChild', 'amber', { n });
+  }
   const h = holdForViewer(hold, viewer.adult);
   switch (h.holdReason) {
     case 'payment':
-      return { key: h.offered ? (h.holdUntil ? 'reg.status.offeredUntil' : 'reg.status.offered') : h.holdUntil ? 'reg.status.heldUntil' : 'reg.status.held', until: h.holdUntil, tone: 'amber', heldForPayment: true };
+      return statusView(h.offered ? (h.holdUntil ? 'reg.status.offeredUntil' : 'reg.status.offered') : h.holdUntil ? 'reg.status.heldUntil' : 'reg.status.held', 'amber', { until: h.holdUntil, heldForPayment: true });
     case 'office_payment':
-      return { key: h.holdUntil ? 'reg.status.officeUntil' : 'reg.status.office', until: h.holdUntil, tone: 'amber', heldForPayment: true };
+      return statusView(h.holdUntil ? 'reg.status.officeUntil' : 'reg.status.office', 'amber', { until: h.holdUntil, heldForPayment: true });
     case 'membership':
-      return { key: 'reg.status.membership', until: null, tone: 'amber', heldForPayment: false };
+      return statusView('reg.status.membership', 'amber');
     case 'assistance':
-      return { key: 'reg.status.assistance', until: null, tone: 'amber', heldForPayment: false };
+      return statusView('reg.status.assistance', 'amber');
     case 'waiver':
-      return { key: 'reg.status.waiver', until: null, tone: 'amber', heldForPayment: false };
+      return statusView('reg.status.waiver', 'amber');
     default:
-      return { key: 'reg.status.requested', until: null, tone: 'muted', heldForPayment: false };
+      return statusView('reg.status.requested', 'muted');
   }
+}
+
+/**
+ * The database's own sentence of where a registration stands (`state`, adults only), as a detail line under a status the
+ * app has no specific words for ("Waiting for the Pathshala office": the office will confirm the level and class). A
+ * status with its own words is not repeated. Capitalised, with a full stop.
+ */
+export function stateDetail(status: StatusView, state: string | null | undefined): string | null {
+  const text = typeof state === 'string' ? state.trim() : '';
+  if (!text || status.key !== 'reg.status.requested') return null;
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
+}
+
+/** The words for a status line: the key with the time and the waitlist place it names. */
+export function statusText(v: StatusView, t: (key: StringKey, vars?: Record<string, string | number>) => string, until: string): string {
+  return t(v.key, { until, n: v.n ?? 0 });
 }
 
 /** A fee pledge of an enrollment (`pledges` with source `pathshala_fee` and `source_ref_id` = the enrollment). */

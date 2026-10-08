@@ -5,8 +5,8 @@ import { isMissingRpcError } from '../modules';
 import {
   enrollmentStatus,
   errorHint,
-  holdForViewer,
-  holdInfo,
+  holdIsLive,
+  holdOf,
   parseOfficeChoice,
   parseRegistrationOptions,
   parseRegistrationResult,
@@ -15,6 +15,7 @@ import {
   type FeePledge,
   type HoldInfo,
   type OfficeChoice,
+  type RegFee,
   type RegistrationOptions,
   type RegistrationResult,
   type StatusView,
@@ -194,105 +195,76 @@ export async function saveBirthDate(personId: string, iso: string): Promise<void
   await updatePerson(personId, { date_of_birth: iso });
 }
 
-type PledgeRow = Pick<Tables<'pledges'>, 'id' | 'pledge_number' | 'amount_cents' | 'paid_cents' | 'status' | 'due_on' | 'source_ref_id'>;
-
-function feePledge(p: PledgeRow): FeePledge {
-  return { id: p.id, number: p.pledge_number, amountCents: p.amount_cents, paidCents: p.paid_cents, status: p.status, dueOn: p.due_on, enrollmentId: p.source_ref_id };
-}
+/**
+ * One enrollment as `app.pathshala_registration_options` answers it (0591, `learners[].enrollments[]`), with whose it is and
+ * which term. THE source of where a seat stands beyond its status for 3L › Learn, the Home strip and Done: the apps read
+ * `hold_reason`, `withdrawal_reason` and the fee from no table (a child's answer carries none of them: P30).
+ */
+export type EnrollmentDetail = {
+  enrollmentId: string;
+  personId: string;
+  termId: string;
+  termName: string;
+  status: string;
+  classId: string | null;
+  /** Why it waits (adults), when a held seat ends, an offer from the waitlist, the waitlist place, the registration (adults). */
+  hold: HoldInfo;
+  /** Why the seat was released ("The fee was not paid by Thu Oct 8, 6:00 pm, so the seat was released."): adults only. */
+  withdrawalReason: string | null;
+  /** One sentence of where the registration stands (adults only). */
+  state: string | null;
+  fee: RegFee | null;
+  /** The enrollment's fee pledge, to pay what is left of it (`amountCents - paidCents`); empty for a child or before a fee is billed. */
+  pledges: FeePledge[];
+  /** The term lets a family pay at the office instead (`term.office_payment.allowed`). */
+  officeAllowed: boolean;
+};
 
 /**
- * The fee pledges of these enrollments (source `pathshala_fee`, `source_ref_id` = the enrollment; RLS pledges_household:
- * the household's adults only, so never call it for a child).
+ * Every enrollment of the household in these terms, from one options call for each term (`p_term`, `p_household`). A
+ * database without the options function has none (the app then shows statuses only; logged once by
+ * `loadRegistrationOptions`); a term the caller may not see (P0002: a draft, or gone) has none. Any other failure is
+ * the caller's to show.
  */
-export async function loadFeePledges(householdId: string, enrollmentIds: string[]): Promise<FeePledge[]> {
-  if (enrollmentIds.length === 0) return [];
-  const rows = must(
-    await supabase.from('pledges').select('id, pledge_number, amount_cents, paid_cents, status, due_on, source_ref_id').eq('household_id', householdId).eq('source', 'pathshala_fee').in('source_ref_id', enrollmentIds),
-    'load the Pathshala fees',
-  );
-  return rows.map(feePledge);
-}
-
-/** Whether a term lets a family pay at the office instead (0590 `office_payment_allowed`, read from `select('*')`: absent before 0590). */
-export function termAllowsOffice(row: Record<string, unknown>): boolean {
-  return row.office_payment_allowed === true;
-}
-
-/** Who is looking at an enrollment: an adult of the household, or a child (P30: a child never sees fees). */
-export type HoldViewer = { adult: boolean };
-
-/** A table that is not deployed yet (PostgREST: not in the schema cache; Postgres: undefined_table). */
-function isMissingTableError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: unknown; message?: unknown };
-  const message = typeof e.message === 'string' ? e.message.toLowerCase() : '';
-  return e.code === 'PGRST205' || e.code === '42P01' || message.includes('could not find the table');
-}
-
-type UntypedFrom = { from: (table: string) => { select: (columns: string) => { in: (column: string, values: string[]) => PromiseLike<{ data: unknown; error: unknown }> } } };
-
-let loggedNoFeeLine = false;
-
-/**
- * Why each seat is held, for the household's adults: `hold_reason` (membership, payment, office_payment, assistance,
- * waiver), which 0591 keeps on the fee line (`pathshala_enrollment_fees`, connect-crm review item 11: a child never
- * reads it, RLS gives the household's adults, the principal and giving staff). Only enrollments that wait are asked
- * about (a hold needs status `requested`). A database without the table has no holds: nothing is held, logged once.
- */
-async function feeLineHolds(enrollmentIds: string[]): Promise<Map<string, string>> {
-  const reasons = new Map<string, string>();
-  if (enrollmentIds.length === 0) return reasons;
-  const res = await (supabase as unknown as UntypedFrom).from('pathshala_enrollment_fees').select('enrollment_id, hold_reason').in('enrollment_id', enrollmentIds);
-  if (res.error) {
-    if (isMissingTableError(res.error)) {
-      if (!loggedNoFeeLine) {
-        loggedNoFeeLine = true;
-        logError('Pathshala holds: app.pathshala_enrollment_fees is not deployed yet (connect-crm 0590), so no seat is shown as held', res.error);
+export async function loadEnrollmentDetails(householdId: string, terms: readonly { id: string; name: string }[]): Promise<Map<string, EnrollmentDetail>> {
+  const answers = await Promise.all(
+    terms.map(async (term): Promise<{ term: { id: string; name: string }; answer: OptionsAnswer }> => {
+      try {
+        return { term, answer: await loadRegistrationOptions(term.id, householdId) };
+      } catch (err) {
+        if (err instanceof AppError && err.code === 'P0002') {
+          logError('Pathshala: the options of a term were not found, so its seats are shown without holds', err);
+          return { term, answer: { kind: 'missing' } };
+        }
+        throw err;
       }
-      return reasons;
-    }
-    throw report(res.error, 'load why your Pathshala seats are held');
-  }
-  for (const row of Array.isArray(res.data) ? res.data : []) {
-    const r = row as { enrollment_id?: unknown; hold_reason?: unknown };
-    if (typeof r.enrollment_id === 'string' && typeof r.hold_reason === 'string') reasons.set(r.enrollment_id, r.hold_reason);
-  }
-  return reasons;
-}
-
-/**
- * THE one place the app reads where an enrollment's seat stands beyond its status: whether it is held and why, until
- * when (`hold_expires_at`), an offer from the waitlist (`offered_at`) and the registration it belongs to
- * (`registration_id`). `hold_expires_at`, `offered_at`, `registration_id` and `track_id` are columns of the
- * `pathshala_enrollments` row the caller already read (`select('*')`: they are not in the generated types yet).
- * The WHY (`hold_reason`) is about the fee, so 0591 keeps it on the fee line, which a child cannot read (P30): the
- * household's adults get it from there (`feeLineHolds`; the same value `app.pathshala_registration_options` answers
- * in `learners[].enrollments[]`), a child gets none, and a database that still has it on the row is read as before.
- * The screens read `HoldInfo` and nothing else reads these columns (nor `withdrawal_reason`, which the app never reads).
- */
-export async function enrollmentHolds(rows: readonly (Pick<Tables<'pathshala_enrollments'>, 'id'> & { status?: string })[], viewer: HoldViewer): Promise<Map<string, HoldInfo>> {
-  const raw = rows as unknown as Record<string, unknown>[];
-  const needReason = viewer.adult ? raw.filter((r) => r.status === 'requested' && typeof r.hold_reason !== 'string').map((r) => String(r.id)) : [];
-  const reasons = await feeLineHolds(needReason);
-  return new Map(
-    raw.map((r) => {
-      const id = String(r.id);
-      return [id, holdForViewer(holdInfo({ ...r, hold_reason: r.hold_reason ?? reasons.get(id) ?? null }), viewer.adult)];
     }),
   );
-}
-
-/** The enrollment columns about the fee that the adapter owns (0591; moving to rows a child cannot read): the hold's reason and the withdrawal's. */
-const FEE_COLUMNS = ['hold_reason', 'withdrawal_reason'] as const;
-
-/**
- * An enrollment row without the fee columns: screens hold the row (spread into `Enrollment`) and read `hold` from
- * `enrollmentHolds`, so a screen can never show a hold or withdrawal reason a child may not see by reading the row.
- */
-export function withoutFeeColumns<T extends object>(row: T): T {
-  const copy = { ...row } as Record<string, unknown>;
-  for (const column of FEE_COLUMNS) delete copy[column];
-  return copy as T;
+  const details = new Map<string, EnrollmentDetail>();
+  for (const { term, answer } of answers) {
+    if (answer.kind !== 'answered') continue;
+    const { options } = answer;
+    for (const learner of options.learners) {
+      for (const e of learner.enrollments) {
+        if (!e.enrollmentId) continue;
+        details.set(e.enrollmentId, {
+          enrollmentId: e.enrollmentId,
+          personId: learner.personId,
+          termId: term.id,
+          termName: options.term.name || term.name,
+          status: e.status ?? '',
+          classId: e.classId,
+          hold: holdOf(e),
+          withdrawalReason: e.withdrawalReason,
+          state: e.state,
+          fee: e.fee,
+          pledges: e.fee?.pledge ? [e.fee.pledge] : [],
+          officeAllowed: options.term.officePayment.allowed,
+        });
+      }
+    }
+  }
+  return details;
 }
 
 export type HeldSeat = {
@@ -307,33 +279,28 @@ export type HeldSeat = {
 };
 
 /**
- * Seats the family holds for payment, and seats offered from the waitlist (Home's strip, a household adult only):
- * `requested` enrollments held for payment online or at the office whose hold has not ended, as `enrollmentHolds` says.
- * Before 0591 there are no holds, and nothing is shown.
+ * Seats the family holds for payment, and seats offered from the waitlist (Home's strip, a household adult only): the
+ * `requested` enrollments whose hold is for payment (online or at the office) and has not ended
+ * (`holdIsLive`), from the options of each term that has a seat waiting (one call each). The terms to ask about come
+ * from the household's `requested` enrollments (ids and terms only: nothing about fees is read from the table). Before
+ * 0591 there are no holds, and nothing is shown.
  */
 export async function loadHeldSeats(householdId: string, now: Date = new Date()): Promise<HeldSeat[]> {
-  const rows = must(await supabase.from('pathshala_enrollments').select('*').eq('household_id', householdId).eq('status', 'requested'), 'load your Pathshala seats');
-  const holds = await enrollmentHolds(rows, { adult: true });
-  const held = rows
-    .map((r) => ({ row: r, hold: holds.get(r.id) as HoldInfo }))
-    .filter(({ hold }) => (hold.holdReason === 'payment' || hold.holdReason === 'office_payment') && (!hold.holdUntil || new Date(hold.holdUntil).getTime() > now.getTime()));
-  if (held.length === 0) return [];
-  const termIds = [...new Set(held.map((h) => h.row.term_id))];
-  const [terms, pledges] = await Promise.all([
-    supabase.from('pathshala_terms').select('*').in('id', termIds).then((r) => must(r, 'load the Pathshala terms')),
-    loadFeePledges(householdId, held.map((h) => h.row.id)),
-  ]);
-  return held.map(({ row, hold }) => {
-    const term = terms.find((t) => t.id === row.term_id);
-    return {
-      enrollmentId: row.id,
-      personId: row.student_person_id,
-      termId: row.term_id,
-      termName: term?.name ?? '',
-      hold,
-      view: enrollmentStatus(row.status, hold),
-      officeAllowed: term ? termAllowsOffice(term as unknown as Record<string, unknown>) : false,
-      pledges: pledges.filter((p) => p.enrollmentId === row.id),
-    };
-  });
+  const rows = must(await supabase.from('pathshala_enrollments').select('id, term_id').eq('household_id', householdId).eq('status', 'requested'), 'load your Pathshala seats');
+  const termIds = [...new Set(rows.map((r) => r.term_id))];
+  if (termIds.length === 0) return [];
+  const terms = must(await supabase.from('pathshala_terms').select('id, name').in('id', termIds), 'load the Pathshala terms');
+  const details = await loadEnrollmentDetails(householdId, terms);
+  return [...details.values()]
+    .filter((d) => holdIsLive(d.status, d.hold, now))
+    .map((d) => ({
+      enrollmentId: d.enrollmentId,
+      personId: d.personId,
+      termId: d.termId,
+      termName: d.termName,
+      hold: d.hold,
+      view: enrollmentStatus(d.status, d.hold),
+      officeAllowed: d.officeAllowed,
+      pledges: d.pledges,
+    }));
 }

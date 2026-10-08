@@ -16,7 +16,8 @@ import {
   freeTracks,
   holdCountdown,
   holdForViewer,
-  holdInfo,
+  holdIsLive,
+  holdOf,
   isAdultClass,
   isAdultLine,
   isChildrensLevel,
@@ -32,6 +33,7 @@ import {
   lineParts,
   linePledges,
   membershipState,
+  NO_HOLD,
   myWaiverHolds,
   newChildAge,
   officeConfirms,
@@ -46,6 +48,8 @@ import {
   RegistrationRefusal,
   selectionsComplete,
   startBlock,
+  stateDetail,
+  statusText,
   SUGGESTION_KEY,
   suggestedLevel,
   unbilledSeatLines,
@@ -60,7 +64,9 @@ import {
 } from '../pathshala-registration';
 
 import {
+  childEnrollmentRaw,
   childOptionsRaw,
+  enrollmentRaw,
   ID,
   OWNER_TOTAL,
   optionsRaw,
@@ -93,7 +99,22 @@ function read(raw: Raw): RegistrationResult {
   return r;
 }
 
-const enrollment = (over: Partial<RegEnrollment> = {}): RegEnrollment => ({ enrollmentId: 'e-1', trackId: ID.jainism, levelId: ID.j2, status: 'placed', holdReason: null, holdExpiresAt: null, ...over });
+const enrollment = (over: Partial<RegEnrollment> = {}): RegEnrollment => ({
+  enrollmentId: 'e-1',
+  trackId: ID.jainism,
+  levelId: ID.j2,
+  classId: null,
+  status: 'placed',
+  holdReason: null,
+  holdExpiresAt: null,
+  offeredAt: null,
+  waitlistPosition: null,
+  registrationId: null,
+  withdrawalReason: null,
+  state: null,
+  fee: null,
+  ...over,
+});
 
 // ---------------------------------------------------------------------------
 // The options
@@ -129,7 +150,8 @@ describe('reading the registration options (0590 pathshala_registration_options)
   it("reads each learner's enrollments with their ids, and the suggestion per track", () => {
     const o = options();
     const dev = o.learners.find((l) => l.personId === ID.dev);
-    expect(dev?.enrollments).toEqual([{ enrollmentId: 'e-dev-g', trackId: ID.gujarati, levelId: ID.g1, status: 'requested', holdReason: 'payment', holdExpiresAt: '2026-08-20T18:00:00-05:00' }]);
+    expect(dev?.enrollments).toHaveLength(1);
+    expect(dev?.enrollments[0]).toMatchObject({ enrollmentId: 'e-dev-g', trackId: ID.gujarati, levelId: ID.g1, status: 'requested', holdReason: 'payment', holdExpiresAt: '2026-08-20T18:00:00-05:00', registrationId: ID.registration });
     expect(dev?.suggested).toEqual([{ trackId: ID.jainism, levelId: ID.j2, reason: 'previous' }]);
     expect(o.learners.find((l) => l.personId === ID.riya)?.suggested[0].reason).toBe('teacher');
   });
@@ -351,7 +373,7 @@ describe('what happens to each line (0590 _pathshala_plan outcomes)', () => {
     expect(p.lines.map((l) => l.outcome)).toEqual(['seat', 'waitlist', 'membership_hold', 'office', 'waiver_hold', 'pending_child']);
     expect(p.dueNowCents).toBe(13000);
     expect(chargedNow(p)).toEqual({ cents: 13000, count: 1 });
-    expect(p.pendingCount).toBe(1);
+    expect(p.pendingChildren).toEqual([{ firstName: 'Kavi', requestId: null }]);
     expect(p.totalCents).toBe(p.lines.reduce((s, l) => s + l.totalCents, 0));
   });
 
@@ -373,9 +395,23 @@ describe('what happens to each line (0590 _pathshala_plan outcomes)', () => {
     const r = read(registerRaw('pledge', lines));
     const kavi = r.lines[5];
     expect(kavi).toMatchObject({ personId: null, firstName: 'Kavi', enrollmentId: null, pledge: null, pendingRegistrationId: 'pr-6', outcome: 'pending_child' });
-    expect(r.pendingCount).toBe(1);
+    expect(r.pendingChildren).toEqual([{ firstName: 'Kavi', requestId: 'cr-kavi' }]);
     expect(outcomeKey(kavi, 'pledge')).toBe('reg.outcome.pendingChild');
     expect(lineNames(r, options().learners, [])).toEqual(['Riya', 'Dev', 'Anya', 'Dev', 'Raj', 'Kavi']);
+  });
+
+  it('a new child in two tracks is one child and one request: two pending lines, two pending entries, one add-member request', () => {
+    const kavi = (trackId: string, track: string, levelId: string, level: string): PriceLine => ({ person: null, firstName: 'Kavi', trackId, track, levelId, level, kind: 'child', rank: 1, age: 5, base: 13000, outcome: 'pending_child' });
+    const two = [kavi(ID.jainism, 'Jainism', ID.toddler, 'Toddler'), kavi(ID.gujarati, 'Gujarati', ID.g1, 'Gujarati 1')];
+    const preview = read(previewRaw('pledge', two));
+    expect(preview.lines).toHaveLength(2);
+    expect(preview.pendingChildren).toEqual([{ firstName: 'Kavi', requestId: null }]);
+    const r = read(registerRaw('pledge', two));
+    expect(r.lines.map((l) => l.pendingRegistrationId)).toEqual(['pr-1', 'pr-2']);
+    expect(r.pendingChildren).toEqual([{ firstName: 'Kavi', requestId: 'cr-kavi' }]);
+    // Two children are two requests.
+    const both = read(registerRaw('pledge', [...two, { ...kavi(ID.jainism, 'Jainism', ID.toddler, 'Toddler'), firstName: 'Mina' }]));
+    expect(both.pendingChildren.map((c) => c.firstName)).toEqual(['Kavi', 'Mina']);
   });
 
   it('only the seat has a pledge when registering; waiting lines have none and are not "unbilled"', () => {
@@ -758,6 +794,15 @@ describe('when registering fails', () => {
     expect(registerRoute(postgrestError('22023', 'Registration closed.', 'something_else'))).toBe('refused');
   });
 
+  it('goes back to the review for the two "at the same time" refusals, with the database\'s sentence', () => {
+    const saved = postgrestError('22023', 'Another registration for this learner in this track was just saved (by another adult of the family or another family). Please review again.', 'review_again');
+    const busy = postgrestError('22023', 'Another registration was being saved at the same moment. Please try again.', 'review_again');
+    expect(registerRoute(saved)).toBe('review');
+    expect(registerRoute(busy)).toBe('review');
+    // Both refusals come back as a RegistrationRefusal that keeps the sentence for the review's notice.
+    expect(new RegistrationRefusal(saved.message, 'x', saved.code, saved.hint).userMessage).toBe(saved.message);
+  });
+
   it("shows the database's sentence for any other refusal, and Try again for the connection", () => {
     expect(registerRoute(postgrestError('22023', 'Registration for 2026-27 closed on Sep 14. Ask the Pathshala office.'))).toBe('refused');
     expect(registerRoute(postgrestError('22023', 'Agree to the Pathshala waiver to register.'))).toBe('refused');
@@ -856,21 +901,99 @@ describe('afterwards: holds, offers, status and the fee', () => {
     expect(countdownText({ ended: true }, t)).toBe('Time is up');
   });
 
-  it('reads the hold columns of an enrollment row (all null before 0591)', () => {
-    expect(holdInfo({ hold_reason: 'payment', hold_expires_at: '2026-08-22T23:00:00Z', offered_at: '2026-08-20T23:00:00Z', registration_id: ID.registration, track_id: ID.jainism })).toEqual({
-      holdReason: 'payment',
-      holdUntil: '2026-08-22T23:00:00Z',
-      offered: true,
-      registrationId: ID.registration,
-      trackId: ID.jainism,
+  it("reads where a seat stands from the options' enrollment item (an adult's view)", () => {
+    const o = options('pay_now', {
+      learners: [
+        {
+          person_id: ID.riya,
+          first_name: 'Riya',
+          age_on_cutoff: 12,
+          counts_as_child: true,
+          enrollments: [enrollmentRaw({ enrollment_id: 'e9', status: 'requested', hold_reason: 'payment', hold_expires_at: '2026-08-22T18:00:00-05:00', offered_at: '2026-08-20T12:00:00-05:00', waitlist_position: null })],
+        },
+      ],
     });
-    expect(holdInfo({ status: 'requested' })).toEqual({ holdReason: null, holdUntil: null, offered: false, registrationId: null, trackId: null });
-    expect(holdInfo({ hold_reason: 'vacation' }).holdReason).toBeNull();
-    for (const reason of ['membership', 'payment', 'office_payment', 'assistance', 'waiver']) expect(holdInfo({ hold_reason: reason }).holdReason).toBe(reason);
+    const e = o.learners[0].enrollments[0];
+    expect(e).toMatchObject({
+      enrollmentId: 'e9',
+      classId: 'cl-j2',
+      status: 'requested',
+      holdReason: 'payment',
+      holdExpiresAt: '2026-08-22T18:00:00-05:00',
+      offeredAt: '2026-08-20T12:00:00-05:00',
+      registrationId: ID.registration,
+      withdrawalReason: null,
+      state: 'registered for Jainism 2 (Sundays 10:00-11:30)',
+    });
+    expect(holdOf(e)).toEqual({ holdReason: 'payment', holdUntil: '2026-08-22T18:00:00-05:00', offered: true, registrationId: ID.registration, trackId: ID.jainism, waitlistPosition: null });
+    expect(e.fee).toEqual({
+      status: 'billed',
+      totalCents: 11700,
+      priced: true,
+      assistanceRequested: false,
+      pledge: { id: 'pl-1', number: 'JSH-PL-20114', amountCents: 11700, paidCents: 0, status: 'open', dueOn: '2026-09-20', enrollmentId: 'e9' },
+    });
+    for (const reason of ['membership', 'payment', 'office_payment', 'assistance', 'waiver']) {
+      const x = options('pledge', { learners: [{ person_id: ID.riya, first_name: 'Riya', enrollments: [enrollmentRaw({ hold_reason: reason })] }] });
+      expect(x.learners[0].enrollments[0].holdReason).toBe(reason);
+    }
+    expect(options('pledge', { learners: [{ person_id: ID.riya, first_name: 'Riya', enrollments: [enrollmentRaw({ hold_reason: 'vacation' })] }] }).learners[0].enrollments[0].holdReason).toBeNull();
+  });
+
+  it('a child with a login gets the neutral part only: no registration, no reason, no sentence, no fee', () => {
+    const o = options('pledge', {
+      learners: [{ person_id: ID.dev, first_name: 'Dev', enrollments: [childEnrollmentRaw({ status: 'requested', hold_expires_at: '2026-08-22T18:00:00-05:00', offered_at: '2026-08-20T12:00:00-05:00' })] }],
+    });
+    const e = o.learners[0].enrollments[0];
+    expect(e).toMatchObject({ holdReason: null, registrationId: null, withdrawalReason: null, state: null, fee: null, holdExpiresAt: '2026-08-22T18:00:00-05:00' });
+    // The seat's time is neutral, but without a reason the line never says it is held for a fee.
+    expect(enrollmentStatus('requested', holdOf(e), { adult: false })).toMatchObject({ key: 'reg.status.requested', until: null, heldForPayment: false });
+  });
+
+  it('reads a fee pledge with whole cents only: what is left to pay is amount minus paid', () => {
+    const pledge = (over: Raw) => ({ id: 'pl', number: 'JSH-PL-1', amount_cents: 13000, paid_cents: 5000, status: 'partially_paid', due_on: '2026-09-20', ...over });
+    const read1 = (fee: Raw) => options('pledge', { learners: [{ person_id: ID.riya, first_name: 'Riya', enrollments: [enrollmentRaw({ fee })] }] }).learners[0].enrollments[0].fee;
+    const fee = (p: Raw | null) => ({ status: 'billed', total_cents: 13000, priced: true, assistance_requested: false, pledge: p });
+    expect(read1(fee(pledge({})))?.pledge).toMatchObject({ amountCents: 13000, paidCents: 5000, status: 'partially_paid' });
+    expect(feeSummary([read1(fee(pledge({})))?.pledge as FeePledge])).toMatchObject({ kind: 'due', totalCents: 13000, openCents: 8000, paidCents: 5000, pledgeIds: ['pl'] });
+    expect(read1(fee(null))?.pledge).toBeNull();
+    expect(read1(fee(pledge({ amount_cents: 130.5 })))?.pledge).toBeNull();
+    expect(read1({ ...fee(null), total_cents: 'lots' })).toBeNull();
+    expect(read1({ status: 'no_fee', total_cents: 0, priced: true, assistance_requested: false, pledge: null })).toMatchObject({ status: 'no_fee', totalCents: 0, pledge: null });
+  });
+
+  it('knows a seat held for payment is live only while it is requested, held for payment and its time has not ended', () => {
+    const now = new Date('2026-08-20T12:00:00Z');
+    expect(holdIsLive('requested', { holdReason: 'payment', holdUntil: '2026-08-22T18:00:00-05:00' }, now)).toBe(true);
+    expect(holdIsLive('requested', { holdReason: 'office_payment', holdUntil: '2026-08-27T18:00:00-05:00' }, now)).toBe(true);
+    expect(holdIsLive('requested', { holdReason: 'payment', holdUntil: '2026-08-19T18:00:00-05:00' }, now)).toBe(false);
+    expect(holdIsLive('requested', { holdReason: 'assistance', holdUntil: null }, now)).toBe(false);
+    expect(holdIsLive('requested', { holdReason: 'membership', holdUntil: null }, now)).toBe(false);
+    expect(holdIsLive('placed', { holdReason: 'payment', holdUntil: '2026-08-22T18:00:00-05:00' }, now)).toBe(false);
+    expect(holdIsLive('waitlisted', { holdReason: null, holdUntil: null }, now)).toBe(false);
+  });
+
+  it('says the waitlist place to everyone, and "no charge" only to adults', () => {
+    const waiting = { ...NO_HOLD, waitlistPosition: 2 };
+    expect(enrollmentStatus('waitlisted', waiting)).toMatchObject({ key: 'reg.status.waitlistedAt', n: 2 });
+    expect(enrollmentStatus('waitlisted', waiting, { adult: false })).toMatchObject({ key: 'reg.status.waitlistedChildAt', n: 2 });
+    expect(enrollmentStatus('waitlisted', NO_HOLD).key).toBe('reg.status.waitlisted');
+    expect(enrollmentStatus('waitlisted', NO_HOLD, { adult: false }).key).toBe('reg.status.waitlistedChild');
+    expect(statusText(enrollmentStatus('waitlisted', waiting), t, '')).toBe('Waitlist: number 2. No charge unless a seat opens');
+    expect(statusText(enrollmentStatus('waitlisted', waiting, { adult: false }), t, '')).toBe('On the waitlist: number 2');
+    expect(statusText(enrollmentStatus('requested', { ...NO_HOLD, holdReason: 'payment', holdUntil: 'Thu 6 PM' }), t, 'Thu 6 PM')).toBe('Seat held until Thu 6 PM');
+  });
+
+  it("shows the database's sentence only under a status the app has no specific words for", () => {
+    const state = 'the office will confirm the level and the class, charged then';
+    expect(stateDetail(enrollmentStatus('requested', NO_HOLD), state)).toBe('The office will confirm the level and the class, charged then.');
+    expect(stateDetail(enrollmentStatus('requested', NO_HOLD), null)).toBeNull();
+    expect(stateDetail(enrollmentStatus('requested', { ...NO_HOLD, holdReason: 'membership' }), "waiting for the family's membership, nothing charged yet")).toBeNull();
+    expect(stateDetail(enrollmentStatus('placed', NO_HOLD), 'registered for Jainism 2')).toBeNull();
   });
 
   it('says where each enrollment stands: registered, held until, offered, waitlisted, waiting', () => {
-    const hold = (over: Partial<ReturnType<typeof holdInfo>> = {}) => ({ holdReason: null, holdUntil: null, offered: false, registrationId: null, trackId: null, ...over });
+    const hold = (over: Partial<typeof NO_HOLD> = {}) => ({ ...NO_HOLD, ...over });
     expect(enrollmentStatus('placed', hold())).toMatchObject({ key: 'reg.status.placed', tone: 'green', heldForPayment: false });
     expect(enrollmentStatus('active', hold()).key).toBe('reg.status.active');
     expect(enrollmentStatus('waitlisted', hold()).key).toBe('reg.status.waitlisted');
@@ -885,7 +1008,7 @@ describe('afterwards: holds, offers, status and the fee', () => {
   });
 
   it('never tells a child about a fee: payment, office and assistance holds and offers are left out of their view (P30)', () => {
-    const held = { holdReason: 'payment' as const, holdUntil: 'T', offered: true, registrationId: null, trackId: null };
+    const held = { ...NO_HOLD, holdReason: 'payment' as const, holdUntil: 'T', offered: true };
     expect(holdForViewer(held, true)).toEqual(held);
     expect(holdForViewer(held, false)).toEqual({ ...held, holdReason: null, holdUntil: null, offered: false });
     expect(holdForViewer({ ...held, holdReason: 'assistance' }, false).holdReason).toBeNull();
@@ -933,9 +1056,9 @@ describe('the words', () => {
   it('has every key the rules name', () => {
     const keys: StringKey[] = [
       ...Object.values(SUGGESTION_KEY),
-      ...(['placed', 'active', 'completed', 'withdrawn', 'waitlisted'] as const).map((s) => enrollmentStatus(s, holdInfo({})).key),
+      ...(['placed', 'active', 'completed', 'withdrawn', 'waitlisted'] as const).map((s) => enrollmentStatus(s, NO_HOLD).key),
       ...(['payment', 'office_payment', 'membership', 'assistance', 'waiver', null] as const).flatMap((r) =>
-        [false, true].map((offered) => enrollmentStatus('requested', { ...holdInfo({}), holdReason: r, offered, holdUntil: offered ? null : 'T' }).key),
+        [false, true].map((offered) => enrollmentStatus('requested', { ...NO_HOLD, holdReason: r, offered, holdUntil: offered ? null : 'T' }).key),
       ),
     ];
     for (const k of keys) expect(en[k]).toBeTruthy();

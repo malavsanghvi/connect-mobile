@@ -76,7 +76,40 @@ export function tracksRaw(): Raw[] {
   ];
 }
 
-type Enrollment = { enrollment_id: string; track_id: string; level_id: string | null; status: string; hold_reason: string | null; hold_expires_at: string | null };
+/**
+ * One item of `learners[].enrollments[]` as the options answer an ADULT of the family or the office (0591, final contract):
+ * the neutral part (ids, status, when a held seat ends, the offer, the waitlist place) and the family's: the registration, why it
+ * waits, why it was released, where it stands in a sentence and the fee line with its one pledge.
+ */
+export function enrollmentRaw(over: Raw = {}): Raw {
+  return {
+    enrollment_id: 'e-1',
+    track_id: ID.jainism,
+    level_id: ID.j2,
+    class_id: 'cl-j2',
+    status: 'placed',
+    hold_expires_at: null,
+    offered_at: null,
+    waitlist_position: null,
+    registration_id: ID.registration,
+    hold_reason: null,
+    withdrawal_reason: null,
+    state: 'registered for Jainism 2 (Sundays 10:00-11:30)',
+    fee: {
+      status: 'billed',
+      total_cents: 11700,
+      priced: true,
+      assistance_requested: false,
+      pledge: { id: 'pl-1', number: 'JSH-PL-20114', amount_cents: 11700, paid_cents: 0, status: 'open', due_on: '2026-09-20' },
+    },
+    ...over,
+  };
+}
+
+/** The same item for a child with their own login: only the neutral part, everything about the registration and the fee is null (P30). */
+export function childEnrollmentRaw(over: Raw = {}): Raw {
+  return enrollmentRaw({ registration_id: null, hold_reason: null, withdrawal_reason: null, state: null, fee: null, ...over });
+}
 
 const learner = (id: string, firstName: string, age: number | null, child: boolean, over: Raw = {}): Raw => ({
   person_id: id,
@@ -85,7 +118,7 @@ const learner = (id: string, firstName: string, age: number | null, child: boole
   age_on_cutoff: age,
   counts_as_child: child,
   needs_birth_date: age === null,
-  enrollments: [] as Enrollment[],
+  enrollments: [] as Raw[],
   suggested: [],
   ...over,
 });
@@ -127,7 +160,19 @@ export function optionsRaw(mode: Mode = 'pledge', over: Raw = {}): Raw {
       learner(ID.riya, 'Riya', 12, true, { suggested: [{ track_id: ID.jainism, level_id: ID.j5, reason: 'teacher' }] }),
       learner(ID.dev, 'Dev', 9, true, {
         suggested: [{ track_id: ID.jainism, level_id: ID.j2, reason: 'previous' }],
-        enrollments: [{ enrollment_id: 'e-dev-g', track_id: ID.gujarati, level_id: ID.g1, status: 'requested', hold_reason: 'payment', hold_expires_at: '2026-08-20T18:00:00-05:00' }],
+        enrollments: [
+          enrollmentRaw({
+            enrollment_id: 'e-dev-g',
+            track_id: ID.gujarati,
+            level_id: ID.g1,
+            class_id: null,
+            status: 'requested',
+            hold_reason: 'payment',
+            hold_expires_at: '2026-08-20T18:00:00-05:00',
+            state: 'seat in Gujarati 1 held until Thu Aug 20, 6:00 pm for the fee of $130.00',
+            fee: { status: 'billed', total_cents: 13000, priced: true, assistance_requested: false, pledge: { id: 'pl-dev-g', number: 'JSH-PL-20110', amount_cents: 13000, paid_cents: 0, status: 'open', due_on: '2026-08-18' } },
+          }),
+        ],
       }),
       learner(ID.anya, 'Anya', 4, true, { suggested: [{ track_id: ID.jainism, level_id: ID.toddler, reason: 'age' }] }),
       learner(ID.mira, 'Mira', 44, false, { is_me: true, suggested: [{ track_id: ID.jainism, level_id: ID.moms, reason: 'age' }] }),
@@ -326,7 +371,8 @@ export function registerRaw(mode: Mode, price: PriceLine[], built: Built & { rep
     pending: price
       .map((l, i) => ({ l, i }))
       .filter(({ l }) => l.outcome === 'pending_child')
-      .map(({ l, i }) => ({ pending_registration_id: `pr-${i + 1}`, change_request_id: `cr-${i + 1}`, first_name: l.firstName, last_name: 'Shah', track_id: l.trackId, level_id: l.levelId })),
+      // One add-member request for each child (0591: a new child in two tracks is one child), one pending entry for each line.
+      .map(({ l, i }) => ({ pending_registration_id: `pr-${i + 1}`, change_request_id: `cr-${l.firstName.toLowerCase()}`, first_name: l.firstName, last_name: 'Shah', track_id: l.trackId, level_id: l.levelId })),
     late: built.late ?? price.some((l) => (l.late ?? 0) > 0),
     payment_mode: mode,
   };

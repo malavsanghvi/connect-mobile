@@ -10,10 +10,12 @@ import {
   countdownText,
   enrollmentStatus,
   holdCountdown,
+  holdOf,
   lineLevel,
   lineNames,
   linePledges,
   outcomeKey,
+  statusText,
   unbilledSeatLines,
   type OfficeChoice,
   type RegEnrollment,
@@ -117,6 +119,8 @@ export function DoneStep({
   // Seats with a fee that no pledge was made for: said plainly, never left looking as if the fee were billed.
   const unbilled = unbilledSeatLines(result);
   const unbilledNames = [...new Set(result.lines.flatMap((l, i) => (unbilled.includes(l) && names[i] ? [names[i]] : [])))];
+  // A new child in two tracks is one child and one request to the office, however many lines it has.
+  const addedNames = result.pendingChildren.map((c) => c.firstName).filter(Boolean);
   const title = mode === 'pay_now' && pay ? (held ? t('reg.done.titleHeld') : placedNow || paid ? t('reg.done.titlePaid') : t('reg.done.title')) : t('reg.done.title');
 
   return (
@@ -133,8 +137,8 @@ export function DoneStep({
         {result.lines.map((line, i) => {
           const { track, level } = lineLevel(line, options.tracks);
           const e = liveEnrollment(options, line);
-          const view = e && e.status ? enrollmentStatus(e.status, { holdReason: e.holdReason, holdUntil: e.holdExpiresAt, offered: false, registrationId: null, trackId: e.trackId }) : null;
-          const status = view ? t(view.key, { until: whenText(view.until, timeZone) }) : t(outcomeKey(line, mode), { name: names[i] });
+          const view = e && e.status ? enrollmentStatus(e.status, holdOf(e)) : null;
+          const status = view ? statusText(view, t, whenText(view.until, timeZone)) : t(outcomeKey(line, mode), { name: names[i] });
           const pledgeAmount = money(line.pledge?.amountCents ?? line.totalCents);
           const pledge = line.pledge
             ? line.pledge.number
@@ -178,6 +182,14 @@ export function DoneStep({
             <Button label={t('reg.done.payOptional')} tone="secondary" size="md" onPress={onPayPledges} busy={paying} />
           )}
           {payError ? <Banner tone="error" message={payError} /> : null}
+        </Card>
+      ) : null}
+
+      {addedNames.length > 0 ? (
+        <Card>
+          <Txt variant="small" color="ink2">
+            {t('reg.done.pendingNote', { names: addedNames.join(', ') })}
+          </Txt>
         </Card>
       ) : null}
 

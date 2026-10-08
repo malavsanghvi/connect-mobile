@@ -10,7 +10,7 @@ import { goalProgress, lastActivityByGoal, loadGyan, loadPathshala, nextGyanLeve
 import { formatDay } from '@/lib/format';
 import { attendanceSummary, continueGoalId } from '@/lib/learning';
 import { LEARN_PART_MODULE } from '@/lib/modules';
-import { enrollmentStatus } from '@/lib/pathshala-registration';
+import { enrollmentStatus, stateDetail, statusText } from '@/lib/pathshala-registration';
 import { useLoad } from '@/lib/use-load';
 import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
@@ -149,10 +149,14 @@ function PathshalaBlock() {
                 const name = student?.person.preferred_name || student?.person.first_name || '';
                 const level = r.levelName ?? r.className ?? r.termName ?? '';
                 const enrolled = r.status === 'placed' || r.status === 'active';
-                const pending = r.status === 'requested' || r.status === 'waitlisted';
+                // A seat released because the fee was not paid in time: the database's sentence stays for the adults (it is never a child's).
+                const released = r.status === 'withdrawn' && !!r.withdrawalReason;
+                const pending = r.status === 'requested' || r.status === 'waitlisted' || released;
                 const canScan = !!student && enrolled && (student.person.id === member?.person.id || !!member?.isAdult);
                 const view = enrollmentStatus(r.status, r.hold, viewer);
-                const statusLabel = pending ? t(view.key, { until: whenText(view.until, center?.time_zone) }) : t(`enroll.${r.status}` as 'enroll.requested');
+                const statusLabel = released ? t('reg.status.released') : pending ? statusText(view, t, whenText(view.until, center?.time_zone)) : t(`enroll.${r.status}` as 'enroll.requested');
+                // Where the registration stands in the database's own words, for a line the app has no specific words for (adults only).
+                const detail = adult && !released ? stateDetail(view, r.state) : null;
                 // Another adult registered me: I agree to the waiver in my own app, and the same registration goes ahead.
                 const myWaiver = adult && r.status === 'requested' && r.hold.holdReason === 'waiver' && r.student_person_id === member?.person.id;
                 const a = attendanceSummary(r.attendance);
@@ -166,6 +170,16 @@ function PathshalaBlock() {
                         <Txt variant="meta" color={view.heldForPayment ? 'brownDark' : 'muted'} style={{ fontFamily: fonts.bodySemi }}>
                           {statusLabel}
                         </Txt>
+                        {released ? (
+                          <Txt variant="small" color="ink2">
+                            {r.withdrawalReason}
+                          </Txt>
+                        ) : null}
+                        {detail ? (
+                          <Txt variant="small" color="ink2">
+                            {detail}
+                          </Txt>
+                        ) : null}
                         {myWaiver ? (
                           <Row style={{ flexWrap: 'wrap' }}>
                             <Button label={t('learn.agreeWaiver')} tone="secondary" size="sm" fill={false} onPress={() => router.push({ pathname: '/pathshala-enroll', params: { term: r.term_id } })} />
