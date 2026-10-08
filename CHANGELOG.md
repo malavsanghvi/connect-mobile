@@ -14,6 +14,20 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.14.0 — 2026-10-08
+
+- **Tapping a notification opens the right screen.** "Another family pledged more" and the new "closing soon" notice open
+  the boli; "Your order is ready" opens the store, where your orders are; the lunch reminder opens the event's tickets
+  (it also carries a link now). A notification this version does not know simply opens the app, as before.
+- **Notification switches that do something.** Settings › your notification topics lists only the topics Weaver sends:
+  Events and reminders, Giving opportunities and bolis, Pathshala updates and Satvik Store. Switches that did nothing
+  (Daily temple timings, My Jain Way reminders, Family celebrations and support, Newsletters, Important alerts, Account and
+  security) are gone from the list; your earlier choices are kept. Your community's portal decides which topics are listed
+  (an older portal lists them all, as before).
+- **New notifications from your community** (they arrive once your community's portal is updated, and you can switch each
+  topic off): a reminder to confirm your RSVP the day before an event, a notice when a boli you pledged on is about to
+  close, a prompt to plan a labh before a special day you saved, and "Your order is ready" for the store.
+
 ## 1.13.0 — 2026-10-08
 
 - **A neutral first launch.** The first thing a new install sees is "Find your community", and it no longer assumes
