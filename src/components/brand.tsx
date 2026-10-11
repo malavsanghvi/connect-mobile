@@ -6,8 +6,10 @@ import { readBranding, type Branding } from '@/lib/branding';
 import { env } from '@/lib/env';
 import { logError } from '@/lib/errors';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { colors, fonts, tracking } from '@/theme';
 
+import { MotifGlyph } from './motif';
 import { Txt } from './ui';
 
 export function useBranding(): Branding {
@@ -68,6 +70,8 @@ export function CenterMark({ size = 46, kind = 'mark', maxWidth }: { size?: numb
 export function Wordmark() {
   const { center } = useApp();
   const { wordmark } = useBranding();
+  // A small ornament beside the name when the member-app template names a motif this build can draw (src/lib/template.ts); none otherwise.
+  const motif = useCategory().template.theme.motif;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 1 }} accessible accessibilityRole="header" accessibilityLabel={center?.name ?? ''}>
       <CenterMark size={46} maxWidth={72} />
@@ -81,6 +85,7 @@ export function Wordmark() {
           </Txt>
         ) : null}
       </View>
+      {motif ? <MotifGlyph name={motif} /> : null}
     </View>
   );
 }

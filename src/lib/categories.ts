@@ -11,6 +11,8 @@
  *   faith_based     → special days (birthdays, anniversaries): the sign-up step, Home's row and tile, the Family tab's card
  *   terms.practice_tab null → no fourth tab (the route keeps its name, "jain-way", so links and notifications still work)
  *   modules         → which modules exist (the module map before `my_modules` answers; the plan's "Never" and "Off" modules)
+ *   template        → optional: Home's rows and their order, the tab bar's order, names and icons, the look and Today's variant,
+ *                     all as data (src/lib/template.ts); with none, everything above is exactly as it was
  *
  * so a new kind of organization is DATA: a row in the database and, for its words, one entry in src/i18n/categories. What
  * the database does not say (the interests asked, the default Home shortcuts) comes from LAYOUT_BY_CATEGORY below, and a
@@ -24,6 +26,7 @@ import { en, type StringKey } from '../i18n/en';
 
 import { HOME_SHORTCUT_KEYS, isHomeShortcut, type HomeShortcut } from './home-shortcuts';
 import { CORE_MODULES, isModuleKey, type ModuleKey, type ModuleMap } from './modules';
+import { parseTemplate, todayCardFor, type MemberTemplate } from './template';
 
 export const JAIN_CENTER = 'jain_center';
 
@@ -78,6 +81,8 @@ export type CategoryProfile = {
   words: WordOverlay | null;
   /** Optional, from the database: layout facts that win over the app's own (see parseLayoutHints). */
   layoutHints: Partial<CategoryLayout> | null;
+  /** Optional, from the database: the member-app template (Home rows, tabs, look, Today variant; see src/lib/template.ts). Null: the app's built-in layout. */
+  template: MemberTemplate | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -130,6 +135,7 @@ export const JAIN_PROFILE: CategoryProfile = {
   defaultPath: null,
   words: null,
   layoutHints: null,
+  template: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -186,6 +192,7 @@ export function genericProfile(key: string, label?: string | null): CategoryProf
     defaultPath: null,
     words: null,
     layoutHints: null,
+    template: null,
   };
 }
 
@@ -329,7 +336,14 @@ export function parseCategoryProfile(raw: unknown): CategoryProfile | null {
     defaultPath: str(root.default_path),
     words: parseWords(root.words),
     layoutHints: parseLayoutHints(root.layout),
+    // A template that cannot be used is dropped here (the app keeps its built-in layout); why is logged by the loader (src/lib/api/category.ts).
+    template: parseTemplate(root.template).template,
   };
+}
+
+/** What of the answer's `template` this build could not use, in words for the log (none for no template, or one it read whole). */
+export function templateProblems(raw: unknown): string[] {
+  return parseTemplate(obj(raw).template).problems;
 }
 
 // ---------------------------------------------------------------------------
@@ -368,16 +382,18 @@ export function chooseProfile(input: { hint: string | null; live: CategoryProfil
 /**
  * How the app lays this category out. The profile's facts first (a tradition-based category has the full Today card; a
  * faith-based one plans special days; no practice term, no fourth tab), the app's own entry for what the database does not
- * say, then anything the database says in its optional `layout`.
+ * say, then the Today variant of the template (src/lib/template.ts), then anything the database says in its optional `layout`.
  */
 export function layoutFor(profile: CategoryProfile): CategoryLayout {
   const own = LAYOUT_BY_CATEGORY[profile.key] ?? GENERIC_LAYOUT_DATA;
+  const todayCard = todayCardFor(profile.template?.todayVariant ?? null);
   return {
     practiceTab: profile.terms.practice_tab !== null,
     todayCard: profile.usesTradition ? 'full' : 'basic',
     specialDays: profile.faithBased,
     interests: own.interests,
     shortcuts: own.shortcuts,
+    ...(todayCard ? { todayCard } : {}),
     ...(profile.layoutHints ?? {}),
   };
 }

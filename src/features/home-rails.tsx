@@ -73,7 +73,7 @@ import { KIND_ICON, mediaSubtitle, toQueueItem } from './three-l/media-ui';
 
 /*
  * Home in rows (owner, 2026-10-02). Every row is a strip of tiles that scrolls sideways (home-rail.tsx); the
- * order and what is in each is set here:
+ * built-in order and what is in each is set here (the member-app template can reorder or hide the rows, see HOME_WIDGETS):
  *
  *   1  Today at {center} and My Jain Way (no title: the tiles carry their own)
  *   2  Plan a special day (the family's days in the next two months; the whole row is hidden without any)
@@ -104,19 +104,21 @@ export type LazyRow = Extract<HomeRow, 'events' | 'give' | 'learnListen'>;
 export function HomeRows({ reveal, underToday }: { reveal: RailReveal<LazyRow>; underToday?: ReactNode }) {
   const { center, member } = useApp();
   const { map } = useModules();
-  const { layout } = useCategory();
+  const { layout, template } = useCategory();
   const access = useAccess();
   const guide = useFeature('guide');
   const learn = useFeature('learn');
   const listen = useFeature('listen');
   const look = useFeature('look');
-  // Plan a special day: its load starts now. Until it knows whether it has days, the rows under it are held (see above).
-  const hasDaysRow = layout.specialDays && !!member?.household && isHomeCardVisible(map, 'specialDay');
-  const days = useHomeSpecialDays(hasDaysRow);
-  const held = useHold(hasDaysRow && days.data === undefined && !days.error, SPECIAL_DAYS_HOLD_MS);
-  if (!center) return null;
   const who: HomeMember = member ? { isAdult: member.isAdult, hasHousehold: !!member.household } : null;
-  const rows = homeRows({ rules: center.rules, modules: map, member: who, access: { guide: guide.allowed, learn: learn.allowed, listen: listen.allowed, look: look.allowed }, layout });
+  // The rows this person gets, in the template's order (Home's built-in order without a template; a row the template leaves out is hidden).
+  // The rules still decide each row (modules, adults, guests, tiles), so a template can never show what the community has switched off.
+  const rows = homeRows({ rules: center?.rules ?? null, modules: map, member: who, access: { guide: guide.allowed, learn: learn.allowed, listen: listen.allowed, look: look.allowed }, layout, order: template.rows });
+  // Plan a special day: its load starts now. Until it knows whether it has days, the rows under it are held (see above).
+  const daysAt = rows.indexOf('specialDays');
+  const days = useHomeSpecialDays(daysAt >= 0);
+  const holding = useHold(daysAt >= 0 && days.data === undefined && !days.error, SPECIAL_DAYS_HOLD_MS);
+  if (!center) return null;
   // Learn & listen waits for what this person may use. When that could not be read, the row says so, with Try again, instead of its tiles being quietly missing.
   const tilesIfAllowed = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: true, listen: true, look: true }, defaultShortcuts: layout.shortcuts }).length;
   const tilesNow = learnListenTiles({ rules: center.rules, modules: map, signedIn: !!member, access: { learn: learn.allowed, listen: listen.allowed, look: look.allowed }, defaultShortcuts: layout.shortcuts }).length;
@@ -126,24 +128,47 @@ export function HomeRows({ reveal, underToday }: { reveal: RailReveal<LazyRow>; 
   return (
     <>
       {rows.includes('today') ? null : under}
-      {rows.map((row) => {
-        if (row === 'today')
-          return (
-            <Fragment key={row}>
-              <TodayRow />
-              {under}
-            </Fragment>
-          );
-        if (row === 'specialDays') return <SpecialDaysRow key={row} state={days} />;
-        if (row === 'events') return <EventsRow key={row} {...slot(row)} held={held} />;
-        if (row === 'give') return <GiveRow key={row} {...slot(row)} held={held} />;
-        if (row === 'life') return <LifeRow key={row} held={held} />;
-        return <LearnListenRow key={row} {...slot(row)} held={held} accessProblem={accessProblem} />;
-      })}
-      {accessProblem && !rows.includes('learnListen') ? <LearnListenAccessError error={accessProblem.error} onRetry={accessProblem.retry} /> : null}
+      {rows.map((row) => HOME_WIDGETS[row]({ slot, held: holding && rows.indexOf(row) > daysAt, days, accessProblem, under }))}
+      {/* Said only when the template keeps this row: a row it hides has nothing to say. */}
+      {accessProblem && template.rows.includes('learnListen') && !rows.includes('learnListen') ? <LearnListenAccessError error={accessProblem.error} onRetry={accessProblem.retry} /> : null}
     </>
   );
 }
+
+/** What Home gives a row's widget when it draws it. */
+export type HomeWidgetEnv = {
+  /** When the row may load (Events, Giving opportunities and Learn & listen load as they come near the screen). */
+  slot: (row: LazyRow) => RailSlot;
+  /** The row is under Plan a special day while that is still loading, so it is drawn invisible for a moment. */
+  held: boolean;
+  /** Plan a special day's data (it loads when Home does). */
+  days: LoadState<HomeSpecialDaysData>;
+  /** Why what Learn & listen may use could not be read (the row then says so, with Try again), or null. */
+  accessProblem: { error: AppError; retry: () => void } | null;
+  /** The notices that load after Home was drawn: they go directly under Today. */
+  under: ReactNode;
+};
+
+/**
+ * The widget registry: every Home row this build can draw, the row's id to the component that draws it. Home draws the rows in
+ * the order of the member-app template (src/lib/template.ts, delivered with the kind of organization's profile), so the app
+ * changes by kind and faith with no update; a template id this build has no widget for never gets here (the template drops it).
+ * The six rows below are the whole registry; a new kind of row is a new entry here and an id in TEMPLATE_ROWS. Each widget
+ * returns its element with a key, because Home draws them as a list.
+ */
+export const HOME_WIDGETS: Record<HomeRow, (env: HomeWidgetEnv) => ReactNode> = {
+  today: (env) => (
+    <Fragment key="today">
+      <TodayRow />
+      {env.under}
+    </Fragment>
+  ),
+  specialDays: (env) => <SpecialDaysRow key="specialDays" state={env.days} />,
+  events: (env) => <EventsRow key="events" {...env.slot('events')} held={env.held} />,
+  give: (env) => <GiveRow key="give" {...env.slot('give')} held={env.held} />,
+  life: (env) => <LifeRow key="life" held={env.held} />,
+  learnListen: (env) => <LearnListenRow key="learnListen" {...env.slot('learnListen')} held={env.held} accessProblem={env.accessProblem} />,
+};
 
 // ---------------------------------------------------------------------------
 // Row 1: Today at {center} and My Jain Way

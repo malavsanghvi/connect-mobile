@@ -38,14 +38,17 @@ function isTab(name: string | undefined): name is TabName {
  * Way disappear when none of their sections is on), and Niva is there for
  * someone who may use Ask Niva (it replaces the floating Niva button). The
  * 3L mini player sits on top of it while something is playing.
+ *
+ * The member-app template (src/lib/template.ts, via useCategory) can reorder the tabs, hide some, and give a tab its own name and
+ * icon; it works among these routes only, and Niva stays the last item for someone who may use it.
  */
 export function TabBarView({ active, onSelect }: { active: BarItem | null; onSelect: (item: BarItem) => void }) {
   const insets = useSafeAreaInsets();
   const { map } = useModules();
   const { center } = useApp();
-  const { layout } = useCategory();
+  const { layout, template } = useCategory();
   const nivaAllowed = useFeature('niva').allowed;
-  const items = barItems(map, nivaAllowed, layout.practiceTab);
+  const items = barItems(map, nivaAllowed, layout.practiceTab, template.tabs);
   const { t, scale } = useSettings();
   const labelScale = Math.min(scale, 1.15);
   const spec = components.tabBar;
@@ -68,7 +71,9 @@ export function TabBarView({ active, onSelect }: { active: BarItem | null; onSel
           const meta = BAR_META[item];
           const focused = item === active;
           const tint = focused ? colors.navy : colors.faint;
-          const label = t(meta.label);
+          // Niva has no template entry; a tab's template name and icon win over the dictionary's and the built-in glyph.
+          const label = (item !== 'niva' ? template.tabs.labels[item] : undefined) ?? t(meta.label);
+          const icon = (item !== 'niva' ? template.tabs.icons[item] : undefined) ?? meta.icon;
           // Niva's spoken name says whose it is ("Ask JSH Niva"); its printed label stays short like the others.
           const spoken = item === 'niva' ? t('niva.fabLabel', { center: communityName(center) }).replace(/\s+/g, ' ') : label;
           return (
@@ -79,7 +84,7 @@ export function TabBarView({ active, onSelect }: { active: BarItem | null; onSel
               accessibilityLabel={spoken}
               accessibilityState={{ selected: focused }}
               style={({ pressed }) => ({ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spec.gap, paddingHorizontal: 2, opacity: pressed ? 0.7 : 1 })}>
-              <StrokeIcon name={meta.icon} size={spec.iconSize} color={tint} strokeWidth={spec.iconStroke} />
+              <StrokeIcon name={icon} size={spec.iconSize} color={tint} strokeWidth={spec.iconStroke} />
               {/* Six columns: "Jain Way" at the larger text sizes shrinks a little on a narrow phone rather than being cut off. */}
               <Text
                 numberOfLines={1}

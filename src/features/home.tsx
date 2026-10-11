@@ -25,6 +25,7 @@ import { colors, fonts, radii, space, touch } from '@/theme';
 
 import { useConfirmPopup } from './confirm-popup';
 import { splitAlerts } from './home-rules';
+import { ServiceTimes } from './service-times';
 import { TodayDoors } from './today-doors';
 
 /*
@@ -215,9 +216,11 @@ export function TodayGreeting({ onShow }: { onShow: () => void }) {
 export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHide: () => void }) {
   const t = useT();
   const { center, member } = useApp();
-  const { layout, profile } = useCategory();
+  const { layout, profile, template } = useCategory();
   // A kind of organization with no panchang (a chamber of commerce) has the greeting and the date, and nothing that is not there.
   const basic = layout.todayCard === 'basic';
+  // The template's "service_times" variant is that card plus the community's own times (nothing of any one faith).
+  const serviceTimes = template.today === 'service_times';
   const community = center?.short_name || center?.name || '';
   const family = member?.household?.display_name ?? null;
   if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <TileLoading />;
@@ -252,7 +255,9 @@ export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHi
           <StrokeIcon name="close" size={16} color={colors.muted} strokeWidth={2} />
         </Pressable>
       </Row>
-      {basic ? null : tiles.length ? (
+      {serviceTimes ? (
+        <ServiceTimes />
+      ) : basic ? null : tiles.length ? (
         <Row gap={space.sm} align="stretch">
           {tiles.map((x) => (
             <TimeTile key={x.label} label={x.label} value={x.value} />
