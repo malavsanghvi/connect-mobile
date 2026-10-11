@@ -6,10 +6,11 @@ import { Pressable, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { Banner, Button, Card, Chip, ChipGroup, Divider, ListRow, Pill, Row, SectionTitle, Toggle, Txt } from '@/components/ui';
 import { LANGUAGES, type Language } from '@/i18n';
+import { readActivityOptOut, setActivityOptOut } from '@/lib/activity';
 import { securitySubKey, signOutBodyKey } from '@/lib/auth-config';
 import { biometricSupport, readBiometricOptIn, writeBiometricOptIn, type BiometricSupport } from '@/lib/biometrics';
 import { createDataRequest, deactivateAccount, QUIET_HOURS_RANGE, reactivateAccount, requestDeletion, setDirectoryOptIn, updateAccount } from '@/lib/api/settings';
-import { check, logError, report } from '@/lib/errors';
+import { AppError, check, logError, report } from '@/lib/errors';
 import { formatPhone, fullName } from '@/lib/format';
 import { currentRelease, releaseLabel } from '@/lib/release';
 import { supabase } from '@/lib/supabase';
@@ -43,6 +44,20 @@ export default function SettingsScreen() {
   const [bioOn, setBioOn] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // "Help improve the app": on unless this person turned it off on this phone (src/lib/activity.ts).
+  const [helpOn, setHelpOn] = useState(true);
+  const userId = member?.userId ?? null;
+
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    readActivityOptOut(userId).then((out) => {
+      if (alive) setHelpOn(!out);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
 
   useEffect(() => {
     let alive = true;
@@ -93,6 +108,14 @@ export default function SettingsScreen() {
     run('bio', 'change biometric sign-in', async () => {
       await writeBiometricOptIn(on);
       setBioOn(on);
+    });
+
+  // The phone obeys at once; when the account could not be told, say so (it is tried again) rather than showing a quiet success.
+  const toggleHelpImprove = (on: boolean) =>
+    run('activity', 'change this setting', async () => {
+      setHelpOn(on);
+      const { synced } = await setActivityOptOut(member.userId, !on);
+      if (!synced) throw new AppError(t('settings.helpImproveFailed'), 'set_activity_opt_out was not reached');
     });
 
   const accountAction = async (kind: 'deactivate' | 'delete' | 'signout') => {
@@ -239,6 +262,12 @@ export default function SettingsScreen() {
                 })
               }
             />
+            <Divider />
+          </>
+        ) : null}
+        {member.isAdult ? (
+          <>
+            <Toggle label={t('settings.helpImprove')} sub={t('settings.helpImproveSub')} value={helpOn} disabled={busy === 'activity'} onChange={toggleHelpImprove} />
             <Divider />
           </>
         ) : null}

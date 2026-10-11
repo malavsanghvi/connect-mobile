@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CenterMark } from '@/components/brand';
 import { Banner, Button, Radio, Row, Txt, VStack } from '@/components/ui';
+import { errorCodeOf, track } from '@/lib/activity';
 import { report } from '@/lib/errors';
 import { formatCents } from '@/lib/format';
 import { useApp } from '@/providers/app';
@@ -107,6 +108,8 @@ export function PayHost() {
       closeSheet({ status: 'paid', paymentId: res.paymentId });
       setTimeout(() => setPaid({ amountCents, context }), MODAL_GAP_MS);
     } catch (err) {
+      // The sheet stays open for another try; the usage logger counts this failure (a code only, never the amount).
+      track('payment_failed', { entityKind: sheet.req.context, outcome: 'error', errorCode: errorCodeOf(err) });
       setSheet((s) => (s ? { ...s, busy: false, error: report(err, 'take your payment').userMessage } : s));
     }
   };

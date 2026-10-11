@@ -3,6 +3,7 @@ import * as Linking from 'expo-linking';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { pendingSteps, type LegalStepDoc } from '@/features/legal-step';
+import { flushActivityBriefly } from '@/lib/activity';
 import { loadLegalSteps } from '@/lib/api/legal';
 import { centerChanged, loadCenter, loadMember, orgIdentifierRules, type Center, type Member } from '@/lib/api/member';
 import { modeAfterMemberLoad, type OnboardingMode } from '@/features/onboarding/steps';
@@ -290,6 +291,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // The usage logger sends what it holds while the sign-in is still valid (best effort; never holds the sign-out up for long).
+    await flushActivityBriefly();
     const { error } = await supabase.auth.signOut();
     if (error) throw report(error, 'sign out');
     setMemberResult(null);

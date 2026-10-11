@@ -17,6 +17,8 @@
 
 import { useSyncExternalStore } from 'react';
 
+import { errorCodeOf, track } from '@/lib/activity';
+
 import type { OnlineMethod } from './methods';
 import type { SavingStep } from './steps';
 
@@ -126,8 +128,30 @@ export function useCardCharger(): CardCharger | null {
   );
 }
 
-/** Open the Pay sheet. Resolves when the member closes it. */
+/**
+ * Open the Pay sheet. Resolves when the member closes it. The usage logger counts the steps (payment_started, then
+ * payment_completed, or payment_failed with "cancelled" when the sheet was closed); never the amount or what it was for.
+ */
 export async function startPayment(req: PaymentRequest, ui?: PaymentUi): Promise<PaymentOutcome> {
+  track('payment_started', { entityKind: req.context });
+  try {
+    const outcome = await openPayment(req, ui);
+    trackPaymentOutcome(req.context, outcome);
+    return outcome;
+  } catch (err) {
+    track('payment_failed', { entityKind: req.context, outcome: 'error', errorCode: errorCodeOf(err) });
+    throw err;
+  }
+}
+
+function trackPaymentOutcome(context: PaymentRequest['context'], outcome: PaymentOutcome): void {
+  if (outcome.status === 'paid') track('payment_completed', { entityKind: context });
+  else if (outcome.status === 'cancelled') track('payment_failed', { entityKind: context, outcome: 'cancelled' });
+  else if (outcome.status === 'alternative') track('payment_failed', { entityKind: context, outcome: 'cancelled', errorCode: 'alternative' });
+  else track('payment_failed', { entityKind: context, outcome: 'error', errorCode: 'not_available' });
+}
+
+async function openPayment(req: PaymentRequest, ui?: PaymentUi): Promise<PaymentOutcome> {
   if (host) return host.pay(req);
   if (ui) {
     ui.payNotice({ amountLabel: ui.formatAmount(req.amountCents), saved: !!(req.pledgeId || req.pledgeIds?.length) });

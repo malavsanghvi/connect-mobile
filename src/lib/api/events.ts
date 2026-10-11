@@ -1,3 +1,4 @@
+import { trackFlow } from '../activity';
 import type { Tables, TablesInsert } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
 import { isUuid } from '../flyer';
@@ -135,7 +136,7 @@ export type Commitment = { mode: 'none' | 'per_person' | 'lump_sum'; totalCents:
  * rollback: if attendees fail after the RSVP row was created, the RSVP is
  * marked cancelled so no half-made RSVP holds seats.
  */
-export async function submitRsvp(args: {
+async function saveRsvp(args: {
   event: EventRow;
   member: Member;
   existing: Rsvp | null;
@@ -225,6 +226,11 @@ export async function submitRsvp(args: {
     args.onStep?.('pledged');
   }
   return { rsvpId, pledgeId, pledgeNumber };
+}
+
+/** The member taps to save the RSVP ("rsvp_started"), then it is saved or fails ("rsvp_completed" with its outcome); see src/lib/activity.ts. */
+export function submitRsvp(args: Parameters<typeof saveRsvp>[0]): ReturnType<typeof saveRsvp> {
+  return trackFlow('rsvp_started', 'rsvp_completed', { entityKind: 'event' }, () => saveRsvp(args));
 }
 
 /** "Yes, we're coming": confirm the kept attendees; release the others' tickets. */
