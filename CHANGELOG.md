@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.17.2 — 2026-10-11
+
+- **The Store is called "My Store".** The menu item, the Store screen's title, the order's payment line and the Store entry in
+  the list of modules say "My Store" instead of "Satvik Store". The Jain Center's built-in wording (used before the community's
+  own words arrive) changes with it. A community that names its own store keeps its own name.
+- Two lines needed new wording, not just a swap: Home's small heading and the Store banner now read "{community} · My Store",
+  and the cart's progress line reads "Sending 3 items to the {community} kitchen" (it used to say "Satvik kitchen").
+- JavaScript only: no native change, no new dependency, runtime version unchanged. Ships as an over-the-air update.
+
 ## 1.17.1 — 2026-10-11
 
 - **The five faith motifs now show in Home's header** (connect-crm B89, templates 0624). A faith community's template can name

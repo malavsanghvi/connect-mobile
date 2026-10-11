@@ -292,7 +292,7 @@ export function pronounFor(gender: string | null | undefined): Pronoun {
 }
 
 // ---------------------------------------------------------------------------
-// Satvik Store
+// My Store
 // ---------------------------------------------------------------------------
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
