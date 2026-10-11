@@ -27,7 +27,7 @@
  *
  * Pure (no React, no Supabase). Parsed by src/lib/categories.ts, applied by src/providers/category.tsx.
  */
-import { en } from '../i18n/en';
+import { en, type StringKey } from '../i18n/en';
 import type { StrokeIconName } from '../components/stroke-icon';
 
 import { brandPalette } from './community';
@@ -78,9 +78,27 @@ export type Radius = (typeof RADII)[number];
 export const TODAY_VARIANTS = ['full', 'basic', 'service_times'] as const;
 export type TodayVariant = (typeof TODAY_VARIANTS)[number];
 
-/** The motifs this build can draw in Home's header. A name it does not know is ignored. */
-export const MOTIFS = ['leaf', 'wave', 'sun', 'star', 'lotus'] as const;
+/**
+ * The motifs this build can draw in Home's header. A name it does not know is ignored. The first five are the general ones; the
+ * last five are the faith ones the database templates send for a faith overlay (connect-crm 0624): om, cross, crescent, khanda
+ * and dharma_wheel. Each is a plain outline glyph (src/components/motif.tsx), never text.
+ */
+export const MOTIFS = ['leaf', 'wave', 'sun', 'star', 'lotus', 'om', 'cross', 'crescent', 'khanda', 'dharma_wheel'] as const;
 export type Motif = (typeof MOTIFS)[number];
+
+/** The spoken name of each motif, for a screen reader (the dictionary holds the words). */
+export const MOTIF_LABEL_KEYS: Record<Motif, StringKey> = {
+  leaf: 'motif.leaf',
+  wave: 'motif.wave',
+  sun: 'motif.sun',
+  star: 'motif.star',
+  lotus: 'motif.lotus',
+  om: 'motif.om',
+  cross: 'motif.cross',
+  crescent: 'motif.crescent',
+  khanda: 'motif.khanda',
+  dharma_wheel: 'motif.dharmaWheel',
+};
 
 export function isMotif(v: unknown): v is Motif {
   return typeof v === 'string' && (MOTIFS as readonly string[]).includes(v);

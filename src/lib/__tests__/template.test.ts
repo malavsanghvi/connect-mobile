@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 
+import { en } from '../../i18n/en';
 import { applyPalette, applyTemplateTheme, colors, radii } from '../../theme';
 import {
   genericProfile,
@@ -20,6 +21,7 @@ import {
   CRISP_RADII,
   isMotif,
   MAX_TAB_LABEL,
+  MOTIF_LABEL_KEYS,
   MOTIFS,
   NO_THEME,
   parseTemplate,
@@ -228,6 +230,35 @@ describe('ids this build does not know are ignored', () => {
     expect(isMotif('peacock_feather')).toBe(false);
     for (const m of MOTIFS) expect(resolveTheme(parsed({ theme: { motif: m } })).motif).toBe(m);
     expect(parsed({ theme: { motif: 'none' } })).toBeNull();
+  });
+
+  it('draws the five faith motifs the database templates send, besides the five general ones', () => {
+    const faith = ['om', 'cross', 'crescent', 'khanda', 'dharma_wheel'];
+    expect([...MOTIFS]).toEqual(['leaf', 'wave', 'sun', 'star', 'lotus', ...faith]);
+    for (const m of faith) {
+      expect(isMotif(m)).toBe(true);
+      const t = parsed({ theme: { motif: m } });
+      expect(t?.theme?.motif).toBe(m);
+      expect(resolveTheme(t).motif).toBe(m);
+    }
+    // A name is trimmed and lower-cased when read, then matched exactly; near-misses and other faiths' names are still ignored.
+    expect(parsed({ theme: { motif: ' OM ' } })?.theme?.motif).toBe('om');
+    expect(isMotif('Om')).toBe(false);
+    for (const m of ['dharma-wheel', 'dharmawheel', 'star_of_david', 'hamsa', 'ek_onkar', 'chai', 'toString', '__proto__']) {
+      expect(isMotif(m)).toBe(false);
+      expect(resolveTheme(parsed({ theme: { motif: m } })).motif).toBeNull();
+    }
+  });
+
+  it('gives every motif a spoken name in plain English', () => {
+    expect(Object.keys(MOTIF_LABEL_KEYS).sort()).toEqual([...MOTIFS].sort());
+    for (const m of MOTIFS) {
+      const label = en[MOTIF_LABEL_KEYS[m]];
+      expect(label).toMatch(/ symbol$/);
+    }
+    expect(en[MOTIF_LABEL_KEYS.om]).toBe('Om symbol');
+    expect(en[MOTIF_LABEL_KEYS.dharma_wheel]).toBe('Dharma wheel symbol');
+    expect(new Set(MOTIFS.map((m) => en[MOTIF_LABEL_KEYS[m]])).size).toBe(MOTIFS.length);
   });
 
   it('ignores an unknown surface, radius or Today variant on its own', () => {

@@ -14,6 +14,20 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.17.1 — 2026-10-11
+
+- **The five faith motifs now show in Home's header** (connect-crm B89, templates 0624). A faith community's template can name
+  `om`, `cross`, `crescent`, `khanda` or `dharma_wheel`; until now this build drew only leaf, wave, sun, star and lotus, so
+  those communities showed no ornament. Each is a plain one-colour outline in the community's accent colour, the same size as the
+  others, with no text inside and no gradient, checked at 18 px on the warm and the cool surfaces: the Om with its crescent and
+  dot, an upright cross, a crescent with a small star, the Sikh khanda (blade, ring and two kirpans) and the dharma wheel (rim,
+  hub, eight spokes). A name the app does not know is still ignored (no ornament, nothing breaks).
+- Each motif has a spoken name for a screen reader ("Om symbol", "Cross symbol", "Crescent moon symbol", "Khanda symbol",
+  "Dharma wheel symbol", and the same for the five older ones). In the Home header the community's name is announced as before and
+  the ornament beside it stays silent.
+- JavaScript only (react-native-svg was already in the app): no native change, no new dependency, runtime version unchanged. Ships
+  as an over-the-air update.
+
 ## 1.17.0 — 2026-10-10
 
 - **A small usage logger, off until the community turns it on** (connect-crm B91, absorbs B77). The app counts which screens are

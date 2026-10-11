@@ -37,6 +37,18 @@ export const en = {
   'tab.jainWay': 'Jain Way',
   'tab.family': 'Family',
 
+  // Motifs: the spoken names of the small symbols a community's template can place in Home's header
+  'motif.leaf': 'Leaf symbol',
+  'motif.wave': 'Wave symbol',
+  'motif.sun': 'Sun symbol',
+  'motif.star': 'Star symbol',
+  'motif.lotus': 'Lotus symbol',
+  'motif.om': 'Om symbol',
+  'motif.cross': 'Cross symbol',
+  'motif.crescent': 'Crescent moon symbol',
+  'motif.khanda': 'Khanda symbol',
+  'motif.dharmaWheel': 'Dharma wheel symbol',
+
   // Membership tiers
   'tier.community': 'Community members',
   'tier.yearly': 'Yearly members',
