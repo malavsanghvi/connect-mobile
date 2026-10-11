@@ -1,3 +1,4 @@
+import { trackAction } from '../activity';
 import type { Tables } from '../database.types';
 import { maybe, must } from '../errors';
 import { supabase } from '../supabase';
@@ -33,7 +34,9 @@ export async function getBoli(id: string): Promise<BoliWithSummary> {
 }
 
 export async function placePledge(boliId: string, householdId: string, amountCents: number, anonymous: boolean): Promise<void> {
-  must(await supabase.rpc('place_boli_entry', { p_boli: boliId, p_household: householdId, p_amount_cents: amountCents, p_anonymous: anonymous }), 'place your pledge');
+  await trackAction('pledge_placed', { entityKind: 'boli' }, async () => {
+    must(await supabase.rpc('place_boli_entry', { p_boli: boliId, p_household: householdId, p_amount_cents: amountCents, p_anonymous: anonymous }), 'place your pledge');
+  });
 }
 
 export function isBoliOpen(b: Boli, summary: BoliSummary | null, now: Date): boolean {

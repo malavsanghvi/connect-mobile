@@ -28,6 +28,7 @@ import { AppProvider, useApp } from '@/providers/app';
 import { CategoryProvider, useCategory } from '@/providers/category';
 import { DataVersionProvider } from '@/providers/data-version';
 import { FeedbackProvider } from '@/providers/feedback';
+import { ActivityRecorder } from '@/providers/activity';
 import { ForegroundProvider } from '@/providers/foreground';
 import { ModulesProvider } from '@/providers/modules';
 import { SettingsProvider, useT } from '@/providers/settings';
@@ -176,6 +177,9 @@ function RootNavigator() {
           navigation underneath keeps its place, so onboarding continues where it was. */}
       {signedIn && linked ? <LegalGate /> : null}
       {app.sandbox ? <SandboxWatermark /> : null}
+      {/* The usage logger (screens and a few steps; opt-out in Settings › Privacy) and its first-run notice: nothing is recorded until the
+          community's recording is on and the notice has been seen. Inside the lock, so nothing shows over a locked app. */}
+      <ActivityRecorder />
       </View>
     </BiometricGate>
   );
