@@ -454,6 +454,20 @@ describe('the "Help improve the app" choice', () => {
     expect(h.sent).toEqual([]);
   });
 
+  it('obeys an opt-out the database reports (made on another phone), without telling the database again', async () => {
+    const h = harness();
+    h.logger.setContext(ME);
+    h.logger.track('rsvp_started');
+    h.logger.acceptOptOut(ME.userId);
+    expect(h.logger.pending()).toBe(0);
+    h.logger.track('rsvp_completed');
+    expect(h.logger.pending()).toBe(0);
+    await h.logger.flush({ force: true });
+    expect(h.optOutCalls).toEqual([]);
+    expect(h.sent).toEqual([]);
+    await expect(h.logger.isOptedOut(ME.userId)).resolves.toBe(true);
+  });
+
   it('records again when turned back on', async () => {
     const h = harness();
     h.logger.setContext(ME);

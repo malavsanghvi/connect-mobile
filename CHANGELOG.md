@@ -25,6 +25,11 @@ How a release is made:
   stops the logger on the phone at once, empties what was waiting, and tells the account (`set_activity_opt_out`); if the account
   cannot be reached the screen says so and the choice is sent again later. It is not shown for an under-18 account, which records
   nothing.
+- **A first-run notice, once per person and community, and only when recording is really on** (`app.activity_status`; if it cannot be
+  read or says off, nothing is shown). "Help improve this app: your community's administrators agreed to count which screens are used
+  and how long. We never record what you type, names, or amounts. You can turn this off any time in Settings > Privacy." with
+  "Got it" and "Turn off". Nothing is recorded for a person in a community until they have seen it; "Turn off" stops the logger at once.
+  Not shown to a guest, to an under-18 account, or to someone who already turned the switch off.
 - **Privacy by construction.** A guest, a signed-out phone or an under-18 account records nothing; the database takes the person and
   the community from the sign-in, drops unknown keys, and does nothing while the community's recording switch is off, so this
   release is inert until a community's switch is on. Events wait in a queue kept on the phone (500 at most, oldest dropped

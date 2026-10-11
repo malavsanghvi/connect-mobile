@@ -471,6 +471,14 @@ export function createActivityLogger(deps: ActivityDeps) {
       await persistNow();
       return { synced };
     },
+    /** The database says this person opted out (perhaps from another phone): obey here too, without telling the database again. */
+    acceptOptOut(userId: string) {
+      if (unsynced && unsynced.userId === userId) return; // their own newer choice is still on its way
+      touched.add(userId);
+      optedOut.add(userId);
+      queue = queue.filter((q) => q.userId !== userId);
+      persistSoon();
+    },
     /** Saves what waits (used when the app goes to the background and by tests). */
     persistNow,
     /** How many events wait to be sent (tests and diagnostics). */
@@ -520,6 +528,15 @@ export async function flushActivityBriefly(maxMs = 2_500): Promise<void> {
 
 export async function readActivityOptOut(userId: string): Promise<boolean> {
   return installed ? installed.isOptedOut(userId) : false;
+}
+
+/** The database says this person opted out: stop recording on this phone too. */
+export function noteActivityOptOut(userId: string): void {
+  try {
+    installed?.acceptOptOut(userId);
+  } catch {
+    // telemetry never throws
+  }
 }
 
 export async function setActivityOptOut(userId: string, out: boolean): Promise<{ synced: boolean }> {
