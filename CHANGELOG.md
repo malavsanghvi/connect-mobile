@@ -33,6 +33,27 @@ How a release is made:
   logger pauses for an hour.
 - JavaScript only: no new native module, runtimeVersion stays 3, so this reaches installed apps as an over-the-air update.
 
+## 1.16.0 — 2026-10-10
+
+- **The app now changes with the kind of organization and its faith, with no app update.** A community's member-app
+  template, sent with its kind of organization (`app.category_profile`, the additive key `template`), decides which rows
+  Home shows and in what order, the order, names and icons of the bottom tabs, the look (an accent and primary colour,
+  a warm, cool or plain page, soft or crisp corners, a small ornament beside the name on Home) and which Today card Home
+  opens with: the full one, the basic one, or the new **service times** card (the greeting and date, with the times the
+  community published on its Timings page and a link to all of them). Nothing in the template turns on what a community
+  has switched off, and nothing in it is shown to a person who may not see it: a row or tab whose module is off stays
+  hidden whatever the template says, and Niva stays last in the bar.
+- **A community with no template looks exactly as it did** (Home's six rows in their order, the five tabs and Niva, the
+  built-in colours): the Jain Center layout is checked row for row and tab for tab by tests. A template part the app
+  cannot use (an unknown row or tab, a wrong shape, a colour too light to read) is ignored on its own, the built-in is used
+  for it, and the reason is logged once; a newer template never breaks an older app.
+- **Colours:** the community's own brand kit still wins over the template's colours, colour by colour, and the template wins
+  over the built-in ones. The corners and page colours of the "crisp" and "cool/plain" looks reach the screens as they are
+  drawn next; buttons whose size is fixed when the app starts keep their built-in corners for now.
+- No database change in this release (the server side, which sends the template, is built separately in connect-crm; until
+  it does, every community looks as it did), and runtimeVersion stays 3: no new native module, so this reaches installed
+  apps as an over-the-air update.
+
 ## 1.15.0 — 2026-10-08
 
 - **Sign in and create an account with your email only.** The welcome screen offers "Continue with email" alone, and the

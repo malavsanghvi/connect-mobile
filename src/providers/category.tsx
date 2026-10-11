@@ -13,11 +13,14 @@ import {
 } from '@/lib/categories';
 import { loadCategoryProfile, readCachedProfile, writeCachedProfile } from '@/lib/api/category';
 import { logError } from '@/lib/errors';
+import { HOME_ROWS } from '@/lib/home-rails';
 import type { ModuleKey, ModuleMap } from '@/lib/modules';
+import { resolveTemplate, type ResolvedTemplate } from '@/lib/template';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useForegroundTick } from '@/providers/foreground';
 import { WordsProvider } from '@/providers/settings';
+import { applyTemplateTheme } from '@/theme';
 
 export type CategoryValue = {
   /** The kind of organization this community is: what the database last said, else the app's own for that kind. */
@@ -28,6 +31,13 @@ export type CategoryValue = {
   moduleDefaults: ModuleMap;
   /** The kind's own names for modules ("Religious school"). */
   moduleLabels: Partial<Record<ModuleKey, string>>;
+  /**
+   * The member-app template resolved for this app (src/lib/template.ts): Home's row order, the tab bar's order, names and icons,
+   * the look and Today's variant. With no template from the database it is the app's own layout, so a Jain community is unchanged.
+   */
+  template: ResolvedTemplate;
+  /** Changes when the template's look changes (colours, surface, corners): what to key on to draw something again. */
+  themeKey: string;
   /** Where `profile` comes from: the database just now, this device's last answer, or the app's own. */
   source: 'live' | 'cache' | 'builtin';
   /** The layout can be shown: no wait for a kind the app knows, else the device's last answer or the first answer is in. */
@@ -39,6 +49,8 @@ const JAIN: CategoryValue = {
   layout: JAIN_LAYOUT,
   moduleDefaults: {},
   moduleLabels: {},
+  template: resolveTemplate(null, HOME_ROWS),
+  themeKey: '',
   source: 'builtin',
   ready: true,
 };
@@ -58,6 +70,10 @@ type Held = { centerId: string; profile: CategoryProfile | null };
  *  - A kind the app has no built-in for waits (`ready` false) for the cached or first live answer instead of guessing; if the
  *    read fails, the generic layout (neutral, complete) is used and the read is tried again later.
  *  - Under it, the words of the kind are laid over the dictionary (WordsProvider), so `useT()` everywhere speaks them.
+ *  - The profile's optional `template` (Home rows, tabs, look, Today variant; src/lib/template.ts) arrives with it, from the same
+ *    cached-then-live answer, so the layout follows the kind and faith with no app update and no flash of another layout. Its look
+ *    is laid under the community's brand kit (src/theme.ts applyTemplateTheme) while this renders, before the screens below read
+ *    the colours.
  *
  * It sits below AppProvider (it needs the community) and above ModulesProvider (the module map starts from the kind's defaults).
  */
@@ -111,16 +127,26 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     settled: !!centerId && settled === centerId,
   });
 
+  const template = useMemo(() => resolveTemplate(profile.template, HOME_ROWS), [profile.template]);
+  const theme = template.theme;
+  // Idempotent, and it must happen before the screens below render (they read the colours while rendering), so it is not an effect.
+  const themeKey = useMemo(() => {
+    applyTemplateTheme(theme);
+    return theme.key;
+  }, [theme]);
+
   const value = useMemo<CategoryValue>(
     () => ({
       profile,
       layout: layoutFor(profile),
       moduleDefaults: categoryModuleMap(profile),
       moduleLabels: categoryModuleLabels(profile),
+      template,
+      themeKey,
       source,
       ready,
     }),
-    [profile, source, ready],
+    [profile, template, themeKey, source, ready],
   );
   const words = useMemo(() => wordsFor(profile), [profile]);
 

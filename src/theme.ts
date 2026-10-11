@@ -158,15 +158,26 @@ export type ColorName = keyof typeof colors;
 // without brand colours restores it.
 const defaultColors: Record<string, string> = { ...colors };
 
+// The layers a colour comes from, strongest first: the community's brand kit, the member-app template's theme
+// (src/lib/template.ts resolveTheme), the built-in palette above. Each colour takes the first layer that sets it.
+let brandLayer: Record<string, string> = {};
+let templateLayer: Record<string, string> = {};
+
+function paintColors(): void {
+  const target = colors as unknown as Record<string, string>;
+  for (const key of Object.keys(defaultColors)) target[key] = brandLayer[key] ?? templateLayer[key] ?? defaultColors[key];
+}
+
 /**
  * Theme the app from the chosen community's brand kit (centers.branding
  * colours; src/lib/community.ts brandPalette). Screens read `colors` while
  * rendering, so the next render — the root remounts per community — uses
- * the new values. Only keys present in `palette` change.
+ * the new values. Only keys present in `palette` change. The brand kit wins
+ * over the template's theme (applyTemplateTheme), colour by colour.
  */
 export function applyPalette(palette: Record<string, string>): void {
-  const target = colors as unknown as Record<string, string>;
-  for (const key of Object.keys(defaultColors)) target[key] = palette[key] ?? defaultColors[key];
+  brandLayer = palette;
+  paintColors();
 }
 
 /**
@@ -208,6 +219,21 @@ export const radii = {
   cart: 28,
   round: 999,
 } as const;
+
+const defaultRadii: Record<string, number> = { ...radii };
+
+/**
+ * Lay a member-app template's look under the brand kit (src/lib/template.ts resolveTheme): its colours (surface, primary, accent)
+ * only where the brand kit sets none, and its corner radii (null: the built-in ones). Like the brand kit, the values are read while
+ * rendering, so what is drawn after this call uses them; nothing here is a screen's business. `{ palette: {}, radii: null }` restores
+ * the built-in look.
+ */
+export function applyTemplateTheme(theme: { palette: Record<string, string>; radii: Record<string, number> | null }): void {
+  templateLayer = theme.palette;
+  paintColors();
+  const target = radii as unknown as Record<string, number>;
+  for (const key of Object.keys(defaultRadii)) target[key] = theme.radii?.[key] ?? defaultRadii[key];
+}
 
 export const space = {
   xxs: 4,

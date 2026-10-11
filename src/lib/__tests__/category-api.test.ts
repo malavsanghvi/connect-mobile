@@ -60,6 +60,49 @@ describe('reading the kind of organization (app.category_profile)', () => {
   });
 });
 
+describe('the member-app template that comes with the profile', () => {
+  const withTemplate = (template: unknown) => ({ ...(jainPayload() as object), template });
+
+  it('arrives with the profile, and the raw answer keeps it for the device', async () => {
+    const template = { version: 1, home: { rows: ['events', 'today'] }, tabs: [{ key: 'give', label: 'Donate', icon: null, hidden: false }] };
+    mockRpc.mockResolvedValueOnce({ data: withTemplate(template), error: null });
+    const read = await loadCategoryProfile('center-t1');
+    expect(read.kind).toBe('answered');
+    if (read.kind !== 'answered') return;
+    expect(read.profile.template?.rows).toEqual(['events', 'today']);
+    expect(read.profile.template?.tabs?.[0].label).toBe('Donate');
+    await writeCachedProfile('tmpl', read.raw);
+    expect((await readCachedProfile('tmpl'))?.template).toEqual(read.profile.template);
+  });
+
+  it('answers with the built-in layout, and logs once, when part of the template cannot be used', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const broken = withTemplate({ version: 1, home: { rows: 'events' }, tabs: [{ key: 'give' }] });
+    mockRpc.mockResolvedValue({ data: broken, error: null });
+    const first = await loadCategoryProfile('center-t2');
+    const second = await loadCategoryProfile('center-t2');
+    for (const read of [first, second]) {
+      expect(read.kind).toBe('answered');
+      if (read.kind === 'answered') {
+        expect(read.profile.template?.rows).toBeNull(); // the rows part is dropped, the tabs part is kept
+        expect(read.profile.template?.tabs).toHaveLength(1);
+      }
+    }
+    expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
+  });
+
+  it('is silent for a profile with no template, and for one a newer database wrote with ids this build does not know', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockRpc.mockResolvedValueOnce({ data: jainPayload(), error: null });
+    mockRpc.mockResolvedValueOnce({ data: withTemplate({ version: 1, home: { rows: ['today', 'panchang_v9'] }, tabs: [{ key: 'prayer' }, { key: 'give' }] }), error: null });
+    expect((await loadCategoryProfile('center-t3')).kind).toBe('answered');
+    expect((await loadCategoryProfile('center-t4')).kind).toBe('answered');
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+});
+
 describe('the device remembers the last answer for each community', () => {
   it('reads back what it wrote, for that community only', async () => {
     await writeCachedProfile('swaminarayan', newExperiencePayload());

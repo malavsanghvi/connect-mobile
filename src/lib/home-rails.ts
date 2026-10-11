@@ -47,6 +47,8 @@ export type HomeRowsInput = {
   access: HomeAccess;
   /** What the kind of organization decides: special days, and the Home shortcuts a community starts with (default: a Jain Center's). */
   layout?: Pick<CategoryLayout, 'specialDays' | 'shortcuts'>;
+  /** The order the rows are drawn in: the template's (src/lib/template.ts resolveRows; a row it leaves out is hidden). Default: HOME_ROWS. */
+  order?: readonly HomeRow[];
 };
 
 /**
@@ -58,9 +60,12 @@ export type HomeRowsInput = {
  * - Events: the Events module; a guest sees the public ones.
  * - Giving opportunities: adults only (money), and only with the Giving module on.
  * - Life@JSH and Learn & listen: those with at least one tile.
+ *
+ * `order` only decides which rows may show and in what order; every rule above still applies to each one, so a row whose module
+ * is off stays hidden whatever the template lists.
  */
-export function homeRows({ rules, modules, member, access, layout = JAIN_LAYOUT }: HomeRowsInput): HomeRow[] {
-  return HOME_ROWS.filter((row) => {
+export function homeRows({ rules, modules, member, access, layout = JAIN_LAYOUT, order = HOME_ROWS }: HomeRowsInput): HomeRow[] {
+  return order.filter((row) => {
     switch (row) {
       case 'today':
         return isHomeCardVisible(modules, 'today');
