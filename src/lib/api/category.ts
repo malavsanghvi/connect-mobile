@@ -1,4 +1,4 @@
-import { parseCategoryProfile, type CategoryProfile } from '../categories';
+import { parseCategoryProfile, templateProblems, type CategoryProfile } from '../categories';
 import { logError, toAppError } from '../errors';
 import { isMissingRpcError } from '../modules';
 import { readPref, writePref } from '../storage';
@@ -38,6 +38,9 @@ export async function loadCategoryProfile(centerId: string): Promise<CategoryRea
       logOnce('unusable', 'reading the kind of organization: the answer was not a profile, so the last known layout stays', new Error(JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'));
       return { kind: 'failed' };
     }
+    // A template part this build cannot use is dropped (the built-in layout is used for it); say so once, so it can be fixed in the database.
+    const problems = templateProblems(res.data);
+    if (problems.length) logOnce(`template:${problems.join('|')}`, 'reading the member-app template: parts of it were ignored, so the built-in layout is used for them', new Error(problems.join('; ')));
     return { kind: 'answered', profile, raw: res.data };
   } catch (err) {
     logOnce(`thrown:${err instanceof Error ? err.message : String(err)}`, 'reading the kind of organization failed, so the last known layout stays', err);
