@@ -18,7 +18,7 @@ export function jainPayload(): unknown {
         practice_tab: 'Jain Way',
         give_tab: 'Give',
         family_tab: 'Family',
-        store: 'Satvik Store',
+        store: 'My Store',
         school: 'Pathshala',
         learning: 'Gyan Path',
         place: 'derasar',

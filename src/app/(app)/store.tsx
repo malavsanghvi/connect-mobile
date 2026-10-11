@@ -42,7 +42,7 @@ function ItemPhoto({ url }: { url: string | undefined }) {
   );
 }
 
-/** Satvik Store (prototype Main.dc.html L1012–1047): browse, quantities, gift packing. */
+/** My Store (prototype Main.dc.html L1012–1047): browse, quantities, gift packing. */
 export default function StoreScreen() {
   const t = useT();
   const router = useRouter();

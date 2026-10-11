@@ -234,7 +234,7 @@ registerNotificationRoute(BOLI_OUTBID, { open: boliTarget });
 registerNotificationRoute(BOLI_CLOSING, { open: boliTarget });
 
 // ---------------------------------------------------------------------------
-// Satvik Store (0598): "your order is ready" (type store_order_ready, deep_link "/store", order_id). The store screen
+// My Store (0598): "your order is ready" (type store_order_ready, deep_link "/store", order_id). The store screen
 // lists "Your orders" with the status of each, so the push opens the store.
 // ---------------------------------------------------------------------------
 

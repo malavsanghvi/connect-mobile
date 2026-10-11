@@ -15,7 +15,7 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-/** Satvik Store cart, kept in memory until the order is placed. */
+/** My Store cart, kept in memory until the order is placed. */
 export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const setQty: CartContextValue['setQty'] = (item, qty) =>
