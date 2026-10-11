@@ -85,7 +85,7 @@ export function Wordmark() {
           </Txt>
         ) : null}
       </View>
-      {motif ? <MotifGlyph name={motif} /> : null}
+      {motif ? <MotifGlyph name={motif} decorative /> : null}
     </View>
   );
 }
