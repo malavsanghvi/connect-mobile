@@ -1,5 +1,6 @@
 import type { User } from '@supabase/supabase-js';
 
+import { trackAction } from '../activity';
 import type { Enums, Tables } from '../database.types';
 import { AppError, check, logError, maybe, must } from '../errors';
 import { todayAt } from '../format';
@@ -226,7 +227,9 @@ export async function findMyFamily(centerId: string) {
 }
 
 export async function linkAccount(centerId: string, personId: string): Promise<void> {
-  check(await supabase.rpc('link_account', { p_center: centerId, p_person: personId }), 'link your account');
+  await trackAction('account_linked', { entityKind: 'account' }, async () => {
+    check(await supabase.rpc('link_account', { p_center: centerId, p_person: personId }), 'link your account');
+  });
 }
 
 export async function createMyHousehold(centerId: string, first: string, last: string): Promise<void> {

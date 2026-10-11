@@ -28,6 +28,7 @@ import { AppProvider, useApp } from '@/providers/app';
 import { CategoryProvider, useCategory } from '@/providers/category';
 import { DataVersionProvider } from '@/providers/data-version';
 import { FeedbackProvider } from '@/providers/feedback';
+import { ActivityRecorder } from '@/providers/activity';
 import { ForegroundProvider } from '@/providers/foreground';
 import { ModulesProvider } from '@/providers/modules';
 import { SettingsProvider, useT } from '@/providers/settings';
@@ -73,6 +74,8 @@ export default function RootLayout() {
                       <FeedbackProvider>
                         <StatusBar style="dark" />
                         <ScreenTracker />
+                        {/* The usage logger (screens and a few steps; opt-out in Settings › Privacy): inert until the community's recording is on. */}
+                        <ActivityRecorder />
                         <RootNavigator />
                         <PayHost />
                       </FeedbackProvider>

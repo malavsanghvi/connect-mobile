@@ -14,6 +14,25 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.17.0 — 2026-10-10
+
+- **A small usage logger, off until the community turns it on** (connect-crm B91, absorbs B77). The app counts which screens are
+  used and how long (`screen:/event/[id]`, never the real address, an id or a query string), and a few steps: RSVP started and
+  saved (`rsvp_started`, `rsvp_completed`), a pledge placed (`pledge_placed`), a payment started, finished or not finished
+  (`payment_started`, `payment_completed`, `payment_failed`) and an account linked (`account_linked`). It never records what
+  anyone types, a name, an amount or an id.
+- **Settings › Privacy › "Help improve the app"** is on by default and says in plain words what is counted. Turning it off
+  stops the logger on the phone at once, empties what was waiting, and tells the account (`set_activity_opt_out`); if the account
+  cannot be reached the screen says so and the choice is sent again later. It is not shown for an under-18 account, which records
+  nothing.
+- **Privacy by construction.** A guest, a signed-out phone or an under-18 account records nothing; the database takes the person and
+  the community from the sign-in, drops unknown keys, and does nothing while the community's recording switch is off, so this
+  release is inert until a community's switch is on. Events wait in a queue kept on the phone (500 at most, oldest dropped
+  first) and are sent in batches of 50 or fewer when the app goes to the background, when it comes back and every minute; a
+  failure is retried later and never shown. If the database function is not on the server yet the batch is dropped quietly and the
+  logger pauses for an hour.
+- JavaScript only: no new native module, runtimeVersion stays 3, so this reaches installed apps as an over-the-air update.
+
 ## 1.15.0 — 2026-10-08
 
 - **Sign in and create an account with your email only.** The welcome screen offers "Continue with email" alone, and the
