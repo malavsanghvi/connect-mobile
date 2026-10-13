@@ -2435,6 +2435,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      demo_auth_users: {
+        Row: {
+          email: string;
+          user_id: string;
+          vault_secret_id: string;
+          created_at: string;
+          rotated_at: string | null;
+        };
+        Insert: {
+          email: string;
+          user_id: string;
+          vault_secret_id: string;
+          created_at?: string;
+          rotated_at?: string | null;
+        };
+        Update: {
+          email?: string;
+          user_id?: string;
+          vault_secret_id?: string;
+          created_at?: string;
+          rotated_at?: string | null;
+        };
+        Relationships: [];
+      };
       demo_packs: {
         Row: {
           key: string;
@@ -2513,6 +2537,45 @@ export type Database = {
           scope_id?: string | null;
           sort_order?: number;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      demo_sessions: {
+        Row: {
+          id: string;
+          persona_email: string;
+          user_id: string;
+          role_key: string;
+          ip_hash: string;
+          started_at: string;
+          expires_at: string;
+          auth_session_id: string | null;
+          ended_at: string | null;
+          ended_reason: string | null;
+        };
+        Insert: {
+          id?: string;
+          persona_email: string;
+          user_id: string;
+          role_key: string;
+          ip_hash: string;
+          started_at?: string;
+          expires_at: string;
+          auth_session_id?: string | null;
+          ended_at?: string | null;
+          ended_reason?: string | null;
+        };
+        Update: {
+          id?: string;
+          persona_email?: string;
+          user_id?: string;
+          role_key?: string;
+          ip_hash?: string;
+          started_at?: string;
+          expires_at?: string;
+          auth_session_id?: string | null;
+          ended_at?: string | null;
+          ended_reason?: string | null;
         };
         Relationships: [];
       };
@@ -2820,6 +2883,8 @@ export type Database = {
           flyer_generated_at: string | null;
           flyer_job_id: number | null;
           flyer_design: Json | null;
+          publish_at: string | null;
+          publish_failure: string | null;
         };
         Insert: {
           id?: string;
@@ -2863,6 +2928,8 @@ export type Database = {
           flyer_generated_at?: string | null;
           flyer_job_id?: number | null;
           flyer_design?: Json | null;
+          publish_at?: string | null;
+          publish_failure?: string | null;
         };
         Update: {
           id?: string;
@@ -2906,6 +2973,8 @@ export type Database = {
           flyer_generated_at?: string | null;
           flyer_job_id?: number | null;
           flyer_design?: Json | null;
+          publish_at?: string | null;
+          publish_failure?: string | null;
         };
         Relationships: [];
       };
@@ -7754,6 +7823,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      people_saved: {
+        Row: {
+          id: string;
+          center_id: string;
+          user_id: string;
+          kind: string;
+          name: string | null;
+          list_view: string | null;
+          params: Json;
+          sort: string | null;
+          household_id: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          center_id: string;
+          user_id: string;
+          kind: string;
+          name?: string | null;
+          list_view?: string | null;
+          params?: Json;
+          sort?: string | null;
+          household_id?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          center_id?: string;
+          user_id?: string;
+          kind?: string;
+          name?: string | null;
+          list_view?: string | null;
+          params?: Json;
+          sort?: string | null;
+          household_id?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       person_deceased_events: {
         Row: {
           id: string;
@@ -11451,6 +11565,18 @@ export type Database = {
         };
         Returns: string;
       };
+      add_household: {
+        Args: {
+          p_center: string;
+          p_first: string;
+          p_last: string;
+          p_phone?: string;
+          p_email?: string;
+          p_street?: string;
+          p_none_of_these?: boolean;
+        };
+        Returns: Json;
+      };
       add_message_suppression: {
         Args: {
           p_center: string;
@@ -11965,6 +12091,12 @@ export type Database = {
         };
         Returns: { slug: string; name: string; short_name: string; state_region: string; environment: string }[];
       };
+      community_languages: {
+        Args: {
+          p_center: string;
+        };
+        Returns: string[];
+      };
       community_open: {
         Args: {
           p_center: string;
@@ -12236,6 +12368,10 @@ export type Database = {
         };
         Returns: string;
       };
+      demo_choices: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       demo_confirm_word: {
         Args: {
           p_center: string;
@@ -12263,10 +12399,29 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string[];
       };
+      demo_leave: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       demo_pack_steps: {
         Args: {
           p_pack: string;
         };
+        Returns: Json;
+      };
+      demo_session_state: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      demo_signin_setup: {
+        Args: {
+          p_reason: string;
+          p_rotate?: boolean;
+        };
+        Returns: Json;
+      };
+      demo_signin_status: {
+        Args: Record<PropertyKey, never>;
         Returns: Json;
       };
       directory_listing: {
@@ -12421,6 +12576,12 @@ export type Database = {
           p_error: string;
         };
         Returns: Json;
+      };
+      family_name_key: {
+        Args: {
+          p_text: string;
+        };
+        Returns: string;
       };
       feature_access_for_me: {
         Args: {
@@ -12716,6 +12877,16 @@ export type Database = {
           p_household: string;
         };
         Returns: number;
+      };
+      household_possible_matches: {
+        Args: {
+          p_center: string;
+          p_first: string;
+          p_last: string;
+          p_phone?: string;
+          p_email?: string;
+        };
+        Returns: Json;
       };
       i_am_adult: {
         Args: {
@@ -14963,6 +15134,13 @@ export type Database = {
           p_reason: string;
         };
         Returns: undefined;
+      };
+      set_demo_signin: {
+        Args: {
+          p_enabled: boolean;
+          p_reason: string;
+        };
+        Returns: Json;
       };
       set_email_provider: {
         Args: {
