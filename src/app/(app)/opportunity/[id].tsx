@@ -16,6 +16,7 @@ import { formatCents, formatCentsCompact, formatLongDate, parseAmountToCents } f
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -58,8 +59,10 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
   const [other, setOther] = useState('');
   const [showName, setShowName] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // "Make this recurring": offered only when the office enabled it for this opportunity (and for a multi-pick never).
-  const frequencies = opportunityFrequencies(opp);
+  // "Make this recurring": offered only when the office enabled it for this opportunity (and for a multi-pick never), and while
+  // Recurring gifts (an add-on of Giving, connect-crm 0741) is on.
+  const recurringOn = useModule('giving_recurring');
+  const frequencies = recurringOn ? opportunityFrequencies(opp) : [];
   const today = member?.today ?? '';
   const starts = startDateChoices(today);
   const [mode, setMode] = useState<'once' | 'recurring'>('once');

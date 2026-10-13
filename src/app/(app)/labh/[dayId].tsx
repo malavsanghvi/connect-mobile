@@ -17,6 +17,7 @@ import { nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -71,6 +72,8 @@ function LabhBody({ data }: { data: LabhData & { next: string | null } }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [dedication, setDedication] = useState(defaultDedication);
   const [repeat, setRepeat] = useState(false);
+  // Repeating every year is a recurring gift: Recurring gifts, an add-on of Giving (connect-crm 0741).
+  const repeatOn = useModule('giving_recurring');
   const [error, setError] = useState<string | null>(null);
   const chosen = options.filter((o) => picked.includes(o.id));
   const total = chosen.reduce((s, o) => s + o.amount_cents, 0);
@@ -134,9 +137,11 @@ function LabhBody({ data }: { data: LabhData & { next: string | null } }) {
         </Row>
       </Card>
       <TextField label={t('labh.dedication')} value={dedication} onChangeText={setDedication} />
+      {repeatOn ? (
       <Card style={{ paddingVertical: 2, paddingHorizontal: 14 }}>
         <Toggle label={t(`labh.repeat.${day.kind === 'birthday' ? pronoun : 'day'}` as 'labh.repeat.day')} sub={t('labh.repeatSub', { when: remindWhen(day.reminder_days_before) })} value={repeat} onChange={setRepeat} />
       </Card>
+      ) : null}
       {error ? <Banner tone="error" message={error} /> : null}
       <Button label={t('opp.commit', { amount: formatCents(total) })} tone="brown" onPress={commit} disabled={total === 0} />
       <Button label={t('opp.payNow', { amount: formatCents(total) })} tone="outlineBlack" size="md" onPress={pay} disabled={total === 0} />
