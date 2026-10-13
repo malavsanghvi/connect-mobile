@@ -26,6 +26,7 @@ import {
   type Selection,
 } from '@/lib/pathshala-registration';
 import { useLoad } from '@/lib/use-load';
+import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, space } from '@/theme';
 
@@ -248,6 +249,8 @@ function OfficeInstructions({ centerId, until, timeZone, amountCents, pledgeIds 
   const t = useT();
   const router = useRouter();
   const methods = useLoad(() => loadPaymentMethods(centerId), [centerId], 'load how to pay at the office');
+  // Zelle reports belong to Bank reconciliation, an add-on of Giving (connect-crm 0741).
+  const bankOn = useModule('giving_bank');
   return (
     <VStack gap={space.sm}>
       <Txt variant="small" color="brownDark">
@@ -258,7 +261,7 @@ function OfficeInstructions({ centerId, until, timeZone, amountCents, pledgeIds 
           <HowToGive
             methods={otherMethods(m)}
             tone="brown"
-            onReport={canReportZelle(m) ? () => router.push({ pathname: '/zelle-report', params: { amount: String(amountCents), pledges: pledgeIds.join(',') } }) : undefined}
+            onReport={bankOn && canReportZelle(m) ? () => router.push({ pathname: '/zelle-report', params: { amount: String(amountCents), pledges: pledgeIds.join(',') } }) : undefined}
           />
         )}
       </Loaded>

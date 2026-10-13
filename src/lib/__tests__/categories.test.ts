@@ -220,7 +220,7 @@ describe('what the database says is read carefully', () => {
   it('ignores modules this build does not know and availabilities it does not understand', () => {
     const p = parseCategoryProfile({
       category: { key: 'k', label: 'K', faith_based: false, uses_tradition: false, terms: {} },
-      modules: { events: { availability: 'default_on', label: null }, labh: { availability: 'not_available' }, store: { availability: 'sometimes' }, bolis: { availability: 'not_available', label: ' ' } },
+      modules: { events: { availability: 'default_on', label: null }, future_module: { availability: 'not_available' }, store: { availability: 'sometimes' }, bolis: { availability: 'not_available', label: ' ' } },
     });
     expect(p?.modules).toEqual({ events: { availability: 'default_on', label: null }, bolis: { availability: 'not_available', label: null } });
   });

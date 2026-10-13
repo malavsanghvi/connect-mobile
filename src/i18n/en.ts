@@ -2512,6 +2512,14 @@ export const en = {
   'modules.label.reports': 'Community dashboard',
   'modules.label.niva': 'Niva',
   'modules.label.governance': 'Governance',
+  // Giving's add-ons (connect-crm 0741); a community's kind may name them itself ("Labh", "Bhandar counts").
+  'modules.label.giving_bank': 'Bank reconciliation',
+  'modules.label.giving_counts': 'Offering counts',
+  'modules.label.giving_insights': 'Insights',
+  'modules.label.giving_opportunities': 'Opportunities',
+  'modules.label.giving_recurring': 'Recurring gifts',
+  'modules.label.giving_statements': 'Statements',
+  'modules.label.labh': 'Special-day offerings',
 
   // Access levels (connect-crm 0586): the areas a visitor or member may use, by the organization's levels
   'access.loading': 'Checking what you can use…',

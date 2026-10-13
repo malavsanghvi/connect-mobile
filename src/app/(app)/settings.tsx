@@ -37,7 +37,8 @@ export default function SettingsScreen() {
   const { member, center, refreshMember, signOut, switchCommunity } = useApp();
   const { toast, confirm, payNotice } = useFeedback();
   const push = usePush();
-  const givingOn = useModule('giving');
+  // Receipts and tax statements: Statements, an add-on of Giving (connect-crm 0741).
+  const statementsOn = useModule('giving_statements');
   // "Contact" and "Report a problem" send a message to a team inbox (comms module).
   const askOn = useModule('comms');
   const [bio, setBio] = useState<BiometricSupport | null>(null);
@@ -287,7 +288,7 @@ export default function SettingsScreen() {
           <SectionTitle>{t('settings.payments')}</SectionTitle>
           <Card>
             <ListRow title={t('settings.savedMethods')} subtitle={t('settings.savedMethodsSub')} onPress={() => payNotice({ saved: false })} />
-            {givingOn ? (
+            {statementsOn ? (
               <>
                 <Divider />
                 <ListRow title={t('settings.receipts')} subtitle={t('settings.receiptsSub', { email: member.person.email ?? member.email ?? '' })} onPress={() => router.push('/pledges')} />

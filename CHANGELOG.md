@@ -14,6 +14,20 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.18.0 — 2026-10-13
+
+- **Giving's parts follow what the community uses.** Giving is now a core (the Give tab's summary, pledges and paying) with
+  add-ons a community has or pauses: Opportunities, Recurring gifts, Special-day offerings (Labh), Bank reconciliation
+  (Zelle reports) and Statements (connect-crm 0741-0743). When one is off, the app hides what belongs to it:
+  - Opportunities: the Give tab's opportunities list and the opportunity screen;
+  - Recurring gifts: "Make this recurring" on an opportunity, "Repeat every year" on a labh, the Recurring link and screens;
+  - Special-day offerings: "Plan labh" on special days and Home, and the labh screen;
+  - Bank reconciliation: "I sent a Zelle" on the Give tab and after a Pathshala registration, and the Zelle reports on Pledges;
+  - Statements: the tax statement links on Pledges and the receipts row in Settings.
+  A screen opened from an old link says the part is not offered right now. Nothing changes while every add-on is on.
+  Phones not yet updated keep showing these parts, and the server refuses each action in plain words.
+- Generated database types synced with connect-crm main (a09e7b2).
+
 ## 1.17.2 — 2026-10-11
 
 - **The Store is called "My Store".** The menu item, the Store screen's title, the order's payment line and the Store entry in

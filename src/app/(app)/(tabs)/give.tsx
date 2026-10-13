@@ -17,7 +17,7 @@ import { listOpenPledges, listOpportunitiesWithAvailability, loadGiveSummary, ty
 import { AppError, logError, report } from '@/lib/errors';
 import { formatCents, formatCentsCompact } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
-import { isGiveSectionVisible, type ModuleMap } from '@/lib/modules';
+import { isGiveSectionVisible, isModuleOn, type ModuleMap } from '@/lib/modules';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useModules } from '@/providers/modules';
@@ -38,12 +38,13 @@ export default function GiveScreen() {
   const { map } = useModules();
   const givingOn = isGiveSectionVisible(map, 'summary');
   const bolisOn = isGiveSectionVisible(map, 'bolis');
+  const oppsOn = isGiveSectionVisible(map, 'opportunities');
   const state = useLoad(
     async () => {
       if (!member?.household || !center) return null;
       const [summary, opps, bolis, openPledges] = await Promise.all([
         givingOn ? loadGiveSummary(member.household.id, year) : null,
-        givingOn ? listOpportunitiesWithAvailability(center.id) : [],
+        oppsOn ? listOpportunitiesWithAvailability(center.id) : [],
         bolisOn ? listBolis(center.id) : [],
         givingOn ? listOpenPledges(member.household.id) : [],
       ]);
@@ -59,7 +60,7 @@ export default function GiveScreen() {
         howToGive,
       };
     },
-    [member?.household?.id, center?.id, year, givingOn, bolisOn],
+    [member?.household?.id, center?.id, year, givingOn, bolisOn, oppsOn],
     'load giving',
   );
 
@@ -148,8 +149,9 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
 
       {bolisCard}
 
-      <Heading>{t('give.opportunities')}</Heading>
-      {opps.length === 0 ? <EmptyState icon="gift-outline" title={t('give.noOpportunities')} /> : null}
+      {/* Opportunities is an add-on of Giving (connect-crm 0741). */}
+      {isGiveSectionVisible(map, 'opportunities') ? <Heading>{t('give.opportunities')}</Heading> : null}
+      {isGiveSectionVisible(map, 'opportunities') && opps.length === 0 ? <EmptyState icon="gift-outline" title={t('give.noOpportunities')} /> : null}
       {opps.map((o) => {
         const from = fromAmountCents(o);
         const fraction = availabilityFraction(o.availability);
@@ -183,7 +185,7 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
         </Row>
         <Button label={t('give.seeAllPledges')} tone="secondary" size="md" style={{ borderRadius: radii.pill }} onPress={() => router.push('/pledges')} />
         {/* Recurring is an option on each opportunity, not a third list. Families that already have a gift keep a way to pause, change or stop it. */}
-        {summary.recurringTotal > 0 ? (
+        {summary.recurringTotal > 0 && isGiveSectionVisible(map, 'recurring') ? (
           <Button
             label={t('give.recurringLink', { n: summary.recurringActive, amount: formatCents(summary.recurringYearlyCents) })}
             tone="secondary"
@@ -203,7 +205,7 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
             {howToGive.error ? (
               <Banner tone="error" message={howToGive.error} action={{ label: t('common.retry'), onPress: onRetry }} />
             ) : (
-              <HowToGive methods={otherMethods(howToGive.methods)} onReport={canReportZelle(howToGive.methods) ? () => router.push('/zelle-report') : undefined} />
+              <HowToGive methods={otherMethods(howToGive.methods)} onReport={canReportZelle(howToGive.methods) && isModuleOn(map, 'giving_bank') ? () => router.push('/zelle-report') : undefined} />
             )}
             <Txt variant="meta" color="muted">
               {t('howToGive.intro')}

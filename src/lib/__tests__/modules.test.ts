@@ -11,6 +11,7 @@ import {
   GUIDE_SECTION_MODULE,
   HOME_CARD_MODULE,
   isDrawerEntryVisible,
+  isGiveSectionVisible,
   isGuideSectionVisible,
   isHomeCardVisible,
   isMissingRpcError,
@@ -37,7 +38,8 @@ const off = (...keys: (typeof MODULE_KEYS)[number][]): ModuleMap => Object.fromE
 describe('module keys', () => {
   it('matches the contract list exactly', () => {
     expect([...MODULE_KEYS].sort()).toEqual(
-      ['people', 'membership', 'events', 'giving', 'bolis', 'store', 'pathshala', 'gyan_path', 'jain_way', 'content', 'calendar', 'comms', 'surveys', 'volunteers', 'accounting', 'reports', 'niva', 'governance'].sort(),
+      ['people', 'membership', 'events', 'giving', 'bolis', 'store', 'pathshala', 'gyan_path', 'jain_way', 'content', 'calendar', 'comms', 'surveys', 'volunteers', 'accounting', 'reports', 'niva', 'governance',
+       'giving_bank', 'giving_counts', 'giving_insights', 'giving_opportunities', 'giving_recurring', 'giving_statements', 'labh'].sort(),
     );
   });
   it('only refers to known keys in every map', () => {
@@ -234,8 +236,9 @@ describe('blockingModule (deep links)', () => {
     expect(blockingModule(off('comms'), 'guide/whatsapp')).toBe('comms');
     expect(blockingModule(off('niva'), '/niva')).toBe('niva');
     // The Zelle report form is a Giving screen: Giving off, no form (deep links included).
-    expect(blockingModule(off('giving'), 'zelle-report')).toBe('giving');
-    expect(blockingModule(off('giving'), '/zelle-report')).toBe('giving');
+    // The Zelle report screen belongs to Bank reconciliation (an add-on of Giving, 0741), named like Bolis below.
+    expect(blockingModule(off('giving'), 'zelle-report')).toBe('giving_bank');
+    expect(blockingModule(off('giving'), '/zelle-report')).toBe('giving_bank');
     expect(blockingModule(off('bolis'), 'zelle-report')).toBeNull();
     for (const name of ['media/[kind]', 'media/[kind]/[id]', 'recipe/[id]', 'recipe/random', 'listen/playlist', 'listen/podcast-random']) {
       expect(blockingModule(off('content'), name)).toBe('content');
@@ -336,5 +339,43 @@ describe('isMissingRpcError', () => {
     expect(isMissingRpcError({ code: '42501', message: 'permission denied for function my_modules' })).toBe(false);
     expect(isMissingRpcError(new TypeError('Network request failed'))).toBe(false);
     expect(isMissingRpcError(null)).toBe(false);
+  });
+});
+
+describe("Giving's add-ons (connect-crm 0741)", () => {
+  const addOns = ['giving_bank', 'giving_counts', 'giving_insights', 'giving_opportunities', 'giving_recurring', 'giving_statements', 'labh'] as const;
+  it('each needs Giving only, so each is off while Giving is off and on by default', () => {
+    for (const k of addOns) {
+      expect(MODULE_DEPENDS_ON[k]).toEqual(['giving']);
+      expect(isModuleOn(ALL_ON, k)).toBe(true);
+      expect(isModuleOn(off('giving'), k)).toBe(false);
+    }
+    // An add-on switched off leaves Giving and the other add-ons on.
+    expect(isModuleOn(off('giving_bank'), 'giving')).toBe(true);
+    expect(isModuleOn(off('giving_bank'), 'giving_recurring')).toBe(true);
+  });
+  it('a database that does not send the add-ons yet leaves them on (a known key it does not mention counts as on)', () => {
+    expect(parseModuleRows([{ key: 'giving', enabled: true, core: false, label: null }]).map.giving_bank).toBeUndefined();
+    expect(isModuleOn(parseModuleRows([{ key: 'giving', enabled: true, core: false, label: null }]).map, 'giving_bank')).toBe(true);
+    expect(parseModuleRows([{ key: 'labh', enabled: false, core: false, label: 'Labh' }]).map.labh).toBe(false);
+  });
+  it('the Give tab: opportunities, recurring and labh follow their add-on; the summary and pledges stay with Giving', () => {
+    expect(isGiveSectionVisible(off('giving_opportunities'), 'opportunities')).toBe(false);
+    expect(isGiveSectionVisible(off('giving_recurring'), 'recurring')).toBe(false);
+    expect(isGiveSectionVisible(off('labh'), 'labh')).toBe(false);
+    expect(isGiveSectionVisible(off('giving_opportunities', 'giving_recurring', 'labh', 'giving_bank'), 'summary')).toBe(true);
+    expect(isGiveSectionVisible(off('giving_opportunities', 'giving_recurring', 'labh', 'giving_bank'), 'pledges')).toBe(true);
+    expect(isTabVisible(off('giving_opportunities', 'giving_recurring', 'labh', 'giving_bank', 'giving_statements'), 'give')).toBe(true);
+  });
+  it('their screens are blocked when they are off, and only then', () => {
+    expect(blockingModule(off('giving_opportunities'), 'opportunity/[id]')).toBe('giving_opportunities');
+    expect(blockingModule(off('giving_recurring'), 'recurring')).toBe('giving_recurring');
+    expect(blockingModule(off('giving_recurring'), 'recurring-setup')).toBe('giving_recurring');
+    expect(blockingModule(off('labh'), 'labh/[dayId]')).toBe('labh');
+    expect(blockingModule(off('giving_bank'), 'zelle-report')).toBe('giving_bank');
+    expect(blockingModule(off('giving_bank'), 'pledges')).toBeNull();
+    // Giving off blocks them all, naming the add-on whose screen it is (as a boli's screen names Bolis).
+    expect(blockingModule(off('giving'), 'zelle-report')).toBe('giving_bank');
+    expect(blockingModule(off('giving'), 'pledges')).toBe('giving');
   });
 });

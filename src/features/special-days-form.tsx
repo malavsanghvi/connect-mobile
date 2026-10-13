@@ -61,7 +61,8 @@ export function PlanDaysQuestion({ question, onYes, onNotNow }: { question: stri
 export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => void; /** Preview of onboarding: check the form as usual but save nothing. */ preview?: boolean }) {
   const t = useT();
   const { member, center } = useApp();
-  const givingOn = useModule('giving');
+  // Labh is an add-on of Giving (connect-crm 0741): off whenever Giving is off, and for a kind without it.
+  const labhOn = useModule('labh');
   const { invalidate } = useDataVersion();
   const { toast } = useFeedback();
   const [who, setWho] = useState<string | null>(member?.members[0]?.person.id ?? null);
@@ -79,7 +80,7 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Money is adults only and needs the Giving module; children never load the options.
-  const labhAllowed = givingOn && !!member?.isAdult;
+  const labhAllowed = labhOn && !!member?.isAdult;
   const labhOptions = useLoad(() => (center && labhAllowed ? loadLabhOptions(center.id) : Promise.resolve<LabhOption[]>([])), [center?.id, labhAllowed], 'load the labh options');
   if (!member?.household || !center) return null;
   const householdId = member.household.id;
@@ -97,7 +98,7 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
   const calendarDate = by === 'date' ? parseDobInput(date) : null;
   const person = who ? (member.members.find((m) => m.person.id === who)?.person ?? null) : null;
   const heading = listDisplayName(t, { label: label.trim() || null, person_id: who, kind, calendar_date: calendarDate, tithi: by === 'tithi' ? (splitTithi(tithi)?.tithi ?? null) : null }, member.members);
-  const labhAsked = canPlanLabh({ givingOn, isAdult: member.isAdult, occasion, labhPromptEnabled: true });
+  const labhAsked = canPlanLabh({ givingOn: labhOn, isAdult: member.isAdult, occasion, labhPromptEnabled: true });
   const options = labhOptions.data ?? [];
   const { chosen, totalCents } = labhToPledge(options, picked, labhAsked && options.length > 0);
   const age = kind === 'birthday' && calendarDate ? turningAge(person?.date_of_birth, nextOccurrence(calendarDate, member.today)) : null;

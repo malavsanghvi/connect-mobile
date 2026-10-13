@@ -22,6 +22,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
+import { useModule } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
@@ -98,6 +99,9 @@ export default function PledgesScreen() {
   const { member, center } = useApp();
   const { invalidate } = useDataVersion();
   const { toast } = useFeedback();
+  // Giving's add-ons (connect-crm 0741): Zelle reports belong to Bank reconciliation, tax statements to Statements.
+  const bankOn = useModule('giving_bank');
+  const statementsOn = useModule('giving_statements');
   const names = new Map((member?.members ?? []).map((m) => [m.person.id, fullName(m.person)]));
   const state = useLoad(
     () => (member?.household ? listPledges(member.household.id, names) : Promise.resolve({ pledges: [], paymentsByYear: {}, statements: [] })),
@@ -107,8 +111,8 @@ export default function PledgesScreen() {
   // The family's Zelle reports (a "Reported" chip on the pledges they name). They are never added to any amount here.
   // An older portal has none to show; any other failure is said on the screen, with a retry.
   const reports = useLoad(
-    async () => (member?.household && center && member.isAdult ? (await listPaymentReports(center.id, member.household.id)).reports : []),
-    [member?.household?.id, center?.id, member?.isAdult ?? false],
+    async () => (member?.household && center && member.isAdult && bankOn ? (await listPaymentReports(center.id, member.household.id)).reports : []),
+    [member?.household?.id, center?.id, member?.isAdult ?? false, bankOn],
     'load your Zelle reports',
   );
   const reportedPledges = pledgesWithWaitingReport(reports.data ?? []);
@@ -213,6 +217,7 @@ export default function PledgesScreen() {
                           </Txt>
                         </View>
                       </Pressable>
+                      {statementsOn ? (
                       <Pressable
                         onPress={() => void openStatement(g.year, statement)}
                         disabled={g.year >= currentYear}
@@ -222,6 +227,7 @@ export default function PledgesScreen() {
                           {g.year >= currentYear ? t('pledges.statementJan') : t('pledges.taxStatement', { year: g.year })}
                         </Txt>
                       </Pressable>
+                      ) : null}
                     </Row>
                     {isOpen ? (
                       <VStack gap={space.sm}>
