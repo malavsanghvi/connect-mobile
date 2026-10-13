@@ -14,6 +14,14 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.18.1 — 2026-10-13
+
+- **A pledge the office recorded is labelled.** The portal can now record a pledge for a family by hand (connect-crm 0745,
+  source "manual"). On Pledges such a pledge, when it has no campaign or dedication, reads "Pledge recorded by the office"
+  instead of the word "manual". Gujarati and Hindi show the English words until the community's reviewed translations
+  are added.
+- Generated database types synced with connect-crm main (dec19b7).
+
 ## 1.18.0 — 2026-10-13
 
 - **Giving's parts follow what the community uses.** Giving is now a core (the Give tab's summary, pledges and paying) with

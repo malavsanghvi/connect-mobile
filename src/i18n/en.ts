@@ -398,6 +398,8 @@ export const en = {
   'source.recurring': 'Recurring gift',
   'source.store': 'Store',
   'source.other': 'Other',
+  // A pledge the community's office recorded by hand for the family (connect-crm 0745).
+  'source.manual': 'Pledge recorded by the office',
 
   // Home
   'home.deactivatedTitle': 'Account deactivated',
