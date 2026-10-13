@@ -8251,6 +8251,7 @@ export type Database = {
           opportunity_option: string | null;
           custom: Json;
           written_off_by_name: string | null;
+          idempotency_key: string | null;
         };
         Insert: {
           id?: string;
@@ -8283,6 +8284,7 @@ export type Database = {
           opportunity_option?: string | null;
           custom?: Json;
           written_off_by_name?: string | null;
+          idempotency_key?: string | null;
         };
         Update: {
           id?: string;
@@ -8315,6 +8317,7 @@ export type Database = {
           opportunity_option?: string | null;
           custom?: Json;
           written_off_by_name?: string | null;
+          idempotency_key?: string | null;
         };
         Relationships: [];
       };
@@ -12698,6 +12701,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      giving_insights: {
+        Args: {
+          p_center: string;
+          p_from: string;
+          p_to: string;
+          p_today?: string;
+        };
+        Returns: Json;
+      };
       giving_payment_confirm_guard: {
         Args: {
           p_household: string;
@@ -14315,6 +14327,13 @@ export type Database = {
         };
         Returns: boolean;
       };
+      receipt_copy: {
+        Args: {
+          p_payment: string;
+          p_majority?: number;
+        };
+        Returns: Json;
+      };
       recheck_email_domain: {
         Args: {
           p_domain: string;
@@ -14360,6 +14379,23 @@ export type Database = {
           p_refunded_on: string;
           p_paypal_txn: string;
           p_reason: string;
+        };
+        Returns: Json;
+      };
+      record_manual_pledge: {
+        Args: {
+          p_idempotency_key: string;
+          p_center: string;
+          p_household: string;
+          p_amount_cents: number;
+          p_reason: string;
+          p_fund?: string;
+          p_campaign?: string;
+          p_opportunity?: string;
+          p_opportunity_option?: string;
+          p_due_on?: string;
+          p_pledged_by_person?: string;
+          p_dedication?: string;
         };
         Returns: Json;
       };
@@ -15855,6 +15891,14 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string;
       };
+      year_end_review: {
+        Args: {
+          p_center: string;
+          p_year: number;
+          p_majority?: number;
+        };
+        Returns: { household_id: string; household_name: string; household_number: string; org_household_id: string; city: string; adults: Json; gift_count: number; given_cents: number; refunded_cents: number; refunded_count: number; opening_balance_count: number; opening_balance_cents: number; mail_opt_in: boolean; address_complete: boolean }[];
+      };
       year_end_statement: {
         Args: {
           p_household: string;
@@ -15893,7 +15937,7 @@ export type Database = {
       payment_method: "card" | "ach" | "apple_pay" | "google_pay" | "check" | "cash" | "stock" | "daf" | "matching_gift" | "zelle" | "other" | "paypal" | "venmo";
       payment_status: "authorized" | "captured" | "pending_clearing" | "settled" | "refunded" | "partially_refunded" | "failed" | "voided";
       person_role_in_household: "primary" | "spouse" | "child" | "parent" | "sibling" | "other";
-      pledge_source: "rsvp_commitment" | "boli" | "sponsorship" | "pujan" | "labh" | "construction" | "membership_fee" | "pathshala_fee" | "general" | "recurring" | "store" | "other";
+      pledge_source: "rsvp_commitment" | "boli" | "sponsorship" | "pujan" | "labh" | "construction" | "membership_fee" | "pathshala_fee" | "general" | "recurring" | "store" | "other" | "manual";
       pledge_status: "open" | "partially_paid" | "paid" | "written_off" | "cancelled";
       rsvp_status: "invited" | "rsvpd" | "confirmed" | "cancelled" | "waitlisted" | "no_show" | "attended";
       scope_kind: "platform" | "center" | "zone" | "event" | "campaign" | "class" | "store" | "pathshala";
