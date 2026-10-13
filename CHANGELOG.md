@@ -20,7 +20,7 @@ How a release is made:
   source "manual"). On Pledges such a pledge, when it has no campaign or dedication, reads "Pledge recorded by the office"
   instead of the word "manual". Gujarati and Hindi show the English words until the community's reviewed translations
   are added.
-- Generated database types synced with connect-crm main (81175a2).
+- Generated database types synced with connect-crm main (dec19b7).
 
 ## 1.18.0 — 2026-10-13
 

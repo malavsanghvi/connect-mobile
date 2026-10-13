@@ -2264,6 +2264,8 @@ export type Database = {
           payment_id: string | null;
           notes: string | null;
           created_at: string;
+          bank_transaction_id: string | null;
+          bank_line_marked: boolean;
         };
         Insert: {
           id?: string;
@@ -2279,6 +2281,8 @@ export type Database = {
           payment_id?: string | null;
           notes?: string | null;
           created_at?: string;
+          bank_transaction_id?: string | null;
+          bank_line_marked?: boolean;
         };
         Update: {
           id?: string;
@@ -2294,6 +2298,8 @@ export type Database = {
           payment_id?: string | null;
           notes?: string | null;
           created_at?: string;
+          bank_transaction_id?: string | null;
+          bank_line_marked?: boolean;
         };
         Relationships: [];
       };
@@ -7672,6 +7678,10 @@ export type Database = {
           variance_cents: number;
           ledger_posting_id: string | null;
           created_at: string;
+          difference_code: string | null;
+          difference_note: string | null;
+          matched_by: string | null;
+          matched_at: string | null;
         };
         Insert: {
           id?: string;
@@ -7686,6 +7696,10 @@ export type Database = {
           variance_cents?: number;
           ledger_posting_id?: string | null;
           created_at?: string;
+          difference_code?: string | null;
+          difference_note?: string | null;
+          matched_by?: string | null;
+          matched_at?: string | null;
         };
         Update: {
           id?: string;
@@ -7700,6 +7714,10 @@ export type Database = {
           variance_cents?: number;
           ledger_posting_id?: string | null;
           created_at?: string;
+          difference_code?: string | null;
+          difference_note?: string | null;
+          matched_by?: string | null;
+          matched_at?: string | null;
         };
         Relationships: [];
       };
@@ -12585,6 +12603,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      explain_payout: {
+        Args: {
+          p_payout: string;
+          p_bank_line: string;
+          p_code?: string;
+          p_note?: string;
+        };
+        Returns: Json;
+      };
       extend_pathshala_hold: {
         Args: {
           p_enrollment: string;
@@ -12687,6 +12714,13 @@ export type Database = {
           p_received_on?: string;
         };
         Returns: Json;
+      };
+      giving_export_check: {
+        Args: {
+          p_center: string;
+          p_list: string;
+        };
+        Returns: undefined;
       };
       giving_fund_mapping_status: {
         Args: {
@@ -13243,6 +13277,13 @@ export type Database = {
           p_person: string;
         };
         Returns: string;
+      };
+      link_count_to_bank_deposit: {
+        Args: {
+          p_session: string;
+          p_txn: string;
+        };
+        Returns: Json;
       };
       link_payment_report: {
         Args: {
@@ -13966,6 +14007,13 @@ export type Database = {
         };
         Returns: boolean;
       };
+      payouts_close_state: {
+        Args: {
+          p_center: string;
+          p_month: string;
+        };
+        Returns: Json;
+      };
       paypal_email_only: {
         Args: {
           p_center: string;
@@ -14351,6 +14399,14 @@ export type Database = {
         Args: {
           p_center: string;
           p_kind: string;
+          p_detail?: Json;
+        };
+        Returns: undefined;
+      };
+      record_giving_export: {
+        Args: {
+          p_center: string;
+          p_list: string;
           p_detail?: Json;
         };
         Returns: undefined;
@@ -15590,6 +15646,10 @@ export type Database = {
         };
         Returns: string;
       };
+      step_up_stamp: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
       storage_bucket_module: {
         Args: {
           p_bucket: string;
@@ -15810,6 +15870,13 @@ export type Database = {
         };
         Returns: Json;
       };
+      unlink_count_from_bank_deposit: {
+        Args: {
+          p_session: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       unlog_practice: {
         Args: {
           p_person: string;
@@ -15825,6 +15892,13 @@ export type Database = {
           p_reason: string;
         };
         Returns: undefined;
+      };
+      unpair_payout: {
+        Args: {
+          p_payout: string;
+          p_reason: string;
+        };
+        Returns: Json;
       };
       unsubscribe_calendar_layer: {
         Args: {
