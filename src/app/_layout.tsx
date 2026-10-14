@@ -18,6 +18,8 @@ import { iconFont } from '@/components/icon';
 import { SetupScreen } from '@/components/setup-screen';
 import { Txt } from '@/components/ui';
 import { FindCommunityScreen } from '@/features/community/find-community';
+import { DemoBanner } from '@/features/demo/banner';
+import { DemoChooserScreen } from '@/features/demo/chooser';
 import { LegalStepScreen } from '@/features/onboarding/legal-step';
 import { PayHost } from '@/features/pay';
 import { ReopenEventLink } from '@/features/return-to-event';
@@ -27,6 +29,7 @@ import { AccessProvider } from '@/providers/access';
 import { AppProvider, useApp } from '@/providers/app';
 import { CategoryProvider, useCategory } from '@/providers/category';
 import { DataVersionProvider } from '@/providers/data-version';
+import { DemoProvider, useDemo } from '@/providers/demo';
 import { FeedbackProvider } from '@/providers/feedback';
 import { ActivityRecorder } from '@/providers/activity';
 import { ForegroundProvider } from '@/providers/foreground';
@@ -65,6 +68,8 @@ export default function RootLayout() {
           <DataVersionProvider>
             {/* Goes up when the app returns to the foreground (and every few minutes), so what an administrator changed shows without an update. */}
             <ForegroundProvider>
+              {/* "Try the demo": a running demo and the chooser. Above the app, which asks it which community to open. */}
+              <DemoProvider>
               <AppProvider>
                 {/* The community's kind of organization and its words: below the community, above the modules (their defaults come from the kind). */}
                 <CategoryProvider>
@@ -81,6 +86,7 @@ export default function RootLayout() {
                   </ModulesProvider>
                 </CategoryProvider>
               </AppProvider>
+              </DemoProvider>
             </ForegroundProvider>
           </DataVersionProvider>
         </SettingsProvider>
@@ -116,9 +122,12 @@ function ScreenTracker() {
 function RootNavigator() {
   const app = useApp();
   const category = useCategory();
+  const demo = useDemo();
   const t = useT();
 
   if (!app.configured) return <SetupScreen />;
+  // "Try the demo": choosing who to be (from the button, from /demo, or after a demo ended) comes before any community.
+  if (demo.choosing) return <DemoChooserScreen />;
   // A new install (or Settings › Switch community): choose the community first.
   if (app.needsCommunity || app.choosingCommunity) return <FindCommunityScreen />;
   if (app.booting) return <FullScreenLoading />;
@@ -129,7 +138,7 @@ function RootNavigator() {
       <FullScreenError
         error={app.bootError}
         onRetry={app.retryBoot}
-        secondary={{ label: t('community.notYours'), onPress: app.switchCommunity }}
+        secondary={{ label: demo.mode !== 'off' ? t('demo.leave') : t('community.notYours'), onPress: app.switchCommunity }}
       />
     );
   }
@@ -158,6 +167,8 @@ function RootNavigator() {
     <BiometricGate active={signedIn}>
       {/* Switching community goes through the loading screen, so every screen mounts again with its data and colours. */}
       <View style={{ flex: 1 }}>
+      {/* While a demo runs: "Demo · Teacher · 1 h 42 min left · Leave the demo", over every screen. */}
+      <DemoBanner />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
         <Stack.Protected guard={!signedIn && !app.guest}>
           <Stack.Screen name="(auth)" />
@@ -170,6 +181,7 @@ function RootNavigator() {
         </Stack.Protected>
         <Stack.Screen name="join/[code]" />
         <Stack.Screen name="e/[id]" />
+        <Stack.Screen name="demo" />
       </Stack>
       {/* A flyer's QR link that switched community opens again once the navigator is back. */}
       <ReopenEventLink />

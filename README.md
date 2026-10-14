@@ -50,6 +50,7 @@ it never falls back to sample data.
 | `EXPO_PUBLIC_CENTER_SLUG` | no | Set **only for a build made for one organization** (resolved from `app.centers.slug`): the finder then offers "Continue with" it, and an install that is signed in already or opened on a link into a screen opens it. **Leave it unset for the shared app**: a new install is asked "Find your community" and no organization is suggested. (Unset, an install that was signed in before communities could be chosen, or that opens a link with nothing chosen, still opens JSH, as it always did.) |
 | `EXPO_PUBLIC_MEMBER_BASE_DOMAIN` | no | Web build only. The domain whose names open a community (`weaverams.org`): `jsh.weaverams.org` opens JSH, `app.weaverams.org` lists the organizations. Unset: one address for everyone. See "One web address per organization". |
 | `EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL` | no | Public community dashboard linked from the menu. `centers.branding.dashboard_url` wins; hidden when neither is set. |
+| `EXPO_PUBLIC_DEMO_URL` | no | The Weaver portal that runs "Try the demo" (`https://admin.weaverams.org`). Falls back to `EXPO_PUBLIC_PORTAL_URL`; with neither, the "Try the demo" button is not shown. See `docs/DEMO.md`. |
 
 For EAS builds set them as EAS environment variables.
 

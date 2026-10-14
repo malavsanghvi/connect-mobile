@@ -3,6 +3,8 @@
  * these values until translations are supplied by the center.
  * Placeholders use {name} syntax.
  */
+import { demoStrings } from './demo';
+
 export const en = {
   // Common
   'common.loading': 'Loading…',
@@ -2882,6 +2884,8 @@ export const en = {
   'hw.err.locked': "This answer can't be changed any more — reload to see where it is.",
   'hw.err.unreadableLoad': "We couldn't load your homework — the answer was not what we expected. Please try again.",
   'hw.err.unreadable': "We couldn't {action} — the answer was not what we expected. Please try again.",
+  // "Try the demo" (src/i18n/demo.ts)
+  ...demoStrings,
 } as const;
 
 export type StringKey = keyof typeof en;

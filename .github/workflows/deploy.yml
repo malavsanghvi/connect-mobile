@@ -32,6 +32,9 @@ jobs:
       # lists the organizations). Unset: one address for everyone, as before. Needs the same name in
       # connect-crm's MEMBER_BASE_DOMAIN (the server side) — docs/DEPLOY.md there.
       EXPO_PUBLIC_MEMBER_BASE_DOMAIN: ${{ vars.MEMBER_BASE_DOMAIN }}
+      # The portal that runs "Try the demo" (its /api/demo/choices and /api/demo/session answer to app.weaverams.org). Repository
+      # variable DEMO_URL (or PORTAL_URL) overrides it; the portal's own address is the default. docs/DEMO.md.
+      EXPO_PUBLIC_DEMO_URL: ${{ vars.DEMO_URL || vars.PORTAL_URL || 'https://admin.weaverams.org' }}
     steps:
       - name: Check settings
         env:

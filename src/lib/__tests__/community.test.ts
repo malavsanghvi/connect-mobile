@@ -233,3 +233,29 @@ describe('searchableCommunities', () => {
     expect(searchableCommunities(rows).map((r) => r.slug)).toEqual(['jsh']);
   });
 });
+
+describe('communityToOpen with the demo', () => {
+  const saved = { slug: 'jcnj', name: 'JCNJ' };
+  it('opens the demo community above everything else: the saved choice, the address, the build default', () => {
+    expect(communityToOpen({ saved, signedIn: false, defaultSlug: 'jsh', demoSlug: 'demo-faith' })).toBe('demo-faith');
+    expect(communityToOpen({ saved: null, signedIn: true, defaultSlug: 'jsh', hostSlug: 'jsh', demoSlug: 'demo-faith' })).toBe('demo-faith');
+    // On app.<domain> a plain visit shows the list, but a running demo keeps its community after a page reload.
+    expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/', pickerHost: true, demoSlug: 'demo-faith' })).toBe('demo-faith');
+  });
+  it('changes nothing without a demo', () => {
+    expect(communityToOpen({ saved, signedIn: false, defaultSlug: 'jsh', demoSlug: null })).toBe('jcnj');
+    expect(communityToOpen({ saved: null, signedIn: true, defaultSlug: 'jsh', demoSlug: undefined })).toBe('jsh');
+  });
+  it('treats /demo as a plain visit: it opens the chooser, not the build default community', () => {
+    expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/demo' })).toBeNull();
+    expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/demo/' })).toBeNull();
+    expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/demo', pickerHost: true })).toBeNull();
+    // A link into a screen still belongs to the build's community.
+    expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/events/12' })).toBe('jsh');
+    expect(communityToOpen({ saved: null, signedIn: false, defaultSlug: 'jsh', openedAt: '/demonstration' })).toBe('jsh');
+  });
+  it('reads connect://demo as /demo', () => {
+    expect(openedPath('connect://demo')).toBe('/demo');
+    expect(openedPath('https://app.weaverams.org/demo')).toBe('/demo');
+  });
+});

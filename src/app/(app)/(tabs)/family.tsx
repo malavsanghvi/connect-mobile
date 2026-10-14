@@ -21,6 +21,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
+import { useDemo } from '@/providers/demo';
 import { useFeedback } from '@/providers/feedback';
 import { useModule, useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
@@ -37,6 +38,7 @@ export default function FamilyScreen() {
   const { member, center, setGuest, orgMemberLabel, orgHouseholdLabel, signOut, setOnboarding, sandbox, startOnboardingPreview } = useApp();
   const { invalidate } = useDataVersion();
   const { confirm } = useFeedback();
+  const demo = useDemo();
   const membershipOn = useModule('membership');
   const { map: modules } = useModules();
   const { layout } = useCategory();
@@ -71,6 +73,11 @@ export default function FamilyScreen() {
     .slice(0, 2);
 
   const doSignOut = async () => {
+    // In a demo, signing out is leaving it: no question, nothing to lose (AppProvider.signOut does the leaving).
+    if (demo.active) {
+      signOut().catch((err: unknown) => logError('leaving the demo', err));
+      return;
+    }
     const ok = await confirm({ title: t('settings.signOutTitle'), body: t(signOutBodyKey(member)), confirmLabel: t('settings.signOut') });
     if (ok) signOut().catch((err: unknown) => logError('signing out', err));
   };
@@ -283,7 +290,7 @@ export default function FamilyScreen() {
       ) : null}
       <Pressable onPress={() => void doSignOut()} accessibilityRole="button" style={{ padding: 4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}>
         <Txt variant="small" color="muted" style={{ fontFamily: fonts.bodyMedium }}>
-          {t('settings.signOut')}
+          {demo.active ? t('demo.leave') : t('settings.signOut')}
         </Txt>
       </Pressable>
     </Screen>

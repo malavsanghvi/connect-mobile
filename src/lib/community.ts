@@ -129,6 +129,9 @@ export function isCommunityChoice(v: unknown): v is CommunityChoice {
  * On the web, the address comes first: `hostSlug` ("jsh" for jsh.weaverams.org) always wins, and on the
  * choose-your-organization address (`pickerHost`, app.<base>) a plain visit or a join link shows the list
  * every time, even for someone who chose a community here before.
+ *
+ * A running demo (`demoSlug`, src/providers/demo.tsx) beats all of that: the person is signed in as a demo person of that community, on
+ * whatever address the app was opened. The address /demo is a plain visit (it opens the chooser, not a community).
  */
 export function communityToOpen(input: {
   saved: CommunityChoice | null;
@@ -137,10 +140,12 @@ export function communityToOpen(input: {
   openedAt?: string | null;
   hostSlug?: string | null;
   pickerHost?: boolean;
+  demoSlug?: string | null;
 }): string | null {
+  if (input.demoSlug) return input.demoSlug;
   if (input.hostSlug) return input.hostSlug;
   const path = (input.openedAt ?? '/').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
-  const plainVisit = path === '/' || /^\/join(\/|$)/i.test(path);
+  const plainVisit = path === '/' || /^\/(join|demo)(\/|$)/i.test(path);
   if (input.pickerHost && plainVisit) return null;
   if (input.saved) return input.saved.slug;
   if (input.signedIn) return input.defaultSlug;

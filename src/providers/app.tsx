@@ -15,6 +15,7 @@ import { addressFor, goTo, hostSlug, pickerHost, switchAddress } from '@/lib/mem
 import { readPref, writePref } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { useDataVersion } from '@/providers/data-version';
+import { useDemo } from '@/providers/demo';
 import { useForegroundTick } from '@/providers/foreground';
 import { applyPalette } from '@/theme';
 
@@ -84,6 +85,8 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const { version } = useDataVersion();
   const tick = useForegroundTick();
+  // A running demo (src/providers/demo.tsx) names the community to open, whatever the address or the saved choice.
+  const demo = useDemo();
   const [bootNonce, setBootNonce] = useState(0);
   const [centerResult, setCenterResult] = useState<Loaded<Center> | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -119,10 +122,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // The web address (jsh.weaverams.org) → saved choice → the build's default for an
   // install that is already signed in (existing JSH members see no new step) → none
   // ("Find your community"). On app.weaverams.org a plain visit always shows the list.
+  // (A demo that is being started or checked holds the choice back, so no other community flashes first.)
   const slug =
-    saved === undefined || !sessionReady || openedAt === undefined
+    saved === undefined || !sessionReady || openedAt === undefined || !demo.ready || demo.starting
       ? undefined
-      : communityToOpen({ saved, signedIn: !!session, defaultSlug: env.centerSlug, openedAt, hostSlug, pickerHost });
+      : communityToOpen({ saved, signedIn: !!session, defaultSlug: env.centerSlug, openedAt, hostSlug, pickerHost, demoSlug: demo.slug });
   const centerKey = `${slug ?? ''}#${bootNonce}`;
   // When the community row was last read, for the foreground refresh below.
   const centerReadAt = useRef<number | null>(null);
@@ -201,13 +205,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // An install that opened the default community without choosing one keeps
   // it from now on, so signing out later does not ask again.
+  // (Never a demo community: it is not the device's choice, and the demo ends.)
   useEffect(() => {
-    if (!center || saved !== null) return;
+    if (!center || saved !== null || demo.slug) return;
     const choice = { slug: center.slug, name: center.name };
     writePref(COMMUNITY_PREF, choice)
       .then(() => setSaved(choice))
       .catch((err: unknown) => logError('remembering the community on this device (it will be asked again next time)', err));
-  }, [center, saved]);
+  }, [center, saved, demo.slug]);
 
   const chooseCommunity = async (choice: CommunityChoice) => {
     try {
@@ -291,6 +296,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Signing out of a demo is leaving it: the database is told, only this device is signed out, and the chooser comes back.
+    if (demo.active) {
+      await demo.leave();
+      setMemberResult(null);
+      setOnboardingMode('off');
+      return;
+    }
     // The usage logger sends what it holds while the sign-in is still valid (best effort; never holds the sign-out up for long).
     await flushActivityBriefly();
     const { error } = await supabase.auth.signOut();
@@ -315,14 +327,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     chooseCommunity,
     // On an organization's own address the list lives at app.<domain>; elsewhere it opens in the app.
     switchCommunity: () => {
+      // In a demo there is no other community to switch to: leaving the demo is the way back to "Find your community".
+      if (demo.mode !== 'off') {
+        void demo.leave();
+        return;
+      }
       const address = switchAddress();
       if (address) goTo(address);
       else setChoosingCommunity(true);
     },
     cancelSwitchCommunity: () => setChoosingCommunity(false),
     session,
-    guest: !session && guest,
-    setGuest,
+    // Looking around a demo community is the app's guest mode (no sign-in), whatever Welcome was asked.
+    guest: !session && (guest || demo.guest),
+    // "Sign in" in a demo guest's app opens the demo people instead of the real sign-in.
+    setGuest: (on) => {
+      if (!on && demo.guest) demo.openChooser();
+      else setGuest(on);
+    },
     member: currentMember?.value ?? null,
     memberLoading: !!session && !!center && !currentMember,
     memberError: currentMember?.error ?? null,

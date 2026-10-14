@@ -9,6 +9,7 @@ import { topicHasSender } from '../notification-topics';
 import { withAuditReason } from '../request-context';
 import { supabase } from '../supabase';
 
+import { refuseMessageInDemo } from './demo';
 import type { Person } from './member';
 
 // ---------------------------------------------------------------------------
@@ -366,6 +367,7 @@ async function findInbox(centerId: string, preferredKeys: string[]): Promise<Tab
 
 /** Send a message to a team inbox as a new thread. Returns the thread id. */
 export async function sendToInbox(args: { centerId: string; userId: string; personId: string; inboxId?: string; preferredKeys?: string[]; subject: string; body: string }): Promise<string> {
+  await refuseMessageInDemo();
   const inboxId = args.inboxId ?? (await findInbox(args.centerId, args.preferredKeys ?? ['office'])).id;
   const thread = must(
     await supabase.from('threads').insert({ center_id: args.centerId, inbox_id: inboxId, from_person_id: args.personId, subject: args.subject, status: 'open' }).select('id').single(),
