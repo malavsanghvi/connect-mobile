@@ -174,6 +174,8 @@ registerNotificationRoute(HOMEWORK_PARENT, { open: homeworkParentTarget });
 //                                 child added) and the registration summary.
 //   /pathshala-enroll?term=<id>   registration for that term: the summary when its first line is a child the office
 //                                 adds first, and "child not added".
+//   /pathshala-announcements      the class announcements a principal or teacher published (`announcement_id` rides along but
+//                                 the list is the screen: the newest one is at the top).
 // A Pathshala push without a usable link opens 3L › Learn. `person_id` is the RECIPIENT and is never read as the learner.
 // ---------------------------------------------------------------------------
 
@@ -181,7 +183,7 @@ export const PATHSHALA = 'pathshala';
 
 const PATHSHALA_LEARN: NotificationTarget = { pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } };
 
-/** A Pathshala deep link as an app location, or null when it is not one of the two links above. */
+/** A Pathshala deep link as an app location, or null when it is not one of the links above. */
 function pathshalaLinkTarget(link: string | null): NotificationTarget | null {
   if (!link) return null;
   const m = /^\/?([a-z-]+)\/?(?:\?(.*))?$/i.exec(link);
@@ -197,6 +199,7 @@ function pathshalaLinkTarget(link: string | null): NotificationTarget | null {
     return term ? { pathname: '/pathshala-enroll', params: { term } } : { pathname: '/pathshala-enroll' };
   }
   if (path === 'pathshala') return PATHSHALA_LEARN;
+  if (path === 'pathshala-announcements') return { pathname: '/pathshala-announcements' };
   return null;
 }
 

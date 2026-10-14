@@ -2278,6 +2278,16 @@ export const en = {
   'reg.err.registerRetry': '{reason} You will not be registered twice.',
   'reg.err.office': 'Could not keep the seats for payment at the office — {reason}',
   'reg.err.pay': 'Could not open the payment — {reason}',
+  // Class announcements (pathshala-announcements): what a principal or teacher published for a class or the whole term
+  'announce.title': 'Class announcements',
+  'announce.entrySub': 'Messages from your classes and teachers',
+  'announce.none': 'No announcements yet.',
+  'announce.noneBody': 'When a teacher or the principal posts one for your family, it appears here.',
+  'announce.all': 'All of Pathshala',
+  'announce.allTerm': 'All of Pathshala · {term}',
+  'announce.yourClass': 'Your class',
+  'announce.needMember': 'Sign in to see the announcements from your classes.',
+  'announce.posted': 'Posted {when}',
   // Teach at Pathshala (pathshala-teach)
   'teach.title': 'Teach at Pathshala',
   'teach.cta': 'Teach at Pathshala',

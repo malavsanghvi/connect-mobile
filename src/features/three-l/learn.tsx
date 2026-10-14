@@ -2,8 +2,9 @@ import { useRouter } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
 import { FeatureNotice } from '@/components/feature-notice';
+import { Icon } from '@/components/icon';
 import { EmptyState, Loaded } from '@/components/states';
-import { Button, Card, Divider, LinkText, Row, Txt, VStack } from '@/components/ui';
+import { Button, Card, Divider, LinkText, ListRow, Row, Txt, VStack } from '@/components/ui';
 import { EnrollmentFee } from '@/features/pathshala/enrollment-fee';
 import { useNow, whenText } from '@/features/pathshala/shared';
 import { goalProgress, lastActivityByGoal, loadGyan, loadPathshala, nextGyanLevel } from '@/lib/api/gyan';
@@ -240,6 +241,17 @@ function PathshalaBlock() {
           )
         }
       </Loaded>
+      {/* A household with a Pathshala enrollment can read what its classes' teachers and the principal publish (RLS decides which). */}
+      {(pathshala.data?.length ?? 0) > 0 ? (
+        <Card>
+          <ListRow
+            title={t('announce.title')}
+            subtitle={t('announce.entrySub')}
+            left={<Icon name="megaphone-outline" size={24} color={colors.navy} />}
+            onPress={() => router.push('/pathshala-announcements')}
+          />
+        </Card>
+      ) : null}
       {member?.isAdult && (pathshala.data?.length ?? 0) > 0 ? (
         <Row style={{ flexWrap: 'wrap' }}>
           <Button label={t('enrollReq.cta')} tone="secondary" size="sm" icon="school-outline" fill={false} onPress={() => router.push('/pathshala-enroll')} />

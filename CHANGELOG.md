@@ -14,6 +14,17 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.19.0 — 2026-10-13
+
+- **Families see class announcements.** What a Pathshala principal or a class teacher publishes in the portal for a class (or
+  for the whole term) now shows in the app. 3L › Learn has a "Class announcements" row under the household's Pathshala
+  enrollments; it opens the list, newest first: the title, the message with its line breaks, when it was posted (in the
+  community's time zone) and who it is for (the class, or "All of Pathshala · <term>"). No author is shown. A family only
+  sees the announcements of classes and terms it has an enrollment in (the database decides). When there are none the screen
+  says so; when the list cannot be loaded it says that, with Try again.
+- A push for a class announcement (link `/pathshala-announcements`) opens that list when tapped.
+- JavaScript only (no new native code, `runtimeVersion` stays 3): shipped as an over-the-air update.
+
 ## 1.18.1 — 2026-10-13
 
 - **A pledge the office recorded is labelled.** The portal can now record a pledge for a family by hand (connect-crm 0745,

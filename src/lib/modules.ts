@@ -352,6 +352,7 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   'pathshala-scan': 'pathshala',
   'pathshala-enroll': 'pathshala',
   'pathshala-teach': 'pathshala',
+  'pathshala-announcements': 'pathshala',
   // library + photos
   'pachchakhan/[id]': 'content',
   darshan: 'content',
