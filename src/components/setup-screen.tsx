@@ -4,6 +4,7 @@ import { envStatus } from '@/lib/env';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
 
+import { WeaverLockup } from './brand';
 import { FullScreen } from './full-screen';
 import { Icon } from './icon';
 import { Card, Row, Txt } from './ui';
@@ -14,6 +15,9 @@ export function SetupScreen() {
   const vars = envStatus();
   return (
     <FullScreen>
+      <View style={{ alignSelf: 'flex-start' }}>
+        <WeaverLockup />
+      </View>
       <Txt variant="eyebrow" color="brown">
         {t('setup.eyebrow')}
       </Txt>
@@ -26,7 +30,7 @@ export function SetupScreen() {
       <Card>
         {vars.map((v) => (
           <Row key={v.name} align="flex-start" gap={space.md} style={{ paddingVertical: space.sm }}>
-            <Icon name={v.present ? 'checkmark-circle' : v.required ? 'close-circle' : 'ellipse-outline'} size={22} color={v.present ? colors.green : v.required ? colors.danger : colors.faint} />
+            <Icon name={v.present ? 'checkmark' : v.required ? 'close' : 'ellipse-outline'} size={22} color={v.present ? colors.green : v.required ? colors.danger : colors.faint} />
             <View style={{ flex: 1, gap: 2 }}>
               <Txt variant="smallStrong" selectable>
                 {v.name}

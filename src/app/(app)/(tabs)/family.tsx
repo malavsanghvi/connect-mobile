@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { ErrorState, LoadingState } from '@/components/states';
-import { Banner, Button, Card, Row, Txt } from '@/components/ui';
+import { Banner, Button, Card, dotted, Ident, Row, Txt } from '@/components/ui';
 import { FamilyHomeworkLine } from '@/features/homework/family-line';
 import { useHomework } from '@/features/homework/use-homework';
 import { roleLabel } from '@/features/labels';
@@ -25,7 +25,7 @@ import { useDemo } from '@/providers/demo';
 import { useFeedback } from '@/providers/feedback';
 import { useModule, useModules } from '@/providers/modules';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 /**
  * Family tab (Main.dc.html isFamily, L454–482): household identifiers,
@@ -87,7 +87,7 @@ export default function FamilyScreen() {
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={a11y}
-      style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.navy, backgroundColor: filled ? colors.navy : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+      style={({ pressed }) => ({ minHeight: touch.min, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.navy, backgroundColor: filled ? colors.navy : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
       <Txt variant="meta" color={filled ? 'white' : 'navy'} style={{ fontFamily: fonts.bodySemi }}>
         {label}
       </Txt>
@@ -103,9 +103,15 @@ export default function FamilyScreen() {
             {household.display_name}
           </Txt>
           <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }} selectable>
-            {[member.orgHouseholdId ? `${orgHouseholdLabel} ${member.orgHouseholdId}` : null, household.household_number, ms ? (ms.status === 'active' ? t('family.memberSince', { date: formatLongDate(ms.starts_on) }) : t(`membership.${ms.status}` as 'membership.pending')) : t('family.noMembership')]
-              .filter(Boolean)
-              .join(' · ')}
+            {dotted([
+              member.orgHouseholdId ? (
+                <>
+                  {orgHouseholdLabel} <Ident>{member.orgHouseholdId}</Ident>
+                </>
+              ) : null,
+              household.household_number ? <Ident>{household.household_number}</Ident> : null,
+              ms ? (ms.status === 'active' ? t('family.memberSince', { date: formatLongDate(ms.starts_on) }) : t(`membership.${ms.status}` as 'membership.pending')) : t('family.noMembership'),
+            ])}
           </Txt>
         </View>
       ) : null}
@@ -164,8 +170,14 @@ export default function FamilyScreen() {
       <Card style={{ paddingVertical: 6, gap: 0 }}>
         {member.members.map((fm) => {
           const age = ageOn(fm.person.date_of_birth, member.today);
-          const id = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
-          const tag = [roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id].filter(Boolean).join(' · ');
+          const id = fm.orgMemberId ? (
+            <>
+              {orgMemberLabel} <Ident>{fm.orgMemberId}</Ident>
+            </>
+          ) : fm.person.member_number ? (
+            <Ident>{fm.person.member_number}</Ident>
+          ) : null;
+          const tag = dotted([roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id]);
           return (
             <View key={fm.person.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.divider }}>
               <Row gap={space.md} style={{ paddingVertical: 10 }}>
@@ -282,13 +294,13 @@ export default function FamilyScreen() {
         </Txt>
       </Pressable>
       {member.isAdult && household ? (
-        <Pressable onPress={() => router.push('/preferences')} accessibilityRole="link" style={{ paddingVertical: 4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}>
+        <Pressable onPress={() => router.push('/preferences')} accessibilityRole="link" style={{ paddingVertical: 4, alignItems: 'center', minHeight: touch.min, justifyContent: 'center' }}>
           <Txt variant="meta" color="navy">
             {t('family.contactPrefs')}
           </Txt>
         </Pressable>
       ) : null}
-      <Pressable onPress={() => void doSignOut()} accessibilityRole="button" style={{ padding: 4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}>
+      <Pressable onPress={() => void doSignOut()} accessibilityRole="button" style={{ padding: 4, alignItems: 'center', minHeight: touch.min, justifyContent: 'center' }}>
         <Txt variant="small" color="muted" style={{ fontFamily: fonts.bodyMedium }}>
           {demo.active ? t('demo.leave') : t('settings.signOut')}
         </Txt>

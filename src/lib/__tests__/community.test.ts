@@ -27,6 +27,8 @@ describe('parseJoinInput', () => {
     expect(parseJoinInput(' 7K4M Q2PD ')).toBe('7K4MQ2PD');
   });
   it('reads the app link and the web link a QR code carries', () => {
+    expect(parseJoinInput('weaver://join/7K4MQ2PD')).toBe('7K4MQ2PD');
+    // Links printed before the Weaver scheme keep working.
     expect(parseJoinInput('communityconnect://join/7K4MQ2PD')).toBe('7K4MQ2PD');
     expect(parseJoinInput('connect://join/7k4m-q2pd')).toBe('7K4MQ2PD');
     expect(parseJoinInput('https://app.communityconnect.app/join/7K4MQ2PD?utm=poster')).toBe('7K4MQ2PD');
@@ -66,6 +68,8 @@ describe('communityToOpen', () => {
     expect(openedPath(null)).toBe('/');
     expect(openedPath('https://app.example.org/')).toBe('/');
     expect(openedPath('https://app.example.org/events/12?x=1')).toBe('/events/12');
+    expect(openedPath('weaver://join/7K4MQ2PD')).toBe('/join/7K4MQ2PD');
+    expect(openedPath('weaver://events/12')).toBe('/events/12');
     expect(openedPath('communityconnect://join/7K4MQ2PD')).toBe('/join/7K4MQ2PD');
     expect(openedPath('connect://events/12')).toBe('/events/12');
     expect(openedPath('exp://192.168.1.2:8081')).toBe('/');

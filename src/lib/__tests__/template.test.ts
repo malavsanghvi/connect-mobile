@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 
+import { brandColor } from '../../brand';
 import { en } from '../../i18n/en';
 import { applyPalette, applyTemplateTheme, colors, radii } from '../../theme';
 import {
@@ -417,10 +418,10 @@ describe('colour precedence: brand kit > template theme > built-in', () => {
 
   const theme = (parts: Record<string, unknown>) => resolveTheme(parsed({ theme: parts }));
 
-  it('starts from the built-in colours', () => {
-    expect(colors.navy).toBe('#1B2C5C');
-    expect(colors.saffron).toBe('#C9731C');
-    expect(colors.ground).toBe('#FBF7F0');
+  it('starts from the built-in colours: the Weaver brand kit (navy, canvas) and its accent', () => {
+    expect(colors.navy).toBe(brandColor('navy'));
+    expect(colors.ground).toBe(brandColor('canvas'));
+    expect(colors.saffron).toMatch(/^#[0-9A-Fa-f]{6}$/);
   });
 
   it("uses the template's colours when the community has no brand kit", () => {

@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
-import { Banner, Button, Card, Chip, ChipGroup, Divider, TextField, Toggle, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Chip, ChipGroup, Divider, dotted, Ident, TextField, Toggle, Txt, VStack } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { ProfileFields } from '@/features/onboarding/profile-fields';
 import { MoreAboutYou } from '@/features/profile-details/more-about-you';
@@ -43,7 +43,7 @@ import { useCategory } from '@/providers/category';
 import { useDemo } from '@/providers/demo';
 import { useFeedback } from '@/providers/feedback';
 import { useSettings, useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 const EXPERTISE = ['Medicine and health', 'Law', 'Tax and accounting', 'Finance and investing', 'Real estate', 'Engineering and tech', 'Education and careers', 'Business and startups', 'Arts and music'];
 
@@ -123,8 +123,14 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
   const withContact = adult && canEdit && demoAllows(demo.active, 'changeContact');
   const first = fm.person.preferred_name || fm.person.first_name;
   const age = ageOn(fm.person.date_of_birth, member.today);
-  const idText = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
-  const heroLine = [recordedRelationship, age != null ? String(age) : null, idText].filter(Boolean).join(' · ');
+  const idText = fm.orgMemberId ? (
+    <>
+      {orgMemberLabel} <Ident>{fm.orgMemberId}</Ident>
+    </>
+  ) : fm.person.member_number ? (
+    <Ident>{fm.person.member_number}</Ident>
+  ) : null;
+  const heroLine = dotted([recordedRelationship, age != null ? String(age) : null, idText]);
 
   // Every control clears the "Saved" state so the button reads "Save changes" again.
   const edit =
@@ -211,7 +217,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
           onPress={() => router.push({ pathname: '/member-card', params: { person: fm.person.id } })}
           accessibilityRole="button"
           accessibilityLabel={t('family.qrFor', { name: first })}
-          style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.onNavy, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+          style={({ pressed }) => ({ minHeight: touch.min, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.onNavy, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
           <Txt variant="meta" color="white" style={{ fontFamily: fonts.bodySemi }}>
             {t('family.qr')}
           </Txt>
@@ -331,7 +337,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
                 accessibilityRole="checkbox"
                 accessibilityLabel={label}
                 accessibilityState={{ checked: on, disabled: !canEdit }}
-                style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: space.md, borderRadius: 18, borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: on ? colors.brownTint : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+                style={({ pressed }) => ({ minHeight: touch.min, paddingHorizontal: space.md, borderRadius: 18, borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: on ? colors.brownTint : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
                 <Txt variant="meta" color="brownDark" style={{ fontFamily: fonts.bodyMedium }}>
                   {label}
                 </Txt>

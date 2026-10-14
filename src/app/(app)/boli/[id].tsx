@@ -18,7 +18,7 @@ import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 const REFRESH_MS = 20000;
 
@@ -122,7 +122,7 @@ function Explainer({ boli }: { boli: BoliWithSummary }) {
         ) : null}
         {error ? <Banner tone="error" message={error} /> : null}
         {more ? (
-          <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" style={{ minHeight: 32, justifyContent: 'center', alignSelf: 'flex-start' }}>
+          <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" style={{ minHeight: touch.min, justifyContent: 'center', alignSelf: 'flex-start' }}>
             <Txt variant="meta" color="navy" style={{ fontFamily: fonts.bodySemi }}>
               {open ? t('bolis.showLess') : t('bolis.readMore')}
             </Txt>

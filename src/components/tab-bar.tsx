@@ -31,9 +31,9 @@ function isTab(name: string | undefined): name is TabName {
 }
 
 /**
- * The prototype tab bar (Main.dc.html L1321): 76px, white, 1px #E8E0D2 top
+ * The prototype tab bar (Main.dc.html L1321): 76px, white, 1px border-colour top
  * border, equal columns (the five tabs, then Niva), 22px outline icons (stroke
- * 1.8, same icon in both states), labels 12/600, navy active / faint idle.
+ * 2, same icon in both states), labels 12/600, navy active / faint idle.
  * Tabs whose modules the community switched off are left out (Give and Jain
  * Way disappear when none of their sections is on), and Niva is there for
  * someone who may use Ask Niva (it replaces the floating Niva button). The

@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Chip, ChipGroup, Pill, Row, Segmented, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Chip, ChipGroup, dotted, Ident, Pill, Row, Segmented, Txt, VStack } from '@/components/ui';
 import { ChevronGlyph } from '@/features/give/icons';
 import { CheckBox, TintTile } from '@/features/give/parts';
 import { isYearOpen } from '@/features/give/rules';
@@ -24,7 +24,7 @@ import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useModule } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 function statusPill(t: Translate, p: PledgeWithPeople): { label: string; fg: string; bg: string } {
   switch (p.status) {
@@ -51,7 +51,7 @@ function PledgeRow({ t, p, selected, onToggle, reported }: { t: Translate; p: Pl
   const open = isOpenPledge(p);
   const title = p.opportunityName ? [p.opportunityName, p.optionLabel].filter(Boolean).join(' · ') : p.dedication || p.campaignName || sourceLabel(t, p.source);
   const sub = [p.campaignName && p.campaignName !== title ? p.campaignName : null, p.opportunityName && p.dedication ? p.dedication : null].filter(Boolean).join(' · ') || sourceLabel(t, p.source);
-  const meta = [p.pledgedByName ? t('pledges.by', { name: p.pledgedByName }) : null, formatLongDate(p.pledged_at.slice(0, 10)), p.pledge_number].filter(Boolean).join(' · ');
+  const meta = dotted([p.pledgedByName ? t('pledges.by', { name: p.pledgedByName }) : null, formatLongDate(p.pledged_at.slice(0, 10)), p.pledge_number ? <Ident>{p.pledge_number}</Ident> : null]);
   const pill = statusPill(t, p);
   return (
     <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: selected ? colors.navy : colors.border, borderRadius: radii.row, paddingVertical: space.md, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: space.md }}>
@@ -204,7 +204,7 @@ export default function PledgesScreen() {
                         accessibilityRole="button"
                         accessibilityState={{ expanded: isOpen }}
                         accessibilityLabel={t('pledges.toggleYear', { year: g.year })}
-                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, paddingBottom: 6 }}>
+                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: touch.min, paddingBottom: 6 }}>
                         <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
                           <ChevronGlyph color={colors.navy} rotate={isOpen ? 90 : 0} />
                         </View>
@@ -222,7 +222,7 @@ export default function PledgesScreen() {
                         onPress={() => void openStatement(g.year, statement)}
                         disabled={g.year >= currentYear}
                         accessibilityRole="button"
-                        style={({ pressed }) => ({ minHeight: 40, paddingBottom: 6, justifyContent: 'flex-end', opacity: pressed ? 0.6 : 1 })}>
+                        style={({ pressed }) => ({ minHeight: touch.min, paddingBottom: 6, justifyContent: 'flex-end', opacity: pressed ? 0.6 : 1 })}>
                         <Txt variant="caption" color="navy" style={{ fontFamily: fonts.bodyBold }}>
                           {g.year >= currentYear ? t('pledges.statementJan') : t('pledges.taxStatement', { year: g.year })}
                         </Txt>

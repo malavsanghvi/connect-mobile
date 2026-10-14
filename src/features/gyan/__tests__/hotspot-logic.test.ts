@@ -206,7 +206,7 @@ describe('practiceNote', () => {
     return translate('en', l.key, l.vars);
   };
   it('says one wrong touch in the singular', () => {
-    expect(say(0, 2)).toBe('Every touch in order!');
+    expect(say(0, 2)).toBe('Every touch in order.');
     expect(say(1, 2)).toBe('Finished with 1 wrong touch.');
     expect(say(2, 2)).toBe('Finished with 2 wrong touches.');
   });

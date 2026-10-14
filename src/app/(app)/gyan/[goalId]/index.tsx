@@ -106,7 +106,7 @@ function GoalMap({ data, goal, personId }: { data: GyanData; goal: GyanGoal; per
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: tintBackground(goal.tint) }} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: space.xl }}>
+    <ScrollView style={{ flex: 1, backgroundColor: tintBackground(goal.tint) ?? colors.panel }} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: space.xl }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
         <View style={[{ backgroundColor: colors.card, borderRadius: radii.row, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: space.md }, shadows.strip]}>
           <View style={{ flex: 1, gap: 4 }}>

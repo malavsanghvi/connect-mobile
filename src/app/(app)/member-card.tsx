@@ -4,14 +4,14 @@ import { Pressable, View } from 'react-native';
 
 import { Qr } from '@/components/qr';
 import { Screen } from '@/components/screen';
-import { Button, Txt } from '@/components/ui';
+import { Button, dotted, Ident, Txt } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { fullName } from '@/lib/format';
 import { ageOn } from '@/lib/rules';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space, tracking } from '@/theme';
+import { colors, fonts, radii, space, touch, tracking } from '@/theme';
 
 /**
  * Member card (Main.dc.html isCard, L1297–1317): centred navy card with the
@@ -30,8 +30,14 @@ export default function MemberCardScreen() {
   const fm = member.members.find((m) => m.person.id === (selectedId ?? member.person.id)) ?? member.members[0];
   const age = ageOn(fm.person.date_of_birth, member.today);
   const tierOne = member.membership?.status === 'active' ? t(`tierOne.${member.membership.tier}` as 'tierOne.life') : null;
-  const id = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
-  const tag = [roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id].filter(Boolean).join(' · ');
+  const id = fm.orgMemberId ? (
+    <>
+      {orgMemberLabel} <Ident>{fm.orgMemberId}</Ident>
+    </>
+  ) : fm.person.member_number ? (
+    <Ident>{fm.person.member_number}</Ident>
+  ) : null;
+  const tag = dotted([roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id]);
 
   return (
     <Screen title={t('card.title')}>
@@ -66,7 +72,7 @@ export default function MemberCardScreen() {
                 onPress={() => setSelectedId(m.person.id)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
-                style={{ minHeight: 44, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: on ? colors.navy : colors.borderInput, backgroundColor: on ? colors.navy : colors.card, justifyContent: 'center' }}>
+                style={{ minHeight: touch.min, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: on ? colors.navy : colors.borderInput, backgroundColor: on ? colors.navy : colors.card, justifyContent: 'center' }}>
                 <Txt variant="small" color={on ? 'white' : 'ink'} style={{ fontFamily: fonts.bodyMedium }}>
                   {m.person.preferred_name || m.person.first_name}
                 </Txt>

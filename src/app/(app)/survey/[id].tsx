@@ -142,7 +142,7 @@ function QuestionField({ q, value, onChange }: { q: Question; value: Answers[str
           accessibilityLabel={q.label}
           placeholder={t('survey.textPlaceholder')}
           placeholderTextColor={colors.faint}
-          style={{ minHeight: 100, textAlignVertical: 'top', borderRadius: radii.card, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, paddingVertical: 10, paddingHorizontal: space.md, fontFamily: fonts.body, fontSize: 14, color: colors.ink }}
+          style={{ minHeight: 100, textAlignVertical: 'top', borderRadius: radii.field, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.card, paddingVertical: 10, paddingHorizontal: space.md, fontFamily: fonts.body, fontSize: 14, color: colors.ink }}
         />
       </View>
     );

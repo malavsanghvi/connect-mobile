@@ -1,9 +1,3 @@
-import { DMSans_400Regular } from '@expo-google-fonts/dm-sans/400Regular';
-import { DMSans_500Medium } from '@expo-google-fonts/dm-sans/500Medium';
-import { DMSans_600SemiBold } from '@expo-google-fonts/dm-sans/600SemiBold';
-import { DMSans_700Bold } from '@expo-google-fonts/dm-sans/700Bold';
-import { Fraunces_500Medium } from '@expo-google-fonts/fraunces/500Medium';
-import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
 import { useFonts } from 'expo-font';
 import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,6 +6,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { brandFontAssets } from '@/brand/fonts';
 import { BiometricGate } from '@/components/biometric-gate';
 import { FullScreenError, FullScreenLoading } from '@/components/full-screen';
 import { iconFont } from '@/components/icon';
@@ -44,15 +39,8 @@ import '@/global.css';
 SplashScreen.preventAutoHideAsync().catch((err: unknown) => logError('keeping the splash screen up', err));
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Fraunces_500Medium,
-    Fraunces_600SemiBold,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-    DMSans_700Bold,
-    ...iconFont,
-  });
+  // The brand kit's two faces (src/brand/fonts.ts) and the icon font.
+  const [fontsLoaded, fontError] = useFonts({ ...brandFontAssets, ...iconFont });
 
   useEffect(() => {
     if (fontError) logError('loading fonts (continuing with system fonts)', fontError);

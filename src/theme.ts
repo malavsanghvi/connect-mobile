@@ -1,95 +1,123 @@
 /**
- * Design tokens lifted from the member-app prototypes (Main.dc.html and friends;
- * connect-crm/docs/parity/v-visual-system.md §1 and §3.2) and
- * connect-crm/docs/ARCHITECTURE.md. Never hard-code a colour in a screen —
- * add it here. The chosen community's brand colours are layered on top at
- * run time (applyPalette below) without touching screens.
+ * The app's design tokens.
+ *
+ * Weaver's own look comes from the brand kit (connect-crm `brand/`, vendored as src/brand/tokens.json and read through
+ * src/brand/index.ts): its colours, its three faces, its radii and its control sizes. Everything the kit does not cover (the colours of the
+ * giving, store, learning, photo and check-in screens, lifted from the member-app prototypes: Main.dc.html and friends,
+ * connect-crm/docs/parity/v-visual-system.md) stays below as `appOnly`, each group named for what it paints, and is listed
+ * in docs/BRAND_CONFORMANCE.md as a decision for the owner. Never hard-code a colour in a screen: add it here (a test fails
+ * when a colour literal appears anywhere else).
+ *
+ * The chosen community's brand colours are layered on top at run time (applyPalette below) without touching screens:
+ * a community's own name, logo and colours are its identity inside its own screens and are not replaced by the kit.
  */
+import { Platform } from 'react-native';
 
-export const colors = {
+import { brandColor, brandFace, brandFallbackCss, brandRadius, brandSpace, brandTypeStyle, type BrandColorName, type BrandFontRole } from './brand';
+import { MODULE_TAG_COLORS, mixHex } from './lib/community';
+
+/**
+ * Theme colour → the kit colour that paints it. The values come from src/brand/tokens.json; a test (brand-conformance)
+ * checks every entry resolves, so a kit file without one of these names fails there rather than on a phone.
+ */
+export const BRAND_COLOR_MAP = {
   // Surfaces
-  ground: '#FBF7F0',
-  frame: '#EDE6DA',
-  card: '#FFFFFF',
-  panel: '#F6EFE3',
-  divider: '#F1E8D8',
-  dividerLight: '#F4EEE3',
-  chip: '#F1EEE8',
+  ground: 'canvas',
+  frame: 'line',
+  card: 'white',
+  panel: 'track',
+  divider: 'line-soft',
+  dividerLight: 'line-soft',
+  chip: 'track',
 
-  // Borders
-  border: '#E8E0D2',
-  borderInput: '#E3D9C8',
-  dashed: '#B9AE99',
-  dashed2: '#D5CBB8',
-  toggleOff: '#CFC8BA',
-  /** Onboarding progress track. */
-  track: '#EDE3D2',
-  starEmpty: '#E3DCCF',
+  // Borders. A real control (a field, a select, a switch that is off) is outlined in line-control (3.5:1); line-input is only for
+  // inputs drawn inside a picture.
+  border: 'line',
+  borderInput: 'line-input',
+  borderControl: 'line-control',
+  toggleOff: 'line-control',
+  /** Onboarding and bar progress tracks. */
+  track: 'track',
 
   // Ink
-  ink: '#1E1C18',
-  ink2: '#3D3A33',
-  muted: '#5E5A52',
-  faint: '#8A8478',
+  ink: 'ink',
+  ink2: 'ink-2',
+  muted: 'muted',
+  /** Hints, placeholders, timestamps and idle text: the lightest text there is (5.2:1 on white). */
+  faint: 'faint',
 
-  // Navy (primary)
-  navy: '#1B2C5C',
-  navyHover: '#0F1B3D',
-  navyTint: '#EEF1F8',
-  navyTint2: '#E6E9F3',
-  navyBorder: '#B8C2DD',
-  onNavy: '#C9D1EA',
-  navyPanel: '#33467A',
-  navyPanel2: '#26396E',
-  navyDisabled: '#8A93AE',
+  // Navy (indigo, primary)
+  navy: 'navy',
+  navyHover: 'navy-hover',
+  navyTint: 'navy-50',
+  navyTint2: 'navy-100',
+  navyBorder: 'navy-300',
+  onNavy: 'navy-200',
 
-  // Saffron / brown (giving, bolis)
-  brown: '#8A4608',
-  brownDark: '#5E3106',
-  brownText: '#5E4A33',
-  brownTint: '#FBEBD7',
-  brownBorder: '#EFCFA6',
-  onBrown: '#F6DDBF',
-  saffron: '#C9731C',
+  // Ember and the warm tints (giving, bolis)
+  brown: 'brown',
+  brownDark: 'brown-900',
+  brownText: 'brown-900',
+  brownTint: 'saffron-50',
+  brownBorder: 'saffron-200',
+  onBrown: 'saffron-50',
+  gold: 'gold',
+
+  // The accent role (a community's accent colour replaces it): the kit's strong sunrise, the orange a person must read or tap,
+  // with white text on it at 4.7:1 (pressed: brown). The kit's plain saffron is decoration and never carries white text.
+  saffron: 'saffron-strong',
+
+  // Success, warning and error: always beside words
+  green: 'success',
+  greenTint: 'success-50',
+  warning: 'warning',
+  warningTint: 'warning-50',
+  warningBorder: 'warning-200',
+  warningInk: 'warning-ink',
+  danger: 'danger',
+  dangerTint: 'danger-50',
+
+  white: 'white',
+} as const satisfies Record<string, BrandColorName>;
+
+const kitColors = Object.fromEntries(Object.entries(BRAND_COLOR_MAP).map(([key, name]) => [key, brandColor(name)])) as { [K in keyof typeof BRAND_COLOR_MAP]: string };
+
+// The lighter and disabled indigos: the same mixes `brandPalette` (lib/community.ts) applies to a community's own primary, so
+// Weaver's default navy and a community's navy are built the same way.
+const indigo = brandColor('navy');
+const paper = brandColor('white');
+const derivedFromKit = {
+  navyPanel: mixHex(indigo, paper, 0.12),
+  navyPanel2: mixHex(indigo, paper, 0.06),
+  navyDisabled: mixHex(indigo, paper, 0.45),
+};
+
+/**
+ * Colours the brand kit has no token for: each group paints one part of the app (the owner decides, in
+ * docs/BRAND_CONFORMANCE.md "Owner decisions", whether the kit grows to cover them or they are recoloured).
+ */
+const appOnly = {
+  // Neutrals the kit lacks: dashed borders and empty stars.
+  dashed: '#B9AE99',
+  dashed2: '#D5CBB8',
+  starEmpty: '#E3DCCF',
+
+  // The flame of the streak badge.
   flame: '#F2A03D',
   flame2: '#D9731A',
   badge: '#E8892A',
-  gold: '#F2B632',
 
-  // Green (success, lunch, recurring)
-  green: '#1F7A4D',
+  // Green (the deeper greens of lunch, recurring and success pills)
   greenDark: '#14502F',
   greenDark2: '#2E5D43',
-  greenTint: '#E4F2EA',
   greenBorder: '#B7DCC6',
   onNavyGreen: '#7FD1A4',
 
-  // Store green
-  store: '#2F5D50',
-  storeLight: '#3E7566',
-  onStore: '#CFE6DC',
-  storeTint: '#E8F1ED',
-
-  // Red / maroon
-  danger: '#B3261E',
-  dangerTint: '#FBE3E1',
+  // The live badge
   live: '#C0392B',
-  maroon: '#7A2E1F',
-  maroonButton: '#8F4232',
-  onMaroon: '#F3D6CF',
-
-  // Purple (feedback, Pathshala, Saathi)
-  purple: '#5B4B8A',
-  purpleTint: '#EFEBF6',
-  onPurple: '#DCD6EC',
-  purpleBorder: '#D8CFEA',
-  purpleBg: '#F5F2FA',
-  purpleDark: '#3D2F63',
-  album: '#4B3A66',
 
   // Media / misc
   black: '#111111',
-  white: '#FFFFFF',
   lock: '#1C2433',
   lockText: '#D6DCE8',
   lockMeta: '#9AA4B8',
@@ -100,7 +128,7 @@ export const colors = {
   scrimSheet: 'rgba(20,18,14,0.5)',
   /** Drawer. */
   scrimLight: 'rgba(20,18,14,0.45)',
-  /** Niva popover. */
+  /** Niva popover, pickers. */
   scrimFaint: 'rgba(20,18,14,0.35)',
 
   // Photos (Events › Photos, album, full-screen viewer — Main.dc.html L992, L1413)
@@ -152,6 +180,16 @@ export const colors = {
   spotFill: 'rgba(252,239,216,0.75)',
 } as const;
 
+/**
+ * Tags and tiles for the parts of a product (the store, Pathshala, feedback, Saathi, albums) are one hue, navy: the kit has no colour
+ * per module, the words and the icon say which part it is. The colours that once had their own hues keep their names and are the navy
+ * family (a community's primary colour too: lib/community.ts `brandPalette` maps them the same way).
+ */
+const navyFamily: Record<string, string> = { ...kitColors, ...derivedFromKit };
+const moduleTags = Object.fromEntries(Object.entries(MODULE_TAG_COLORS).map(([key, from]) => [key, navyFamily[from]])) as { [K in keyof typeof MODULE_TAG_COLORS]: string };
+
+export const colors = { ...kitColors, ...derivedFromKit, ...moduleTags, ...appOnly };
+
 export type ColorName = keyof typeof colors;
 
 // The default palette, kept so switching from a branded community back to one
@@ -193,31 +231,51 @@ export const albumPalettes = [
   { band: '#4B3A66', tiles: ['#6A5890', '#9585B5', '#4B3A66', '#B9ABD3'] },
 ] as const;
 
-/** Font family names as registered with expo-font in the root layout. */
+/**
+ * Font family names as registered with expo-font in the root layout (src/brand/fonts.ts): the kit's display face
+ * (Bricolage Grotesque, at the kit's heading weights 600 and 700) and text face (Hanken Grotesk). On the web a face that
+ * has not loaded falls back through the kit's own stack rather than the browser's default serif.
+ */
+const face = (role: BrandFontRole, weight: string): string => {
+  const family = `${brandFace(role).replace(/\s+/g, '')}_${weight}`;
+  return Platform.OS === 'web' ? `${family}, ${brandFallbackCss(role)}` : family;
+};
+
 export const fonts = {
-  display: 'Fraunces_500Medium',
-  displayBold: 'Fraunces_600SemiBold',
-  body: 'DMSans_400Regular',
-  bodyMedium: 'DMSans_500Medium',
-  bodySemi: 'DMSans_600SemiBold',
-  bodyBold: 'DMSans_700Bold',
+  display: face('display', '600SemiBold'),
+  displayBold: face('display', '700Bold'),
+  body: face('sans', '400Regular'),
+  bodyMedium: face('sans', '500Medium'),
+  bodySemi: face('sans', '600SemiBold'),
+  bodyBold: face('sans', '700Bold'),
+  /** Identifiers only (receipt, pledge, household and member numbers, codes): never running text, headings, buttons or amounts. */
+  mono: face('mono', '500Medium'),
 } as const;
 
 export const radii = {
-  xs: 6,
+  /** The kit's radius-chip. */
+  xs: brandRadius('radius-chip'),
   check: 7,
   sm: 8,
   md: 10,
   lg: 12,
   card: 14,
-  row: 16,
-  xl: 18,
+  /** The kit's radius-tile. */
+  row: brandRadius('radius-tile'),
+  /** List cards: the kit's radius-tile ("small cards"). Sheets and dialogs stay at the kit's radius-card (24). */
+  xl: brandRadius('radius-tile'),
   xxl: 20,
   pill: 22,
-  sheet: 24,
+  /** The kit's radius-card. */
+  sheet: brandRadius('radius-card'),
   cta: 26,
   cart: 28,
-  round: 999,
+  /** The kit's radius-field: text fields, selects and textareas. */
+  field: brandRadius('radius-field'),
+  /** The kit's radius-tag: status tags and small labels. */
+  tag: brandRadius('radius-tag'),
+  /** The kit's radius-pill. */
+  round: brandRadius('radius-pill'),
 } as const;
 
 const defaultRadii: Record<string, number> = { ...radii };
@@ -243,16 +301,20 @@ export const space = {
   cardY: 14,
   cardX: 16,
   lg: 16,
-  gutter: 20,
+  /** The kit's gutter. */
+  gutter: brandSpace('gutter'),
   xl: 24,
   xxl: 32,
 } as const;
 
-/** Minimum touch targets (px). 44 is the platform floor for anything tappable. */
+/**
+ * Touch targets (px): nothing tapped is smaller than the kit's `tap-target` (48), and every button on a phone is the kit's
+ * `control-primary` (52). The kit's compact (40) and dense (36) controls are for a mouse in dense tables and are not used here.
+ */
 export const touch = {
-  min: 44,
-  secondary: 48,
-  cta: 52,
+  min: brandSpace('tap-target'),
+  secondary: brandSpace('tap-target'),
+  cta: brandSpace('control-primary'),
   row: 56,
   drawerRow: 64,
 } as const;
@@ -276,6 +338,8 @@ export const type = {
   fine: 11,
   badge: 10,
   tithi: 9,
+  /** The kit's `identifier` style. */
+  identifier: brandTypeStyle('identifier').fontSize,
 } as const;
 
 /** Letter-spacing in px at the size used (em × size). */
@@ -292,26 +356,37 @@ export const tracking = {
   code: 0.2,
 } as const;
 
-/** Shadows (prototype box-shadows translated to RN; elevation for Android). */
+/**
+ * The kit's display tracking in em: its `hero` style for the page headline, `heading` for section headings and
+ * `heading-sm` for panel headings. Multiply by the font size for px.
+ */
+export const displayTracking = {
+  hero: brandTypeStyle('hero').letterSpacingEm,
+  heading: brandTypeStyle('heading').letterSpacingEm,
+  headingSm: brandTypeStyle('heading-sm').letterSpacingEm,
+} as const;
+
+/** Shadows (prototype box-shadows translated to RN; elevation for Android). The kit's shadows are tinted with its indigo. */
 export const shadows = {
-  cart: { shadowColor: '#2F5D50', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
-  menu: { shadowColor: '#14120E', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 15, elevation: 10 },
-  drawer: { shadowColor: '#14120E', shadowOffset: { width: 8, height: 0 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 16 },
-  /** Gyan Path sticky strip (0 4px 14px rgba(20,18,14,0.08)). */
-  strip: { shadowColor: '#14120E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 7, elevation: 3 },
+  cart: { shadowColor: indigo, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
+  menu: { shadowColor: indigo, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 15, elevation: 10 },
+  drawer: { shadowColor: indigo, shadowOffset: { width: 8, height: 0 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 16 },
+  /** Gyan Path sticky strip (0 4px 14px). */
+  strip: { shadowColor: indigo, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 7, elevation: 3 },
 } as const;
 
 /** Component specs lifted from Main.dc.html (sizes in px). */
 export const components = {
-  header: { padTop: 16, padX: 20, padBottom: 12, gap: 12, iconButton: 44, iconSize: 20, iconStroke: 2, markHeight: 46 },
-  tabBar: { height: 76, padBottom: 8, iconSize: 22, iconStroke: 1.8, labelSize: 12, gap: 4 },
-  button: { borderWidth: 1, cta: { h: 52, r: 26, size: 16 }, secondary: { h: 48, r: 26, size: 15 }, inCard: { h: 46, r: 22, size: 14 }, pill: { h: 44, r: 20, size: 13 } },
-  chip: { h: 44, r: 20, size: 14 },
-  layerChip: { h: 40, r: 18, size: 13, borderWidth: 1.5, dot: 10 },
+  header: { padTop: 16, padX: 20, padBottom: 12, gap: 12, iconButton: touch.min, iconSize: 20, iconStroke: 2, markHeight: 46 },
+  // The kit's icons are drawn with stroke 2.
+  tabBar: { height: 76, padBottom: 8, iconSize: 22, iconStroke: 2, labelSize: 12, gap: 4 },
+  button: { borderWidth: 1, cta: { h: 52, r: 26, size: 16 }, secondary: { h: 48, r: 26, size: 15 }, inCard: { h: touch.min, r: 22, size: 14 }, pill: { h: touch.min, r: 20, size: 13 } },
+  chip: { h: touch.min, r: 20, size: 14 },
+  layerChip: { h: touch.min, r: 18, size: 13, borderWidth: 1.5, dot: 10 },
   input: { h: 48, r: 12, size: 15, borderWidth: 1, labelSize: 13 },
   signInInput: { h: 52, r: 14, size: 16 },
-  card: { r: 18, padY: 14, padX: 16, hero: { r: 20, pad: 16 } },
-  segmented: { trackR: 14, trackPad: 4, gap: 4, itemR: 10, h: 44, size: 14 },
+  card: { r: brandRadius('radius-tile'), padY: 14, padX: 16, hero: { r: 20, pad: 16 } },
+  segmented: { trackR: 14, trackPad: 4, gap: 4, itemR: 10, h: touch.min, size: 14 },
   toggle: { w: 46, h: 28, knob: 22 },
   checkbox: { size: 24, r: 6, borderWidth: 2 },
   toast: { top: 76, x: 20, r: 14, padY: 12, padX: 14, size: 14 },

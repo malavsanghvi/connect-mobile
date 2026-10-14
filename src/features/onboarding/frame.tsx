@@ -7,7 +7,7 @@ import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
 import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
-import { colors, layout, space } from '@/theme';
+import { colors, layout, space, touch } from '@/theme';
 
 import { onboardingProgress, type OnboardingStep } from './steps';
 
@@ -43,7 +43,7 @@ export function OnboardingFrame({
       {/* Onboarding.dc.html top bar: padding 16/20/8, back · skip, 6px progress (the "Step n of N" label is gone). */}
       <View style={{ paddingHorizontal: space.gutter, paddingTop: space.lg, paddingBottom: space.sm, gap: 10 }}>
         <Row gap={space.md} style={{ justifyContent: 'space-between' }}>
-          {onBack ? <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={onBack} /> : <View style={{ width: 44, height: 44 }} />}
+          {onBack ? <IconButton glyph="back" variant="outline" label={t('common.back')} onPress={onBack} /> : <View style={{ width: touch.min, height: touch.min }} />}
           {onSkip ? <LinkText label={t('onboarding.skip')} onPress={onSkip} /> : null}
         </Row>
         <ProgressBar value={progress} color={colors.navy} track={colors.track} label={t('onboarding.progress', { pct: Math.round(progress * 100) })} />

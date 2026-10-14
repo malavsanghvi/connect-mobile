@@ -41,6 +41,53 @@ How a release is made:
   deploy. For the phone, `EXPO_PUBLIC_DEMO_URL` must be an EAS environment variable of the `preview` / `production` environment when the
   update is published (it is read when the JavaScript is bundled).
 
+## 1.19.1 — 2026-10-14
+
+- **The app follows the Weaver brand kit.** Weaver's own look now comes from the brand kit in connect-crm (`brand/`, version 2),
+  copied here as `src/brand/tokens.json`. docs/BRAND_CONFORMANCE.md lists what was compared, what was fixed and how each of the
+  twelve decisions was settled (the owner said "go with your recommendations"). A community's own name, logo and colours are still
+  its own and still replace Weaver's.
+  - Colours: the page, cards, borders, text (including the kit's lighter `faint`, 5.2:1 on white, in place of 3.7:1), the primary
+    indigo (`#2b2a8a`, in place of the dark navy), ember brown, gold, the warm tints, the warning colours and the lighter indigos are
+    the kit's; about 90% of the colour references in screens are on kit colours. The accent (a community's accent still replaces it)
+    is the kit's strong sunrise, white labels on it at 4.7:1. Inputs and switches are outlined in the kit's 3.5:1 control border.
+  - Module tags and tiles are one hue, navy: the store's green, Pathshala's purple and maroon are the navy family now (a community's
+    own primary too), and the drawer's and the guide's tiles are navy on navy-50.
+  - Type: Bricolage Grotesque for headings (in place of Fraunces), Hanken Grotesk for text (in place of DM Sans) and JetBrains Mono
+    for identifiers, all bundled with the app; headings tracked tight, button labels bold. Member, household and pledge numbers on
+    Family, the member card, a person's page, Pledges, the Zelle report and a ticket's pledge line are in the mono face. The web build
+    falls back through the kit's font stack, not the browser's serif.
+  - Buttons, fields and targets: the outlined button is the kit's ghost button (2px border of navy at 20%); the primary button
+    darkens to the kit's hover indigo when pressed; the action on a navy card is the kit's gold button, and there is an accent
+    button; every button is 52px tall; text fields and selects are the kit's 12px radius, 16px text and 52px; tags are the kit's 8px
+    radius; everything tapped is at least 48px (up from 44); list cards have the kit's 16px corners; keyboard focus on the web shows
+    the kit's ring.
+  - Icons: all 42 of the kit's icons are in the app, drawn exactly as the kit's files, and used where the kit covers an icon (tick,
+    close, plus, alert, info, eye, pencil, file, calendar, people, ticket, card, book, chevrons and more), stroke 2. About 50
+    Ionicons remain; the docs list them.
+  - Niva carries the kit's AI tag: the chat's small print is now an AI line ("Niva" and the sentence that names who decides), and the
+    drawer's and the guide's Ask Niva entries show the tag; its drawer tile is navy-50 with an ink sparkle.
+  - The Weaver lockup (mark, name and "Community management platform") shows on Find your community and on the setup screen.
+  - Wording (English): no exclamation marks and no "coming soon". Greetings come from the community's own greeting word (the welcome
+    screen, Niva's first line and the two guide message starters), so no tradition's greeting shows by default; "Anumodana" is a plain
+    thank-you in the Pathshala fee, teacher selection and homework messages; the Wallet button (a feature that does not exist) and
+    its note are gone; the drawer's "Pathshala Connect" is "Pathshala". Five "coming soon" lines about missing recordings say
+    "No recording yet".
+  - Links: `weaver://` is added beside `communityconnect://` and `connect://` (all three keep opening join links and screens).
+  - New test `src/brand/__tests__/brand-conformance.test.ts`: it fails when a colour literal appears outside the theme, when a
+    string says "Community Connect", when the copy of the kit lacks a token the theme reads, when a tappable minimum is under 48, when
+    an icon drifts from the kit's, and on text contrast, exclamation marks and "coming soon".
+  - Removed the retired lotus artwork (`assets/source/mark.svg`, `scripts/make-icons.mjs`).
+- **Over the air:** everything above except the next point (JavaScript and bundled font and image assets); `runtimeVersion` stays 3.
+  The web build gets it with the normal deploy of `main`.
+- **Needs the next native build (not made yet):** the launcher icon (the kit's mark on white), the splash (kit colours; the dark
+  splash puts the mark on a white tile), the Android notification icon and tint, the `app.json` colours, and the new `weaver` link
+  scheme. Until then installed apps keep the old icon and splash and do not answer `weaver://` links (the older two still work), and
+  run the new JavaScript fine.
+- **Not done yet:** the kit's rule that the smallest text on a touch surface is 14.5px (the app's small text is 9 to 13px; raising it
+  reflows most screens and needs a look at the signed-in screens first), and the join-code field in the community finder in the mono
+  face (that screen is being changed elsewhere).
+
 ## 1.19.0 — 2026-10-13
 
 - **Families see class announcements.** What a Pathshala principal or a class teacher publishes in the portal for a class (or

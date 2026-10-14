@@ -63,7 +63,7 @@ describe('attemptLine', () => {
     expect(say(attemptLine(result({ pointsAwarded: 3, tryPoints: 3, triesToday: 4 }), true, 3))).toBe('+3 points · 4 of 10 today');
   });
   it('says when the day is capped', () => {
-    expect(say(attemptLine(result({ triesToday: 10 }), true, 3))).toBe("Today's practice points are done — keep practising!");
+    expect(say(attemptLine(result({ triesToday: 10 }), true, 3))).toBe("Today's practice points are done — keep practising.");
   });
   it('shows the counter for a try that did not count', () => {
     expect(say(attemptLine(result({ triesToday: 4 }), false, 3))).toBe('Not counted this time · 4 of 10 today');
@@ -72,10 +72,10 @@ describe('attemptLine', () => {
     expect(say(attemptLine(result({ triesToday: 2, firstTime: true }), true, 3))).toBe('Well done · 2 of 10 today');
   });
   it('has no counter when try points are switched off (cap 0) or the step has none', () => {
-    expect(say(attemptLine(result({ cap: 0, triesToday: 1 }), true, 3))).toBe('Well done!');
+    expect(say(attemptLine(result({ cap: 0, triesToday: 1 }), true, 3))).toBe('Well done.');
     expect(say(attemptLine(result({ cap: 0, pointsAwarded: 15, stepPoints: 15, firstTime: true }), true, 3))).toBe('+15 points');
     expect(say(attemptLine(result({ cap: 0 }), false, 3))).toBe('Not counted this time. Have another go.');
-    expect(say(attemptLine(result({ triesToday: 3 }), true, 0))).toBe('Well done!');
+    expect(say(attemptLine(result({ triesToday: 3 }), true, 0))).toBe('Well done.');
   });
   it('has a counter line', () => {
     expect(translate('en', counterLine(3, 10).key, counterLine(3, 10).vars)).toBe('3 of 10 today');

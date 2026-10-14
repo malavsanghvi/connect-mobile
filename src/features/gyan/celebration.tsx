@@ -19,7 +19,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 import { Confetti } from './confetti';
 import { haptic, useReduceMotion } from './motion';
@@ -196,7 +196,7 @@ export function Celebration({
                 {signoff?.status === 'approved' ? t('learn.signedOff') : signoff?.status === 'needs_work' ? t('learn.needsWork') : t('learn.signoffRequested')}
               </Txt>
             ) : (
-              <Button label={t('learn.requestSignoff')} tone="light" size="md" busy={busy} onPress={() => void askSignoff()} />
+              <Button label={t('learn.requestSignoff')} tone="gold" size="md" busy={busy} onPress={() => void askSignoff()} />
             )
           ) : null}
           {error ? (
@@ -218,7 +218,7 @@ export function Celebration({
               else router.dismissTo('/gyan');
             }}
           />
-          <Pressable onPress={() => router.back()} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Pressable onPress={() => router.back()} accessibilityRole="button" style={{ minHeight: touch.min, justifyContent: 'center' }}>
             <Txt variant="smallStrong" color="onNavy">
               {t('learn.backToPath')}
             </Txt>

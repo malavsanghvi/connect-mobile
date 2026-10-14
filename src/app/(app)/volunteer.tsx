@@ -348,7 +348,7 @@ function Board({ events, onExit }: { events: VolunteerEvent[]; onExit: () => voi
                 }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: e.id === event.id }}
-                style={{ minHeight: 40, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: e.id === event.id ? colors.volGold : colors.volBorder, justifyContent: 'center' }}>
+                style={{ minHeight: touch.min, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: e.id === event.id ? colors.volGold : colors.volBorder, justifyContent: 'center' }}>
                 <Txt variant="meta" color={e.id === event.id ? 'volGold' : 'volText'}>
                   {e.name}
                 </Txt>

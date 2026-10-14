@@ -1,6 +1,7 @@
 import { useRouter, type Href } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { AiTag } from '@/components/ai-tag';
 import { Loaded } from '@/components/states';
 import { Card, Chevron, ListRow, ProgressBar, Row, Txt, VStack } from '@/components/ui';
 import { FIRST_STEP_KEYS, type FirstSteps } from '@/features/guide';
@@ -163,6 +164,7 @@ export default function GuideHubScreen() {
               })}>
               <Mark text={tile.mark} tint={tile.tint} />
               <Txt variant="bodyStrong">{label}</Txt>
+              {tile.key === 'niva' ? <AiTag label="Niva" /> : null}
               <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
                 {sub}
               </Txt>
