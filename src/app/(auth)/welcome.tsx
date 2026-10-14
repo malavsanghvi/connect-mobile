@@ -11,6 +11,7 @@ import { GUEST_DOORS, type GuestDoor } from '@/lib/access';
 import { welcomeSignInChoices } from '@/lib/auth-config';
 import { useAccess } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useGreeting } from '@/providers/category';
 import { useT } from '@/providers/settings';
 import { fonts, space } from '@/theme';
 
@@ -24,6 +25,7 @@ const DOOR_ICON: Record<GuestDoor, IconName> = { darshan: 'eye-outline', puja: '
 export default function WelcomeScreen() {
   const router = useRouter();
   const t = useT();
+  const greeting = useGreeting();
   const { center, setGuest, switchCommunity } = useApp();
   const brand = useBranding();
   const access = useAccess();
@@ -40,7 +42,7 @@ export default function WelcomeScreen() {
           <CenterMark kind="logo" size={brand.logoUrl || brand.markUrl ? 150 : 72} maxWidth={150} />
         </View>
         <Txt variant="section" color="muted" style={{ fontFamily: fonts.body }}>
-          {t('welcome.jaiJinendra')}
+          {greeting}
         </Txt>
         <Txt variant="onboardingHero" accessibilityRole="header">
           {t('welcome.headline', { center: center?.name ?? '' })}

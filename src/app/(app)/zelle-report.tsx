@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { DateField } from '@/components/pickers';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Card, Checkbox, TextField, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Checkbox, dotted, Ident, TextField, Txt, VStack } from '@/components/ui';
 import { DollarField } from '@/features/give/parts';
 import { canReportZelle, zelleMethod, type PaymentMethods } from '@/features/pay/methods';
 import {
@@ -162,7 +162,14 @@ function ReportForm({ data, wantedAmount, wantedPledges }: { data: FormData; wan
         </Txt>
         <Txt variant="bodyStrong">{household.display_name}</Txt>
         <Txt variant="meta" color="muted" selectable>
-          {[member?.orgHouseholdId ? `${orgHouseholdLabel} ${member.orgHouseholdId}` : null, household.household_number].filter(Boolean).join(' · ')}
+          {dotted([
+            member?.orgHouseholdId ? (
+              <>
+                {orgHouseholdLabel} <Ident>{member.orgHouseholdId}</Ident>
+              </>
+            ) : null,
+            household.household_number ? <Ident>{household.household_number}</Ident> : null,
+          ])}
         </Txt>
       </Card>
       <Txt variant="small" color="ink2">

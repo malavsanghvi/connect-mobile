@@ -61,14 +61,13 @@ describe('Jain Center is today, exactly', () => {
   it('adds no words: the English dictionary is Jain Center’s wording, and its terms are those very words', () => {
     expect(termWords(JAIN_TERMS)).toEqual({});
     expect(wordsFor(JAIN_PROFILE)).toBeNull();
-    expect(JAIN_TERMS.greeting).toBe(en['welcome.jaiJinendra']);
     expect(en['home.greetingFamily']).toBe(`${JAIN_TERMS.greeting}, {family}`);
     expect(en['home.greetingLead']).toBe(`${JAIN_TERMS.greeting},`);
     expect(JAIN_TERMS.give_tab).toBe(en['tab.give']);
     expect(JAIN_TERMS.family_tab).toBe(en['tab.family']);
     expect(JAIN_TERMS.practice_tab).toBe(en['tab.jainWay']);
     expect(JAIN_TERMS.store).toBe(en['drawer.store']);
-    expect(en['drawer.pathshala']).toBe(`${JAIN_TERMS.school} Connect`);
+    expect(en['drawer.pathshala']).toBe(JAIN_TERMS.school);
   });
 
   it('is what the database answers for a Jain Center: the same layout, modules and words, whatever else the answer holds', () => {

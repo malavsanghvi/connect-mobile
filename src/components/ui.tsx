@@ -1,4 +1,4 @@
-import { Children, type ReactNode } from 'react';
+import { Children, Fragment, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,8 +13,9 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { mixHex } from '@/lib/community';
 import { useSettings } from '@/providers/settings';
-import { colors, fonts, radii, space, touch, tracking, type as typeScale, type ColorName } from '@/theme';
+import { colors, displayTracking, fonts, radii, space, touch, tracking, type as typeScale, type ColorName } from '@/theme';
 
 import { Icon, type IconName } from './icon';
 import { StrokeIcon, type StrokeIconName } from './stroke-icon';
@@ -40,13 +41,15 @@ export type TxtVariant =
   | 'caption'
   | 'eyebrow'
   | 'fine'
-  | 'badge';
+  | 'badge'
+  | 'identifier';
 
 const variants: Record<TxtVariant, TextStyle> = {
-  onboardingHero: { fontFamily: fonts.displayBold, fontSize: typeScale.onboardingHero, lineHeight: 39 },
-  hero: { fontFamily: fonts.displayBold, fontSize: typeScale.hero, lineHeight: 36 },
-  display: { fontFamily: fonts.displayBold, fontSize: typeScale.display, lineHeight: 32 },
-  title: { fontFamily: fonts.displayBold, fontSize: typeScale.title, lineHeight: 28 },
+  // Display faces are tracked tight, as the brand kit's hero, heading and heading-sm styles say (em x size, in px).
+  onboardingHero: { fontFamily: fonts.displayBold, fontSize: typeScale.onboardingHero, lineHeight: 39, letterSpacing: typeScale.onboardingHero * displayTracking.hero },
+  hero: { fontFamily: fonts.displayBold, fontSize: typeScale.hero, lineHeight: 36, letterSpacing: typeScale.hero * displayTracking.hero },
+  display: { fontFamily: fonts.display, fontSize: typeScale.display, lineHeight: 32, letterSpacing: typeScale.display * displayTracking.heading },
+  title: { fontFamily: fonts.display, fontSize: typeScale.title, lineHeight: 28, letterSpacing: typeScale.title * displayTracking.headingSm },
   headline: { fontFamily: fonts.display, fontSize: typeScale.headline, lineHeight: 25 },
   subhead: { fontFamily: fonts.bodySemi, fontSize: typeScale.subhead, lineHeight: 24 },
   cardTitle: { fontFamily: fonts.bodySemi, fontSize: typeScale.cardTitle, lineHeight: 23 },
@@ -60,6 +63,8 @@ const variants: Record<TxtVariant, TextStyle> = {
   eyebrow: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption, lineHeight: 16, letterSpacing: tracking.eyebrow, textTransform: 'uppercase' },
   fine: { fontFamily: fonts.body, fontSize: typeScale.fine, lineHeight: 15 },
   badge: { fontFamily: fonts.bodyBold, fontSize: typeScale.badge, lineHeight: 13, letterSpacing: 0.6, textTransform: 'uppercase' },
+  // The kit's `identifier` style (13.5px, line 1.4, weight 500): a number or code, in JetBrains Mono. Never running text or an amount.
+  identifier: { fontFamily: fonts.mono, fontSize: typeScale.identifier, lineHeight: Math.round(typeScale.identifier * 1.4) },
 };
 
 export type TxtProps = TextProps & {
@@ -68,6 +73,17 @@ export type TxtProps = TextProps & {
   center?: boolean;
   style?: StyleProp<TextStyle>;
 };
+
+/** An identifier (a receipt, pledge, household or member number, a code) inside a line of text, in the kit's mono face. */
+export function Ident({ children }: { children: string }) {
+  return <Text style={{ fontFamily: fonts.mono }}>{children}</Text>;
+}
+
+/** The parts of a meta line joined with " · ", the empty ones dropped; a part may hold an <Ident>. */
+export function dotted(parts: ReactNode[]): ReactNode[] {
+  const kept = parts.filter((p) => p !== null && p !== undefined && p !== false && p !== '');
+  return kept.flatMap((p, i) => (i === 0 ? [<Fragment key={i}>{p}</Fragment>] : [' · ', <Fragment key={i}>{p}</Fragment>]));
+}
 
 /** All text goes through Txt so the member's text-size setting applies everywhere. */
 export function Txt({ variant = 'body', color = 'ink', center, style, ...rest }: TxtProps) {
@@ -91,11 +107,12 @@ export function Txt({ variant = 'body', color = 'ink', center, style, ...rest }:
 // ---------------------------------------------------------------------------
 
 /**
- * Prototype buttons (Main.dc.html): fully rounded, weight 600, 1px border on
- * outlined tones. Filled: navy primary, green, brown, purple, black (#111),
- * store, maroon, danger. Outlined (white fill, coloured 1px border and text):
- * secondary (navy), outlineGreen, outlineBrown, outlinePurple, outlineDanger,
- * outlineStore, outlineBlack.
+ * Pill buttons, label weight 700 (the brand kit's button style). Filled: navy primary (pressed: the kit's navy-hover), green,
+ * brown, purple, black, store, maroon, danger; `gold` is the kit's button for a navy ground (gold fill, navy label, a lighter gold
+ * when pressed); `accent` is the kit's warm button (strong sunrise fill, white label, brown when pressed) for the rare action that
+ * should feel warm, never a second primary. Every button is the kit's `control-primary` height (52) on a phone. `secondary` is the kit's ghost button: white fill, a 2px border of navy at 20%
+ * (navy when pressed), navy text. The other outlined tones (white fill, coloured 1px border and text) are the app's own:
+ * outlineGreen, outlineBrown, outlinePurple, outlineDanger, outlineStore, outlineBlack.
  */
 export type ButtonTone =
   | 'primary'
@@ -109,6 +126,8 @@ export type ButtonTone =
   | 'purple'
   | 'black'
   | 'light'
+  | 'gold'
+  | 'accent'
   | 'outlineGreen'
   | 'outlineBrown'
   | 'outlinePurple'
@@ -117,9 +136,9 @@ export type ButtonTone =
   | 'outlineBlack';
 
 // Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
-const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?: string }> => ({
+const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?: string; width?: number }> => ({
   primary: { bg: colors.navy, fg: 'white' },
-  secondary: { bg: colors.card, fg: 'navy', border: colors.navy },
+  secondary: { bg: colors.card, fg: 'navy', border: mixHex(colors.navy, colors.white, 0.8), width: 2 },
   ghost: { bg: 'transparent', fg: 'navy' },
   danger: { bg: colors.danger, fg: 'white' },
   brown: { bg: colors.brown, fg: 'white' },
@@ -129,6 +148,8 @@ const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?:
   purple: { bg: colors.purple, fg: 'white' },
   black: { bg: colors.black, fg: 'white' },
   light: { bg: colors.white, fg: 'navy' },
+  gold: { bg: colors.gold, fg: 'navy' },
+  accent: { bg: colors.saffron, fg: 'white' },
   outlineGreen: { bg: colors.card, fg: 'green', border: colors.green },
   outlineBrown: { bg: colors.card, fg: 'brown', border: colors.brown },
   outlinePurple: { bg: colors.card, fg: 'purple', border: colors.purple },
@@ -137,12 +158,12 @@ const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?:
   outlineBlack: { bg: colors.card, fg: 'black', border: colors.black },
 });
 
-/** cta 52/r26/16 · md 48/r26/15 · card 46/r22/14 (buttons inside cards) · sm 44/r20/13. */
+/** Every size is the kit's control-primary height (52, touch.cta); the sizes differ in label and padding: cta 16 · md 15 · card 14 (buttons inside cards) · sm 13. */
 const buttonSizes = {
   cta: { h: touch.cta, r: radii.cta, font: typeScale.section, padX: space.gutter },
-  md: { h: touch.secondary, r: radii.cta, font: typeScale.body, padX: space.lg },
-  card: { h: 46, r: radii.pill, font: typeScale.bodySmall, padX: space.lg },
-  sm: { h: touch.min, r: radii.xxl, font: typeScale.meta, padX: 14 },
+  md: { h: touch.cta, r: radii.cta, font: typeScale.body, padX: space.lg },
+  card: { h: touch.cta, r: radii.pill, font: typeScale.bodySmall, padX: space.lg },
+  sm: { h: touch.cta, r: radii.xxl, font: typeScale.meta, padX: 14 },
 } as const;
 
 export type ButtonProps = {
@@ -167,6 +188,8 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
   const inactive = disabled || busy;
   const filled = !t.border && tone !== 'ghost' && tone !== 'light';
   const bg = inactive && filled ? colors.navyDisabled : t.bg;
+  const hover = (tone === 'primary' || tone === 'gold' || tone === 'accent') && !inactive;
+  const hoverBg = tone === 'gold' ? mixHex(colors.gold, colors.white, 0.3) : tone === 'accent' ? colors.brown : colors.navyHover;
   const fg: ColorName = inactive && !filled ? 'faint' : t.fg;
   return (
     <Pressable
@@ -180,21 +203,21 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
         {
           minHeight: sz.h,
           borderRadius: sz.r,
-          backgroundColor: bg,
-          borderWidth: t.border ? 1 : 0,
-          borderColor: inactive ? colors.borderInput : t.border,
+          backgroundColor: hover && pressed ? hoverBg : bg,
+          borderWidth: t.border ? (t.width ?? 1) : 0,
+          borderColor: inactive ? colors.borderInput : tone === 'secondary' && pressed ? colors.navy : t.border,
           paddingHorizontal: sz.padX,
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'row',
           gap: space.sm,
           alignSelf: fill ? 'stretch' : 'flex-start',
-          opacity: pressed ? 0.85 : 1,
+          opacity: pressed && !hover ? 0.85 : 1,
         },
         style,
       ]}>
       {busy ? <ActivityIndicator color={colors[fg]} /> : icon ? <Icon name={icon} size={18} color={colors[fg]} /> : null}
-      <Txt variant="smallStrong" color={fg} center style={{ fontSize: sz.font * scale, lineHeight: Math.round(sz.font * 1.3) * scale }}>
+      <Txt variant="smallStrong" color={fg} center style={{ fontFamily: fonts.bodyBold, fontSize: sz.font * scale, lineHeight: Math.round(sz.font * 1.3) * scale }}>
         {label}
       </Txt>
     </Pressable>
@@ -205,7 +228,7 @@ export type IconButtonVariant = 'plain' | 'outline' | 'filled';
 
 /**
  * 44px round icon-only button. `outline` = the prototype header button (white,
- * 1px #E3D9C8 border); `filled` = the navy member-card button. Pass `glyph`
+ * 1px borderInput border); `filled` = the navy member-card button. Pass `glyph`
  * for the prototype's stroke icons, or `icon` for an Ionicons name.
  */
 export function IconButton({
@@ -271,7 +294,7 @@ export function LinkText({ label, onPress, color = 'navy', underline = false }: 
 // ---------------------------------------------------------------------------
 
 /**
- * Card tones (prototype): `default` white with a 1px #E8E0D2 border; tinted
+ * Card tones (prototype): `default` white with a 1px `border` line; tinted
  * callouts (`amber`, `green`, `purple`, `danger`, `panel`); solid colour
  * cards with white text (`navy`, `brown`, `greenSolid`, `maroon`, `store`);
  * white cards with a 2px coloured border (`outlineNavy`, `outlinePurple`,
@@ -302,7 +325,7 @@ const cardTones = (): Record<CardTone, { bg: string; border: string; dashed?: bo
   default: { bg: colors.card, border: colors.border },
   navy: { bg: colors.navy, border: colors.navy },
   brown: { bg: colors.brown, border: colors.brown },
-  amber: { bg: colors.brownTint, border: colors.brownBorder },
+  amber: { bg: colors.warningTint, border: colors.warningBorder },
   green: { bg: colors.greenTint, border: colors.greenBorder },
   greenSolid: { bg: colors.green, border: colors.green },
   purple: { bg: colors.purpleBg, border: colors.purpleBorder },
@@ -384,13 +407,9 @@ export function SectionTitle({ children, action }: { children: string; action?: 
 // Lists
 // ---------------------------------------------------------------------------
 
-/** The prototype's row chevron: a "›" glyph, 18px faint. */
+/** The row chevron: the brand kit's chevron turned to point forward, 18px faint. */
 export function Chevron({ color = 'faint' }: { color?: ColorName }) {
-  return (
-    <Text style={{ fontFamily: fonts.body, fontSize: 18, lineHeight: 22, color: colors[color] }} accessibilityElementsHidden importantForAccessibility="no">
-      {'\u203A'}
-    </Text>
-  );
+  return <StrokeIcon name="forward" size={18} color={colors[color]} />;
 }
 
 export function ListRow({
@@ -461,7 +480,7 @@ export function Chip({ label, selected, onPress, disabled, tone = 'navy', grid }
       accessibilityLabel={label}
       accessibilityState={{ checked: selected, disabled: !!disabled }}
       style={({ pressed }) => ({
-        minHeight: grid ? 40 : touch.min,
+        minHeight: touch.min,
         paddingHorizontal: grid ? space.sm : 14,
         borderRadius: grid ? radii.lg : radii.xxl,
         borderWidth: 1,
@@ -584,7 +603,7 @@ export function Checkbox({ label, sub, checked, onChange, disabled, right }: { l
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-        {checked ? <Icon name="checkmark" size={16} color={colors.white} /> : null}
+        {checked ? <StrokeIcon name="check" size={16} color={colors.white} strokeWidth={2.5} /> : null}
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="bodyStrong">{label}</Txt>
@@ -662,13 +681,13 @@ export function Stepper({ valueLabel, onMinus, onPlus, minusDisabled, plusDisabl
 
 /**
  * Prototype input: label 13 regular muted above; field 48px, radius 12, 1px
- * #E3D9C8 border, 15px text. `size="lg"` = the onboarding sign-in field
+ * borderControl border, 15px text. `size="lg"` = the onboarding sign-in field
  * (52px, radius 14, 16px); `size="sm"` = compact forms (44px, radius 10, 14px).
  */
 const fieldSizes = {
-  sm: { h: touch.min, r: radii.md, font: typeScale.bodySmall, padX: 10 },
-  md: { h: 48, r: radii.lg, font: typeScale.body, padX: space.md },
-  lg: { h: touch.cta, r: radii.card, font: typeScale.section, padX: 14 },
+  sm: { h: touch.min, r: radii.field, font: typeScale.section, padX: 10 },
+  md: { h: touch.cta, r: radii.field, font: typeScale.section, padX: space.md },
+  lg: { h: touch.cta, r: radii.field, font: typeScale.section, padX: 14 },
 } as const;
 
 export function TextField({ label, hint, error, style, size = 'md', ...input }: TextInputProps & { label: string; hint?: string; error?: string | null; size?: keyof typeof fieldSizes }) {
@@ -688,7 +707,7 @@ export function TextField({ label, hint, error, style, size = 'md', ...input }: 
           {
             minHeight: f.h,
             borderWidth: 1,
-            borderColor: error ? colors.danger : colors.borderInput,
+            borderColor: error ? colors.danger : colors.borderControl,
             borderRadius: f.r,
             backgroundColor: colors.card,
             paddingHorizontal: f.padX,
@@ -736,7 +755,7 @@ export type PillTone = 'green' | 'amber' | 'navy' | 'grey' | 'red' | 'purple' | 
 // Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
 const pillTones = (): Record<PillTone, { bg: string; fg: ColorName }> => ({
   green: { bg: colors.greenTint, fg: 'greenDark' },
-  amber: { bg: colors.brownTint, fg: 'brown' },
+  amber: { bg: colors.warningTint, fg: 'warningInk' },
   navy: { bg: colors.navyTint, fg: 'navy' },
   grey: { bg: colors.chip, fg: 'muted' },
   red: { bg: colors.dangerTint, fg: 'danger' },
@@ -748,7 +767,7 @@ const pillTones = (): Record<PillTone, { bg: string; fg: ColorName }> => ({
 export function Pill({ label, tone = 'grey' }: { label: string; tone?: PillTone }) {
   const t = pillTones()[tone];
   return (
-    <View style={{ backgroundColor: t.bg, borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' }}>
+    <View style={{ backgroundColor: t.bg, borderRadius: radii.tag, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' }}>
       <Txt variant="caption" color={t.fg} style={{ fontFamily: tone === 'live' ? fonts.bodyBold : fonts.bodySemi }}>
         {label}
       </Txt>
@@ -789,10 +808,10 @@ export function Stat({ label, value, sub, color = 'ink' }: { label: string; valu
 export type BannerTone = 'info' | 'success' | 'warning' | 'error';
 
 // Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
-const bannerTones = (): Record<BannerTone, { bg: string; border: string; fg: ColorName; icon: IconName }> => ({
+const bannerTones = (): Record<BannerTone, { bg: string; border: string; fg: ColorName; icon: IconName; iconColor?: ColorName }> => ({
   info: { bg: colors.navyTint, border: colors.navyBorder, fg: 'navy', icon: 'information-circle' },
-  success: { bg: colors.greenTint, border: colors.greenBorder, fg: 'greenDark', icon: 'checkmark-circle' },
-  warning: { bg: colors.brownTint, border: colors.brownBorder, fg: 'brownDark', icon: 'alert-circle' },
+  success: { bg: colors.greenTint, border: colors.greenBorder, fg: 'greenDark', icon: 'checkmark' },
+  warning: { bg: colors.warningTint, border: colors.warningBorder, fg: 'warningInk', icon: 'alert-circle', iconColor: 'warning' },
   error: { bg: colors.dangerTint, border: colors.danger, fg: 'danger', icon: 'alert-circle' },
 });
 
@@ -804,7 +823,7 @@ export function Banner({ tone = 'info', title, message, action }: { tone?: Banne
       accessibilityLiveRegion={tone === 'error' ? 'assertive' : 'polite'}
       style={{ backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, borderRadius: radii.card, padding: space.md, gap: space.sm }}>
       <Row align="flex-start" gap={space.sm}>
-        <Icon name={t.icon} size={20} color={colors[t.fg]} />
+        <Icon name={t.icon} size={20} color={colors[t.iconColor ?? t.fg]} />
         <View style={{ flex: 1, gap: 2 }}>
           {title ? (
             <Txt variant="smallStrong" color={t.fg}>

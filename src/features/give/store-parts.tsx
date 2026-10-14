@@ -1,18 +1,18 @@
 import { Pressable } from 'react-native';
 
 import { Txt } from '@/components/ui';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 import { GiftGlyph } from './icons';
 
 /** Round −/+ button in store green. */
-export function QtyButton({ glyph, label, onPress, size = 44 }: { glyph: '−' | '+'; label: string; onPress: () => void; size?: number }) {
+export function QtyButton({ glyph, label, onPress, size = touch.min }: { glyph: '−' | '+'; label: string; onPress: () => void; size?: number }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={size < 44 ? (44 - size) / 2 : 0}
+      hitSlop={size < touch.min ? (touch.min - size) / 2 : 0}
       style={({ pressed }) => ({ width: size, height: size, borderRadius: size / 2, borderWidth: 1, borderColor: colors.store, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
       <Txt color="store" style={{ fontFamily: fonts.bodySemi, fontSize: 20, lineHeight: 24 }}>
         {glyph}
@@ -31,7 +31,7 @@ export function GiftToggle({ on, label, onPress, grow, compact }: { on: boolean;
       accessibilityLabel={label}
       style={({ pressed }) => ({
         flexGrow: grow ? 1 : 0,
-        minHeight: compact ? 40 : 44,
+        minHeight: touch.min,
         borderRadius: compact ? radii.xxl : radii.pill,
         borderWidth: 1,
         borderColor: on ? colors.brown : colors.borderInput,

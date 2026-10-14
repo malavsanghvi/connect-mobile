@@ -16,3 +16,16 @@
   max-width: 480px !important;
   transform: translateX(-50%);
 }
+
+/**
+ * Web only: keyboard focus is the brand kit's ring, a 2px solid indigo outline offset 2px (4px on buttons). Mouse and touch taps
+ * never show it. The colour is the kit's `navy`; the brand-conformance test checks it against src/brand/tokens.json.
+ */
+:focus-visible {
+  outline: 2px solid #2b2a8a;
+  outline-offset: 2px;
+}
+[role='button']:focus-visible,
+button:focus-visible {
+  outline-offset: 4px;
+}

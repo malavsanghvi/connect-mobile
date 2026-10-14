@@ -9,7 +9,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, touch } from '@/theme';
 
 import { HeaderChips } from './gyan-ui';
 
@@ -40,7 +40,7 @@ export function GyanHeaderChips() {
         }}
         accessibilityRole="button"
         accessibilityLabel={`${state.error.userMessage} ${t('common.retry')}`}
-        style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+        style={{ minWidth: touch.min, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' }}>
         <Text style={{ fontFamily: fonts.bodyBold, fontSize: 16, color: colors.danger }}>!</Text>
       </Pressable>
     );

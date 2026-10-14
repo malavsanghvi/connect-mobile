@@ -65,7 +65,7 @@ type Held = { centerId: string; profile: CategoryProfile | null };
  *  - `centers.category_key` (read with the community) names the kind at once; the app lays out a kind it has built in on the
  *    very first frame, so a chamber of commerce never flashes the Jain tabs.
  *  - `app.category_profile` is read next, and again when the app comes to the foreground, every few minutes, and after any write
- *    (pull to refresh), so a change Community Connect makes (the kind, a module) shows without an update. This device keeps the
+ *    (pull to refresh), so a change Weaver makes (the kind, a module) shows without an update. This device keeps the
  *    last answer for each community, so a cold start has it before the network answers.
  *  - A kind the app has no built-in for waits (`ready` false) for the cached or first live answer instead of guessing; if the
  *    read fails, the generic layout (neutral, complete) is used and the read is tried again later.
@@ -160,4 +160,9 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
 /** The community's kind of organization and how the app is laid out for it (Jain Center's, outside a provider). */
 export function useCategory(): CategoryValue {
   return useContext(CategoryContext);
+}
+
+/** The community's own greeting word ("Welcome", or what its organization has configured: Jain Center's is its own), for the first words of a message. */
+export function useGreeting(): string {
+  return useCategory().profile.terms.greeting;
 }

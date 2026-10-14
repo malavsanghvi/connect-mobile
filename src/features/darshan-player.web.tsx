@@ -14,7 +14,7 @@ export function DarshanPlayer({ url, title }: { url: string; title: string }) {
         allowFullScreen: true,
         referrerPolicy: 'no-referrer',
         sandbox: 'allow-scripts allow-same-origin allow-presentation',
-        style: { border: 0, width: '100%', height: '100%', minHeight: 200, backgroundColor: '#000' },
+        style: { border: 0, width: '100%', height: '100%', minHeight: 200, backgroundColor: colors.videoTile },
       })}
     </View>
   );

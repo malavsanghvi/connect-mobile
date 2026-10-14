@@ -13,7 +13,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
@@ -115,7 +115,7 @@ export default function BolisScreen() {
                       accessibilityRole="switch"
                       accessibilityState={{ checked: on }}
                       accessibilityLabel={`${on ? t('bolis.reminderShort') : t('bolis.remindShort')}: ${b.name}`}
-                      style={({ pressed }) => ({ borderWidth: 1, borderColor: colors.navy, backgroundColor: on ? colors.navy : colors.card, borderRadius: radii.xxl, minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+                      style={({ pressed }) => ({ borderWidth: 1, borderColor: colors.navy, backgroundColor: on ? colors.navy : colors.card, borderRadius: radii.xxl, minHeight: touch.min, paddingHorizontal: 14, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
                       <Txt variant="meta" color={on ? 'white' : 'navy'} style={{ fontFamily: fonts.bodySemi }}>
                         {on ? t('bolis.reminderShort') : t('bolis.remindShort')}
                       </Txt>

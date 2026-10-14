@@ -114,7 +114,7 @@ export default function RecurringScreen() {
                     {st !== 'stopped' ? (
                       <Row gap={space.sm}>
                         {canToggle ? (
-                          <Button label={st === 'active' ? t('recurring.pause') : t('recurring.resume')} tone="secondary" size="sm" fill={false} style={{ minHeight: 40, borderRadius: radii.xl }} onPress={() => toggle(g)} busy={busyId === g.id} />
+                          <Button label={st === 'active' ? t('recurring.pause') : t('recurring.resume')} tone="secondary" size="sm" fill={false} style={{ borderRadius: radii.xl }} onPress={() => toggle(g)} busy={busyId === g.id} />
                         ) : null}
                         <LinkText label={t('recurring.edit')} onPress={() => router.push({ pathname: '/recurring-setup', params: { id: g.id } })} />
                       </Row>

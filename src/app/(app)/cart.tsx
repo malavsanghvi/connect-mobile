@@ -15,7 +15,7 @@ import { useApp } from '@/providers/app';
 import { useCart } from '@/providers/cart';
 import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 /** Your order (prototype Main.dc.html L1050–1085): lines with gift toggle, gift message, pickup, totals, pay. */
 export default function CartScreen() {
@@ -123,7 +123,7 @@ export default function CartScreen() {
             </VStack>
           );
         })}
-        <Pressable onPress={() => router.navigate('/store')} accessibilityRole="button" style={({ pressed }) => ({ minHeight: 44, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+        <Pressable onPress={() => router.navigate('/store')} accessibilityRole="button" style={({ pressed }) => ({ minHeight: touch.min, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
           <Txt variant="small" color="store" style={{ fontFamily: fonts.bodySemi }}>
             {t('store.addMore')}
           </Txt>

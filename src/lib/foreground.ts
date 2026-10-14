@@ -1,5 +1,5 @@
 /**
- * When the app re-reads what the organization's administrators and Community Connect can change while a phone has the app
+ * When the app re-reads what the organization's administrators and Weaver can change while a phone has the app
  * open: the kind of organization, which modules are on, the Home shortcuts and the other community settings, the access
  * levels. Nothing here needs an app update: the app reads these from the database, and this decides how soon a change shows.
  *

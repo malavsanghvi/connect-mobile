@@ -142,6 +142,7 @@ src/providers/      app session/center/member, settings (language, text size), f
 src/components/     UI primitives, screen shell, drawer, states, QR
 src/features/       larger screen sections (home, jain way, calendar, onboarding forms)
 src/i18n/           en (complete), gu, hi (all keys, English fallback)
+src/brand/          the Weaver brand kit as the app reads it (tokens.json is a copy of connect-crm brand/tokens.json); see docs/BRAND_CONFORMANCE.md
 ```
 
 ## Rules the code follows

@@ -2,15 +2,15 @@
   "expo": {
     "name": "Weaver",
     "slug": "connect-mobile",
-    "version": "1.19.0",
+    "version": "1.19.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": ["connect", "communityconnect"],
+    "icon": "./assets/brand/weaver-mark-on-white-1024.png",
+    "scheme": ["connect", "communityconnect", "weaver"],
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FBF7F0",
-    "primaryColor": "#1B2C5C",
+    "backgroundColor": "#fffaf5",
+    "primaryColor": "#2b2a8a",
     "ios": {
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/brand/weaver-mark-on-white-1024.png",
       "bundleIdentifier": "org.connectplatform.member",
       "supportsTablet": true
     },
@@ -26,9 +26,9 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png",
-      "backgroundColor": "#FBF7F0",
-      "themeColor": "#1B2C5C"
+      "favicon": "./assets/brand/favicon-64.png",
+      "backgroundColor": "#fffaf5",
+      "themeColor": "#2b2a8a"
     },
     "runtimeVersion": "3",
     "updates": {
@@ -44,12 +44,12 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FBF7F0",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 120,
+          "backgroundColor": "#fffaf5",
+          "image": "./assets/brand/splash-mark.png",
+          "imageWidth": 97,
           "dark": {
-            "backgroundColor": "#1B2C5C",
-            "image": "./assets/images/splash-icon.png"
+            "backgroundColor": "#2b2a8a",
+            "image": "./assets/brand/splash-mark-on-tile.png"
           }
         }
       ],
@@ -71,7 +71,8 @@
       [
         "expo-notifications",
         {
-          "color": "#1B2C5C"
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#2b2a8a"
         }
       ],
       [

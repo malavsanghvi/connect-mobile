@@ -145,7 +145,7 @@ export default function StoreScreen() {
                         {giftCents !== null && item.gift_pack ? <GiftToggle grow on={gifted} label={giftLabel(gifted)} onPress={() => cart.setGiftQty(item.id, gifted ? 0 : line.qty)} /> : null}
                       </Row>
                     ) : (
-                      <Button label={t('store.add')} accessibilityLabel={t('store.addItem', { name: item.name })} tone="outlineStore" size="sm" style={{ minHeight: 44, borderRadius: radii.pill }} onPress={() => setQty(item, 1)} />
+                      <Button label={t('store.add')} accessibilityLabel={t('store.addItem', { name: item.name })} tone="outlineStore" size="sm" style={{ borderRadius: radii.pill }} onPress={() => setQty(item, 1)} />
                     )}
                   </Card>
                 );

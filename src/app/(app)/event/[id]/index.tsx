@@ -23,7 +23,7 @@ import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 type Loaded_ = { event: EventRow; rsvp: Rsvp | null; attendees: Attendee[]; pledge: Tables<'pledges'> | null; now: Date };
 
@@ -222,7 +222,7 @@ function DashedTile({ label, onPress, active }: { label: string; onPress: () => 
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ expanded: !!active }}
-      style={({ pressed }) => ({ flex: 1, minHeight: 44, borderRadius: radii.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: active ? colors.navy : colors.dashed, backgroundColor: active ? colors.navyTint : 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.sm, opacity: pressed ? 0.8 : 1 })}>
+      style={({ pressed }) => ({ flex: 1, minHeight: touch.min, borderRadius: radii.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: active ? colors.navy : colors.dashed, backgroundColor: active ? colors.navyTint : 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.sm, opacity: pressed ? 0.8 : 1 })}>
       <Txt variant="small" color="navy">
         {label}
       </Txt>
@@ -366,7 +366,7 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
           );
         })}
         {guests.map((g) => (
-          <Row key={g} style={{ justifyContent: 'space-between', minHeight: 44 }}>
+          <Row key={g} style={{ justifyContent: 'space-between', minHeight: touch.min }}>
             <Txt variant="bodyStrong">{g}</Txt>
             <Row gap={space.xs}>
               <Pill label={t('events.guest')} tone="grey" />

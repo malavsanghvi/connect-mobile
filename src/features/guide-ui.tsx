@@ -19,8 +19,8 @@ export function useCommunity(): string {
 }
 
 /**
- * Welcome.dc.html is a separate full-screen flow: back button + Fraunces 22
- * navy title, no tab bar (so no Niva).
+ * Welcome.dc.html is a separate full-screen flow: back button + the display
+ * face 22 navy title, no tab bar (so no Niva).
  */
 export function GuideScreen({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -62,9 +62,10 @@ export function SignInFirst() {
 export type Tint = 'green' | 'navy' | 'brown';
 
 export const tileTints: Record<Tint, { bg: string; fg: string }> = {
-  green: { bg: colors.greenTint, fg: colors.green },
+  // Tiles for the parts of a product are one hue, navy on navy-50 (the brand kit has no colour per module); the three names stay.
+  green: { bg: colors.navyTint, fg: colors.navy },
   navy: { bg: colors.navyTint, fg: colors.navy },
-  brown: { bg: colors.brownTint, fg: colors.brown },
+  brown: { bg: colors.navyTint, fg: colors.navy },
 };
 
 /** 36px (or 40px) rounded mark with 1–2 letters, as on the guide tiles and link rows. */

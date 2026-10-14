@@ -11,15 +11,15 @@ import { StrokeIcon } from './stroke-icon';
 import { Button, Row, TextField, Txt } from './ui';
 
 const fieldSizes = {
-  sm: { h: touch.min, r: radii.md, font: typeScale.bodySmall, padX: 10 },
-  md: { h: 48, r: radii.lg, font: typeScale.body, padX: space.md },
+  sm: { h: touch.min, r: radii.field, font: typeScale.section, padX: 10 },
+  md: { h: touch.cta, r: radii.field, font: typeScale.section, padX: space.md },
 } as const;
 
 function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: space.lg }}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: colors.scrimFaint, justifyContent: 'center', padding: space.lg }}>
         <Pressable
           onPress={(e) => e.stopPropagation()}
           style={{ backgroundColor: colors.card, borderRadius: radii.xl, padding: space.md, paddingBottom: space.md + insets.bottom, maxHeight: '80%' }}>
@@ -70,7 +70,7 @@ export function SelectField({
         style={{
           minHeight: f.h,
           borderWidth: 1,
-          borderColor: error ? colors.danger : colors.borderInput,
+          borderColor: error ? colors.danger : colors.borderControl,
           borderRadius: f.r,
           backgroundColor: editable ? colors.card : colors.ground,
           paddingHorizontal: f.padX,
@@ -283,7 +283,7 @@ export function DateField({
         style={{
           minHeight: f.h,
           borderWidth: 1,
-          borderColor: error ? colors.danger : colors.borderInput,
+          borderColor: error ? colors.danger : colors.borderControl,
           borderRadius: f.r,
           backgroundColor: editable ? colors.card : colors.ground,
           paddingHorizontal: f.padX,

@@ -7,7 +7,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
  */
 export type EventIconName = 'photo' | 'lunch' | 'ticket-qr' | 'flame' | 'star';
 
-export function EventIcon({ name, size = 22, color, strokeWidth = 1.6 }: { name: EventIconName; size?: number; color: ColorValue; strokeWidth?: number }) {
+export function EventIcon({ name, size = 22, color, strokeWidth = 2 }: { name: EventIconName; size?: number; color: ColorValue; strokeWidth?: number }) {
   if (name === 'flame' || name === 'star') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke="none" accessibilityElementsHidden importantForAccessibility="no" pointerEvents="none">

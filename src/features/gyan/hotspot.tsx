@@ -4,7 +4,7 @@ import { ActivityIndicator, Animated, Pressable, View, type LayoutChangeEvent } 
 
 import { Banner, Txt, VStack } from '@/components/ui';
 import { useT } from '@/providers/settings';
-import { colors, radii, space, touch as touchSize } from '@/theme';
+import { colors, radii, space, touch, touch as touchSize } from '@/theme';
 
 import { announce } from './a11y';
 import { hotspotActivity, type HotspotActivity, type HotspotSpot } from './activity';
@@ -241,7 +241,7 @@ function Intro({ text }: { text: string }) {
         </Txt>
       ))}
       {paragraphs.length > 1 ? (
-        <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}>
+        <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={{ minHeight: touch.min, justifyContent: 'center', alignSelf: 'flex-start' }}>
           <Txt variant="smallStrong" color="navy">
             {open ? t('gyan.readLess') : t('gyan.readMore')}
           </Txt>

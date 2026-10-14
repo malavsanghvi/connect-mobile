@@ -13,7 +13,7 @@ import { flyerFileName, flyerMimeType, isExpiredLinkError, needsResign } from '@
 import { useLoad } from '@/lib/use-load';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, radii, space } from '@/theme';
+import { colors, radii, space, touch } from '@/theme';
 
 /** A signed flyer link and when it was made (links last an hour). */
 type Signed = { url: string; signedAt: number };
@@ -241,7 +241,7 @@ function FlyerViewer({ url, path, eventName, actions, onRetry, onClose }: { url:
             onPress={onClose}
             accessibilityRole="button"
             accessibilityLabel={t('events.flyer.close')}
-            style={({ pressed }) => ({ minWidth: 44, minHeight: 44, borderRadius: 22, paddingHorizontal: 14, flexDirection: 'row', gap: space.xs, backgroundColor: colors.viewerButton, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+            style={({ pressed }) => ({ minWidth: touch.min, minHeight: touch.min, borderRadius: 22, paddingHorizontal: 14, flexDirection: 'row', gap: space.xs, backgroundColor: colors.viewerButton, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
             <StrokeIcon name="close" size={14} color={colors.white} strokeWidth={2} />
             <Txt variant="smallStrong" color="white">
               {t('events.flyer.close')}

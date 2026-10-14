@@ -13,7 +13,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, components, fonts, radii, space } from '@/theme';
+import { colors, components, fonts, radii, space, touch } from '@/theme';
 
 import { buildIcs, orderLayers, toWebcal, virSamvat } from './event-rules';
 import { exportTextFile } from './media';
@@ -57,7 +57,7 @@ function NavCircle({ label, glyph, onPress }: { label: string; glyph: string; on
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={2}
-      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+      style={({ pressed }) => ({ width: touch.min, height: touch.min, borderRadius: touch.min / 2, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
       <Txt variant="subhead" color="navy" style={{ fontFamily: fonts.body, lineHeight: 22 }}>
         {glyph}
       </Txt>
@@ -319,7 +319,7 @@ function EntryLink({ url }: { url: string }) {
   };
   return (
     <View style={{ gap: 4, paddingTop: 2 }}>
-      <Pressable onPress={() => void open()} accessibilityRole="link" accessibilityLabel={`${t('calendar.openLink')}: ${url}`} style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+      <Pressable onPress={() => void open()} accessibilityRole="link" accessibilityLabel={`${t('calendar.openLink')}: ${url}`} style={({ pressed }) => ({ minHeight: touch.min, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
         <Txt variant="caption" color="navy" style={{ fontFamily: fonts.bodySemi }} numberOfLines={1}>
           {`${t('calendar.openLink')} ›`}
         </Txt>

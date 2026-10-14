@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 import { Qr } from '@/components/qr';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Card, LinkText, Pill, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, dotted, Ident, LinkText, Pill, Row, Txt, VStack } from '@/components/ui';
 import { EventIcon } from '@/features/event-icons';
 import { compactTime, lunchWhy } from '@/features/event-rules';
 import { shareOnWhatsApp } from '@/features/media';
@@ -21,7 +21,7 @@ import { useModule } from '@/providers/modules';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 const MOVED_KEY = 'lunchMovedSlots';
 
@@ -125,7 +125,7 @@ export default function TicketsScreen() {
                         {t('tickets.committed', { amount: formatCents(pledge.amount_cents) })}
                       </Txt>
                       <Txt variant="caption" color="brownText" style={{ fontFamily: fonts.body }}>
-                        {[how, pledge.pledge_number, pledge.status === 'paid' ? t('tickets.receiptEmailed') : t('tickets.openPledge')].filter(Boolean).join(' · ')}
+                        {dotted([how, pledge.pledge_number ? <Ident>{pledge.pledge_number}</Ident> : null, pledge.status === 'paid' ? t('tickets.receiptEmailed') : t('tickets.openPledge')])}
                       </Txt>
                     </View>
                     {pledge.status !== 'paid' ? (
@@ -154,7 +154,6 @@ export default function TicketsScreen() {
 
               {event.lunch_enabled ? <LunchPanel event={event} active={active} slots={slots} tz={tz} now={now} movedSlotId={movedSlotId} canMove={!!member?.isAdult} /> : null}
 
-              <Button label={t('tickets.wallet')} tone="black" disabled onPress={() => {}} />
               <Button label={t('tickets.shareWhatsApp')} tone="outlineGreen" size="md" onPress={() => void share()} />
               {shareError ? <Banner tone="error" message={shareError} /> : null}
               {member && st === 'rsvpd' ? <Button label={t('tickets.confirmOrCancel')} tone="secondary" size="md" onPress={() => router.push({ pathname: '/event/[id]/confirm', params: { id: event.id } })} /> : null}
@@ -174,7 +173,7 @@ export default function TicketsScreen() {
                 </Card>
               ) : null}
               <Txt variant="fine" color="muted" center>
-                {t('tickets.walletNote')}
+                {t('tickets.entranceNote')}
               </Txt>
             </VStack>
           );
@@ -197,7 +196,7 @@ function TicketRow({ a, event, tz }: { a: Attendee; event: EventRow; tz: string 
       style={({ pressed }) => ({ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: radii.row, paddingVertical: space.md, paddingHorizontal: space.lg, gap: space.md, opacity: pressed ? 0.9 : 1 })}>
       <Row gap={14}>
         <View style={{ width: 44, height: 44, borderRadius: radii.sm, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center' }}>
-          <EventIcon name="ticket-qr" size={28} color={colors.white} strokeWidth={1.8} />
+          <EventIcon name="ticket-qr" size={28} color={colors.white} strokeWidth={2} />
         </View>
         <View style={{ flex: 1 }}>
           <Txt variant="bodyStrong">{a.display_name}</Txt>
@@ -293,7 +292,7 @@ function LunchPanel({ event, active, slots, tz, now, movedSlotId, canMove }: { e
     <View style={{ borderWidth: 1, borderColor: colors.greenBorder, backgroundColor: colors.card, borderRadius: radii.xl, paddingVertical: 14, paddingHorizontal: space.lg, gap: 10 }}>
       <Row gap={10}>
         <View style={{ width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.greenTint, alignItems: 'center', justifyContent: 'center' }}>
-          <EventIcon name="lunch" size={22} color={colors.green} strokeWidth={1.8} />
+          <EventIcon name="lunch" size={22} color={colors.green} strokeWidth={2} />
         </View>
         <View style={{ flex: 1 }}>
           <Txt variant="bodyStrong" style={{ fontFamily: fonts.bodyBold }}>
@@ -359,7 +358,7 @@ function LunchPanel({ event, active, slots, tz, now, movedSlotId, canMove }: { e
                       disabled={busy !== null || on}
                       accessibilityRole="radio"
                       accessibilityState={{ selected: on, disabled: busy !== null }}
-                      style={({ pressed }) => ({ minHeight: 38, borderRadius: radii.row, borderWidth: 1, borderColor: colors.green, backgroundColor: on ? colors.green : colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
+                      style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.row, borderWidth: 1, borderColor: colors.green, backgroundColor: on ? colors.green : colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
                       <Txt variant="meta" color={on ? 'white' : 'green'} style={{ fontFamily: fonts.bodySemi }}>
                         {busy === sl.id ? t('common.saving') : formatTime(sl.starts_at, tz)}
                       </Txt>

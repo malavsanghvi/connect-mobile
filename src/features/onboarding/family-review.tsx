@@ -199,7 +199,7 @@ export function FamilyReview({ onContinue, readOnly = false }: { onContinue?: ()
                   {summary}
                 </Txt>
               </View>
-              {canEdit ? <Button label={open ? t('common.done') : t('common.edit')} tone="secondary" size="sm" fill={false} busy={open && saving} onPress={() => void toggleEdit(fm.person.id)} style={{ minHeight: 40 }} /> : null}
+              {canEdit ? <Button label={open ? t('common.done') : t('common.edit')} tone="secondary" size="sm" fill={false} busy={open && saving} onPress={() => void toggleEdit(fm.person.id)} /> : null}
             </Row>
             {open ? (
               <PersonEditor

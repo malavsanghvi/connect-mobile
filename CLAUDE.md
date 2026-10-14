@@ -31,8 +31,11 @@ Platform conventions live in `connect-crm/docs/ARCHITECTURE.md` — read it firs
 - **No mock data**: when env vars are missing the app shows the setup screen.
 - **Strings** live in `src/i18n/en.ts` (complete); `gu.ts` / `hi.ts` carry every key
   and fall back to English. Use `useT()`.
-- **Design tokens** in `src/theme.ts`; never hard-code colours. 44px minimum targets;
-  all text goes through `Txt` so the text-size setting applies.
+- **Design tokens** in `src/theme.ts`, built from the Weaver brand kit (`src/brand/tokens.json`, a verbatim copy of
+  connect-crm `brand/tokens.json`: copy it over, never edit it; `docs/BRAND_CONFORMANCE.md`); never hard-code colours (a test
+  fails on a colour literal outside the theme). Faces are Bricolage Grotesque, Hanken Grotesk and JetBrains Mono for identifiers (`assets/fonts`, `Ident` / `Txt variant="identifier"`). The product
+  is "Weaver", never "Community Connect"; no exclamation marks in English copy. 48px minimum targets (the kit's
+  tap-target, `touch.min`); all text goes through `Txt` so the text-size setting applies.
 - Lint uses the React Compiler rules (no synchronous setState in effects, no impure
   calls in render). `useLoad` is the data-loading hook.
 

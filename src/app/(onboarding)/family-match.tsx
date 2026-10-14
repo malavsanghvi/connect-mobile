@@ -160,7 +160,7 @@ function PendingMatchCard({ t, rows }: { t: ReturnType<typeof useT>; rows: Pendi
   );
 }
 
-/** Onboarding.dc.html s2 card: household in Fraunces 22 ink, tier in green caps, one row per person (with relationship when known). */
+/** Onboarding.dc.html s2 card: household in the display face, 22, ink, tier in green caps, one row per person (with relationship when known). */
 function FamilyCard({ name, tier, people }: { name: string; tier: string | null; people: { key: string; name: string; rel: string | null }[] }) {
   return (
     <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radii.xxl, padding: space.lg, gap: 10 }}>
