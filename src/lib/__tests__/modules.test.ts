@@ -234,6 +234,7 @@ describe('blockingModule (deep links)', () => {
     expect(blockingModule(off('gyan_path'), 'gyan/homework')).toBe('gyan_path');
     expect(blockingModule(off('gyan_path'), 'gyan/homework/[assignmentId]')).toBe('gyan_path');
     expect(blockingModule(off('comms'), 'guide/whatsapp')).toBe('comms');
+    expect(blockingModule(off('pathshala'), 'pathshala-announcements')).toBe('pathshala');
     expect(blockingModule(off('niva'), '/niva')).toBe('niva');
     // The Zelle report form is a Giving screen: Giving off, no form (deep links included).
     // The Zelle report screen belongs to Bank reconciliation (an add-on of Giving, 0741), named like Bolis below.
@@ -300,7 +301,7 @@ describe('routeFeature (the access area of a pushed screen)', () => {
     expect(routeFeature('guide/timings')).toBeNull();
   });
   it('leaves money, events, family and Pathshala to their own checks', () => {
-    for (const name of ['event/[id]/index', 'pledges', 'bolis', 'store', 'cart', 'settings', 'member-card', 'pathshala-enroll', 'person/[id]', 'pachchakhan/[id]', 'album/[id]', 'volunteer', 'give', 'family']) {
+    for (const name of ['event/[id]/index', 'pledges', 'bolis', 'store', 'cart', 'settings', 'member-card', 'pathshala-enroll', 'pathshala-announcements', 'person/[id]', 'pachchakhan/[id]', 'album/[id]', 'volunteer', 'give', 'family']) {
       expect(routeFeature(name)).toBeNull();
     }
   });

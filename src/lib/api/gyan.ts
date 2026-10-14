@@ -6,6 +6,7 @@ import { supabase } from '../supabase';
 
 import { isMissingBucket } from './photos';
 
+import { buildAnnouncements, type ClassAnnouncement } from '../class-announcements';
 import { classSchedule, continueGoalId, registrationOpen, todayAtMinutes, type AttendanceMark, type DailyMinutes } from '../learning';
 import { buildGyanSummary, goalProgress, GYAN_SUMMARY_COLUMNS, isLevelDone, isStepDone, lastActivityByGoal, type GoalProgress as GoalProgressOf, type GyanSummary, type ProgressMark } from '../gyan-progress';
 import { NO_HOLD, type FeePledge, type HoldInfo } from '../pathshala-registration';
@@ -309,6 +310,38 @@ export async function loadPathshala(householdId: string, opts: { adult?: boolean
       fees: adult ? (detail?.pledges ?? []) : [],
     };
   });
+}
+
+/** The most announcements the screen loads: the newest ones; a class posts a few a term. */
+export const ANNOUNCEMENT_LIMIT = 50;
+
+/**
+ * The published class announcements a household may read, newest first (RLS `announcements_parents`, connect-crm 0010:
+ * published announcements of the classes, or whole terms, the household has an enrollment in), with the class's or the
+ * term's name. The generated types list no relationship from `class_announcements` to the classes and terms, so the
+ * names are looked up in a second step (members read both tables: `_member_read`) and joined here. The author column is
+ * never read: the app shows no staff names. A failure of either step is thrown as a plain-English AppError.
+ */
+export async function loadClassAnnouncements(centerId: string): Promise<ClassAnnouncement[]> {
+  const rows = must(
+    await supabase
+      .from('class_announcements')
+      .select('id, title, body_md, published_at, class_id, term_id')
+      .eq('center_id', centerId)
+      .not('published_at', 'is', null)
+      .order('published_at', { ascending: false })
+      .limit(ANNOUNCEMENT_LIMIT),
+    'load class announcements',
+  );
+  if (rows.length === 0) return [];
+  const classIds = [...new Set(rows.map((r) => r.class_id).filter((x): x is string => !!x))];
+  // A term's name is only shown for an announcement to the whole term (no class).
+  const termIds = [...new Set(rows.filter((r) => !r.class_id).map((r) => r.term_id).filter((x): x is string => !!x))];
+  const [classes, terms] = await Promise.all([
+    classIds.length ? supabase.from('pathshala_classes').select('id, name').in('id', classIds).then((r) => must(r, 'load the names of your classes')) : Promise.resolve([]),
+    termIds.length ? supabase.from('pathshala_terms').select('id, name').in('id', termIds).then((r) => must(r, 'load the names of the Pathshala terms')) : Promise.resolve([]),
+  ]);
+  return buildAnnouncements(rows, new Map(classes.map((c) => [c.id, c.name])), new Map(terms.map((x) => [x.id, x.name])));
 }
 
 export type EnrollOptions = {

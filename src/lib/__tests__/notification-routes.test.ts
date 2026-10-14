@@ -140,7 +140,18 @@ describe('notification routes', () => {
       expect(notificationTarget({ type: 'pathshala', deep_link: `/somewhere/${LEARNER}` })).toEqual(learn);
       expect(notificationTarget({ type: 'pathshala', deep_link: '/guide/membership' })).toEqual(learn);
     });
+    it('open the class announcements for a /pathshala-announcements link (a principal or teacher published one)', () => {
+      const ANNOUNCEMENT = '33333333-3333-4333-8333-333333333333';
+      const announcements = { pathname: '/pathshala-announcements' };
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/pathshala-announcements', announcement_id: ANNOUNCEMENT })).toEqual(announcements);
+      expect(notificationTarget({ type: 'pathshala', deep_link: 'pathshala-announcements' })).toEqual(announcements);
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/pathshala-announcements/' })).toEqual(announcements);
+      // Not the announcements: a different path, or one with more after it, opens 3L › Learn like any unknown Pathshala link.
+      expect(notificationTarget({ type: 'pathshala', deep_link: '/pathshala-announcements-old' })).toEqual(learn);
+      expect(notificationTarget({ type: 'pathshala', deep_link: `/pathshala-announcements/${ANNOUNCEMENT}` })).toEqual(learn);
+    });
     it('follow a Pathshala link without a type too, and nothing else', () => {
+      expect(notificationTarget({ deep_link: '/pathshala-announcements', announcement_id: '33333333-3333-4333-8333-333333333333' })).toEqual({ pathname: '/pathshala-announcements' });
       expect(notificationTarget({ deep_link: `/pathshala-enroll?term=${TERM}` })).toEqual({ pathname: '/pathshala-enroll', params: { term: TERM } });
       expect(notificationTarget({ deep_link: `/pathshala?person=${LEARNER}` })).toEqual(learn);
       expect(notificationTarget({ deep_link: '/settings' })).toBeNull();
