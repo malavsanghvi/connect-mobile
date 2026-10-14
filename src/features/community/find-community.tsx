@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
+import { WeaverLockup } from '@/components/brand';
 import { FullScreen } from '@/components/full-screen';
 import { SelectField } from '@/components/pickers';
 import { QrScanner } from '@/components/qr-scanner';
@@ -122,6 +123,9 @@ export function FindCommunityScreen() {
   return (
     <FullScreen align="top">
       <View style={{ gap: space.sm, paddingTop: space.xl }}>
+        <View style={{ alignSelf: 'flex-start', paddingBottom: space.md }}>
+          <WeaverLockup />
+        </View>
         <Txt variant="onboardingHero" accessibilityRole="header">
           {switching ? t('community.switchTitle') : t('community.title')}
         </Txt>

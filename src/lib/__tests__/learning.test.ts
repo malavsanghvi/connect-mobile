@@ -164,7 +164,7 @@ describe('saathi', () => {
 describe('gyan path', () => {
   it('lightens the goal tint for the map', () => {
     expect(tintBackground('#1B2C5C')).toBe('#E8EAEF');
-    expect(tintBackground(null)).toBe('#F6EFE3');
+    expect(tintBackground(null)).toBeNull();
   });
   it('uses the mark or the goal initial', () => {
     expect(goalMark({ mark: 'S', name: 'Learn Samayik' })).toBe('S');

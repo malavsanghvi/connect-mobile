@@ -16,9 +16,9 @@ export { CenterMark };
 
 /**
  * Prototype header (Main.dc.html L21–40): padding 16/20/12, gap 12.
- * Left: 44px white round menu (tab roots) or back button with a 1px #E3D9C8
+ * Left: 44px white round menu (tab roots) or back button with a 1px borderInput
  * border. Middle: the community mark + two-line wordmark, centred (Home), or
- * the screen title left-aligned right after the button (Fraunces 22 navy).
+ * the screen title left-aligned right after the button (the display face, 22, navy).
  * Right: the Store shortcut as a filled navy circle with a white bag glyph
  * (module-gated; the member card moved to a per-person QR on the Family tab).
  */

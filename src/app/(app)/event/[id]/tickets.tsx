@@ -197,7 +197,7 @@ function TicketRow({ a, event, tz }: { a: Attendee; event: EventRow; tz: string 
       style={({ pressed }) => ({ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: radii.row, paddingVertical: space.md, paddingHorizontal: space.lg, gap: space.md, opacity: pressed ? 0.9 : 1 })}>
       <Row gap={14}>
         <View style={{ width: 44, height: 44, borderRadius: radii.sm, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center' }}>
-          <EventIcon name="ticket-qr" size={28} color={colors.white} strokeWidth={1.8} />
+          <EventIcon name="ticket-qr" size={28} color={colors.white} strokeWidth={2} />
         </View>
         <View style={{ flex: 1 }}>
           <Txt variant="bodyStrong">{a.display_name}</Txt>
@@ -293,7 +293,7 @@ function LunchPanel({ event, active, slots, tz, now, movedSlotId, canMove }: { e
     <View style={{ borderWidth: 1, borderColor: colors.greenBorder, backgroundColor: colors.card, borderRadius: radii.xl, paddingVertical: 14, paddingHorizontal: space.lg, gap: 10 }}>
       <Row gap={10}>
         <View style={{ width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.greenTint, alignItems: 'center', justifyContent: 'center' }}>
-          <EventIcon name="lunch" size={22} color={colors.green} strokeWidth={1.8} />
+          <EventIcon name="lunch" size={22} color={colors.green} strokeWidth={2} />
         </View>
         <View style={{ flex: 1 }}>
           <Txt variant="bodyStrong" style={{ fontFamily: fonts.bodyBold }}>

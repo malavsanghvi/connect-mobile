@@ -4,6 +4,7 @@ import { envStatus } from '@/lib/env';
 import { useT } from '@/providers/settings';
 import { colors, radii, space } from '@/theme';
 
+import { WeaverLockup } from './brand';
 import { FullScreen } from './full-screen';
 import { Icon } from './icon';
 import { Card, Row, Txt } from './ui';
@@ -14,6 +15,9 @@ export function SetupScreen() {
   const vars = envStatus();
   return (
     <FullScreen>
+      <View style={{ alignSelf: 'flex-start' }}>
+        <WeaverLockup />
+      </View>
       <Txt variant="eyebrow" color="brown">
         {t('setup.eyebrow')}
       </Txt>

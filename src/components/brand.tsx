@@ -2,15 +2,50 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { brandColor, brandTypeStyle, WEAVER_DESCRIPTOR, WEAVER_NAME } from '@/brand';
 import { readBranding, type Branding } from '@/lib/branding';
 import { env } from '@/lib/env';
 import { logError } from '@/lib/errors';
 import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
+import { useSettings } from '@/providers/settings';
 import { colors, fonts, tracking } from '@/theme';
 
 import { MotifGlyph } from './motif';
 import { Txt } from './ui';
+
+// The brand kit's mark (assets/brand/weaver-mark-512.png is its transparent 512px PNG, unchanged).
+const weaverMark = require('../../assets/brand/weaver-mark-512.png');
+
+/**
+ * Weaver's own lockup, for the screens that introduce the product before a community is chosen (Find your community, the
+ * setup screen). Brand kit, Logo, "default" setting: the mark 44px tall, 6px from the name, the name in the display face at
+ * the wordmark size in indigo, the descriptor under it in muted. The kit's colours are used as they are, not the theme's, so a
+ * community's brand colours never recolour it; inside a community's own screens the community's mark leads (CenterMark).
+ */
+export function WeaverLockup() {
+  const { scale } = useSettings();
+  const wordmark = brandTypeStyle('wordmark');
+  const descriptor = brandTypeStyle('descriptor');
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessible accessibilityLabel={`${WEAVER_NAME}. ${WEAVER_DESCRIPTOR}`}>
+      <Image source={weaverMark} style={{ width: 44, height: 44 }} contentFit="contain" accessibilityElementsHidden accessibilityIgnoresInvertColors />
+      <View style={{ flexShrink: 1, gap: 4 }}>
+        <Txt
+          style={{
+            fontFamily: fonts.display,
+            fontSize: wordmark.fontSize * scale,
+            lineHeight: wordmark.fontSize * scale,
+            letterSpacing: wordmark.letterSpacingEm * wordmark.fontSize,
+            color: brandColor('navy'),
+          }}>
+          {WEAVER_NAME}
+        </Txt>
+        <Txt style={{ fontFamily: fonts.bodySemi, fontSize: descriptor.fontSize * scale, lineHeight: 13 * scale, color: brandColor('muted') }}>{WEAVER_DESCRIPTOR}</Txt>
+      </View>
+    </View>
+  );
+}
 
 export function useBranding(): Branding {
   const { center } = useApp();
@@ -65,7 +100,7 @@ export function CenterMark({ size = 46, kind = 'mark', maxWidth }: { size?: numb
 
 /**
  * Home header centre (prototype Main L29): mark 46px + two-line wordmark,
- * Fraunces 17/600 ink over DM Sans 11/600 muted, letter-spaced.
+ * the display face 17/700 ink over the text face 11/600 muted, letter-spaced.
  */
 export function Wordmark() {
   const { center } = useApp();

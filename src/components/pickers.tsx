@@ -19,7 +19,7 @@ function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () =
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: space.lg }}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: colors.scrimFaint, justifyContent: 'center', padding: space.lg }}>
         <Pressable
           onPress={(e) => e.stopPropagation()}
           style={{ backgroundColor: colors.card, borderRadius: radii.xl, padding: space.md, paddingBottom: space.md + insets.bottom, maxHeight: '80%' }}>

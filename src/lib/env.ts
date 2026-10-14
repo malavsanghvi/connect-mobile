@@ -77,7 +77,7 @@ export function envStatus(): EnvVar[] {
     },
     {
       name: 'EXPO_PUBLIC_PORTAL_URL',
-      purpose: 'Weaver portal address for online payments, e.g. https://jsh.communityconnect.app (optional; without it the Pay sheet says online payment is not set up).',
+      purpose: 'Weaver portal address for online payments: the address your staff open the portal at (optional; without it the Pay sheet says online payment is not set up).',
       required: false,
       present: env.portalUrl.length > 0,
     },

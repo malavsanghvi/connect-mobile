@@ -19,8 +19,8 @@ export function useCommunity(): string {
 }
 
 /**
- * Welcome.dc.html is a separate full-screen flow: back button + Fraunces 22
- * navy title, no tab bar (so no Niva).
+ * Welcome.dc.html is a separate full-screen flow: back button + the display
+ * face 22 navy title, no tab bar (so no Niva).
  */
 export function GuideScreen({ title, children }: { title: string; children: ReactNode }) {
   return (

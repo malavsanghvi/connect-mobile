@@ -212,10 +212,10 @@ export function circleStatus(s: { visible: boolean; doneToday: number; selected:
 // Gyan Path
 // ---------------------------------------------------------------------------
 
-/** Map background: the goal tint mixed with white (prototype: #1B2C5C → #E9ECF5). */
-export function tintBackground(hex: string | null | undefined, amount = 0.9): string {
+/** Map background: the goal tint mixed with white (prototype: a navy goal tint gives a pale blue-grey); null when the goal has no usable tint (the screen then uses the theme's panel colour). */
+export function tintBackground(hex: string | null | undefined, amount = 0.9): string | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? '');
-  if (!m) return '#F6EFE3';
+  if (!m) return null;
   const n = parseInt(m[1], 16);
   const mix = (c: number) => Math.round(c + (255 - c) * amount);
   const r = mix((n >> 16) & 255);

@@ -14,6 +14,32 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.19.1 — 2026-10-14
+
+- **The app follows the Weaver brand kit.** Weaver's own look now comes from the brand kit in connect-crm (`brand/`), copied here as
+  `src/brand/tokens.json`. docs/BRAND_CONFORMANCE.md lists what was compared, what was fixed and the twelve decisions left for the
+  owner. A community's own name, logo and colours are still its own and still replace Weaver's.
+  - Colours: the page, cards, borders, text, the primary indigo (`#2b2a8a`, in place of the dark navy), ember brown, gold, the warm
+    tints and the lighter indigos are the kit's. 81% of the colour references in screens are on kit colours; the colours the kit has
+    no token for (purple, store green, the volunteer board and so on) are kept and listed.
+  - Type: Bricolage Grotesque for headings (in place of Fraunces) and Hanken Grotesk for text (in place of DM Sans), bundled with the
+    app, headings tracked tight, button labels bold. The web build falls back through the kit's font stack, not the browser's serif.
+  - Buttons and icons: the outlined button is the kit's ghost button (2px border of navy at 20%); the primary button darkens to the
+    kit's hover indigo when pressed; ten of the shell's icons use the kit's drawings and all icon strokes are 2; keyboard focus on
+    the web shows the kit's ring.
+  - The Weaver lockup (mark, name and "Community management platform") shows on Find your community and on the setup screen.
+  - Wording (English): no exclamation marks (three "Jai Jinendra!" greetings are a community's own and stay), and the five
+    "coming soon" lines about missing recordings say "No recording yet". Two code comments and the setup screen's example address no
+    longer use the old product name.
+  - New test `src/brand/__tests__/brand-conformance.test.ts`: it fails when a colour literal appears outside the theme, when a
+    string says "Community Connect", or when the copy of the kit lacks a token the theme reads.
+  - Removed the retired lotus artwork (`assets/source/mark.svg`, `scripts/make-icons.mjs`).
+- **Over the air:** everything above (JavaScript and the bundled font and image assets); `runtimeVersion` stays 3. The web build gets
+  it with the normal deploy of `main`.
+- **Needs the next native build (not made yet):** the launcher icon (the kit's mark on white), the splash (kit colours; the dark
+  splash puts the mark on a white tile), the Android notification icon and tint, and the `app.json` colours. Until that build,
+  installed apps keep the old icon and splash and work with the new JavaScript.
+
 ## 1.19.0 — 2026-10-13
 
 - **Families see class announcements.** What a Pathshala principal or a class teacher publishes in the portal for a class (or
