@@ -5,7 +5,7 @@
     "version": "1.19.1",
     "orientation": "portrait",
     "icon": "./assets/brand/weaver-mark-on-white-1024.png",
-    "scheme": ["connect", "communityconnect"],
+    "scheme": ["connect", "communityconnect", "weaver"],
     "userInterfaceStyle": "light",
     "backgroundColor": "#fffaf5",
     "primaryColor": "#2b2a8a",

@@ -5,12 +5,25 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { colors } from '@/theme';
 
 /**
- * Outline icons on a 24-unit grid, stroke 2, round caps and joins. The ones the Weaver brand kit draws (menu, close, home,
- * calendar, heart, book, bag, chart, lock, users) use the kit's own paths (connect-crm brand/icons/*.svg); back, forward, qr,
- * info, gear, sparkle, scan and sign-in are the app's own, drawn in the same style. Screens still use the Ionicons-based
- * `Icon` for the rest (docs/BRAND_CONFORMANCE.md).
+ * Outline icons on a 24-unit grid, stroke 2, round caps and joins. Every icon the Weaver brand kit draws (the 21 in connect-crm
+ * brand/icons, copied to assets/brand/icons) uses the kit's own paths: arrow, bag, book, calendar, card, chart, check, chevron,
+ * close, globe, heart, history, home, lock, mail, menu, phone, shield, smile, ticket and users (here `people`). `back` and
+ * `forward` are the kit's chevron turned; qr, info, gear, sparkle, scan, sign-in and the two calendar variants are the app's own,
+ * drawn in the same style. `Icon` (icon.tsx) draws the kit's icon wherever one stands for the Ionicons name asked for; the rest of
+ * the Ionicons wait for the kit to extend its set (docs/BRAND_CONFORMANCE.md lists them).
  */
 export type StrokeIconName =
+  | 'arrow'
+  | 'card'
+  | 'check'
+  | 'chevron'
+  | 'globe'
+  | 'history'
+  | 'mail'
+  | 'phone'
+  | 'shield'
+  | 'smile'
+  | 'ticket'
   | 'menu'
   | 'back'
   | 'forward'
@@ -40,6 +53,54 @@ const calendarBase = (
 );
 
 const shapes: Record<StrokeIconName, ReactNode> = {
+  arrow: <Path d="M5 12h14M12 5l7 7-7 7" />,
+  card: (
+    <>
+      <Rect x="2" y="5" width="20" height="14" rx="2" />
+      <Path d="M2 10h20" />
+    </>
+  ),
+  check: <Path d="M20 6 9 17l-5-5" />,
+  chevron: <Path d="m6 9 6 6 6-6" />,
+  globe: (
+    <>
+      <Circle cx="12" cy="12" r="10" />
+      <Path d="M2 12h20" />
+      <Path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z" />
+    </>
+  ),
+  history: (
+    <>
+      <Path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <Path d="M3 3v5h5" />
+      <Path d="M12 7v5l4 2" />
+    </>
+  ),
+  mail: (
+    <>
+      <Rect x="2" y="4" width="20" height="16" rx="2" />
+      <Path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </>
+  ),
+  phone: (
+    <>
+      <Rect x="5" y="2" width="14" height="20" rx="2" />
+      <Path d="M12 18h.01" />
+    </>
+  ),
+  shield: <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />,
+  smile: (
+    <>
+      <Circle cx="12" cy="12" r="10" />
+      <Path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+    </>
+  ),
+  ticket: (
+    <>
+      <Path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+      <Path d="M13 5v2M13 17v2M13 11v2" />
+    </>
+  ),
   menu: <Path d="M4 6h16M4 12h16M4 18h16" />,
   back: <Path d="M15 18l-6-6 6-6" />,
   forward: <Path d="M9 6l6 6-6 6" />,

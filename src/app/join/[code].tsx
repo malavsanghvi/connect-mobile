@@ -12,7 +12,7 @@ import { useT } from '@/providers/settings';
 
 /**
  * A join link opened while the app is already set up
- * (communityconnect://join/<code> or https://…/join/<code>): confirm, then
+ * (weaver://join/<code>, the older communityconnect://join/<code>, or https://…/join/<code>): confirm, then
  * switch to that community. First-run links are handled by "Find your community".
  */
 export default function JoinLinkScreen() {

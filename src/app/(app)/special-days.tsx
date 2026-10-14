@@ -17,7 +17,7 @@ import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 const TINT: Record<Occasion | 'diksha', { bg: string; fg: string }> = {
   birthday: { bg: colors.brownTint, fg: colors.brown },
@@ -128,7 +128,7 @@ export default function SpecialDaysScreen() {
                         onPress={() => router.push(`/labh/${day.id}` as Href)}
                         accessibilityRole="button"
                         accessibilityLabel={t('days.planLabhLabel', { name })}
-                        style={({ pressed }) => ({ alignSelf: 'flex-start', marginTop: space.sm, minHeight: 44, paddingHorizontal: space.lg, borderRadius: 22, backgroundColor: colors.brown, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
+                        style={({ pressed }) => ({ alignSelf: 'flex-start', marginTop: space.sm, minHeight: touch.min, paddingHorizontal: space.lg, borderRadius: 22, backgroundColor: colors.brown, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
                         <Txt variant="caption" color="white" style={{ fontFamily: fonts.bodySemi }}>
                           {t('days.planLabh')}
                         </Txt>

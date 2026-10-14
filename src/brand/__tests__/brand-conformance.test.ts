@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { en } from '../../i18n/en';
-import { colors, fonts, BRAND_COLOR_MAP, displayTracking, radii, space } from '../../theme';
+import { colors, fonts, BRAND_COLOR_MAP, displayTracking, radii, space, touch } from '../../theme';
 import {
   BRAND_COLOR_NAMES,
   BRAND_FONT_ROLES,
@@ -136,8 +136,32 @@ describe('brand conformance: colours', () => {
       ['danger', 'dangerTint', 'error text'],
       ['white', 'green', 'success button label'],
     ];
+    pairs.push(
+      ['white', 'saffron', 'white label on the accent'],
+      ['faint', 'card', 'placeholder and idle text on cards'],
+      ['faint', 'ground', 'placeholder and idle text on the page'],
+      ['faint', 'panel', 'idle text on a panel'],
+      ['warningInk', 'warningTint', 'warning text'],
+    );
     const low = pairs.filter(([fg, bg]) => ratio((colors as Record<string, string>)[fg], (colors as Record<string, string>)[bg]) < 4.5).map(([fg, bg, what]) => `${fg} on ${bg} (${what})`);
     expect(low).toEqual([]);
+    // What tells a control from the page (an input's border, a switch that is off) needs 3:1 (WCAG 1.4.11).
+    for (const bg of ['card', 'ground'] as const) expect(ratio(colors.borderControl, colors[bg])).toBeGreaterThanOrEqual(3);
+  });
+
+  it('keeps the tap target at the kit\'s 48 and every tappable minimum on it', () => {
+    expect(touch.min).toBe(brandSpace('tap-target'));
+    expect(touch.min).toBe(48);
+    // A hand-written minimum under 48 on a pressable or a button would undo it (a badge or an input may be any height).
+    const offenders: string[] = [];
+    for (const file of sourceFiles(srcDir, /\.(ts|tsx)$/)) {
+      withoutComments(fs.readFileSync(file, 'utf8'))
+        .split('\n')
+        .forEach((line, i) => {
+          if (/min(Height|Width): (3\d|4[0-7])\b/.test(line) && /Pressable|pressed|<Button|onPress/.test(line)) offenders.push(`${rel(file)}:${i + 1}`);
+        });
+    }
+    expect(offenders).toEqual([]);
   });
 });
 
@@ -205,6 +229,32 @@ describe('brand conformance: images', () => {
   });
 });
 
+describe('brand conformance: icons', () => {
+  it("draws the kit's 21 icons with the kit's own paths (assets/brand/icons are the kit's files)", () => {
+    const source = fs.readFileSync(path.join(srcDir, 'components', 'stroke-icon.tsx'), 'utf8').replace(/\s+/g, ' ');
+    const files = fs.readdirSync(path.join(repo, 'assets', 'brand', 'icons')).filter((f) => f.endsWith('.svg'));
+    expect(files).toHaveLength(21);
+    const missing: string[] = [];
+    for (const file of files) {
+      const svg = fs.readFileSync(path.join(repo, 'assets', 'brand', 'icons', file), 'utf8');
+      for (const [, d] of svg.matchAll(/<path d="([^"]+)"/g)) if (!source.includes(`d="${d}"`)) missing.push(`${file}: ${d}`);
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('asks the kit for a drawing before an Ionicon (Icon maps the names the kit covers)', () => {
+    const icon = fs.readFileSync(path.join(srcDir, 'components', 'icon.tsx'), 'utf8');
+    for (const name of ['checkmark', 'close', "'ticket-outline'", "'card-outline'"]) expect(icon).toContain(`${name}:`);
+  });
+});
+
+describe('brand conformance: links', () => {
+  it('opens the Weaver scheme and still the two older ones, so links already printed keep working', () => {
+    const scheme = (JSON.parse(fs.readFileSync(path.join(repo, 'app.json'), 'utf8')) as { expo: { scheme: string[] } }).expo.scheme;
+    expect(scheme).toEqual(expect.arrayContaining(['weaver', 'communityconnect', 'connect']));
+  });
+});
+
 describe('brand conformance: voice', () => {
   /** User-facing English: the dictionary and the string literals in the source (comments and tests excluded). */
   const literals = (text: string): string[] => withoutComments(text).match(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g) ?? [];
@@ -228,17 +278,31 @@ describe('brand conformance: voice', () => {
     expect(en['drawer.version']).toContain('Weaver');
   });
 
-  it('has no exclamation marks in the English copy, except a community greeting that is spoken as written', () => {
-    // "Jai Jinendra!" is the greeting itself, in the community's own voice (docs/BRAND_CONFORMANCE.md, owner decisions).
-    const GREETINGS = ['guide.composeDefault', 'guide.leadDefault', 'niva.greeting'];
-    const offenders = Object.entries(en).filter(([key, value]) => value.includes('!') && !GREETINGS.includes(key)).map(([key]) => key);
-    expect(offenders).toEqual([]);
+  it('has no exclamation marks in the English copy', () => {
+    expect(Object.entries(en).filter(([, value]) => value.includes('!')).map(([key]) => key)).toEqual([]);
   });
 
-  it('promises nothing it has no date for ("coming soon"), except the wallet pass lines awaiting an owner decision', () => {
-    // docs/BRAND_CONFORMANCE.md, owner decisions: remove the Wallet button and its note, or give it a target quarter.
-    const PENDING = ['tickets.wallet', 'tickets.walletNote'];
-    const offenders = Object.entries(en).filter(([key, value]) => /coming soon/i.test(value) && !PENDING.includes(key)).map(([key]) => key);
-    expect(offenders).toEqual([]);
+  it('promises nothing it has no date for ("coming soon")', () => {
+    expect(Object.entries(en).filter(([, value]) => /coming soon/i.test(value)).map(([key]) => key)).toEqual([]);
+    expect(en).not.toHaveProperty('tickets.wallet');
+  });
+
+  it("greets in the community's own word, never a faith word by default: the greeting strings take {greeting}", () => {
+    for (const key of ['guide.composeDefault', 'guide.leadDefault', 'niva.greeting'] as const) {
+      expect([key, en[key]]).toEqual([key, expect.stringContaining('{greeting}')]);
+    }
+    const everyone = Object.entries(en).filter(([key]) => /^(welcome|community|setup|signin)\./.test(key) || key === 'niva.greeting' || key.startsWith('guide.compose') || key === 'guide.leadDefault');
+    expect(everyone.filter(([, value]) => /jinendra|jai |anumodana/i.test(value)).map(([key]) => key)).toEqual([]);
+  });
+
+  it('keeps the old working name "Connect" out of the screens (a feature is named for what it is)', () => {
+    expect(Object.entries(en).filter(([, value]) => /\bConnect\b/.test(value)).map(([key]) => key)).toEqual([]);
+  });
+
+  it('marks Niva with the kit\'s AI tag: the chat, the drawer row and the guide tile', () => {
+    const read = (file: string) => fs.readFileSync(path.join(srcDir, file), 'utf8');
+    expect(read('app/(app)/niva.tsx')).toContain('<AiLine label="Niva"');
+    expect(read('components/drawer.tsx')).toContain('<AiTag label="Niva"');
+    expect(read('app/(app)/guide/index.tsx')).toContain('<AiTag label="Niva"');
   });
 });

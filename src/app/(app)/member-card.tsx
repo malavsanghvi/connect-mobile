@@ -11,7 +11,7 @@ import { ageOn } from '@/lib/rules';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space, tracking } from '@/theme';
+import { colors, fonts, radii, space, touch, tracking } from '@/theme';
 
 /**
  * Member card (Main.dc.html isCard, L1297–1317): centred navy card with the
@@ -66,7 +66,7 @@ export default function MemberCardScreen() {
                 onPress={() => setSelectedId(m.person.id)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
-                style={{ minHeight: 44, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: on ? colors.navy : colors.borderInput, backgroundColor: on ? colors.navy : colors.card, justifyContent: 'center' }}>
+                style={{ minHeight: touch.min, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: on ? colors.navy : colors.borderInput, backgroundColor: on ? colors.navy : colors.card, justifyContent: 'center' }}>
                 <Txt variant="small" color={on ? 'white' : 'ink'} style={{ fontFamily: fonts.bodyMedium }}>
                   {m.person.preferred_name || m.person.first_name}
                 </Txt>

@@ -70,7 +70,7 @@ export function SelectField({
         style={{
           minHeight: f.h,
           borderWidth: 1,
-          borderColor: error ? colors.danger : colors.borderInput,
+          borderColor: error ? colors.danger : colors.borderControl,
           borderRadius: f.r,
           backgroundColor: editable ? colors.card : colors.ground,
           paddingHorizontal: f.padX,
@@ -283,7 +283,7 @@ export function DateField({
         style={{
           minHeight: f.h,
           borderWidth: 1,
-          borderColor: error ? colors.danger : colors.borderInput,
+          borderColor: error ? colors.danger : colors.borderControl,
           borderRadius: f.r,
           backgroundColor: editable ? colors.card : colors.ground,
           paddingHorizontal: f.padX,

@@ -24,7 +24,7 @@ import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useModule } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 function statusPill(t: Translate, p: PledgeWithPeople): { label: string; fg: string; bg: string } {
   switch (p.status) {
@@ -204,7 +204,7 @@ export default function PledgesScreen() {
                         accessibilityRole="button"
                         accessibilityState={{ expanded: isOpen }}
                         accessibilityLabel={t('pledges.toggleYear', { year: g.year })}
-                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, paddingBottom: 6 }}>
+                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: touch.min, paddingBottom: 6 }}>
                         <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.navyTint, alignItems: 'center', justifyContent: 'center' }}>
                           <ChevronGlyph color={colors.navy} rotate={isOpen ? 90 : 0} />
                         </View>
@@ -222,7 +222,7 @@ export default function PledgesScreen() {
                         onPress={() => void openStatement(g.year, statement)}
                         disabled={g.year >= currentYear}
                         accessibilityRole="button"
-                        style={({ pressed }) => ({ minHeight: 40, paddingBottom: 6, justifyContent: 'flex-end', opacity: pressed ? 0.6 : 1 })}>
+                        style={({ pressed }) => ({ minHeight: touch.min, paddingBottom: 6, justifyContent: 'flex-end', opacity: pressed ? 0.6 : 1 })}>
                         <Txt variant="caption" color="navy" style={{ fontFamily: fonts.bodyBold }}>
                           {g.year >= currentYear ? t('pledges.statementJan') : t('pledges.taxStatement', { year: g.year })}
                         </Txt>

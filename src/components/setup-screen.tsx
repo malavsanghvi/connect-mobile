@@ -30,7 +30,7 @@ export function SetupScreen() {
       <Card>
         {vars.map((v) => (
           <Row key={v.name} align="flex-start" gap={space.md} style={{ paddingVertical: space.sm }}>
-            <Icon name={v.present ? 'checkmark-circle' : v.required ? 'close-circle' : 'ellipse-outline'} size={22} color={v.present ? colors.green : v.required ? colors.danger : colors.faint} />
+            <Icon name={v.present ? 'checkmark' : v.required ? 'close' : 'ellipse-outline'} size={22} color={v.present ? colors.green : v.required ? colors.danger : colors.faint} />
             <View style={{ flex: 1, gap: 2 }}>
               <Txt variant="smallStrong" selectable>
                 {v.name}

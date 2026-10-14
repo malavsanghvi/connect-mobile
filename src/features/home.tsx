@@ -46,7 +46,7 @@ export function TileLoading() {
 
 /**
  * Rounded in-card button that sizes to its label (prototype "align-self:
- * flex-start" pills). `size` "sm" (44) is for the compact strip;
+ * flex-start" pills). `size` "sm" (touch.min) is for the compact strip;
  * `a11yLabel` names what it acts on when the label alone is not unique.
  */
 export function PillButton({
@@ -75,7 +75,7 @@ export function PillButton({
         disabled={disabled}
         accessibilityRole="button"
         accessibilityLabel={a11yLabel ?? label}
-        style={({ pressed }) => ({ flex: fill ? 1 : undefined, minHeight: size === 'sm' ? touch.min : 46, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', paddingHorizontal: size === 'sm' ? space.md : space.lg, opacity: pressed ? 0.85 : 1 })}>
+        style={({ pressed }) => ({ flex: fill ? 1 : undefined, minHeight: touch.min, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', paddingHorizontal: size === 'sm' ? space.md : space.lg, opacity: pressed ? 0.85 : 1 })}>
         <Txt variant="smallStrong" color="muted" center>
           {label}
         </Txt>
@@ -198,7 +198,7 @@ export function TodayGreeting({ onShow }: { onShow: () => void }) {
       <Pressable
         onPress={onShow}
         accessibilityRole="button"
-        style={({ pressed }) => ({ minHeight: 40, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+        style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
         <Txt variant="meta" color="navy" style={{ fontFamily: fonts.bodySemi }}>
           {t('home.showToday', { center: community })}
         </Txt>
@@ -251,7 +251,7 @@ export function TodayTile({ state, onHide }: { state: LoadState<TodayInfo>; onHi
           accessibilityRole="button"
           accessibilityLabel={t('home.hideToday', { center: community })}
           hitSlop={4}
-          style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.ground, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+          style={({ pressed }) => ({ width: touch.min, height: touch.min, borderRadius: touch.min / 2, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.ground, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
           <StrokeIcon name="close" size={16} color={colors.muted} strokeWidth={2} />
         </Pressable>
       </Row>

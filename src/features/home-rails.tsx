@@ -32,7 +32,7 @@ import { useCategory } from '@/providers/category';
 import { useModule, useModules } from '@/providers/modules';
 import { usePlayer } from '@/providers/player';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 import { EventIcon } from './event-icons';
 import { bandFor } from './events';
@@ -303,7 +303,7 @@ function SpecialDayTile({ x, today, ctx, members, adult }: { x: { day: SpecialDa
             </Txt>
           </View>
         </Row>
-        <View style={{ minHeight: 44, borderRadius: radii.pill, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md }}>
+        <View style={{ minHeight: touch.min, borderRadius: radii.pill, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md }}>
           <Txt variant="smallStrong" color="white" center>
             {action}
           </Txt>
@@ -631,7 +631,7 @@ function GiveTileView({ tile, ctx }: { tile: GiveTile; ctx: TileCtx }) {
           <Txt variant="bodyStrong" color="brown">
             {amount}
           </Txt>
-          <View style={{ minHeight: 44, borderRadius: radii.pill, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md }}>
+          <View style={{ minHeight: touch.min, borderRadius: radii.pill, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md }}>
             <Txt variant="smallStrong" color="white" center>
               {t('home.viewAndSponsor')}
             </Txt>
@@ -843,7 +843,7 @@ function LearnListenAccessError({ error, onRetry }: { error: AppError; onRetry: 
   const t = useT();
   return (
     <View style={{ gap: 2 }}>
-      <Txt variant="subhead" accessibilityRole="header" style={{ fontFamily: fonts.bodyBold, minHeight: 44, paddingTop: 10 }}>
+      <Txt variant="subhead" accessibilityRole="header" style={{ fontFamily: fonts.bodyBold, minHeight: touch.min, paddingTop: 10 }}>
         {t('home.row.learnListen')}
       </Txt>
       <ErrorState error={error} onRetry={onRetry} />

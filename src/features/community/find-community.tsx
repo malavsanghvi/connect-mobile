@@ -23,7 +23,7 @@ import { colors, space } from '@/theme';
  * The dropdown lists the organizations (active sandboxes too, until a live one
  * exists: pickableCommunities). Search lists live communities only; a sandbox
  * opens with its join code (typed, scanned from a poster's QR code, or from a
- * communityconnect://join/<code> link). On app.<member domain> this page is the
+ * weaver://join/<code> link; communityconnect:// ones still work). On app.<member domain> this page is the
  * front door, and choosing an organization goes to its own address.
  */
 export function FindCommunityScreen() {
@@ -80,7 +80,7 @@ export function FindCommunityScreen() {
     }
   };
 
-  // Opened from a join link or a poster QR code (communityconnect://join/<code>, https …/join/<code>).
+  // Opened from a join link or a poster QR code (weaver://join/<code>, communityconnect://join/<code>, https …/join/<code>).
   useEffect(() => {
     let active = true;
     Linking.getInitialURL()

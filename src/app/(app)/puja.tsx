@@ -275,7 +275,7 @@ function SignInForPoints() {
   );
 }
 
-/** A quiet text button or link, at least 44 points tall. */
+/** A quiet text button or link, at least touch.min (48) points tall. */
 function Quiet({ label, hint, onPress, link, center }: { label: string; hint?: string; onPress: () => void; link?: boolean; center?: boolean }) {
   return (
     <Pressable

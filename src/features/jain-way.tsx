@@ -209,9 +209,9 @@ export function TodayPane() {
                     accessibilityState={{ checked: isDone, disabled: busyId !== null, busy: busyId === p.id }}
                     accessibilityLabel={isDone ? t('jw.markUndone', { name: p.name }) : t('jw.markDone', { name: p.name })}
                     style={({ pressed }) => ({
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
+                      width: touch.min,
+                      height: touch.min,
+                      borderRadius: touch.min / 2,
                       borderWidth: 2,
                       borderColor: colors.green,
                       backgroundColor: isDone ? colors.green : colors.card,
@@ -560,7 +560,7 @@ export function SaathiPane() {
                       disabled={c.i_sent || busy !== null}
                       accessibilityRole="button"
                       accessibilityState={{ disabled: c.i_sent || busy !== null, busy: busy === key }}
-                      style={({ pressed }) => ({ backgroundColor: c.i_sent ? colors.green : colors.saffron, borderRadius: radii.pill, minHeight: 46, alignItems: 'center', justifyContent: 'center', opacity: pressed || busy === key ? 0.8 : 1 })}>
+                      style={({ pressed }) => ({ backgroundColor: c.i_sent ? colors.green : colors.saffron, borderRadius: radii.pill, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', opacity: pressed || busy === key ? 0.8 : 1 })}>
                       <Txt variant="smallStrong" color="white" style={{ fontFamily: fonts.bodyBold }}>
                         {c.i_sent ? t('saathi.sentCta') : t('saathi.sendCta', { points: rules.anumodana })}
                       </Txt>
@@ -615,7 +615,7 @@ export function SaathiPane() {
                                 disabled={busy !== null}
                                 accessibilityRole="button"
                                 accessibilityState={{ busy: busy === key }}
-                                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.purple, borderRadius: radii.pill, minHeight: 46, alignItems: 'center', justifyContent: 'center', opacity: pressed || busy === key ? 0.8 : 1 })}>
+                                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.purple, borderRadius: radii.pill, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', opacity: pressed || busy === key ? 0.8 : 1 })}>
                                 <Txt variant="smallStrong" color="white" style={{ fontFamily: fonts.bodyBold }}>
                                   {t('saathi.helpSend', { points: rules.support })}
                                 </Txt>
@@ -625,7 +625,7 @@ export function SaathiPane() {
                                 disabled={busy !== null}
                                 accessibilityRole="button"
                                 accessibilityState={{ busy: busy === `${key}:t` }}
-                                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.purple, borderRadius: radii.pill, minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, opacity: pressed || busy === `${key}:t` ? 0.8 : 1 })}>
+                                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.purple, borderRadius: radii.pill, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, opacity: pressed || busy === `${key}:t` ? 0.8 : 1 })}>
                                 <Txt variant="meta" color="purple" center style={{ fontFamily: fonts.bodyBold }}>
                                   {t('saathi.helpTogether')}
                                 </Txt>

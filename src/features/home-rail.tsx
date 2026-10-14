@@ -360,7 +360,7 @@ function RailChevron({ side, top, label, onPress }: { side: 'left' | 'right'; to
       // Hidden from assistive technology, so also out of the Tab order (an element cannot be both focusable and hidden).
       {...webProps({ 'aria-hidden': true, tabIndex: -1 })}
       style={({ pressed }) => [
-        { position: 'absolute', width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borderInput, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 0.96 },
+        { position: 'absolute', width: touch.min, height: touch.min, borderRadius: touch.min / 2, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borderInput, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 0.96 },
         vertical,
         side === 'left' ? { left: 6 } : { right: 6 },
         shadows.strip,

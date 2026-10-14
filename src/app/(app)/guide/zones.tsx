@@ -9,6 +9,7 @@ import { findZoneByZip, getZone, listWhatsAppGroups, listZones, requestWhatsAppJ
 import { report } from '@/lib/errors';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useGreeting } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useSettings, useT } from '@/providers/settings';
@@ -73,7 +74,7 @@ export default function ZonesScreen() {
             onSubmitEditing={find}
             accessibilityLabel={t('guide.zip')}
             placeholderTextColor={colors.faint}
-            style={{ flex: 1, minHeight: 50, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.borderInput, backgroundColor: colors.card, paddingHorizontal: 14, fontFamily: fonts.body, fontSize: 17 * scale, color: colors.ink }}
+            style={{ flex: 1, minHeight: 50, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.card, paddingHorizontal: 14, fontFamily: fonts.body, fontSize: 17 * scale, color: colors.ink }}
           />
           <Button label={t('guide.findZone')} size="md" fill={false} onPress={find} busy={busy} style={{ minHeight: 50, borderRadius: radii.lg }} />
         </View>
@@ -114,6 +115,7 @@ export default function ZonesScreen() {
 
 function ZoneCard({ zone }: { zone: Zone }) {
   const t = useT();
+  const greeting = useGreeting();
   const { center, member } = useApp();
   const { toast } = useFeedback();
   const { invalidate } = useDataVersion();
@@ -201,7 +203,7 @@ function ZoneCard({ zone }: { zone: Zone }) {
       <ComposeSheet
         visible={composing}
         to={t('guide.leadTo', { zone: zone.name })}
-        initialText={t('guide.leadDefault', { family: member?.household?.display_name ?? '', zone: zone.name })}
+        initialText={t('guide.leadDefault', { greeting, family: member?.household?.display_name ?? '', zone: zone.name })}
         onClose={() => setComposing(false)}
         onSend={async (text) => {
           if (!center || !member) return;

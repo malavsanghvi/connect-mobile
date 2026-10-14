@@ -228,7 +228,7 @@ function PaySheet({
               accessibilityRole="button"
               accessibilityLabel={t('common.cancel')}
               hitSlop={4}
-              style={({ pressed }) => ({ backgroundColor: colors.chip, borderRadius: radii.xxl, minHeight: 36, paddingHorizontal: 14, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+              style={({ pressed }) => ({ backgroundColor: colors.chip, borderRadius: radii.xxl, minHeight: touch.min, paddingHorizontal: 14, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
               <Txt variant="small">{t('common.cancel')}</Txt>
             </Pressable>
           </Row>

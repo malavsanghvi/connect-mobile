@@ -103,7 +103,7 @@ export function brandFallbackCss(role: BrandFontRole): string {
     .join(', ');
 }
 
-export const BRAND_TYPE_STYLE_NAMES = ['hero', 'heading', 'heading-sm', 'wordmark', 'descriptor'] as const;
+export const BRAND_TYPE_STYLE_NAMES = ['hero', 'heading', 'heading-sm', 'wordmark', 'descriptor', 'ai-tag'] as const;
 export type BrandTypeStyleName = (typeof BRAND_TYPE_STYLE_NAMES)[number];
 
 type RawTypeStyle = { name: string; fontSize?: string; fontWeight?: number; letterSpacing?: string };

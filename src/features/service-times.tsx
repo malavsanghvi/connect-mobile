@@ -13,7 +13,7 @@ import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
 import { useModules } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 /**
  * The generic Today widget of the member-app template (widgets.today.variant "service_times", src/lib/template.ts): the
@@ -72,7 +72,7 @@ export function ServiceTimes() {
         onPress={() => router.push('/guide/timings')}
         accessibilityRole="link"
         hitSlop={6}
-        style={({ pressed }) => ({ minHeight: 40, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+        style={({ pressed }) => ({ minHeight: touch.min, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
         <Txt variant="meta" color="navy" style={{ fontFamily: fonts.bodySemi }}>
           {t('home.serviceTimesAll')}
         </Txt>

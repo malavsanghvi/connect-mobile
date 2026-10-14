@@ -94,7 +94,8 @@ export function Txt({ variant = 'body', color = 'ink', center, style, ...rest }:
 
 /**
  * Pill buttons, label weight 700 (the brand kit's button style). Filled: navy primary (pressed: the kit's navy-hover), green,
- * brown, purple, black, store, maroon, danger. `secondary` is the kit's ghost button: white fill, a 2px border of navy at 20%
+ * brown, purple, black, store, maroon, danger; `gold` is the kit's button for a navy ground (gold fill, navy label, a lighter gold
+ * when pressed). `secondary` is the kit's ghost button: white fill, a 2px border of navy at 20%
  * (navy when pressed), navy text. The other outlined tones (white fill, coloured 1px border and text) are the app's own:
  * outlineGreen, outlineBrown, outlinePurple, outlineDanger, outlineStore, outlineBlack.
  */
@@ -110,6 +111,7 @@ export type ButtonTone =
   | 'purple'
   | 'black'
   | 'light'
+  | 'gold'
   | 'outlineGreen'
   | 'outlineBrown'
   | 'outlinePurple'
@@ -130,6 +132,7 @@ const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?:
   purple: { bg: colors.purple, fg: 'white' },
   black: { bg: colors.black, fg: 'white' },
   light: { bg: colors.white, fg: 'navy' },
+  gold: { bg: colors.gold, fg: 'navy' },
   outlineGreen: { bg: colors.card, fg: 'green', border: colors.green },
   outlineBrown: { bg: colors.card, fg: 'brown', border: colors.brown },
   outlinePurple: { bg: colors.card, fg: 'purple', border: colors.purple },
@@ -138,11 +141,11 @@ const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?:
   outlineBlack: { bg: colors.card, fg: 'black', border: colors.black },
 });
 
-/** cta 52/r26/16 · md 48/r26/15 · card 46/r22/14 (buttons inside cards) · sm 44/r20/13. */
+/** cta 52/r26/16 · md 48/r26/15 · card 48 (touch.min)/r22/14 (buttons inside cards) · sm 48 (touch.min)/r20/13. */
 const buttonSizes = {
   cta: { h: touch.cta, r: radii.cta, font: typeScale.section, padX: space.gutter },
   md: { h: touch.secondary, r: radii.cta, font: typeScale.body, padX: space.lg },
-  card: { h: 46, r: radii.pill, font: typeScale.bodySmall, padX: space.lg },
+  card: { h: touch.min, r: radii.pill, font: typeScale.bodySmall, padX: space.lg },
   sm: { h: touch.min, r: radii.xxl, font: typeScale.meta, padX: 14 },
 } as const;
 
@@ -168,7 +171,8 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
   const inactive = disabled || busy;
   const filled = !t.border && tone !== 'ghost' && tone !== 'light';
   const bg = inactive && filled ? colors.navyDisabled : t.bg;
-  const hover = tone === 'primary' && !inactive;
+  const hover = (tone === 'primary' || tone === 'gold') && !inactive;
+  const hoverBg = tone === 'gold' ? mixHex(colors.gold, colors.white, 0.3) : colors.navyHover;
   const fg: ColorName = inactive && !filled ? 'faint' : t.fg;
   return (
     <Pressable
@@ -182,7 +186,7 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
         {
           minHeight: sz.h,
           borderRadius: sz.r,
-          backgroundColor: hover && pressed ? colors.navyHover : bg,
+          backgroundColor: hover && pressed ? hoverBg : bg,
           borderWidth: t.border ? (t.width ?? 1) : 0,
           borderColor: inactive ? colors.borderInput : tone === 'secondary' && pressed ? colors.navy : t.border,
           paddingHorizontal: sz.padX,
@@ -304,7 +308,7 @@ const cardTones = (): Record<CardTone, { bg: string; border: string; dashed?: bo
   default: { bg: colors.card, border: colors.border },
   navy: { bg: colors.navy, border: colors.navy },
   brown: { bg: colors.brown, border: colors.brown },
-  amber: { bg: colors.brownTint, border: colors.brownBorder },
+  amber: { bg: colors.warningTint, border: colors.warningBorder },
   green: { bg: colors.greenTint, border: colors.greenBorder },
   greenSolid: { bg: colors.green, border: colors.green },
   purple: { bg: colors.purpleBg, border: colors.purpleBorder },
@@ -386,13 +390,9 @@ export function SectionTitle({ children, action }: { children: string; action?: 
 // Lists
 // ---------------------------------------------------------------------------
 
-/** The prototype's row chevron: a "›" glyph, 18px faint. */
+/** The row chevron: the brand kit's chevron turned to point forward, 18px faint. */
 export function Chevron({ color = 'faint' }: { color?: ColorName }) {
-  return (
-    <Text style={{ fontFamily: fonts.body, fontSize: 18, lineHeight: 22, color: colors[color] }} accessibilityElementsHidden importantForAccessibility="no">
-      {'\u203A'}
-    </Text>
-  );
+  return <StrokeIcon name="forward" size={18} color={colors[color]} />;
 }
 
 export function ListRow({
@@ -463,7 +463,7 @@ export function Chip({ label, selected, onPress, disabled, tone = 'navy', grid }
       accessibilityLabel={label}
       accessibilityState={{ checked: selected, disabled: !!disabled }}
       style={({ pressed }) => ({
-        minHeight: grid ? 40 : touch.min,
+        minHeight: touch.min,
         paddingHorizontal: grid ? space.sm : 14,
         borderRadius: grid ? radii.lg : radii.xxl,
         borderWidth: 1,
@@ -586,7 +586,7 @@ export function Checkbox({ label, sub, checked, onChange, disabled, right }: { l
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-        {checked ? <Icon name="checkmark" size={16} color={colors.white} /> : null}
+        {checked ? <StrokeIcon name="check" size={16} color={colors.white} strokeWidth={2.5} /> : null}
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="bodyStrong">{label}</Txt>
@@ -664,7 +664,7 @@ export function Stepper({ valueLabel, onMinus, onPlus, minusDisabled, plusDisabl
 
 /**
  * Prototype input: label 13 regular muted above; field 48px, radius 12, 1px
- * borderInput border, 15px text. `size="lg"` = the onboarding sign-in field
+ * borderControl border, 15px text. `size="lg"` = the onboarding sign-in field
  * (52px, radius 14, 16px); `size="sm"` = compact forms (44px, radius 10, 14px).
  */
 const fieldSizes = {
@@ -690,7 +690,7 @@ export function TextField({ label, hint, error, style, size = 'md', ...input }: 
           {
             minHeight: f.h,
             borderWidth: 1,
-            borderColor: error ? colors.danger : colors.borderInput,
+            borderColor: error ? colors.danger : colors.borderControl,
             borderRadius: f.r,
             backgroundColor: colors.card,
             paddingHorizontal: f.padX,
@@ -738,7 +738,7 @@ export type PillTone = 'green' | 'amber' | 'navy' | 'grey' | 'red' | 'purple' | 
 // Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
 const pillTones = (): Record<PillTone, { bg: string; fg: ColorName }> => ({
   green: { bg: colors.greenTint, fg: 'greenDark' },
-  amber: { bg: colors.brownTint, fg: 'brown' },
+  amber: { bg: colors.warningTint, fg: 'warningInk' },
   navy: { bg: colors.navyTint, fg: 'navy' },
   grey: { bg: colors.chip, fg: 'muted' },
   red: { bg: colors.dangerTint, fg: 'danger' },
@@ -793,8 +793,8 @@ export type BannerTone = 'info' | 'success' | 'warning' | 'error';
 // Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
 const bannerTones = (): Record<BannerTone, { bg: string; border: string; fg: ColorName; icon: IconName }> => ({
   info: { bg: colors.navyTint, border: colors.navyBorder, fg: 'navy', icon: 'information-circle' },
-  success: { bg: colors.greenTint, border: colors.greenBorder, fg: 'greenDark', icon: 'checkmark-circle' },
-  warning: { bg: colors.brownTint, border: colors.brownBorder, fg: 'brownDark', icon: 'alert-circle' },
+  success: { bg: colors.greenTint, border: colors.greenBorder, fg: 'greenDark', icon: 'checkmark' },
+  warning: { bg: colors.warningTint, border: colors.warningBorder, fg: 'warningInk', icon: 'alert-circle' },
   error: { bg: colors.dangerTint, border: colors.danger, fg: 'danger', icon: 'alert-circle' },
 });
 

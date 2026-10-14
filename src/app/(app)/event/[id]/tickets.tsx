@@ -21,7 +21,7 @@ import { useModule } from '@/providers/modules';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 const MOVED_KEY = 'lunchMovedSlots';
 
@@ -154,7 +154,6 @@ export default function TicketsScreen() {
 
               {event.lunch_enabled ? <LunchPanel event={event} active={active} slots={slots} tz={tz} now={now} movedSlotId={movedSlotId} canMove={!!member?.isAdult} /> : null}
 
-              <Button label={t('tickets.wallet')} tone="black" disabled onPress={() => {}} />
               <Button label={t('tickets.shareWhatsApp')} tone="outlineGreen" size="md" onPress={() => void share()} />
               {shareError ? <Banner tone="error" message={shareError} /> : null}
               {member && st === 'rsvpd' ? <Button label={t('tickets.confirmOrCancel')} tone="secondary" size="md" onPress={() => router.push({ pathname: '/event/[id]/confirm', params: { id: event.id } })} /> : null}
@@ -174,7 +173,7 @@ export default function TicketsScreen() {
                 </Card>
               ) : null}
               <Txt variant="fine" color="muted" center>
-                {t('tickets.walletNote')}
+                {t('tickets.entranceNote')}
               </Txt>
             </VStack>
           );
@@ -359,7 +358,7 @@ function LunchPanel({ event, active, slots, tz, now, movedSlotId, canMove }: { e
                       disabled={busy !== null || on}
                       accessibilityRole="radio"
                       accessibilityState={{ selected: on, disabled: busy !== null }}
-                      style={({ pressed }) => ({ minHeight: 38, borderRadius: radii.row, borderWidth: 1, borderColor: colors.green, backgroundColor: on ? colors.green : colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
+                      style={({ pressed }) => ({ minHeight: touch.min, borderRadius: radii.row, borderWidth: 1, borderColor: colors.green, backgroundColor: on ? colors.green : colors.card, paddingHorizontal: space.md, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}>
                       <Txt variant="meta" color={on ? 'white' : 'green'} style={{ fontFamily: fonts.bodySemi }}>
                         {busy === sl.id ? t('common.saving') : formatTime(sl.starts_at, tz)}
                       </Txt>

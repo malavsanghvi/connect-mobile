@@ -161,3 +161,8 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
 export function useCategory(): CategoryValue {
   return useContext(CategoryContext);
 }
+
+/** The community's own greeting word ("Welcome", or what its organization has configured: Jain Center's is its own), for the first words of a message. */
+export function useGreeting(): string {
+  return useCategory().profile.terms.greeting;
+}

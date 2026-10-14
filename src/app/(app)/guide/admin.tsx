@@ -9,6 +9,7 @@ import { listRoster, sendToInbox, type RosterRow } from '@/lib/api/guide';
 import { formatLongDate } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useGreeting } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
@@ -21,6 +22,7 @@ import { colors, fonts, radii, space } from '@/theme';
  */
 export default function AdminScreen() {
   const t = useT();
+  const greeting = useGreeting();
   const community = useCommunity();
   const { center, member } = useApp();
   const { toast } = useFeedback();
@@ -67,7 +69,7 @@ export default function AdminScreen() {
       <ComposeSheet
         visible={!!compose}
         to={compose ? t('guide.composeTheRole', { role: compose.title }) : ''}
-        initialText={t('guide.composeDefault')}
+        initialText={t('guide.composeDefault', { greeting })}
         onClose={() => setCompose(null)}
         onSend={async (text) => {
           if (!center || !member || !compose) return;

@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { AccessibilityInfo, ActivityIndicator, AppState, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import { AiLine } from '@/components/ai-tag';
 import { Markdownish } from '@/components/markdown';
 import { Screen } from '@/components/screen';
 import { Loaded } from '@/components/states';
@@ -31,9 +32,10 @@ import {
 } from '@/lib/learning';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useGreeting } from '@/providers/category';
 import { useModule } from '@/providers/modules';
 import { useSettings } from '@/providers/settings';
-import { colors, fonts, layout, radii, space } from '@/theme';
+import { colors, fonts, layout, radii, space, touch } from '@/theme';
 
 const SUGGESTED: StringKey[] = ['niva.fabQ1', 'niva.fabQ2', 'niva.fabQ3', 'niva.q4', 'niva.q5'];
 
@@ -156,6 +158,7 @@ function BubbleText({ text, mine = false }: { text: string; mine?: boolean }) {
  */
 export default function NivaScreen() {
   const { t, scale } = useSettings();
+  const greeting = useGreeting();
   const router = useRouter();
   const { center, member, setGuest } = useApp();
   const teamOn = useModule('comms');
@@ -434,7 +437,7 @@ export default function NivaScreen() {
           accessibilityLabel={t('niva.inputLabel')}
           returnKeyType="send"
           onSubmitEditing={submit}
-          style={{ flex: 1, minHeight: 48, borderRadius: 24, borderWidth: 1, borderColor: inputError ? colors.danger : colors.borderInput, backgroundColor: colors.card, paddingHorizontal: 16, fontFamily: fonts.body, fontSize: 14 * scale, color: colors.ink }}
+          style={{ flex: 1, minHeight: 48, borderRadius: 24, borderWidth: 1, borderColor: inputError ? colors.danger : colors.borderControl, backgroundColor: colors.card, paddingHorizontal: 16, fontFamily: fonts.body, fontSize: 14 * scale, color: colors.ink }}
         />
         <Pressable
           onPress={submit}
@@ -477,7 +480,7 @@ export default function NivaScreen() {
         }}>
         <VStack gap={space.md}>
           <Bubble>
-            <BubbleText text={t('niva.greeting', { center: community })} />
+            <BubbleText text={t('niva.greeting', { center: community, greeting })} />
           </Bubble>
           {!member ? (
             <Card tone="panel">
@@ -520,7 +523,7 @@ export default function NivaScreen() {
                     disabled={saving}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: saving }}
-                    style={({ pressed }) => ({ borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: colors.brownTint, borderRadius: radii.xl, minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', opacity: saving ? 0.5 : pressed ? 0.8 : 1 })}>
+                    style={({ pressed }) => ({ borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: colors.brownTint, borderRadius: radii.xl, minHeight: touch.min, paddingHorizontal: 12, justifyContent: 'center', opacity: saving ? 0.5 : pressed ? 0.8 : 1 })}>
                     <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 13 * scale, color: colors.brownDark }}>{c}</Text>
                   </Pressable>
                 ))}
@@ -528,9 +531,7 @@ export default function NivaScreen() {
             </>
           ) : null}
 
-          <Txt variant="fine" color="muted" center>
-            {t('niva.footer', { center: community })}
-          </Txt>
+          <AiLine label="Niva">{t('niva.footer', { center: community })}</AiLine>
         </VStack>
       </ScrollView>
     </Screen>

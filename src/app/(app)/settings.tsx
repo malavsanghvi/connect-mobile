@@ -20,7 +20,7 @@ import { useModule } from '@/providers/modules';
 import { usePush } from '@/providers/push';
 import { useSettings } from '@/providers/settings';
 import type { TextSize } from '@/theme';
-import { colors, fonts, space } from '@/theme';
+import { colors, fonts, space, touch } from '@/theme';
 
 const TEXT_SIZES: { value: TextSize; key: 'settings.textStandard' | 'settings.textLarge' | 'settings.textLargest' }[] = [
   { value: 'standard', key: 'settings.textStandard' },
@@ -333,7 +333,7 @@ export default function SettingsScreen() {
             <Button label={t('settings.deactivate')} tone="outlineBrown" size="card" onPress={() => accountAction('deactivate')} busy={busy === 'deactivate'} />
           </>
         )}
-        <Pressable onPress={() => void accountAction('delete')} accessibilityRole="button" disabled={busy === 'delete'} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={() => void accountAction('delete')} accessibilityRole="button" disabled={busy === 'delete'} style={{ minHeight: touch.min, alignItems: 'center', justifyContent: 'center' }}>
           <Txt variant="smallStrong" color="danger">
             {t('settings.delete')}
           </Txt>

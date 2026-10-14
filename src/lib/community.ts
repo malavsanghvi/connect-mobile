@@ -2,7 +2,7 @@
  * "Find your community" (connect-crm docs/ONBOARDING_PLAN.md §7): one shared
  * app for every organization. The member picks a community by searching its
  * name, typing a join code, or scanning a poster's QR code
- * (communityconnect://join/<code>, or an https …/join/<code> link). Pure
+ * (weaver://join/<code>, or an https …/join/<code> link; communityconnect:// and connect:// links already printed keep working). Pure
  * helpers only; data access is src/lib/api/community.ts.
  */
 

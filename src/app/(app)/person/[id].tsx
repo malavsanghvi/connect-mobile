@@ -41,7 +41,7 @@ import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
 import { useFeedback } from '@/providers/feedback';
 import { useSettings, useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 const EXPERTISE = ['Medicine and health', 'Law', 'Tax and accounting', 'Finance and investing', 'Real estate', 'Engineering and tech', 'Education and careers', 'Business and startups', 'Arts and music'];
 
@@ -207,7 +207,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
           onPress={() => router.push({ pathname: '/member-card', params: { person: fm.person.id } })}
           accessibilityRole="button"
           accessibilityLabel={t('family.qrFor', { name: first })}
-          style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.onNavy, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+          style={({ pressed }) => ({ minHeight: touch.min, paddingHorizontal: 14, borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.onNavy, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
           <Txt variant="meta" color="white" style={{ fontFamily: fonts.bodySemi }}>
             {t('family.qr')}
           </Txt>
@@ -322,7 +322,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
                 accessibilityRole="checkbox"
                 accessibilityLabel={label}
                 accessibilityState={{ checked: on, disabled: !canEdit }}
-                style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: space.md, borderRadius: 18, borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: on ? colors.brownTint : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+                style={({ pressed }) => ({ minHeight: touch.min, paddingHorizontal: space.md, borderRadius: 18, borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: on ? colors.brownTint : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
                 <Txt variant="meta" color="brownDark" style={{ fontFamily: fonts.bodyMedium }}>
                   {label}
                 </Txt>

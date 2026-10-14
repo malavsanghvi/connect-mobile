@@ -84,16 +84,12 @@ const derivedFromKit = {
  * docs/BRAND_CONFORMANCE.md "Owner decisions", whether the kit grows to cover them or they are recoloured).
  */
 const appOnly = {
-  // Neutrals the kit lacks: placeholder and idle text, dashed borders, switches, empty stars.
-  faint: '#8A8478',
+  // Neutrals the kit lacks: dashed borders and empty stars.
   dashed: '#B9AE99',
   dashed2: '#D5CBB8',
-  toggleOff: '#CFC8BA',
   starEmpty: '#E3DCCF',
 
-  // The community accent (a community's accent colour replaces it) and the flame of the streak badge. The kit's saffron is a
-  // ground that takes ink, but these carry white glyphs and labels (3:1 or less on the kit's orange), so they stay as they were.
-  saffron: '#C9731C',
+  // The flame of the streak badge.
   flame: '#F2A03D',
   flame2: '#D9731A',
   badge: '#E8892A',
@@ -189,7 +185,30 @@ const appOnly = {
   spotFill: 'rgba(252,239,216,0.75)',
 } as const;
 
-export const colors = { ...kitColors, ...derivedFromKit, ...appOnly };
+/**
+ * TEMPORARY: colours the kit is about to define (connect-crm brand/tokens.json, being extended by the portal builder), named for the
+ * kit token each one stands in for. Each is built from kit colours so it passes the contrast the kit will promise for it.
+ * TODO(brand-tokens): when the final token table arrives, re-vendor src/brand/tokens.json, map these theme keys to the kit's names in
+ * BRAND_COLOR_MAP and delete this block (the contrast test below already checks the three that matter).
+ */
+const TEMP_ACCENT_STRONG = mixHex(brandColor('saffron'), '#000000', 0.28); // kit: a strong accent, 4.5:1 with white text (4.8:1)
+const TEMP_FAINT_TEXT = mixHex(brandColor('muted'), paper, 0.08); // kit: faint text, 4.5:1 on white, canvas and track (4.8:1 on track)
+const TEMP_CONTROL_BORDER = mixHex(brandColor('muted'), paper, 0.28); // kit: a control border, 3:1 (3.4:1 on canvas)
+const temporary = {
+  /** The community accent role (a community's accent colour replaces it); carries white glyphs and labels. */
+  saffron: TEMP_ACCENT_STRONG,
+  /** Placeholder, idle and disabled text. */
+  faint: TEMP_FAINT_TEXT,
+  /** The border of an input, and a switch that is off: what tells a control from the page. */
+  borderControl: TEMP_CONTROL_BORDER,
+  toggleOff: TEMP_CONTROL_BORDER,
+  // kit: warning tint and ink (today the ember tints; the kit names them for warnings)
+  warningTint: brandColor('saffron-50'),
+  warningBorder: brandColor('saffron-200'),
+  warningInk: brandColor('brown-900'),
+};
+
+export const colors = { ...kitColors, ...derivedFromKit, ...temporary, ...appOnly };
 
 export type ColorName = keyof typeof colors;
 
@@ -261,7 +280,8 @@ export const radii = {
   card: 14,
   /** The kit's radius-tile. */
   row: brandRadius('radius-tile'),
-  xl: 18,
+  /** List cards: the kit's radius-tile ("small cards"). Sheets and dialogs stay at the kit's radius-card (24). */
+  xl: brandRadius('radius-tile'),
   xxl: 20,
   pill: 22,
   /** The kit's radius-card. */
@@ -301,12 +321,9 @@ export const space = {
   xxl: 32,
 } as const;
 
-/**
- * Minimum touch targets (px). 44 is the platform floor for anything tappable (this repo's rule); the brand kit's
- * `tap-target` is 48 (docs/BRAND_CONFORMANCE.md, owner decision).
- */
+/** Minimum touch targets (px): the brand kit's `tap-target`, 48, for anything tappable (buttons are 52). */
 export const touch = {
-  min: 44,
+  min: brandSpace('tap-target'),
   secondary: 48,
   cta: 52,
   row: 56,
@@ -369,16 +386,16 @@ export const shadows = {
 
 /** Component specs lifted from Main.dc.html (sizes in px). */
 export const components = {
-  header: { padTop: 16, padX: 20, padBottom: 12, gap: 12, iconButton: 44, iconSize: 20, iconStroke: 2, markHeight: 46 },
+  header: { padTop: 16, padX: 20, padBottom: 12, gap: 12, iconButton: touch.min, iconSize: 20, iconStroke: 2, markHeight: 46 },
   // The kit's icons are drawn with stroke 2.
   tabBar: { height: 76, padBottom: 8, iconSize: 22, iconStroke: 2, labelSize: 12, gap: 4 },
-  button: { borderWidth: 1, cta: { h: 52, r: 26, size: 16 }, secondary: { h: 48, r: 26, size: 15 }, inCard: { h: 46, r: 22, size: 14 }, pill: { h: 44, r: 20, size: 13 } },
-  chip: { h: 44, r: 20, size: 14 },
-  layerChip: { h: 40, r: 18, size: 13, borderWidth: 1.5, dot: 10 },
+  button: { borderWidth: 1, cta: { h: 52, r: 26, size: 16 }, secondary: { h: 48, r: 26, size: 15 }, inCard: { h: touch.min, r: 22, size: 14 }, pill: { h: touch.min, r: 20, size: 13 } },
+  chip: { h: touch.min, r: 20, size: 14 },
+  layerChip: { h: touch.min, r: 18, size: 13, borderWidth: 1.5, dot: 10 },
   input: { h: 48, r: 12, size: 15, borderWidth: 1, labelSize: 13 },
   signInInput: { h: 52, r: 14, size: 16 },
-  card: { r: 18, padY: 14, padX: 16, hero: { r: 20, pad: 16 } },
-  segmented: { trackR: 14, trackPad: 4, gap: 4, itemR: 10, h: 44, size: 14 },
+  card: { r: brandRadius('radius-tile'), padY: 14, padX: 16, hero: { r: 20, pad: 16 } },
+  segmented: { trackR: 14, trackPad: 4, gap: 4, itemR: 10, h: touch.min, size: 14 },
   toggle: { w: 46, h: 28, knob: 22 },
   checkbox: { size: 24, r: 6, borderWidth: 2 },
   toast: { top: 76, x: 20, r: 14, padY: 12, padX: 14, size: 14 },

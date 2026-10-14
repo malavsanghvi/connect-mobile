@@ -14,7 +14,7 @@ import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 import {
   ACTION_CONFIRM_CHANGE,
@@ -310,7 +310,7 @@ export function ConfirmPopupProvider({ children }: { children: ReactNode }) {
                 {error ? <Banner tone="error" message={error} /> : null}
                 <Button label={t('events.yesComing')} tone="green" onPress={yes} busy={busy} />
                 <Button label={t('events.changeOrCancel')} tone="secondary" size="md" onPress={change} disabled={busy} />
-                <Pressable onPress={() => void close(true)} accessibilityRole="button" style={({ pressed }) => ({ minHeight: 44, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+                <Pressable onPress={() => void close(true)} accessibilityRole="button" style={({ pressed }) => ({ minHeight: touch.min, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
                   <Txt variant="smallStrong" color="muted">
                     {t('notif.remindLater')}
                   </Txt>

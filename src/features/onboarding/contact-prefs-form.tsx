@@ -14,7 +14,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
 import { useSettings } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 export type ContactSummary = { channels: ContactChannel[]; physicalMail: boolean | null };
 
@@ -195,7 +195,7 @@ function Editor({ initial, member, centerId, onSaved, preview }: { initial: Cont
                 accessibilityRole="checkbox"
                 accessibilityLabel={label}
                 accessibilityState={{ checked: on }}
-                style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: on ? colors.brownTint : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+                style={({ pressed }) => ({ minHeight: touch.min, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.brownBorder, backgroundColor: on ? colors.brownTint : colors.card, justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
                 <Txt variant="meta" color="brownDark" style={{ fontFamily: fonts.bodyMedium }}>
                   {label}
                 </Txt>

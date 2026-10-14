@@ -21,7 +21,7 @@ import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space } from '@/theme';
+import { colors, fonts, radii, space, touch } from '@/theme';
 
 type Data = AlbumDetail & { urls: Record<string, string>; urlError: string | null };
 
@@ -154,7 +154,7 @@ function Viewer({ data, index, onIndex, onClose }: { data: Data; index: number; 
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.viewerBg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingTop: 18, paddingHorizontal: space.lg, paddingBottom: 10 }}>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('photos.closeViewer')} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.viewerButton, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('photos.closeViewer')} style={{ width: touch.min, height: touch.min, borderRadius: touch.min / 2, backgroundColor: colors.viewerButton, alignItems: 'center', justifyContent: 'center' }}>
             <StrokeIcon name="close" size={16} color={colors.white} strokeWidth={2} />
           </Pressable>
           <View style={{ flex: 1 }}>
