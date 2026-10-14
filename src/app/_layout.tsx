@@ -126,8 +126,9 @@ function RootNavigator() {
   const t = useT();
 
   if (!app.configured) return <SetupScreen />;
-  // "Try the demo": choosing who to be (from the button, from /demo, or after a demo ended) comes before any community.
-  if (demo.choosing) return <DemoChooserScreen />;
+  // "Try the demo": choosing a demo community (from the button, from /demo, or after a demo ended) comes before any community. Choosing
+  // who to be happens over the running demo community instead (below), so the screen the visitor was on is still there under it.
+  if (demo.chooser === 'community') return <DemoChooserScreen />;
   // A new install (or Settings › Switch community): choose the community first.
   if (app.needsCommunity || app.choosingCommunity) return <FindCommunityScreen />;
   if (app.booting) return <FullScreenLoading />;
@@ -183,6 +184,12 @@ function RootNavigator() {
         <Stack.Screen name="e/[id]" />
         <Stack.Screen name="demo" />
       </Stack>
+      {/* "Be someone in the demo" / "Switch person": the demo people over the running demo, which keeps its place under them. */}
+      {demo.chooser === 'person' ? (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <DemoChooserScreen />
+        </View>
+      ) : null}
       {/* A flyer's QR link that switched community opens again once the navigator is back. */}
       <ReopenEventLink />
       {/* The legal step (#20) covers the app until the member's answers are recorded; the

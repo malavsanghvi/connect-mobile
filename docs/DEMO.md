@@ -18,7 +18,8 @@ communities start over every night. The portal side (the endpoints, the limits, 
    community, and `AppProvider` reports `guest: true` (the app's existing guest mode: Home with the public events and the guest sign-in
    card, the guide, alerts, the store, per the community's access levels).
 3. **Be someone in the demo** (step 2, `DemoPersonStepView`): from the guest strip, from any "Sign in" button in the guest app
-   (`setGuest(false)` opens the people instead of the real sign-in), or from "Switch person". The people of the community being looked
+   (`setGuest(false)` opens the people instead of the real sign-in), or from "Switch person". It is drawn **over** the running demo, so
+   Back returns to the screen the visitor was on. The people of the community being looked
    at come in two sections, **Community roles** first and **Non-profit operational roles** second, each a large card (role, name, one
    sentence). A portal that sends no `area` gets one plain list. **Start** calls `POST /api/demo/session`, stores the tokens with
    `supabase.auth.setSession` (the same client and storage as a normal sign-in), asks the database who the person is

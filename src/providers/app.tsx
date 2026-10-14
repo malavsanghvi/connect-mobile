@@ -122,9 +122,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // The web address (jsh.weaverams.org) → saved choice → the build's default for an
   // install that is already signed in (existing JSH members see no new step) → none
   // ("Find your community"). On app.weaverams.org a plain visit always shows the list.
-  // (A demo that is being started or checked holds the choice back, so no other community flashes first.)
+  // (A demo person who is being started, with no demo community open yet, holds the choice back, so no other community flashes first;
+  // from a guest look around the community is open already and stays.)
   const slug =
-    saved === undefined || !sessionReady || openedAt === undefined || !demo.ready || demo.starting
+    saved === undefined || !sessionReady || openedAt === undefined || !demo.ready || (demo.starting && !demo.slug)
       ? undefined
       : communityToOpen({ saved, signedIn: !!session, defaultSlug: env.centerSlug, openedAt, hostSlug, pickerHost, demoSlug: demo.slug });
   const centerKey = `${slug ?? ''}#${bootNonce}`;
