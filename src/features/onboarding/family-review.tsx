@@ -15,7 +15,7 @@ import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space, touch } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
 import { ProfileFields } from './profile-fields';
 
@@ -199,7 +199,7 @@ export function FamilyReview({ onContinue, readOnly = false }: { onContinue?: ()
                   {summary}
                 </Txt>
               </View>
-              {canEdit ? <Button label={open ? t('common.done') : t('common.edit')} tone="secondary" size="sm" fill={false} busy={open && saving} onPress={() => void toggleEdit(fm.person.id)} style={{ minHeight: touch.min }} /> : null}
+              {canEdit ? <Button label={open ? t('common.done') : t('common.edit')} tone="secondary" size="sm" fill={false} busy={open && saving} onPress={() => void toggleEdit(fm.person.id)} /> : null}
             </Row>
             {open ? (
               <PersonEditor

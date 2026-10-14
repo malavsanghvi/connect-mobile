@@ -195,6 +195,28 @@ export function mixHex(a: string, b: string, t: number): string {
 }
 
 /**
+ * The theme colours that were once a hue per part of the product (the store's green, Pathshala's purple, maroon) and are now the
+ * navy family under their old names: the brand kit has no colour per module. `src/theme.ts` reads them from the kit's navy and
+ * `brandPalette` from a community's primary, so a tag is always the community's own primary or Weaver's indigo.
+ */
+export const MODULE_TAG_COLORS = {
+  purple: 'navy',
+  purpleTint: 'navyTint',
+  onPurple: 'onNavy',
+  purpleBorder: 'navyBorder',
+  purpleBg: 'navyTint',
+  purpleDark: 'navyHover',
+  album: 'navy',
+  store: 'navy',
+  storeLight: 'navyPanel',
+  onStore: 'onNavy',
+  storeTint: 'navyTint',
+  maroon: 'navy',
+  maroonButton: 'navy',
+  onMaroon: 'onNavy',
+} as const;
+
+/**
  * The theme colours derived from a community's primary and accent. Only the
  * keys that change are returned; the default palette (JSH navy and saffron)
  * is kept for anything the brand kit does not set.
@@ -212,6 +234,7 @@ export function brandPalette(branding: unknown): Record<string, string> {
     out.navyBorder = mixHex(primary, '#FFFFFF', 0.68);
     out.navyDisabled = mixHex(primary, '#FFFFFF', 0.45);
     out.onNavy = mixHex(primary, '#FFFFFF', 0.78);
+    for (const [key, from] of Object.entries(MODULE_TAG_COLORS)) out[key] = out[from];
   }
   if (accent) out.saffron = accent;
   return out;

@@ -74,7 +74,7 @@ export default function ZonesScreen() {
             onSubmitEditing={find}
             accessibilityLabel={t('guide.zip')}
             placeholderTextColor={colors.faint}
-            style={{ flex: 1, minHeight: 50, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.card, paddingHorizontal: 14, fontFamily: fonts.body, fontSize: 17 * scale, color: colors.ink }}
+            style={{ flex: 1, minHeight: 50, borderRadius: radii.field, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.card, paddingHorizontal: 14, fontFamily: fonts.body, fontSize: 17 * scale, color: colors.ink }}
           />
           <Button label={t('guide.findZone')} size="md" fill={false} onPress={find} busy={busy} style={{ minHeight: 50, borderRadius: radii.lg }} />
         </View>

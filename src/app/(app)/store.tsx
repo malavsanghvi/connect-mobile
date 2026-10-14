@@ -18,7 +18,7 @@ import { useApp } from '@/providers/app';
 import { useCart } from '@/providers/cart';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, shadows, space, touch } from '@/theme';
+import { colors, fonts, radii, shadows, space } from '@/theme';
 
 function ItemPhoto({ url }: { url: string | undefined }) {
   const [failed, setFailed] = useState(false);
@@ -145,7 +145,7 @@ export default function StoreScreen() {
                         {giftCents !== null && item.gift_pack ? <GiftToggle grow on={gifted} label={giftLabel(gifted)} onPress={() => cart.setGiftQty(item.id, gifted ? 0 : line.qty)} /> : null}
                       </Row>
                     ) : (
-                      <Button label={t('store.add')} accessibilityLabel={t('store.addItem', { name: item.name })} tone="outlineStore" size="sm" style={{ minHeight: touch.min, borderRadius: radii.pill }} onPress={() => setQty(item, 1)} />
+                      <Button label={t('store.add')} accessibilityLabel={t('store.addItem', { name: item.name })} tone="outlineStore" size="sm" style={{ borderRadius: radii.pill }} onPress={() => setQty(item, 1)} />
                     )}
                   </Card>
                 );

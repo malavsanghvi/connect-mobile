@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 
 import { Qr } from '@/components/qr';
 import { Screen } from '@/components/screen';
-import { Button, Txt } from '@/components/ui';
+import { Button, dotted, Ident, Txt } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { fullName } from '@/lib/format';
 import { ageOn } from '@/lib/rules';
@@ -30,8 +30,14 @@ export default function MemberCardScreen() {
   const fm = member.members.find((m) => m.person.id === (selectedId ?? member.person.id)) ?? member.members[0];
   const age = ageOn(fm.person.date_of_birth, member.today);
   const tierOne = member.membership?.status === 'active' ? t(`tierOne.${member.membership.tier}` as 'tierOne.life') : null;
-  const id = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
-  const tag = [roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id].filter(Boolean).join(' · ');
+  const id = fm.orgMemberId ? (
+    <>
+      {orgMemberLabel} <Ident>{fm.orgMemberId}</Ident>
+    </>
+  ) : fm.person.member_number ? (
+    <Ident>{fm.person.member_number}</Ident>
+  ) : null;
+  const tag = dotted([roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id]);
 
   return (
     <Screen title={t('card.title')}>

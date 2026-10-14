@@ -1,4 +1,4 @@
-import { Children, type ReactNode } from 'react';
+import { Children, Fragment, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -41,7 +41,8 @@ export type TxtVariant =
   | 'caption'
   | 'eyebrow'
   | 'fine'
-  | 'badge';
+  | 'badge'
+  | 'identifier';
 
 const variants: Record<TxtVariant, TextStyle> = {
   // Display faces are tracked tight, as the brand kit's hero, heading and heading-sm styles say (em x size, in px).
@@ -62,6 +63,8 @@ const variants: Record<TxtVariant, TextStyle> = {
   eyebrow: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption, lineHeight: 16, letterSpacing: tracking.eyebrow, textTransform: 'uppercase' },
   fine: { fontFamily: fonts.body, fontSize: typeScale.fine, lineHeight: 15 },
   badge: { fontFamily: fonts.bodyBold, fontSize: typeScale.badge, lineHeight: 13, letterSpacing: 0.6, textTransform: 'uppercase' },
+  // The kit's `identifier` style (13.5px, line 1.4, weight 500): a number or code, in JetBrains Mono. Never running text or an amount.
+  identifier: { fontFamily: fonts.mono, fontSize: typeScale.identifier, lineHeight: Math.round(typeScale.identifier * 1.4) },
 };
 
 export type TxtProps = TextProps & {
@@ -70,6 +73,17 @@ export type TxtProps = TextProps & {
   center?: boolean;
   style?: StyleProp<TextStyle>;
 };
+
+/** An identifier (a receipt, pledge, household or member number, a code) inside a line of text, in the kit's mono face. */
+export function Ident({ children }: { children: string }) {
+  return <Text style={{ fontFamily: fonts.mono }}>{children}</Text>;
+}
+
+/** The parts of a meta line joined with " · ", the empty ones dropped; a part may hold an <Ident>. */
+export function dotted(parts: ReactNode[]): ReactNode[] {
+  const kept = parts.filter((p) => p !== null && p !== undefined && p !== false && p !== '');
+  return kept.flatMap((p, i) => (i === 0 ? [<Fragment key={i}>{p}</Fragment>] : [' · ', <Fragment key={i}>{p}</Fragment>]));
+}
 
 /** All text goes through Txt so the member's text-size setting applies everywhere. */
 export function Txt({ variant = 'body', color = 'ink', center, style, ...rest }: TxtProps) {
@@ -95,7 +109,8 @@ export function Txt({ variant = 'body', color = 'ink', center, style, ...rest }:
 /**
  * Pill buttons, label weight 700 (the brand kit's button style). Filled: navy primary (pressed: the kit's navy-hover), green,
  * brown, purple, black, store, maroon, danger; `gold` is the kit's button for a navy ground (gold fill, navy label, a lighter gold
- * when pressed). `secondary` is the kit's ghost button: white fill, a 2px border of navy at 20%
+ * when pressed); `accent` is the kit's warm button (strong sunrise fill, white label, brown when pressed) for the rare action that
+ * should feel warm, never a second primary. Every button is the kit's `control-primary` height (52) on a phone. `secondary` is the kit's ghost button: white fill, a 2px border of navy at 20%
  * (navy when pressed), navy text. The other outlined tones (white fill, coloured 1px border and text) are the app's own:
  * outlineGreen, outlineBrown, outlinePurple, outlineDanger, outlineStore, outlineBlack.
  */
@@ -112,6 +127,7 @@ export type ButtonTone =
   | 'black'
   | 'light'
   | 'gold'
+  | 'accent'
   | 'outlineGreen'
   | 'outlineBrown'
   | 'outlinePurple'
@@ -133,6 +149,7 @@ const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?:
   black: { bg: colors.black, fg: 'white' },
   light: { bg: colors.white, fg: 'navy' },
   gold: { bg: colors.gold, fg: 'navy' },
+  accent: { bg: colors.saffron, fg: 'white' },
   outlineGreen: { bg: colors.card, fg: 'green', border: colors.green },
   outlineBrown: { bg: colors.card, fg: 'brown', border: colors.brown },
   outlinePurple: { bg: colors.card, fg: 'purple', border: colors.purple },
@@ -141,12 +158,12 @@ const buttonTones = (): Record<ButtonTone, { bg: string; fg: ColorName; border?:
   outlineBlack: { bg: colors.card, fg: 'black', border: colors.black },
 });
 
-/** cta 52/r26/16 · md 48/r26/15 · card 48 (touch.min)/r22/14 (buttons inside cards) · sm 48 (touch.min)/r20/13. */
+/** Every size is the kit's control-primary height (52, touch.cta); the sizes differ in label and padding: cta 16 · md 15 · card 14 (buttons inside cards) · sm 13. */
 const buttonSizes = {
   cta: { h: touch.cta, r: radii.cta, font: typeScale.section, padX: space.gutter },
-  md: { h: touch.secondary, r: radii.cta, font: typeScale.body, padX: space.lg },
-  card: { h: touch.min, r: radii.pill, font: typeScale.bodySmall, padX: space.lg },
-  sm: { h: touch.min, r: radii.xxl, font: typeScale.meta, padX: 14 },
+  md: { h: touch.cta, r: radii.cta, font: typeScale.body, padX: space.lg },
+  card: { h: touch.cta, r: radii.pill, font: typeScale.bodySmall, padX: space.lg },
+  sm: { h: touch.cta, r: radii.xxl, font: typeScale.meta, padX: 14 },
 } as const;
 
 export type ButtonProps = {
@@ -171,8 +188,8 @@ export function Button({ label, onPress, tone = 'primary', size = 'cta', disable
   const inactive = disabled || busy;
   const filled = !t.border && tone !== 'ghost' && tone !== 'light';
   const bg = inactive && filled ? colors.navyDisabled : t.bg;
-  const hover = (tone === 'primary' || tone === 'gold') && !inactive;
-  const hoverBg = tone === 'gold' ? mixHex(colors.gold, colors.white, 0.3) : colors.navyHover;
+  const hover = (tone === 'primary' || tone === 'gold' || tone === 'accent') && !inactive;
+  const hoverBg = tone === 'gold' ? mixHex(colors.gold, colors.white, 0.3) : tone === 'accent' ? colors.brown : colors.navyHover;
   const fg: ColorName = inactive && !filled ? 'faint' : t.fg;
   return (
     <Pressable
@@ -668,9 +685,9 @@ export function Stepper({ valueLabel, onMinus, onPlus, minusDisabled, plusDisabl
  * (52px, radius 14, 16px); `size="sm"` = compact forms (44px, radius 10, 14px).
  */
 const fieldSizes = {
-  sm: { h: touch.min, r: radii.md, font: typeScale.bodySmall, padX: 10 },
-  md: { h: 48, r: radii.lg, font: typeScale.body, padX: space.md },
-  lg: { h: touch.cta, r: radii.card, font: typeScale.section, padX: 14 },
+  sm: { h: touch.min, r: radii.field, font: typeScale.section, padX: 10 },
+  md: { h: touch.cta, r: radii.field, font: typeScale.section, padX: space.md },
+  lg: { h: touch.cta, r: radii.field, font: typeScale.section, padX: 14 },
 } as const;
 
 export function TextField({ label, hint, error, style, size = 'md', ...input }: TextInputProps & { label: string; hint?: string; error?: string | null; size?: keyof typeof fieldSizes }) {
@@ -750,7 +767,7 @@ const pillTones = (): Record<PillTone, { bg: string; fg: ColorName }> => ({
 export function Pill({ label, tone = 'grey' }: { label: string; tone?: PillTone }) {
   const t = pillTones()[tone];
   return (
-    <View style={{ backgroundColor: t.bg, borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' }}>
+    <View style={{ backgroundColor: t.bg, borderRadius: radii.tag, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' }}>
       <Txt variant="caption" color={t.fg} style={{ fontFamily: tone === 'live' ? fonts.bodyBold : fonts.bodySemi }}>
         {label}
       </Txt>
@@ -791,10 +808,10 @@ export function Stat({ label, value, sub, color = 'ink' }: { label: string; valu
 export type BannerTone = 'info' | 'success' | 'warning' | 'error';
 
 // Read at render time, so the community's brand colours (theme.ts applyPalette) apply.
-const bannerTones = (): Record<BannerTone, { bg: string; border: string; fg: ColorName; icon: IconName }> => ({
+const bannerTones = (): Record<BannerTone, { bg: string; border: string; fg: ColorName; icon: IconName; iconColor?: ColorName }> => ({
   info: { bg: colors.navyTint, border: colors.navyBorder, fg: 'navy', icon: 'information-circle' },
   success: { bg: colors.greenTint, border: colors.greenBorder, fg: 'greenDark', icon: 'checkmark' },
-  warning: { bg: colors.warningTint, border: colors.warningBorder, fg: 'warningInk', icon: 'alert-circle' },
+  warning: { bg: colors.warningTint, border: colors.warningBorder, fg: 'warningInk', icon: 'alert-circle', iconColor: 'warning' },
   error: { bg: colors.dangerTint, border: colors.danger, fg: 'danger', icon: 'alert-circle' },
 });
 
@@ -806,7 +823,7 @@ export function Banner({ tone = 'info', title, message, action }: { tone?: Banne
       accessibilityLiveRegion={tone === 'error' ? 'assertive' : 'polite'}
       style={{ backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, borderRadius: radii.card, padding: space.md, gap: space.sm }}>
       <Row align="flex-start" gap={space.sm}>
-        <Icon name={t.icon} size={20} color={colors[t.fg]} />
+        <Icon name={t.icon} size={20} color={colors[t.iconColor ?? t.fg]} />
         <View style={{ flex: 1, gap: 2 }}>
           {title ? (
             <Txt variant="smallStrong" color={t.fg}>

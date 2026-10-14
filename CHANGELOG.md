@@ -16,24 +16,30 @@ How a release is made:
 
 ## 1.19.1 — 2026-10-14
 
-- **The app follows the Weaver brand kit.** Weaver's own look now comes from the brand kit in connect-crm (`brand/`), copied here as
-  `src/brand/tokens.json`. docs/BRAND_CONFORMANCE.md lists what was compared, what was fixed and how each of the twelve decisions was
-  settled (the owner said "go with your recommendations"). A community's own name, logo and colours are still its own and still
-  replace Weaver's.
-  - Colours: the page, cards, borders, text, the primary indigo (`#2b2a8a`, in place of the dark navy), ember brown, gold, the warm
-    tints and the lighter indigos are the kit's. About 80% of the colour references in screens are on kit colours; the colours the
-    kit has no token for (purple, store green, the volunteer board and so on) are kept and listed.
-  - Temporary colours, until the kit's new tokens arrive (named `TEMP_*` in `src/theme.ts`): a strong accent that passes 4.5:1 with
-    white, a lighter text colour at 4.5:1 (the old one was 3.7:1), and a 3:1 border for inputs and switches.
-  - Type: Bricolage Grotesque for headings (in place of Fraunces) and Hanken Grotesk for text (in place of DM Sans), bundled with the
-    app, headings tracked tight, button labels bold. The web build falls back through the kit's font stack, not the browser's serif.
-  - Buttons, icons and targets: the outlined button is the kit's ghost button (2px border of navy at 20%); the primary button darkens to
-    the kit's hover indigo when pressed; the action on a navy card is the kit's gold button; everything tapped is at least 48px (the
-    kit's tap target, up from 44); list cards have the kit's 16px corners; all 21 of the kit's icons are in the app and drawn
-    where the kit covers an icon (tick, close, calendar, people, ticket, card, book, chevrons), stroke 2; keyboard focus on the web
-    shows the kit's ring.
+- **The app follows the Weaver brand kit.** Weaver's own look now comes from the brand kit in connect-crm (`brand/`, version 2),
+  copied here as `src/brand/tokens.json`. docs/BRAND_CONFORMANCE.md lists what was compared, what was fixed and how each of the
+  twelve decisions was settled (the owner said "go with your recommendations"). A community's own name, logo and colours are still
+  its own and still replace Weaver's.
+  - Colours: the page, cards, borders, text (including the kit's lighter `faint`, 5.2:1 on white, in place of 3.7:1), the primary
+    indigo (`#2b2a8a`, in place of the dark navy), ember brown, gold, the warm tints, the warning colours and the lighter indigos are
+    the kit's; about 90% of the colour references in screens are on kit colours. The accent (a community's accent still replaces it)
+    is the kit's strong sunrise, white labels on it at 4.7:1. Inputs and switches are outlined in the kit's 3.5:1 control border.
+  - Module tags and tiles are one hue, navy: the store's green, Pathshala's purple and maroon are the navy family now (a community's
+    own primary too), and the drawer's and the guide's tiles are navy on navy-50.
+  - Type: Bricolage Grotesque for headings (in place of Fraunces), Hanken Grotesk for text (in place of DM Sans) and JetBrains Mono
+    for identifiers, all bundled with the app; headings tracked tight, button labels bold. Member, household and pledge numbers on
+    Family, the member card, a person's page, Pledges, the Zelle report and a ticket's pledge line are in the mono face. The web build
+    falls back through the kit's font stack, not the browser's serif.
+  - Buttons, fields and targets: the outlined button is the kit's ghost button (2px border of navy at 20%); the primary button
+    darkens to the kit's hover indigo when pressed; the action on a navy card is the kit's gold button, and there is an accent
+    button; every button is 52px tall; text fields and selects are the kit's 12px radius, 16px text and 52px; tags are the kit's 8px
+    radius; everything tapped is at least 48px (up from 44); list cards have the kit's 16px corners; keyboard focus on the web shows
+    the kit's ring.
+  - Icons: all 42 of the kit's icons are in the app, drawn exactly as the kit's files, and used where the kit covers an icon (tick,
+    close, plus, alert, info, eye, pencil, file, calendar, people, ticket, card, book, chevrons and more), stroke 2. About 50
+    Ionicons remain; the docs list them.
   - Niva carries the kit's AI tag: the chat's small print is now an AI line ("Niva" and the sentence that names who decides), and the
-    drawer's and the guide's Ask Niva entries show the tag.
+    drawer's and the guide's Ask Niva entries show the tag; its drawer tile is navy-50 with an ink sparkle.
   - The Weaver lockup (mark, name and "Community management platform") shows on Find your community and on the setup screen.
   - Wording (English): no exclamation marks and no "coming soon". Greetings come from the community's own greeting word (the welcome
     screen, Niva's first line and the two guide message starters), so no tradition's greeting shows by default; "Anumodana" is a plain
@@ -51,8 +57,9 @@ How a release is made:
   splash puts the mark on a white tile), the Android notification icon and tint, the `app.json` colours, and the new `weaver` link
   scheme. Until then installed apps keep the old icon and splash and do not answer `weaver://` links (the older two still work), and
   run the new JavaScript fine.
-- **Still to come when the kit's new tokens arrive:** the kit's own accent, faint text and control border (replacing the temporary
-  ones), module tags in navy only, JetBrains Mono for identifiers, and the field and tag radii.
+- **Not done yet:** the kit's rule that the smallest text on a touch surface is 14.5px (the app's small text is 9 to 13px; raising it
+  reflows most screens and needs a look at the signed-in screens first), and the join-code field in the community finder in the mono
+  face (that screen is being changed elsewhere).
 
 ## 1.19.0 — 2026-10-13
 

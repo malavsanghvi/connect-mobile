@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded } from '@/components/states';
-import { Banner, Button, Card, Chip, ChipGroup, Divider, TextField, Toggle, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, Chip, ChipGroup, Divider, dotted, Ident, TextField, Toggle, Txt, VStack } from '@/components/ui';
 import { roleLabel } from '@/features/labels';
 import { ProfileFields } from '@/features/onboarding/profile-fields';
 import { MoreAboutYou } from '@/features/profile-details/more-about-you';
@@ -119,8 +119,14 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
   const withContact = adult && canEdit;
   const first = fm.person.preferred_name || fm.person.first_name;
   const age = ageOn(fm.person.date_of_birth, member.today);
-  const idText = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
-  const heroLine = [recordedRelationship, age != null ? String(age) : null, idText].filter(Boolean).join(' · ');
+  const idText = fm.orgMemberId ? (
+    <>
+      {orgMemberLabel} <Ident>{fm.orgMemberId}</Ident>
+    </>
+  ) : fm.person.member_number ? (
+    <Ident>{fm.person.member_number}</Ident>
+  ) : null;
+  const heroLine = dotted([recordedRelationship, age != null ? String(age) : null, idText]);
 
   // Every control clears the "Saved" state so the button reads "Save changes" again.
   const edit =

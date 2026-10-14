@@ -32,7 +32,8 @@ export function useDrawer(): DrawerContextValue {
 type Tint = 'brown' | 'navy' | 'green' | 'grey';
 
 // Read at render time, so the community's brand colours apply.
-const tints = (): Record<Tint, string> => ({ brown: colors.brownTint, navy: colors.navyTint, green: colors.greenTint, grey: colors.chip });
+// Tiles for the parts of a product are one hue, navy on navy-50 (the brand kit has no colour per module).
+const tints = (): Record<Tint, string> => ({ brown: colors.navyTint, navy: colors.navyTint, green: colors.navyTint, grey: colors.chip });
 
 /** Main drawer row (prototype Main L1355): 64px, 44px tinted tile, 16/600 title, 12 muted sub, › chevron. */
 function Item({ glyph, tint, iconColor = colors.navy, title, sub, onPress, aiTag }: { glyph: StrokeIconName; tint: Tint; iconColor?: string; title: string; sub?: string; onPress: () => void; aiTag?: boolean }) {
@@ -151,12 +152,12 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
             </View>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: space.sm }}>
               <View style={{ gap: 2 }}>
-                {member?.isAdult && on('donations') ? <Item glyph="heart" tint="brown" title={t('drawer.donations')} sub={t('drawer.donationsSub')} onPress={() => go('/pledges')} /> : null}
+                {member?.isAdult && on('donations') ? <Item glyph="heart" tint="navy" title={t('drawer.donations')} sub={t('drawer.donationsSub')} onPress={() => go('/pledges')} /> : null}
                 {member && on('pathshala') ? <Item glyph="book" tint="navy" title={t('drawer.pathshala')} sub={t('drawer.pathshalaSub')} onPress={() => go({ pathname: '/jain-way', params: { tab: 'three_l', section: 'learn' } })} /> : null}
                 {on('rsvp') ? <Item glyph="calendar-check" tint="navy" title={t('drawer.rsvp')} sub={t('drawer.rsvpSub')} onPress={() => go('/events')} /> : null}
-                {on('store') ? <Item glyph="bag" tint="green" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} /> : null}
-                {on('calendar') ? <Item glyph="calendar-dots" tint="brown" iconColor={colors.brown} title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} /> : null}
-                {on('niva') ? <Item glyph="sparkle" tint="brown" iconColor={colors.brown} aiTag title={t('drawer.niva')} sub={t('drawer.nivaSub')} onPress={() => go('/niva')} /> : null}
+                {on('store') ? <Item glyph="bag" tint="navy" title={t('drawer.store')} sub={t('drawer.storeSub')} onPress={() => go('/store')} /> : null}
+                {on('calendar') ? <Item glyph="calendar-dots" tint="navy" title={t('drawer.calendar')} sub={t('drawer.calendarSub')} onPress={() => go({ pathname: '/events', params: { view: 'calendar' } })} /> : null}
+                {on('niva') ? <Item glyph="sparkle" tint="navy" iconColor={colors.ink} aiTag title={t('drawer.niva')} sub={t('drawer.nivaSub')} onPress={() => go('/niva')} /> : null}
               </View>
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 10, marginVertical: 10 }} />
               <View style={{ gap: 2 }}>
@@ -176,7 +177,7 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
             </ScrollView>
             <View style={{ paddingTop: space.sm, paddingHorizontal: space.sm, paddingBottom: space.xl, borderTopWidth: 1, borderTopColor: colors.border }}>
               {member ? (
-                <Item glyph="gear" tint="navy" title={t('drawer.settings')} sub={t('drawer.settingsSub')} onPress={() => go('/settings')} />
+                <Item glyph="settings" tint="navy" title={t('drawer.settings')} sub={t('drawer.settingsSub')} onPress={() => go('/settings')} />
               ) : guest ? (
                 <Item
                   glyph="sign-in"

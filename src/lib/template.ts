@@ -356,7 +356,7 @@ export const SURFACE_PALETTES: Record<Surface, Record<string, string>> = {
 };
 
 /** Corner radii (src/theme.ts `radii`) for the crisp look; 'soft' is the built-in. The fully round ones stay round. */
-export const CRISP_RADII: Record<string, number> = { xs: 2, check: 3, sm: 3, md: 4, lg: 5, card: 6, row: 6, xl: 8, xxl: 8, pill: 10, sheet: 12, cta: 12, cart: 12 };
+export const CRISP_RADII: Record<string, number> = { xs: 2, check: 3, sm: 3, md: 4, lg: 5, field: 5, tag: 3, card: 6, row: 6, xl: 8, xxl: 8, pill: 10, sheet: 12, cta: 12, cart: 12 };
 
 export type ResolvedTheme = {
   /** Theme colours to lay UNDER the brand kit (src/theme.ts applyTemplateTheme): the surface, then the primary and accent. */

@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { en } from '../../i18n/en';
+import { brandPalette } from '../../lib/community';
 import { colors, fonts, BRAND_COLOR_MAP, displayTracking, radii, space, touch } from '../../theme';
 import {
   BRAND_COLOR_NAMES,
@@ -137,11 +138,14 @@ describe('brand conformance: colours', () => {
       ['white', 'green', 'success button label'],
     ];
     pairs.push(
-      ['white', 'saffron', 'white label on the accent'],
-      ['faint', 'card', 'placeholder and idle text on cards'],
+      ['white', 'saffron', 'white label on the accent (saffron-strong, 4.7:1)'],
+      ['saffron', 'card', 'accent text on white'],
+      ['faint', 'card', 'placeholder and idle text on cards (5.2:1)'],
       ['faint', 'ground', 'placeholder and idle text on the page'],
       ['faint', 'panel', 'idle text on a panel'],
-      ['warningInk', 'warningTint', 'warning text'],
+      ['warning', 'card', 'warning icon and text on white (5.9:1)'],
+      ['warning', 'warningTint', 'warning icon on its tint (5.5:1)'],
+      ['warningInk', 'warningTint', 'warning text (8.6:1)'],
     );
     const low = pairs.filter(([fg, bg]) => ratio((colors as Record<string, string>)[fg], (colors as Record<string, string>)[bg]) < 4.5).map(([fg, bg, what]) => `${fg} on ${bg} (${what})`);
     expect(low).toEqual([]);
@@ -181,10 +185,36 @@ describe('brand conformance: the vendored kit has what the theme reads', () => {
     expect(space.gutter).toBe(brandSpace('gutter'));
   });
 
-  it("names the kit's two faces: Bricolage Grotesque for display, Hanken Grotesk for text", () => {
+  it("names the kit's three faces: Bricolage Grotesque for display, Hanken Grotesk for text, JetBrains Mono for identifiers", () => {
     expect(brandFace('display')).toBe('Bricolage Grotesque');
     expect(brandFace('sans')).toBe('Hanken Grotesk');
+    expect(brandFace('mono')).toBe('JetBrains Mono');
     expect(brandFallbackCss('sans')).toContain('system-ui');
+    expect(brandFallbackCss('mono')).toContain('monospace');
+    expect(fonts.mono).toContain('JetBrainsMono_500Medium');
+    expect(brandTypeStyle('identifier')).toMatchObject({ fontSize: 13.5, fontWeight: 500 });
+  });
+
+  it("reads the kit's v2 tokens: strong accent, control border, faint, warning, field and tag radii, control sizes", () => {
+    expect(brandColor('saffron-strong')).toBe('#c2501c');
+    expect(brandColor('line-control')).toBe('#85889e');
+    expect(brandColor('faint')).toBe('#666b86');
+    expect(brandColor('warning-ink')).toBe('#6d3b07');
+    expect(radii.field).toBe(brandRadius('radius-field'));
+    expect(radii.tag).toBe(brandRadius('radius-tag'));
+    expect(touch.cta).toBe(brandSpace('control-primary'));
+    expect([brandSpace('control-primary'), brandSpace('control-compact'), brandSpace('control-dense')]).toEqual([52, 40, 36]);
+    // The temporary stand-ins are gone: the theme names the kit's tokens.
+    expect(fs.readFileSync(path.join(srcDir, 'theme.ts'), 'utf8')).not.toMatch(/TEMP_|TODO\(brand-tokens\)/);
+  });
+
+  it('keeps module tags and tiles to one hue, navy: the colours that had a hue per module are the navy family, a community primary included', () => {
+    for (const key of ['purple', 'store', 'maroon', 'album'] as const) expect([key, colors[key]]).toEqual([key, colors.navy]);
+    expect(colors.purpleTint).toBe(colors.navyTint);
+    expect(colors.storeTint).toBe(colors.navyTint);
+    const own = brandPalette({ colors: { primary: '#0A3D2E' } });
+    expect(own.purple).toBe('#0A3D2E');
+    expect(own.storeTint).toBe(own.navyTint);
   });
 
   it('bundles a font file for every family the theme names', () => {
@@ -230,16 +260,34 @@ describe('brand conformance: images', () => {
 });
 
 describe('brand conformance: icons', () => {
-  it("draws the kit's 21 icons with the kit's own paths (assets/brand/icons are the kit's files)", () => {
-    const source = fs.readFileSync(path.join(srcDir, 'components', 'stroke-icon.tsx'), 'utf8').replace(/\s+/g, ' ');
+  it("draws the kit's 42 icons with the kit's own shapes (assets/brand/icons are the kit's files), element for element", () => {
+    // The JSX (Path, Circle, Rect, strokeWidth={n}) read as the SVG the kit ships.
+    const source = fs
+      .readFileSync(path.join(srcDir, 'components', 'stroke-icon.tsx'), 'utf8')
+      .replace(/<Path/g, '<path')
+      .replace(/<Circle/g, '<circle')
+      .replace(/<Rect/g, '<rect')
+      .replace(/strokeWidth=\{([\d.]+)\}/g, 'stroke-width="$1"')
+      .replace(/\s+/g, ' ');
     const files = fs.readdirSync(path.join(repo, 'assets', 'brand', 'icons')).filter((f) => f.endsWith('.svg'));
-    expect(files).toHaveLength(21);
+    expect(files).toHaveLength(42);
     const missing: string[] = [];
     for (const file of files) {
       const svg = fs.readFileSync(path.join(repo, 'assets', 'brand', 'icons', file), 'utf8');
-      for (const [, d] of svg.matchAll(/<path d="([^"]+)"/g)) if (!source.includes(`d="${d}"`)) missing.push(`${file}: ${d}`);
+      for (const [, tag, attrs] of svg.matchAll(/<(path|circle|rect)\s+([^>]*?)\s*\/>/g)) {
+        if (!source.includes(`<${tag} ${attrs.replace(/\s+/g, ' ')} />`)) missing.push(`${file}: <${tag} ${attrs}>`);
+      }
     }
     expect(missing).toEqual([]);
+  });
+
+  it('sets identifiers (member, household and pledge numbers) in the kit\'s mono face, in the lines that show them', () => {
+    const read = (file: string) => fs.readFileSync(path.join(srcDir, file), 'utf8');
+    expect(read('components/ui.tsx')).toMatch(/identifier: \{ fontFamily: fonts\.mono/);
+    expect(read('components/ui.tsx')).toMatch(/<Text style=\{\{ fontFamily: fonts\.mono \}\}>/);
+    for (const file of ['app/(app)/member-card.tsx', 'app/(app)/(tabs)/family.tsx', 'app/(app)/person/[id].tsx', 'app/(app)/pledges.tsx', 'app/(app)/zelle-report.tsx', 'app/(app)/event/[id]/tickets.tsx']) {
+      expect([file, read(file).includes('<Ident>')]).toEqual([file, true]);
+    }
   });
 
   it('asks the kit for a drawing before an Ionicon (Icon maps the names the kit covers)', () => {

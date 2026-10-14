@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 import { Qr } from '@/components/qr';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
-import { Banner, Button, Card, LinkText, Pill, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Card, dotted, Ident, LinkText, Pill, Row, Txt, VStack } from '@/components/ui';
 import { EventIcon } from '@/features/event-icons';
 import { compactTime, lunchWhy } from '@/features/event-rules';
 import { shareOnWhatsApp } from '@/features/media';
@@ -125,7 +125,7 @@ export default function TicketsScreen() {
                         {t('tickets.committed', { amount: formatCents(pledge.amount_cents) })}
                       </Txt>
                       <Txt variant="caption" color="brownText" style={{ fontFamily: fonts.body }}>
-                        {[how, pledge.pledge_number, pledge.status === 'paid' ? t('tickets.receiptEmailed') : t('tickets.openPledge')].filter(Boolean).join(' · ')}
+                        {dotted([how, pledge.pledge_number ? <Ident>{pledge.pledge_number}</Ident> : null, pledge.status === 'paid' ? t('tickets.receiptEmailed') : t('tickets.openPledge')])}
                       </Txt>
                     </View>
                     {pledge.status !== 'paid' ? (

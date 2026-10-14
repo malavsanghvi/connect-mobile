@@ -2,7 +2,7 @@
  * The app's design tokens.
  *
  * Weaver's own look comes from the brand kit (connect-crm `brand/`, vendored as src/brand/tokens.json and read through
- * src/brand/index.ts): its colours, its two faces and its radii. Everything the kit does not cover (the colours of the
+ * src/brand/index.ts): its colours, its three faces, its radii and its control sizes. Everything the kit does not cover (the colours of the
  * giving, store, learning, photo and check-in screens, lifted from the member-app prototypes: Main.dc.html and friends,
  * connect-crm/docs/parity/v-visual-system.md) stays below as `appOnly`, each group named for what it paints, and is listed
  * in docs/BRAND_CONFORMANCE.md as a decision for the owner. Never hard-code a colour in a screen: add it here (a test fails
@@ -14,7 +14,7 @@
 import { Platform } from 'react-native';
 
 import { brandColor, brandFace, brandFallbackCss, brandRadius, brandSpace, brandTypeStyle, type BrandColorName, type BrandFontRole } from './brand';
-import { mixHex } from './lib/community';
+import { MODULE_TAG_COLORS, mixHex } from './lib/community';
 
 /**
  * Theme colour → the kit colour that paints it. The values come from src/brand/tokens.json; a test (brand-conformance)
@@ -30,9 +30,12 @@ export const BRAND_COLOR_MAP = {
   dividerLight: 'line-soft',
   chip: 'track',
 
-  // Borders
+  // Borders. A real control (a field, a select, a switch that is off) is outlined in line-control (3.5:1); line-input is only for
+  // inputs drawn inside a picture.
   border: 'line',
   borderInput: 'line-input',
+  borderControl: 'line-control',
+  toggleOff: 'line-control',
   /** Onboarding and bar progress tracks. */
   track: 'track',
 
@@ -40,6 +43,8 @@ export const BRAND_COLOR_MAP = {
   ink: 'ink',
   ink2: 'ink-2',
   muted: 'muted',
+  /** Hints, placeholders, timestamps and idle text: the lightest text there is (5.2:1 on white). */
+  faint: 'faint',
 
   // Navy (indigo, primary)
   navy: 'navy',
@@ -58,9 +63,17 @@ export const BRAND_COLOR_MAP = {
   onBrown: 'saffron-50',
   gold: 'gold',
 
-  // Success and error
+  // The accent role (a community's accent colour replaces it): the kit's strong sunrise, the orange a person must read or tap,
+  // with white text on it at 4.7:1 (pressed: brown). The kit's plain saffron is decoration and never carries white text.
+  saffron: 'saffron-strong',
+
+  // Success, warning and error: always beside words
   green: 'success',
   greenTint: 'success-50',
+  warning: 'warning',
+  warningTint: 'warning-50',
+  warningBorder: 'warning-200',
+  warningInk: 'warning-ink',
   danger: 'danger',
   dangerTint: 'danger-50',
 
@@ -100,26 +113,8 @@ const appOnly = {
   greenBorder: '#B7DCC6',
   onNavyGreen: '#7FD1A4',
 
-  // Store green
-  store: '#2F5D50',
-  storeLight: '#3E7566',
-  onStore: '#CFE6DC',
-  storeTint: '#E8F1ED',
-
-  // Red / maroon
+  // The live badge
   live: '#C0392B',
-  maroon: '#7A2E1F',
-  maroonButton: '#8F4232',
-  onMaroon: '#F3D6CF',
-
-  // Purple (feedback, Pathshala, Saathi)
-  purple: '#5B4B8A',
-  purpleTint: '#EFEBF6',
-  onPurple: '#DCD6EC',
-  purpleBorder: '#D8CFEA',
-  purpleBg: '#F5F2FA',
-  purpleDark: '#3D2F63',
-  album: '#4B3A66',
 
   // Media / misc
   black: '#111111',
@@ -186,29 +181,14 @@ const appOnly = {
 } as const;
 
 /**
- * TEMPORARY: colours the kit is about to define (connect-crm brand/tokens.json, being extended by the portal builder), named for the
- * kit token each one stands in for. Each is built from kit colours so it passes the contrast the kit will promise for it.
- * TODO(brand-tokens): when the final token table arrives, re-vendor src/brand/tokens.json, map these theme keys to the kit's names in
- * BRAND_COLOR_MAP and delete this block (the contrast test below already checks the three that matter).
+ * Tags and tiles for the parts of a product (the store, Pathshala, feedback, Saathi, albums) are one hue, navy: the kit has no colour
+ * per module, the words and the icon say which part it is. The colours that once had their own hues keep their names and are the navy
+ * family (a community's primary colour too: lib/community.ts `brandPalette` maps them the same way).
  */
-const TEMP_ACCENT_STRONG = mixHex(brandColor('saffron'), '#000000', 0.28); // kit: a strong accent, 4.5:1 with white text (4.8:1)
-const TEMP_FAINT_TEXT = mixHex(brandColor('muted'), paper, 0.08); // kit: faint text, 4.5:1 on white, canvas and track (4.8:1 on track)
-const TEMP_CONTROL_BORDER = mixHex(brandColor('muted'), paper, 0.28); // kit: a control border, 3:1 (3.4:1 on canvas)
-const temporary = {
-  /** The community accent role (a community's accent colour replaces it); carries white glyphs and labels. */
-  saffron: TEMP_ACCENT_STRONG,
-  /** Placeholder, idle and disabled text. */
-  faint: TEMP_FAINT_TEXT,
-  /** The border of an input, and a switch that is off: what tells a control from the page. */
-  borderControl: TEMP_CONTROL_BORDER,
-  toggleOff: TEMP_CONTROL_BORDER,
-  // kit: warning tint and ink (today the ember tints; the kit names them for warnings)
-  warningTint: brandColor('saffron-50'),
-  warningBorder: brandColor('saffron-200'),
-  warningInk: brandColor('brown-900'),
-};
+const navyFamily: Record<string, string> = { ...kitColors, ...derivedFromKit };
+const moduleTags = Object.fromEntries(Object.entries(MODULE_TAG_COLORS).map(([key, from]) => [key, navyFamily[from]])) as { [K in keyof typeof MODULE_TAG_COLORS]: string };
 
-export const colors = { ...kitColors, ...derivedFromKit, ...temporary, ...appOnly };
+export const colors = { ...kitColors, ...derivedFromKit, ...moduleTags, ...appOnly };
 
 export type ColorName = keyof typeof colors;
 
@@ -268,6 +248,8 @@ export const fonts = {
   bodyMedium: face('sans', '500Medium'),
   bodySemi: face('sans', '600SemiBold'),
   bodyBold: face('sans', '700Bold'),
+  /** Identifiers only (receipt, pledge, household and member numbers, codes): never running text, headings, buttons or amounts. */
+  mono: face('mono', '500Medium'),
 } as const;
 
 export const radii = {
@@ -288,6 +270,10 @@ export const radii = {
   sheet: brandRadius('radius-card'),
   cta: 26,
   cart: 28,
+  /** The kit's radius-field: text fields, selects and textareas. */
+  field: brandRadius('radius-field'),
+  /** The kit's radius-tag: status tags and small labels. */
+  tag: brandRadius('radius-tag'),
   /** The kit's radius-pill. */
   round: brandRadius('radius-pill'),
 } as const;
@@ -321,11 +307,14 @@ export const space = {
   xxl: 32,
 } as const;
 
-/** Minimum touch targets (px): the brand kit's `tap-target`, 48, for anything tappable (buttons are 52). */
+/**
+ * Touch targets (px): nothing tapped is smaller than the kit's `tap-target` (48), and every button on a phone is the kit's
+ * `control-primary` (52). The kit's compact (40) and dense (36) controls are for a mouse in dense tables and are not used here.
+ */
 export const touch = {
   min: brandSpace('tap-target'),
-  secondary: 48,
-  cta: 52,
+  secondary: brandSpace('tap-target'),
+  cta: brandSpace('control-primary'),
   row: 56,
   drawerRow: 64,
 } as const;
@@ -349,6 +338,8 @@ export const type = {
   fine: 11,
   badge: 10,
   tithi: 9,
+  /** The kit's `identifier` style. */
+  identifier: brandTypeStyle('identifier').fontSize,
 } as const;
 
 /** Letter-spacing in px at the size used (em × size). */
@@ -377,7 +368,7 @@ export const displayTracking = {
 
 /** Shadows (prototype box-shadows translated to RN; elevation for Android). The kit's shadows are tinted with its indigo. */
 export const shadows = {
-  cart: { shadowColor: appOnly.store, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
+  cart: { shadowColor: indigo, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8 },
   menu: { shadowColor: indigo, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 15, elevation: 10 },
   drawer: { shadowColor: indigo, shadowOffset: { width: 8, height: 0 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 16 },
   /** Gyan Path sticky strip (0 4px 14px). */

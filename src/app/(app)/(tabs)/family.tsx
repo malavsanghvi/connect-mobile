@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { ErrorState, LoadingState } from '@/components/states';
-import { Banner, Button, Card, Row, Txt } from '@/components/ui';
+import { Banner, Button, Card, dotted, Ident, Row, Txt } from '@/components/ui';
 import { FamilyHomeworkLine } from '@/features/homework/family-line';
 import { useHomework } from '@/features/homework/use-homework';
 import { roleLabel } from '@/features/labels';
@@ -96,9 +96,15 @@ export default function FamilyScreen() {
             {household.display_name}
           </Txt>
           <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }} selectable>
-            {[member.orgHouseholdId ? `${orgHouseholdLabel} ${member.orgHouseholdId}` : null, household.household_number, ms ? (ms.status === 'active' ? t('family.memberSince', { date: formatLongDate(ms.starts_on) }) : t(`membership.${ms.status}` as 'membership.pending')) : t('family.noMembership')]
-              .filter(Boolean)
-              .join(' · ')}
+            {dotted([
+              member.orgHouseholdId ? (
+                <>
+                  {orgHouseholdLabel} <Ident>{member.orgHouseholdId}</Ident>
+                </>
+              ) : null,
+              household.household_number ? <Ident>{household.household_number}</Ident> : null,
+              ms ? (ms.status === 'active' ? t('family.memberSince', { date: formatLongDate(ms.starts_on) }) : t(`membership.${ms.status}` as 'membership.pending')) : t('family.noMembership'),
+            ])}
           </Txt>
         </View>
       ) : null}
@@ -157,8 +163,14 @@ export default function FamilyScreen() {
       <Card style={{ paddingVertical: 6, gap: 0 }}>
         {member.members.map((fm) => {
           const age = ageOn(fm.person.date_of_birth, member.today);
-          const id = fm.orgMemberId ? `${orgMemberLabel} ${fm.orgMemberId}` : fm.person.member_number;
-          const tag = [roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id].filter(Boolean).join(' · ');
+          const id = fm.orgMemberId ? (
+            <>
+              {orgMemberLabel} <Ident>{fm.orgMemberId}</Ident>
+            </>
+          ) : fm.person.member_number ? (
+            <Ident>{fm.person.member_number}</Ident>
+          ) : null;
+          const tag = dotted([roleLabel(t, fm.role), fm.isAdult ? tierOne : age != null ? String(age) : null, id]);
           return (
             <View key={fm.person.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.divider }}>
               <Row gap={space.md} style={{ paddingVertical: 10 }}>

@@ -11,8 +11,8 @@ import { StrokeIcon } from './stroke-icon';
 import { Button, Row, TextField, Txt } from './ui';
 
 const fieldSizes = {
-  sm: { h: touch.min, r: radii.md, font: typeScale.bodySmall, padX: 10 },
-  md: { h: 48, r: radii.lg, font: typeScale.body, padX: space.md },
+  sm: { h: touch.min, r: radii.field, font: typeScale.section, padX: 10 },
+  md: { h: touch.cta, r: radii.field, font: typeScale.section, padX: space.md },
 } as const;
 
 function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: React.ReactNode }) {

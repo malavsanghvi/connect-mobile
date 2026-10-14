@@ -22,6 +22,7 @@ export const BRAND_COLOR_NAMES = [
   'navy-200',
   'navy-300',
   'saffron',
+  'saffron-strong',
   'saffron-50',
   'saffron-200',
   'gold',
@@ -33,24 +34,30 @@ export const BRAND_COLOR_NAMES = [
   'line',
   'line-soft',
   'line-input',
+  'line-control',
   'ink',
   'ink-2',
   'muted',
+  'faint',
   'white',
   'success',
   'success-50',
   'danger',
   'danger-50',
+  'warning',
+  'warning-50',
+  'warning-200',
+  'warning-ink',
 ] as const;
 export type BrandColorName = (typeof BRAND_COLOR_NAMES)[number];
 
-export const BRAND_RADIUS_NAMES = ['radius-pill', 'radius-card', 'radius-tile', 'radius-logo-tile', 'radius-chip'] as const;
+export const BRAND_RADIUS_NAMES = ['radius-pill', 'radius-card', 'radius-tile', 'radius-logo-tile', 'radius-chip', 'radius-field', 'radius-tag'] as const;
 export type BrandRadiusName = (typeof BRAND_RADIUS_NAMES)[number];
 
-export const BRAND_SPACING_NAMES = ['gutter', 'gap', 'card-pad', 'tap-target'] as const;
+export const BRAND_SPACING_NAMES = ['gutter', 'gap', 'card-pad', 'tap-target', 'control-primary', 'control-compact', 'control-dense'] as const;
 export type BrandSpacingName = (typeof BRAND_SPACING_NAMES)[number];
 
-export const BRAND_FONT_ROLES = ['display', 'sans'] as const;
+export const BRAND_FONT_ROLES = ['display', 'sans', 'mono'] as const;
 export type BrandFontRole = (typeof BRAND_FONT_ROLES)[number];
 
 const byName = (list: readonly RawToken[]): Map<string, string> => new Map(list.map((t) => [t.name, t.value]));
@@ -90,7 +97,7 @@ function stack(role: BrandFontRole): string[] {
   return raw.split(',').map((part) => part.trim().replace(/^"|"$/g, ''));
 }
 
-/** The face a role is set in: "Bricolage Grotesque" for display, "Hanken Grotesk" for everything else. */
+/** The face a role is set in: "Bricolage Grotesque" for display, "Hanken Grotesk" for text, "JetBrains Mono" for identifiers. */
 export function brandFace(role: BrandFontRole): string {
   return stack(role)[0];
 }
@@ -103,17 +110,17 @@ export function brandFallbackCss(role: BrandFontRole): string {
     .join(', ');
 }
 
-export const BRAND_TYPE_STYLE_NAMES = ['hero', 'heading', 'heading-sm', 'wordmark', 'descriptor', 'ai-tag'] as const;
+export const BRAND_TYPE_STYLE_NAMES = ['hero', 'heading', 'heading-sm', 'wordmark', 'descriptor', 'ai-tag', 'caption', 'identifier'] as const;
 export type BrandTypeStyleName = (typeof BRAND_TYPE_STYLE_NAMES)[number];
 
-type RawTypeStyle = { name: string; fontSize?: string; fontWeight?: number; letterSpacing?: string };
+type RawTypeStyle = { name: string; fontSize?: string; fontWeight?: number; letterSpacing?: string; lineHeight?: number };
 const typeStyles = new Map<string, RawTypeStyle>((tokens.type.groups as { styles: RawTypeStyle[] }[]).flatMap((g) => g.styles).map((s) => [s.name, s]));
 
-/** A kit type style: its size in px, its weight and its letter-spacing in em (0 when the kit sets none). */
-export function brandTypeStyle(name: BrandTypeStyleName): { fontSize: number; fontWeight: number; letterSpacingEm: number } {
+/** A kit type style: its size in px, its weight, its line height as a multiple of the size (1 when the kit sets none) and its letter-spacing in em (0 when the kit sets none). */
+export function brandTypeStyle(name: BrandTypeStyleName): { fontSize: number; fontWeight: number; lineHeight: number; letterSpacingEm: number } {
   const s = typeStyles.get(name);
   if (!s || s.fontSize === undefined || s.fontWeight === undefined) throw new Error(`The brand kit copy (src/brand/tokens.json) has no type style "${name}". Copy connect-crm's brand/tokens.json over it.`);
-  return { fontSize: Number.parseFloat(s.fontSize), fontWeight: s.fontWeight, letterSpacingEm: s.letterSpacing ? Number.parseFloat(s.letterSpacing) : 0 };
+  return { fontSize: Number.parseFloat(s.fontSize), fontWeight: s.fontWeight, lineHeight: s.lineHeight ?? 1, letterSpacingEm: s.letterSpacing ? Number.parseFloat(s.letterSpacing) : 0 };
 }
 
 /** The words Weaver is introduced with, set word for word as the brand book gives them (Logo: name and descriptor). */

@@ -17,7 +17,7 @@ import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
-import { colors, fonts, radii, space, touch } from '@/theme';
+import { colors, fonts, radii, space } from '@/theme';
 
 const STATE_LOOK: Record<RecurringState, { key: Parameters<Translate>[0]; color: string }> = {
   active: { key: 'recurring.active', color: colors.green },
@@ -114,7 +114,7 @@ export default function RecurringScreen() {
                     {st !== 'stopped' ? (
                       <Row gap={space.sm}>
                         {canToggle ? (
-                          <Button label={st === 'active' ? t('recurring.pause') : t('recurring.resume')} tone="secondary" size="sm" fill={false} style={{ minHeight: touch.min, borderRadius: radii.xl }} onPress={() => toggle(g)} busy={busyId === g.id} />
+                          <Button label={st === 'active' ? t('recurring.pause') : t('recurring.resume')} tone="secondary" size="sm" fill={false} style={{ borderRadius: radii.xl }} onPress={() => toggle(g)} busy={busyId === g.id} />
                         ) : null}
                         <LinkText label={t('recurring.edit')} onPress={() => router.push({ pathname: '/recurring-setup', params: { id: g.id } })} />
                       </Row>

@@ -152,8 +152,8 @@ function EmailsEditor({
 }) {
   const t = useT();
   const { scale } = useSettings();
-  const h = compact ? touch.min : 48;
-  const r = compact ? radii.md : radii.lg;
+  const h = compact ? touch.min : touch.cta;
+  const r = radii.field;
   const fontSize = (compact ? 14 : 15) * scale;
   const row = (value: string, onText: (v: string) => void, tag: string, tagColor: 'green' | 'navy', onTag?: () => void, onRemove?: () => void, label?: string) => (
     <View style={{ minHeight: h, borderRadius: r, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', paddingLeft: compact ? 10 : space.md }}>

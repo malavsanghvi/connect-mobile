@@ -1,33 +1,34 @@
 # Brand conformance: the member app against the Weaver brand kit
 
-The Weaver brand kit lives in connect-crm (`brand/`: the brand book, `tokens.json`, the logo files, the icon set and the Logo,
-Button and AI tag guides). This page records how the member app compared with it on 2026-10-14 (release 1.19.1), what was fixed,
-and how each decision was settled (the owner said "go with your recommendations" on 2026-10-14; the few that wait for new kit tokens use
-temporary, named colours, see Decisions). Tenant branding (a community's own name, logo and colours, applied by `applyPalette` in
-`src/theme.ts`) is the community's identity inside its own screens and is not replaced; the kit governs Weaver's own chrome: the
-product name, the mark, buttons, type and the colours of the app itself.
+The Weaver brand kit lives in connect-crm (`brand/`: the brand book, `tokens.json`, the logo files, the 42 icons and the Logo, Button,
+AI tag and Control guides). This page records how the member app compared with it on 2026-10-14 (release 1.19.1), what was fixed and
+how each decision was settled. The owner said "go with your recommendations" on 2026-10-14, and the kit's second version (connect-crm
+commit `2b758c1f`) then supplied the tokens that were still missing; the app is on it. Tenant branding (a community's own name, logo
+and colours, applied by `applyPalette` in `src/theme.ts`) is the community's identity inside its own screens and is not replaced; the
+kit governs Weaver's own chrome: the product name, the mark, buttons, type and the colours of the app itself.
 
-**Where the kit lives here.** `src/brand/tokens.json` is a verbatim copy of connect-crm `brand/tokens.json` (synced 2026-10-13,
-from `feat/site-mission@07571b4`). `src/brand/index.ts` reads it, `src/theme.ts` builds the palette, faces and radii from it, and
-`assets/brand/` holds the official mark files unchanged (`weaver-mark.svg`, `weaver-mark-512.png`,
-`weaver-mark-on-white-1024.png`) plus the three rasters rendered from the master SVG (`splash-mark.png`,
-`splash-mark-on-tile.png`, `favicon-64.png`). Fonts are in `assets/fonts/` with their licence files.
+**Where the kit lives here.** `src/brand/tokens.json` is a verbatim copy of connect-crm `brand/tokens.json` (version 2, synced
+2026-10-14, `2b758c1f`). `src/brand/index.ts` reads it, `src/theme.ts` builds the palette, faces, radii and control sizes from it, and
+`assets/brand/` holds the official mark files unchanged (`weaver-mark.svg`, `weaver-mark-512.png`, `weaver-mark-on-white-1024.png`),
+the three rasters rendered from the master SVG (`splash-mark.png`, `splash-mark-on-tile.png`, `favicon-64.png`) and the kit's 42 icon
+files (`icons/`). Fonts are in `assets/fonts/` with their licence files.
 
-**Keeping it current.** When the kit changes, copy `brand/tokens.json` (and any new logo file) over the copies here and run
-`pnpm test`: `src/brand/__tests__/brand-conformance.test.ts` fails if the copy lacks a token the theme reads, if a colour literal
+**Keeping it current.** When the kit changes, copy `brand/tokens.json`, `brand/icons/` and any new logo file over the copies here and
+run `pnpm test`: `src/brand/__tests__/brand-conformance.test.ts` fails if the copy lacks a token the theme reads, if a colour literal
 appears in `src/` outside the theme module (the allowlist there is three files, each with its reason), if a user-facing string says
-"Community Connect", if `app.json` uses a colour that is not in the kit, or if an image `app.json` names is missing.
+"Community Connect", if `app.json` uses a colour that is not in the kit, if a drawing in `StrokeIcon` differs from the kit's SVG, or
+if a hand-written tap target is under 48.
 
 ## At a glance
 
 | | Result |
 | --- | --- |
-| Colours | The theme has 107 colours: 31 come straight from the kit, 3 are mixed from the kit's navy, 7 are temporary stand-ins for tokens the kit is adding (accent, faint text, control border, warning tint, border and ink, and the switch), 66 are app-only (the kit has no token). About 80% of the colour references in screens are on kit colours. Colour literals outside `src/theme.ts`: 31 before (39 counting comments), 29 now, all in tenant-branding code (`community.ts`, `template.ts`) and the web focus ring. |
-| Fonts | Fraunces and DM Sans (6 faces) replaced by the kit's Bricolage Grotesque (display, 600 and 700) and Hanken Grotesk (text, 400 to 700), bundled with the app. Every `fonts.*` reference (about 400) goes through the theme; no family literal exists anywhere else. |
+| Colours | The theme has 108 colours: 39 come straight from the kit, 3 are mixed from the kit's navy, 14 are the module tag colours (now the navy family), 52 are app-only (the kit has no token). About 90% of the colour references in screens are on kit colours. Colour literals outside `src/theme.ts`: 31 before (39 counting comments), 29 now, all in tenant-branding code (`community.ts`, `template.ts`) and the web focus ring. |
+| Fonts | Fraunces and DM Sans (6 faces) replaced by the kit's Bricolage Grotesque (display, 600 and 700), Hanken Grotesk (text, 400 to 700) and JetBrains Mono (identifiers, 500), bundled with the app. Every `fonts.*` reference goes through the theme; no family literal exists anywhere else. |
 | Logo and images | Icon, splash, favicon, adaptive icon and notification icon now use the official mark; the two Weaver-owned screens that had no mark (Find your community, Setup) show the lockup. The retired lotus artwork is deleted. |
-| Styling | Buttons (ghost, pressed, gold on navy), the 48px tap target, kit icons (all 21 in `StrokeIcon`, `Icon` maps the names the kit covers), card radius 16, the AI tag on Niva and the focus ring follow the kit. |
+| Styling | Buttons (ghost, pressed, gold on navy, accent; all 52px), fields (radius 12, 3:1 border, 16px text, 52px), tags (radius 8), the 48px tap target, all 42 kit icons in `StrokeIcon`, `Icon` mapping the names the kit covers, card radius 16, module tags in navy, the AI tag on Niva and the focus ring follow the kit. |
 | Voice | No "Community Connect" in any user-facing string. No exclamation marks or "coming soon" in English. Greetings come from the community's own configured word, not a faith word. The `weaver://` link scheme is added beside the older two. |
-| Decisions | 12; 9 applied, 3 partly (they wait for new kit tokens: accent, faint text and control border use temporary tokens; module tags navy only, mono face and field and tag radii wait). See Decisions. |
+| Decisions | All 12 decided and applied. One kit rule is not applied yet, the 14.5px minimum text on a touch surface (see Open). |
 
 ## Colours
 
@@ -35,18 +36,16 @@ appears in `src/` outside the theme module (the allowlist there is three files, 
 | --- | --- | --- | --- |
 | Primary (`navy`) | Indigo `#2b2a8a`: headings, primary buttons, bands | `#1B2C5C` dark navy | Fixed: `colors.navy` is the kit's navy; its hover, tints, border and on-navy text are the kit's `navy-hover`, `navy-50`, `navy-100`, `navy-300`, `navy-200`. A community's own primary still replaces it. |
 | Lighter and disabled indigos | Not in the kit | Three hand-picked blues | Fixed: mixed from the kit's navy with the same formula `brandPalette` uses for a community's primary (`navyPanel`, `navyPanel2`, `navyDisabled`). |
-| Text | `ink #1e1d5c`, `ink-2 #33325f`, `muted #555a79` | Warm near-black `#1E1C18` and warm greys | Fixed. |
+| Text | `ink #1e1d5c`, `ink-2 #33325f`, `muted #555a79`, then `faint #666b86` for hints, placeholders, timestamps | Warm near-black `#1E1C18`, warm greys, and a `faint` `#8A8478` at 3.7:1 on white | Fixed: all four are the kit's; `faint` is 5.2:1 on white (idle tab labels, placeholders, fine print, disabled text). |
 | Surfaces | `canvas #fffaf5` page, `white` cards, quiet `ground`/`track` | `#FBF7F0` cream page, `#F6EFE3` panels | Fixed: page is `canvas`, cards `white`, panels and chips `track`. |
-| Borders and dividers | `line`, `line-input`, `line-soft` | Five warm beige values | Fixed (`border`, `borderInput`, `divider`, `dividerLight`, `frame`). |
-| Success and error | `success #1f7a4d` / `success-50`, `danger #b3261e` / `danger-50` | The same four values | Conforms; now read from the kit so they cannot drift. |
+| Borders and dividers | `line`, `line-soft`; a control is outlined in `line-control` (3.5:1); `line-input` only inside a picture | Five warm beige values; every input at 1.4:1 | Fixed: `border`, `divider`, `dividerLight`, `frame` are the kit's; `borderControl` (fields, selects, the chat box, the off state of a switch) is `line-control`. |
+| Success, warning, error | `success`, `warning`, `danger` with their `-50` tints, `warning-200` and `warning-ink`, always beside words | Success and error equal to the kit; warnings were the ember tints | Fixed: `warning`, `warningTint`, `warningBorder`, `warningInk` are the kit's (warning banners: tint, 1px border, `warning` icon, `warning-ink` text; amber pills and cards). |
 | Ember, gold and tints | `brown #a8400d`, `brown-900`, `gold #ffb82a`, tints `saffron-50` and `saffron-200` | `#8A4608`, `#5E3106`, `#F2B632`, `#FBEBD7`, `#EFCFA6` | Fixed (`brown`, `brownDark`, `brownText`, `brownTint`, `brownBorder`, `onBrown`, `gold`). White on `brown` is 6.1:1. |
-| Sunrise (`saffron #ff7640`) and the accent role | A ground; never text; white on it is 2.6:1. The kit is adding a strong accent that passes 4.5:1 with white | `#C9731C` (3.5:1 with white), the community accent role, used 29 times, about eight with a white glyph or label on it | Decision 1: a temporary strong accent (kit saffron darkened, 4.8:1 with white) now; the kit's token replaces it. |
-| Lightest text (`faint`) | The kit is adding a faint text colour at 4.5:1 | `#8A8478`, 3.7:1 on white (40 uses: idle tab labels, placeholders, fine print, disabled text) | Decision 3: a temporary `faint` at 4.8:1 on a panel now; the kit's token replaces it. |
-| Control border | The kit is adding a control border at 3:1 | `borderInput`, 1.4:1 on white, on every input and switch | Temporary `borderControl` (3.4:1) on inputs and switches now. |
-| Warnings | The kit is adding a warning tint and ink | The ember tints | `warningTint`, `warningBorder`, `warningInk` (today the ember values) on warning banners, amber pills and amber cards. |
-| Colours the kit lacks | n/a | 66 theme colours: dashed borders, deeper greens, store green, purple, maroon, the live red, flame, chandan (puja), the volunteer board and photo viewer, Gyan Path, scrims | Decision 2. Kept in `appOnly` in `src/theme.ts`, grouped and commented. Module tags navy only (purple, store green, maroon) waits for the kit's table. |
+| Sunrise and the accent role | `saffron #ff7640` is decoration and never carries white text; `saffron-strong #c2501c` is the orange to read or tap (white on it 4.7:1; pressed is `brown`) | `#C9731C` (3.5:1 with white) for the community accent role, used 29 times, about eight with a white label or glyph | Fixed (decision 1): the accent role is `saffron-strong` (a community's accent still replaces it); the kit's plain saffron is used only in the AI tag's gradient. The role also colours borders, halos and bars (decoration); a split into two roles is a later refinement. |
+| Module colours | Tags and tiles for the parts of a product are one hue: `navy` on `navy-50`, or white on `navy` | Purple (feedback, Pathshala, Saathi), store green, maroon, brown and green drawer and guide tiles | Fixed (decision 2): `purple`, `store`, `maroon` and `album` and their tints are the navy family under their old names (a community's primary too: `MODULE_TAG_COLORS` in `lib/community.ts`); drawer and guide tiles are navy on `navy-50`. Left on purpose: brown for giving's ember accent text, the anniversary ink, the album hero palettes, and the content colours below. |
+| Colours the kit lacks | n/a | 52 theme colours: dashed borders, the deeper greens, the live red, flame, chandan (puja), the volunteer board and photo viewer's dark surfaces, Gyan Path, scrims | Kept in `appOnly` in `src/theme.ts`, grouped and commented; chandan and the Gyan Path set are module-owned and stay outside the kit. |
 | `mark-*` colours | Logo only | Not used in the interface | Conforms. |
-| Shadows | Tinted with indigo | Warm black `#14120E` | Fixed: menu, drawer and strip shadows use the kit's navy. |
+| Shadows | Tinted with indigo | Warm black `#14120E` | Fixed: menu, drawer, cart and strip shadows use the kit's navy. |
 | Light and dark | The kit has one light theme | Light only (`userInterfaceStyle: light`) | Conforms; neither side has a dark theme. |
 | Native colours (`app.json`) | Kit values | `#FBF7F0`, `#1B2C5C` for background, primary colour, splash, web theme colour, notification tint | Fixed: `#fffaf5` and `#2b2a8a`. The adaptive icon's white background is the kit's `white`. Needs a native build (below). |
 | Tenant layers | Not replaced | `community.ts` (a community's colours), `template.ts` (the "cool" and "plain" surfaces a member-app template can pick) | Left alone, on purpose; they are the only code besides the theme allowed to hold colour literals. |
@@ -57,13 +56,13 @@ appears in `src/` outside the theme module (the allowlist there is three files, 
 | --- | --- | --- | --- |
 | Display | Bricolage Grotesque, weights 600 to 700, tracked tight (hero -0.03em, heading -0.015em, heading-sm -0.01em) | Fraunces 500 and 600, untracked | Fixed: `fonts.display` is Bricolage 600, `fonts.displayBold` 700; the `hero`, `onboardingHero`, `display` and `title` text variants carry the kit's tracking. |
 | Text | Hanken Grotesk, 400 to 700 | DM Sans 400 to 700 | Fixed (400, 500, 600, 700). Weight 500 (26 uses) is not a kit weight; kept. |
+| Identifiers | JetBrains Mono for identifiers only (receipt, pledge, household and member numbers, codes, payer references): `identifier` 13.5px, line 1.4, weight 500; never running text, headings, buttons or amounts | Identifiers set in the text face | Fixed (decision 11): `fonts.mono`, a `Txt` variant `identifier` and an `Ident` inline component; member and household numbers on Family, the member card, a person's page and the Zelle report, and pledge numbers on Pledges and in a ticket's pledge line, are in the mono face. The join-code field (the sign-in and community finder, being changed on another branch) and pledge numbers inside translated sentences ("for pledge ...") stay in the text face until a later pass. |
 | Buttons | Label weight 700 | 600 | Fixed. |
 | How they load | Served by Google Fonts | `@expo-google-fonts` packages through `useFonts` | Fixed: static TTFs bundled in `assets/fonts` (SIL OFL, licences beside them) and registered in the root layout, so a phone and the web build set the same type with no font request. They are bundle assets, so an over-the-air update carries them. |
-| Fallbacks | System sans | Native: the system font if loading fails (logged). Web: the browser's default serif | Fixed on the web: the kit's own stack (`"Hanken Grotesk", ui-sans-serif, system-ui, sans-serif`) follows each face. Native unchanged. |
+| Fallbacks | System sans (mono: `ui-monospace, SFMono-Regular, Menlo`) | Native: the system font if loading fails (logged). Web: the browser's default serif | Fixed on the web: the kit's own stack follows each face. Native unchanged. |
 | Large text | n/a | Settings text size 1.15 and 1.30 scale every `Txt` | Conforms; unchanged. |
 | Optical size axis | Load Bricolage with `opsz` | Static instances cannot carry it | Decision 11: static fonts kept. |
-| Mono for IDs | The kit has none | IDs are set in the text face; the portal's `globals.css` names JetBrains Mono (and still Fraunces and DM Sans) | Decision 11: JetBrains Mono for identifiers waits for the kit's token and font files. |
-| Type scale | Web sizes (hero 36 on phones) | A mobile scale (hero 30, body 15) | Left as it was: the kit's sizes are for pages. |
+| Type scale | `caption` 14.5px is the smallest text on a touch surface; 11 to 13px labels are for dense desktop tables | A mobile scale: meta 13, caption 12, fine 11, badge 10, tithi 9 | Open (see below). |
 
 The prototype specs in `docs/PROTOTYPE_*.md` still name Fraunces, DM Sans, `#1B2C5C` and the cream page. They are read-only
 references from the clickable prototype and are superseded by this page for tokens. `@expo-google-fonts/dm-sans` and `fraunces`
@@ -85,37 +84,37 @@ dependency pass.
 | "Sample data" labels | On every picture of the product | The app shows no pictures of the product | Not applicable. |
 
 ## Styling
-## Styling
 
 | Item | Brand kit says | The app did | Status |
 | --- | --- | --- | --- |
-| Primary button | Pill, 52px, navy fill, white label, hover `navy-hover`, weight 700 | Pill (radius 26 on 52px), navy, weight 600, pressed fades to 85% | Fixed: weight 700 and the pressed colour is `navy-hover`. |
+| Primary button | Pill, `control-primary` 52px for every button on a phone, navy fill, white label, hover `navy-hover`, weight 700 | Pill; 52px for the main size but 48 for the smaller ones; weight 600; pressed fades to 85% | Fixed: every `Button` size is 52px (they differ in label size and padding), weight 700, pressed is `navy-hover`. |
 | Ghost button | White fill, 2px border of navy at 20%, navy text, border navy on hover | `secondary`: white, 1px solid navy | Fixed: `secondary` is the kit's ghost (the border is navy mixed 80% to white; navy when pressed). |
-| On-navy buttons | `gold` fill with navy label; `ghostOnNavy` | White "light" tone on a navy card | Fixed (decision 7): new `gold` tone (a lighter gold when pressed) for the action on the Gyan Path celebration card. `light` stays for the photo viewer's dark tile, which is not a navy ground. |
-| Other outlined and filled tones | Not in the kit | Green, brown, purple, store, maroon and black tones | Left; they follow the colour decisions (module tags navy only: waiting on the kit's table). |
-| Corner radius of buttons and chips | Pill | Radius 26, 22, 20 on 52, 48, 48px heights | Left: the "crisp" member-app template changes these by name, and the shape is already pill-like. |
-| Cards | White, 1px `line`, radius 24 (`radius-tile` 16 for small cards), padding 20, no coloured left-border accents | White, 1px border, radius 18, padding 14 and 16; the three left borders are neutral grey | Fixed (decision 5): list cards use the kit's `radius-tile` (`radii.xl` is 16; sheets and dialogs were already 24); mobile padding kept. The crisp template still sets `xl` by name. |
+| On-navy buttons | `gold` fill with navy label; `ghostOnNavy` | White "light" tone on a navy card | Fixed (decision 7): the `gold` tone (a lighter gold when pressed) for the action on the Gyan Path celebration card. `light` stays for the photo viewer's dark tile, which is not a navy ground. |
+| Accent button | `saffron-strong` fill, white label, `brown` when pressed; for the rare warm action, never a second primary | None | The `accent` tone exists; no screen uses it yet. |
+| Other outlined and filled tones | Not in the kit | Green, brown, purple, store, maroon and black tones | Left; purple, store and maroon are navy now (see colours). |
+| Corner radius of buttons and chips | Pill | Radius 26, 22, 20 | Left: the "crisp" member-app template changes these by name, and the shape is already pill-like. |
+| Cards | White, 1px `line`, radius 24 (`radius-tile` 16 for small cards), padding 20, no coloured left-border accents | White, 1px border, radius 18, padding 14 and 16; the three left borders are neutral grey | Fixed (decision 5): list cards use the kit's `radius-tile` (`radii.xl` is 16; sheets and dialogs were already 24); mobile padding kept. |
+| Fields | `white`, 1px `line-control`, `radius-field` 12, 16px text on a touch surface, `faint` placeholder, `control-primary` 52 tall on a phone | 48px, radius 10 to 14, 15px text, `borderInput` | Fixed: every text field and select is radius 12, a `line-control` border, 16px text, 52px (a compact form field stays at the 48 minimum). The chat box keeps its pill shape. The "crisp" template squares `field` and `tag` too. |
+| Tags | `radius-tag` 8, a solid navy with white text or a tint, always words; one hue for the parts of a product | Radius 8 on pills | Fixed: `Pill` uses `radii.tag`; module tags are navy. |
 | Chips | Pill | Pill at 48px; grid chips radius 12 | Conforms except the grid cell (kept). |
-| Inputs | Border `line-input`; a control needs a 3:1 border | 48px, radius 12, `borderInput` (1.4:1 on white) | Colour: temporary `borderControl` (3.4:1) until the kit's control-border token arrives. Radius waits for the kit's `radius-field`. |
-| Tab bar | Icons stroke 2 | Stroke 1.8, idle `faint` | Stroke fixed; idle colour uses the new `faint` (see colours). |
-| Icons | 21 stroke icons: 24px grid, stroke 2, round caps | Ten shell icons close but not the kit's; about 40 call sites on Ionicons | Fixed (decision 6): all 21 kit icons are in `StrokeIcon` path for path (a test compares them with the kit's SVG files, copied to `assets/brand/icons`); `Icon` draws the kit's icon wherever the kit covers the name (tick, close, calendar, people, ticket, card, book, chevrons); the row chevron is the kit's; success banners and the setup list use the kit's tick. 65 Ionicons names remain (below). |
+| Tab bar | Icons stroke 2, idle text `faint` | Stroke 1.8, idle `faint` at 3.7:1 | Fixed: stroke 2; the kit's `faint` is 5.2:1. |
+| Icons | 42 stroke icons: 24px grid, stroke 2, round caps | Ten shell icons close but not the kit's; about 40 call sites on Ionicons | Fixed (decision 6): all 42 kit icons are in `StrokeIcon`, element for element (a test compares them with the kit's SVG files, copied to `assets/brand/icons`); `Icon` draws the kit's icon wherever the kit covers the name (tick, close, plus, alert, info, eye, pencil, file, search, calendar, people, ticket, card, book, chevrons); the row chevron is the kit's; success banners and the setup list use the kit's tick. About 50 Ionicons names remain (below). |
 | Tap targets | `tap-target` 48px; buttons 52px | 44px minimum, some 36 to 46 | Fixed (decision 4): `touch.min` is the kit's 48 and every tappable minimum reads it (about 50 places, buttons and chips included); a test fails on a hand-written minimum under 48 on a pressable. |
 | Focus | 2px solid navy outline, 2px offset (4px on buttons) | Browser default ring on the web build | Fixed in `src/global.css` (keyboard focus only). Not applicable on phones. |
 | Gradients | Only the AI tag, the headline underline and the picture wash | None | Conforms; the AI tag adds the first (`gold` to `saffron`, drawn with `react-native-svg`). |
-| AI tag | Every AI capability carries the tag and the human decision | Niva (chat, drawer, guide tile) had none | Fixed (decision 8): `src/components/ai-tag.tsx` (`AiTag`, `AiLine`). The chat's small print is now an AI line (the tag "Niva" and the existing sentence that names who decides: content the community approved, sources shown); the drawer's Ask Niva row and the guide's Ask Niva tile carry the tag. |
+| AI tag and Niva | Every AI capability carries the tag and the human decision; Niva is the tag labelled "Niva", never a colour of its own, and its button is an ordinary one (a `navy-50` tile with an `ink` sparkle, or `navy`) | Niva had no tag; its drawer row was a brown tile with a brown sparkle | Fixed (decision 8): `src/components/ai-tag.tsx` (`AiTag`, `AiLine`). The chat's small print is now an AI line (the tag "Niva" and the existing sentence that names who decides: content the community approved, sources shown); the drawer's Ask Niva row (a navy-50 tile, an ink sparkle) and the guide's Ask Niva tile carry the tag. |
 | Spacing | gutter 20, gap 12 | 20 and 12 | Conforms; `space.gutter` reads the kit. |
 
-**Ionicons still in use (65 names), waiting for the kit to extend its icon set.** add, add-circle-outline, alert-circle,
-alert-circle-outline, arrow-down, arrow-up, attach-outline, basket-outline, checkmark-circle, checkmark-circle-outline,
-compass-outline, create-outline, document-outline, document-text-outline, download, download-outline, ellipse-outline, eye-outline,
-finger-print, flame, flame-outline, flower-outline, gift-outline, hand-left-outline, headset-outline, heart, heart-outline,
-hourglass-outline, image-outline, images-outline, information-circle, key, leaf-outline, link, location-outline, logo-whatsapp,
-megaphone-outline, mic-outline, musical-notes-outline, notifications, notifications-outline, open-outline, pause, person-add-outline,
-play, play-skip-back, play-skip-forward, qr-code-outline, receipt-outline, refresh, repeat, restaurant-outline, ribbon-outline, save,
-school-outline (14 uses), share, share-outline, shuffle, star, storefront-outline, swap-horizontal-outline, swap-vertical, text,
-time-outline, trash-outline. When the kit adds one, add its name to `KIT_ICON_FOR` in `src/components/icon.tsx` (and its paths to
-`StrokeIcon`); every use changes at once. The heart of a like (filled or outline shows the state) stays an Ionicon until the kit says
-how a state is shown.
+**Ionicons still in use (about 50 names), waiting for the kit to extend its icon set.** add and remove (the quantity stepper's
+pair: the kit has plus but no minus), arrow-down, arrow-up, attach-outline, basket-outline, compass-outline, download,
+download-outline, ellipse-outline, finger-print, flame, flame-outline, flower-outline, gift-outline, hand-left-outline,
+headset-outline, heart and heart-outline (a like shows its state by fill; the kit's icons are outline only), hourglass-outline,
+image-outline, images-outline, key, leaf-outline, link, location-outline, logo-whatsapp, megaphone-outline, mic-outline,
+musical-notes-outline, notifications, notifications-outline, open-outline, pause, person-add-outline, play, play-skip-back,
+play-skip-forward, qr-code-outline, receipt-outline, refresh, repeat, restaurant-outline, ribbon-outline, save, school-outline
+(14 uses), share, share-outline, shuffle, star (a rating shows its state by fill), storefront-outline, swap-horizontal-outline,
+swap-vertical, time-outline, trash-outline. When the kit adds one, add its name to `KIT_ICON_FOR` in `src/components/icon.tsx` (and
+its shapes to `StrokeIcon`); every use changes at once.
 
 ## Voice
 
@@ -136,35 +135,35 @@ how a state is shown.
 
 ## Decisions
 
-On 2026-10-14 the owner said "go with your recommendations". Where a decision needed a token the kit does not have yet, the app uses
-a clearly named temporary one (the `TEMP_*` block in `src/theme.ts`, each marked `TODO(brand-tokens)`) and swaps it when connect-crm
-`brand/tokens.json` gains the real one.
+On 2026-10-14 the owner said "go with your recommendations". Where a decision needed a token the kit did not have, the app first
+used a named temporary one; the kit's second version (`2b758c1f`) has since defined them all and the temporaries are gone.
 
 | # | Decision | Recommendation | State |
 | --- | --- | --- | --- |
-| 1 | The accent colour (saffron role) | Adopt a strong accent that passes 4.5:1 with white, so white glyphs and labels stay legible | Temporary token `TEMP_ACCENT_STRONG` (kit saffron darkened to 4.8:1 with white) in place now; waits for the kit's accent token. Community accents still replace it. |
-| 2 | Colours the kit does not have (69) | Add a deep success and a dark surface pair to the kit; keep chandan and the Gyan Path set module-owned; module tags navy only | Waiting for the kit's table (module tags navy only recolours purple, store green and maroon). Nothing changed yet. |
-| 3 | The lightest text (`faint`) | One lighter text colour at 4.5:1 | Temporary `TEMP_FAINT_TEXT` (4.8:1 on a panel) in place; waits for the kit's token. |
-| 4 | Tap targets 48 | Raise to 48 everywhere | Done (see Styling). CLAUDE.md now says 48. |
-| 5 | Card radius | 16 for list cards | Done. Input and tag radii wait for the kit's `radius-field` and `radius-tag`. |
-| 6 | Icons | Extend the kit's set, then retire Ionicons | Done for the shell and every screen touched: kit icons in place, `Icon` maps what the kit covers; 65 names listed above wait for the kit to extend its set. |
-| 7 | Buttons on navy | `gold` | Done. |
-| 8 | AI tag on Niva | Add it | Done. |
-| 9 | Dark splash | Keep the white-tile variant until seen on a dark-mode phone | Kept. |
-| 10 | The old link scheme | Add `weaver://` beside it | Done (needs the next native build to register the scheme on installed apps; the old schemes keep working). |
-| 11 | Type details | Keep static fonts; the kit adds a mono face for identifiers | Static fonts kept. JetBrains Mono for identifiers waits for the kit's token and the font files. |
-| 12 | Words | Remove Wallet; neutral greetings from the community's own word; rename "Pathshala Connect" | Done. |
+| 1 | The accent colour (saffron role) | Adopt a strong accent that passes 4.5:1 with white | Decided and applied: the accent role is the kit's `saffron-strong`. |
+| 2 | Colours the kit does not have | Module tags navy only; keep chandan and the Gyan Path set module-owned; add a deep success and a dark surface pair | Decided and applied: purple, store green, maroon and album colours are the navy family; the kit did not add a deep success or a dark surface pair, so the deeper greens and the dark surfaces stay in `appOnly`. |
+| 3 | The lightest text (`faint`) | One lighter text colour at 4.5:1 | Decided and applied: the kit's `faint` (5.2:1). |
+| 4 | Tap targets 48 | Raise to 48 everywhere | Decided and applied. CLAUDE.md says 48. |
+| 5 | Card radius | 16 for list cards | Decided and applied; fields take `radius-field` 12 and tags `radius-tag` 8. |
+| 6 | Icons | Extend the kit's set, then retire Ionicons | Decided; the kit has 42 and the app uses them where they cover a name; about 50 Ionicons names wait (listed above). |
+| 7 | Buttons on navy | `gold` | Decided and applied. |
+| 8 | AI tag on Niva | Add it | Decided and applied. |
+| 9 | Dark splash | Keep the white-tile variant until seen on a dark-mode phone | Decided: kept. |
+| 10 | The old link scheme | Add `weaver://` beside it | Decided and applied (the next native build registers the scheme; the old schemes keep working). |
+| 11 | Type details | Keep static fonts; a mono face for identifiers | Decided and applied: static fonts kept; JetBrains Mono for identifiers. |
+| 12 | Words | Remove Wallet; neutral greetings from the community's own word; rename "Pathshala Connect" | Decided and applied. |
 
-Also waiting on the kit: a control border (temporary `TEMP_CONTROL_BORDER`, 3.4:1, used on inputs and switches), a warning tint and
-ink (the `warningTint`, `warningBorder` and `warningInk` theme colours alias the ember tints today and are used by warning banners,
-amber pills and amber cards).
+**Open.** The kit's Control guide and brand book say a caption is `caption` (14.5px) at the smallest on a touch surface, and that
+11 to 13px labels belong to dense desktop tables. The app's scale has `meta` 13, `caption` 12, `fine` 11, `badge` 10 and `tithi` 9,
+used in tiles, tags and the tab bar. Raising them is one change in `src/theme.ts` but reflows most screens, so it needs a visual pass
+over the signed-in screens first; recommended as the next brand pass.
 
 ## What ships how
 
-- **Over the air (JavaScript and bundled assets):** the palette and every colour in screens, both faces (bundled assets), the text
-  tracking, buttons (ghost, pressed, gold), the 48px tap targets, icons, the AI tag and line, the lockup on Find your community and
-  Setup, the English copy and greetings, the focus ring, and the guard test. Phones on runtime "3" pick it up with the usual
-  close-and-reopen.
+- **Over the air (JavaScript and bundled assets):** the palette and every colour in screens, the three faces (bundled assets), the
+  text tracking, buttons (ghost, pressed, gold, accent, 52px), fields, tags, the 48px tap targets, navy module tags, icons, the
+  mono identifiers, the AI tag and line, the lockup on Find your community and Setup, the English copy and greetings, the focus
+  ring, and the guard test. Phones on runtime "3" pick it up with the usual close-and-reopen.
 - **The web build (app.weaverams.org):** the same JavaScript plus the favicon and theme colour; it ships with the normal deploy of
   `main`, not by an update.
 - **Needs the next native build (not run here):** the launcher icon, the splash (images and colours), the Android notification icon
@@ -175,7 +174,7 @@ amber pills and amber cards).
 ## Not checked
 
 Everything on a phone: the new fonts on iOS and Android, the splash and icon, the notification glyph, the pressed colours, the AI
-tag's gradient and the larger tap targets were not seen on a device. The web build was exported, served and opened in a browser
-(fonts load, the stack and tracking apply, the lockup and the focus ring show); only the screens that need no sign-in were reachable,
-so the colours and type on the signed-in screens were verified by the theme tests and by reading the code, not by looking at each
-screen.
+tag's gradient, the 52px buttons and fields and the larger tap targets were not seen on a device. The web build was exported, served
+and opened in a browser (fonts load, the stack and tracking apply, the lockup and the focus ring show, and a throwaway preview of the
+AI tag, buttons, icons and banners); only the screens that need no sign-in were reachable, so the colours and type on the signed-in
+screens were verified by the theme tests and by reading the code, not by looking at each screen.
