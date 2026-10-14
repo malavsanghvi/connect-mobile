@@ -22,7 +22,7 @@ appears in `src/` outside the theme module (the allowlist there is three files, 
 | | Result |
 | --- | --- |
 | Colours | The theme has 103 colours: 31 now come straight from the kit, 3 are mixed from the kit's navy, 69 are app-only (the kit has no token). 81% of the colour references in screens are on kit colours. Colour literals outside `src/theme.ts`: 31 before (39 counting comments), 29 now, all in tenant-branding code (`community.ts`, `template.ts`) and the web focus ring. |
-| Fonts | Fraunces and DM Sans (6 faces) replaced by the kit's Bricolage Grotesque (display, 600 and 700) and Hanken Grotesk (text, 400 to 700), bundled with the app. Every `fonts.*` reference (320) goes through the theme; no family literal exists anywhere else. |
+| Fonts | Fraunces and DM Sans (6 faces) replaced by the kit's Bricolage Grotesque (display, 600 and 700) and Hanken Grotesk (text, 400 to 700), bundled with the app. Every `fonts.*` reference (about 400) goes through the theme; no family literal exists anywhere else. |
 | Logo and images | Icon, splash, favicon, adaptive icon and notification icon now use the official mark; the two Weaver-owned screens that had no mark (Find your community, Setup) show the lockup. The retired lotus artwork is deleted. |
 | Styling | Buttons, tab bar and icon strokes aligned (details below); six items need a decision (cards, targets, icons, on-navy buttons, AI tag, accent). |
 | Voice | No "Community Connect" in any user-facing string. 28 exclamation marks and 5 "coming soon" lines fixed in English. |
