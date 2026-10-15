@@ -7,6 +7,7 @@ import { FullScreen } from '@/components/full-screen';
 import { SelectField } from '@/components/pickers';
 import { QrScanner } from '@/components/qr-scanner';
 import { Banner, Button, Card, LinkText, ListRow, Pill, SectionTitle, TextField, Txt } from '@/components/ui';
+import { DemoEntry } from '@/features/demo/entry';
 import { communityByJoinCode, communityBySlug, findCommunity, listCommunities, type CommunityResult } from '@/lib/api/community';
 import { formatJoinCode, parseJoinInput } from '@/lib/community';
 import { env } from '@/lib/env';
@@ -263,6 +264,9 @@ export function FindCommunityScreen() {
           />
         ) : null}
       </View>
+
+      {/* "Try the demo": under the join-code area, only in a build that has a demo, and not while someone is signed in and switching. */}
+      {!app.session ? <DemoEntry /> : null}
 
       {switching ? (
         <View style={{ alignItems: 'center', paddingBottom: space.xl }}>

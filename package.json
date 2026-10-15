@@ -1,7 +1,7 @@
 {
   "name": "connect-mobile",
   "main": "expo-router/entry",
-  "version": "1.19.1",
+  "version": "1.20.0",
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo-google-fonts/fraunces": "^0.4.1",
@@ -71,7 +71,7 @@
   "jest": {
     "preset": "jest-expo",
     "testMatch": [
-      "<rootDir>/src/**/__tests__/**/*.test.ts"
+      "<rootDir>/src/**/__tests__/**/*.test.{ts,tsx}"
     ]
   }
 }

@@ -14,6 +14,33 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.20.0 — 2026-10-14
+
+- **Try the demo.** "Find your community" has a "Try the demo" button under the join-code area ("See the app as a family, a volunteer or a
+  teacher. Nothing real is sent."), and https://app.weaverams.org/demo (and `connect://demo`) opens the same place. Nothing to install and
+  no account: it works in a phone or desktop browser and in the app.
+  - **Choose a demo community** (faith-based or not) and the app opens it at once in its ordinary guest mode: no sign-in, no other
+    question. A slim strip over every screen reads "Demo community · Looking around as a guest" with **Be someone in the demo** and
+    **Leave the demo** (back to Find your community).
+  - **Be someone in the demo** lists six invented people in two sections, "Community roles" first and "Non-profit operational roles"
+    second (each a large card: role, name, one sentence). Start signs in as that person for up to two hours; the app is the real app for
+    them. The strip then reads "Demo · Teacher · 1 h 42 min left" with **Switch person**, **Look around as a guest** and **Leave the
+    demo**. The time and the verdict come from the database (`demo_session_state`) every minute and when the app comes back; when the
+    demo has ended, was switched off or the sign-in can no longer be refreshed, the device signs out and the list comes back with "The
+    demo ended. Start again any time."
+  - A page reload or an app restart keeps the demo (guest or person). Signing out of a demo only ends that device's session, never the
+    shared demo person's other sessions.
+  - In a demo the account actions are left out or switched off, each with a plain sentence: changing the email, phone or password,
+    deactivating or deleting the account, the data download, notifications (no permission prompt, no registration), messages to a team
+    and Switch community. Money stays in test mode, as the database decides.
+  - Failures are shown in plain words next to what was done, with Try again: the demo switched off, "you have started a lot of demos in the
+    last hour, please wait a while", the portal not answering, a demo community that is not open to guests yet.
+- The button appears only when the build has a portal address for the demo: `EXPO_PUBLIC_DEMO_URL`, falling back to `EXPO_PUBLIC_PORTAL_URL`.
+  The web deploy sets it to the portal (`https://admin.weaverams.org`, or the repository variable `DEMO_URL`). Details: `docs/DEMO.md`.
+- JavaScript only (no new native code or permission, `runtimeVersion` stays 3): ships over the air; the web build ships with the normal
+  deploy. For the phone, `EXPO_PUBLIC_DEMO_URL` must be an EAS environment variable of the `preview` / `production` environment when the
+  update is published (it is read when the JavaScript is bundled).
+
 ## 1.19.1 — 2026-10-14
 
 - **The app follows the Weaver brand kit.** Weaver's own look now comes from the brand kit in connect-crm (`brand/`, version 2),

@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { Banner, Button, Card, Chip, ChipGroup, Divider, ListRow, Pill, Row, SectionTitle, Toggle, Txt } from '@/components/ui';
+import { DemoNote, useDemoAllows } from '@/features/demo/limits';
 import { LANGUAGES, type Language } from '@/i18n';
 import { readActivityOptOut, setActivityOptOut } from '@/lib/activity';
 import { securitySubKey, signOutBodyKey } from '@/lib/auth-config';
@@ -15,6 +16,7 @@ import { formatPhone, fullName } from '@/lib/format';
 import { currentRelease, releaseLabel } from '@/lib/release';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/providers/app';
+import { useDemo } from '@/providers/demo';
 import { useFeedback } from '@/providers/feedback';
 import { useModule } from '@/providers/modules';
 import { usePush } from '@/providers/push';
@@ -41,6 +43,14 @@ export default function SettingsScreen() {
   const statementsOn = useModule('giving_statements');
   // "Contact" and "Report a problem" send a message to a team inbox (comms module).
   const askOn = useModule('comms');
+  // In a demo (src/lib/demo.ts DEMO_LIMITED) the account cannot be changed and nothing reaches the office; the rows are left out.
+  const canChangeContact = useDemoAllows('changeContact');
+  const canSwitch = useDemoAllows('switchCommunity');
+  const canRequestData = useDemoAllows('dataRequest');
+  const canSend = useDemoAllows('sendMessage');
+  const canDeactivate = useDemoAllows('deactivateAccount');
+  const canDelete = useDemoAllows('deleteAccount');
+  const demo = useDemo();
   const [bio, setBio] = useState<BiometricSupport | null>(null);
   const [bioOn, setBioOn] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -167,15 +177,24 @@ export default function SettingsScreen() {
         </Row>
       </Card>
       {error ? <Banner tone="error" message={error} /> : null}
+      <DemoNote messageKey="demo.limitNote" />
 
       <SectionTitle>{t('settings.account')}</SectionTitle>
       <Card>
         <ListRow title={t('settings.profileFamily')} subtitle={t('settings.profileFamilySub')} onPress={() => router.push('/family')} />
         <Divider />
-        <ListRow title={t('settings.switchCommunity')} subtitle={t('settings.switchCommunitySub', { center: center.name })} onPress={switchCommunity} />
-        <Divider />
-        <ListRow title={t('settings.security')} subtitle={t(securitySubKey())} onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.person.id } })} />
-        <Divider />
+        {canSwitch ? (
+          <>
+            <ListRow title={t('settings.switchCommunity')} subtitle={t('settings.switchCommunitySub', { center: center.name })} onPress={switchCommunity} />
+            <Divider />
+          </>
+        ) : null}
+        {canChangeContact ? (
+          <>
+            <ListRow title={t('settings.security')} subtitle={t(securitySubKey())} onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.person.id } })} />
+            <Divider />
+          </>
+        ) : null}
         {bio ? (
           bio.available ? (
             <Toggle label={t('settings.biometric', { method: bio.label })} sub={t('settings.biometricSub')} value={bioOn} onChange={toggleBio} disabled={busy === 'bio'} />
@@ -272,12 +291,16 @@ export default function SettingsScreen() {
             <Divider />
           </>
         ) : null}
-        <ListRow
-          title={t('settings.download')}
-          subtitle={t('settings.downloadSub')}
-          onPress={() => run('export', 'request your data', () => createDataRequest(center.id, member.person.id, member.userId, 'export'), t('settings.downloadToast'))}
-        />
-        <Divider />
+        {canRequestData ? (
+          <>
+            <ListRow
+              title={t('settings.download')}
+              subtitle={t('settings.downloadSub')}
+              onPress={() => run('export', 'request your data', () => createDataRequest(center.id, member.person.id, member.userId, 'export'), t('settings.downloadToast'))}
+            />
+            <Divider />
+          </>
+        ) : null}
         <ListRow title={t('settings.privacyPolicy')} subtitle={t('settings.privacyPolicySub', { center: community })} onPress={() => router.push({ pathname: '/legal', params: { kind: 'privacy' } })} />
         <Divider />
         <ListRow title={t('settings.terms')} subtitle={t('settings.termsSub')} onPress={() => router.push({ pathname: '/legal', params: { kind: 'terms' } })} />
@@ -302,7 +325,7 @@ export default function SettingsScreen() {
       <Card>
         <ListRow title={t('settings.help')} subtitle={t('settings.helpSub')} onPress={() => router.push('/guide')} />
         <Divider />
-        {askOn ? (
+        {askOn && canSend ? (
           <>
             <ListRow title={t('settings.contact', { center: community })} subtitle={t('settings.contactSub')} onPress={() => router.push('/guide/ask')} />
             <Divider />
@@ -315,7 +338,11 @@ export default function SettingsScreen() {
 
       <SectionTitle>{t('settings.status')}</SectionTitle>
       <Card style={{ gap: 10 }}>
-        {deactivated ? (
+        {!canDeactivate || !canDelete ? (
+          <Txt variant="meta" color="muted">
+            {t('demo.accountOff')}
+          </Txt>
+        ) : deactivated ? (
           <>
             <Txt variant="meta" color="brown" style={{ fontFamily: fonts.bodySemi }}>
               {t('settings.deactivatedBody')}
@@ -333,17 +360,21 @@ export default function SettingsScreen() {
             <Button label={t('settings.deactivate')} tone="outlineBrown" size="card" onPress={() => accountAction('deactivate')} busy={busy === 'deactivate'} />
           </>
         )}
-        <Pressable onPress={() => void accountAction('delete')} accessibilityRole="button" disabled={busy === 'delete'} style={{ minHeight: touch.min, alignItems: 'center', justifyContent: 'center' }}>
-          <Txt variant="smallStrong" color="danger">
-            {t('settings.delete')}
-          </Txt>
-        </Pressable>
+        {canDelete ? (
+          <Pressable onPress={() => void accountAction('delete')} accessibilityRole="button" disabled={busy === 'delete'} style={{ minHeight: touch.min, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt variant="smallStrong" color="danger">
+              {t('settings.delete')}
+            </Txt>
+          </Pressable>
+        ) : null}
       </Card>
       <Button
-        label={t('settings.signOut')}
+        label={demo.active ? t('demo.leave') : t('settings.signOut')}
         tone="secondary"
         onPress={() => {
-          accountAction('signout').catch((err: unknown) => logError('signing out', err));
+          // Signing out of a demo is leaving it: no question, nothing to lose.
+          if (demo.active) run('signout', 'leave the demo', () => demo.leave()).catch((err: unknown) => logError('leaving the demo', err));
+          else accountAction('signout').catch((err: unknown) => logError('signing out', err));
         }}
         busy={busy === 'signout'}
       />

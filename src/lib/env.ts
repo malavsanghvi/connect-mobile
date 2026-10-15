@@ -21,6 +21,19 @@ export function communityDefaults(raw: string | undefined): { buildCommunity: st
   return { buildCommunity, centerSlug: buildCommunity || LEGACY_COMMUNITY_SLUG };
 }
 
+/**
+ * The portal that runs "Try the demo" (its /api/demo/choices and /api/demo/session): EXPO_PUBLIC_DEMO_URL, else the portal the app
+ * already uses for online payments (EXPO_PUBLIC_PORTAL_URL). Trailing slashes are dropped; anything that is not an http(s)
+ * address is ignored. '' means this build has no demo, and the "Try the demo" button is not shown.
+ */
+export function demoBaseUrl(demoUrl: string | undefined, portalUrl: string | undefined): string {
+  for (const raw of [demoUrl, portalUrl]) {
+    const v = (raw ?? '').trim().replace(/\/+$/, '');
+    if (/^https?:\/\/[^\s/]+/i.test(v)) return v;
+  }
+  return '';
+}
+
 export const env = {
   supabaseUrl: (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim(),
   supabaseAnonKey: (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim(),
@@ -34,6 +47,8 @@ export const env = {
   communityDashboardUrl: (process.env.EXPO_PUBLIC_COMMUNITY_DASHBOARD_URL ?? '').trim(),
   /** The Weaver portal that creates online checkouts (/api/payments/intent). Without it, online payment is off. */
   portalUrl: (process.env.EXPO_PUBLIC_PORTAL_URL ?? '').trim().replace(/\/+$/, ''),
+  /** The portal that serves the demo (see demoBaseUrl). '' = no demo in this build. */
+  demoUrl: demoBaseUrl(process.env.EXPO_PUBLIC_DEMO_URL, process.env.EXPO_PUBLIC_PORTAL_URL),
 } as const;
 
 export type EnvVar = {
@@ -80,6 +95,12 @@ export function envStatus(): EnvVar[] {
       purpose: 'Weaver portal address for online payments: the address your staff open the portal at (optional; without it the Pay sheet says online payment is not set up).',
       required: false,
       present: env.portalUrl.length > 0,
+    },
+    {
+      name: 'EXPO_PUBLIC_DEMO_URL',
+      purpose: 'Weaver portal address that runs "Try the demo", e.g. https://admin.weaverams.org (optional; falls back to EXPO_PUBLIC_PORTAL_URL; without either, the button is not shown).',
+      required: false,
+      present: env.demoUrl.length > 0,
     },
   ];
 }

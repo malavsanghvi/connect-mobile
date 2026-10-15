@@ -32,6 +32,7 @@ import {
 } from '@/lib/api/family';
 import type { FamilyMember } from '@/lib/api/member';
 import { INTEREST_CATALOG, interestsToOffer } from '@/lib/categories';
+import { demoAllows } from '@/lib/demo';
 import { check, report } from '@/lib/errors';
 import { fullName } from '@/lib/format';
 import { ageOn } from '@/lib/rules';
@@ -39,6 +40,7 @@ import { supabase } from '@/lib/supabase';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useCategory } from '@/providers/category';
+import { useDemo } from '@/providers/demo';
 import { useFeedback } from '@/providers/feedback';
 import { useSettings, useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
@@ -94,6 +96,8 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
   const { member, center, refreshMember, orgMemberLabel } = useApp();
   const { layout } = useCategory();
   const { toast } = useFeedback();
+  // In a demo the email and phone cannot be changed (src/lib/demo.ts DEMO_LIMITED): the contact fields are not offered.
+  const demo = useDemo();
   const community = center?.short_name || center?.name || '';
   const recordedRelationship = roleLabel(t, fm.role);
   const [draft, setDraft] = useState(() => draftFromPerson(fm.person, recordedRelationship));
@@ -116,7 +120,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
   const isSelf = fm.person.id === member.person.id;
   const canEdit = isSelf || member.isAdult;
   const adult = fm.isAdult;
-  const withContact = adult && canEdit;
+  const withContact = adult && canEdit && demoAllows(demo.active, 'changeContact');
   const first = fm.person.preferred_name || fm.person.first_name;
   const age = ageOn(fm.person.date_of_birth, member.today);
   const idText = fm.orgMemberId ? (
@@ -232,6 +236,11 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
           emails={withContact ? emails : undefined}
           onEmailsChange={withContact ? edit(setEmails) : undefined}
         />
+        {demo.active && adult && canEdit ? (
+          <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+            {t('demo.contactOff')}
+          </Txt>
+        ) : null}
         {member.isAdult && relationshipChanged(recordedRelationship, draft.relationship) ? (
           <Txt variant="caption" color="brown" style={{ fontFamily: fonts.body }}>
             {t('profile.relationshipNote')}

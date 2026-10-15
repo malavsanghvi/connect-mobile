@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { Loaded } from '@/components/states';
 import { Banner, Button, Card, Checkbox, Chip, ChipGroup, LinkText, SectionTitle, TextField, Txt, VStack } from '@/components/ui';
+import { DemoNote, useDemoAllows } from '@/features/demo/limits';
 import { askPrefill, questionRef } from '@/features/guide';
 import { GuideIntro, GuideScreen, SignInFirst, useCommunity } from '@/features/guide-ui';
 import { listMyThreads, listTeamInboxes, sendToInbox } from '@/lib/api/guide';
@@ -32,6 +33,8 @@ export default function AskScreen() {
   const params = useLocalSearchParams<{ topic?: string; q?: string }>();
   const { center, member } = useApp();
   const nivaOn = useModule('niva');
+  // In a demo nothing is sent to a team (src/lib/demo.ts DEMO_LIMITED).
+  const canSend = useDemoAllows('sendMessage');
   const fromNiva = askPrefill(params.q) !== '';
   const { invalidate } = useDataVersion();
   const inboxes = useLoad(() => (center ? listTeamInboxes(center.id) : Promise.resolve([])), [center?.id], 'load the list of teams');
@@ -113,7 +116,8 @@ export default function AskScreen() {
                   <TextField label={t('guide.question')} value={text} onChangeText={setText} placeholder={t('guide.questionPlaceholder')} multiline />
                   {phone ? <Checkbox label={t('guide.askWhatsapp')} checked={byWhatsapp} onChange={setByWhatsapp} /> : <Txt variant="meta" color="muted">{t('guide.askWhatsappNoPhone')}</Txt>}
                   {error ? <Banner tone="error" message={error} /> : null}
-                  <Button label={t('guide.sendQuestion')} onPress={send} busy={busy} disabled={!text.trim() || list.length === 0} />
+                  <DemoNote messageKey="demo.sendOff" />
+                  <Button label={t('guide.sendQuestion')} onPress={send} busy={busy} disabled={!text.trim() || list.length === 0 || !canSend} />
                 </VStack>
               );
             }}

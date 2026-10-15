@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { LEGACY_COMMUNITY_SLUG, communityDefaults } from '../env';
+import { LEGACY_COMMUNITY_SLUG, communityDefaults, demoBaseUrl } from '../env';
 
 describe('which community a build is made for (EXPO_PUBLIC_CENTER_SLUG)', () => {
   it('names none in the shared app, so the finder suggests no organization', () => {
@@ -17,5 +17,21 @@ describe('which community a build is made for (EXPO_PUBLIC_CENTER_SLUG)', () => 
     expect(LEGACY_COMMUNITY_SLUG).toBe('jsh');
     expect(communityDefaults(undefined).centerSlug).toBe('jsh');
     expect(communityDefaults('').centerSlug).toBe('jsh');
+  });
+});
+
+describe('which portal runs the demo (EXPO_PUBLIC_DEMO_URL, else EXPO_PUBLIC_PORTAL_URL)', () => {
+  it('uses the demo address when one is set, without a trailing slash', () => {
+    expect(demoBaseUrl('https://admin.weaverams.org', undefined)).toBe('https://admin.weaverams.org');
+    expect(demoBaseUrl(' https://admin.weaverams.org/// ', 'https://portal.example')).toBe('https://admin.weaverams.org');
+  });
+  it('falls back to the portal the app already uses for payments', () => {
+    expect(demoBaseUrl(undefined, 'https://portal.example/')).toBe('https://portal.example');
+    expect(demoBaseUrl('', 'https://portal.example')).toBe('https://portal.example');
+  });
+  it('is empty (no demo, no button) when neither is set or neither is a web address', () => {
+    expect(demoBaseUrl(undefined, undefined)).toBe('');
+    expect(demoBaseUrl('', '   ')).toBe('');
+    expect(demoBaseUrl('admin.weaverams.org', 'not a url')).toBe('');
   });
 });
