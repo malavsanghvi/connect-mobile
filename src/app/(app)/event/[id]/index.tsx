@@ -12,6 +12,8 @@ import { bandFor, peopleLabel, tierSingular } from '@/features/events';
 import { roleLabel } from '@/features/labels';
 import { startPayment } from '@/features/pay';
 import { returnToEventAfterSignIn } from '@/features/return-to-event';
+import { GuestRsvp } from '@/features/rsvp-contact/flow';
+import { guestRsvpAvailable } from '@/features/rsvp-contact/rules';
 import { commitmentOptions, findEvent, getHouseholdRsvp, getPledgeById, listAttendees, raiseRsvpCommitment, rsvpBlockReason, submitRsvp, type Attendee, type EventRow, type GoingPerson, type Rsvp } from '@/lib/api/events';
 import type { FamilyMember, Member } from '@/lib/api/member';
 import type { Tables } from '@/lib/database.types';
@@ -106,6 +108,11 @@ function EventBody({ data, member, tz, onSync }: { data: Loaded_; member: Member
     }
   };
   const block = rsvpBlockReason(event, data.now);
+  // "RSVP without signing in" (connect-crm docs/RSVP_WITHOUT_LOGIN.md): only for a visitor who is not signed in, on an event that offers it.
+  const signInFromEvent = () => {
+    returnToEventAfterSignIn(event.id, event.center_id);
+    setGuest(false);
+  };
 
   return (
     <VStack gap={14}>
@@ -155,6 +162,7 @@ function EventBody({ data, member, tz, onSync }: { data: Loaded_; member: Member
       ) : (
         <RsvpForm data={data} member={member} tz={tz} onSync={onSync} />
       )}
+      {guestRsvpAvailable({ member, event, block }) ? <GuestRsvp event={event} onSignIn={signInFromEvent} /> : null}
     </VStack>
   );
 }
