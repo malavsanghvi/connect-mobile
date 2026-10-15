@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { CATEGORY_WORDS, GENERIC_WORDS, wordsFor } from '../../i18n/categories';
+import { CATEGORY_WORDS, FAITH_WORDS, GENERIC_WORDS, wordsFor } from '../../i18n/categories';
 import { en } from '../../i18n/en';
 import { gu } from '../../i18n/gu';
 import { hi } from '../../i18n/hi';
@@ -57,7 +57,7 @@ describe('another kind of organization’s words', () => {
 });
 
 describe('the words the app has for kinds of organization', () => {
-  const sets: [string, WordSet][] = [['generic', GENERIC_WORDS], ...Object.entries(CATEGORY_WORDS)];
+  const sets: [string, WordSet][] = [['generic', GENERIC_WORDS], ['faith', FAITH_WORDS], ...Object.entries(CATEGORY_WORDS)];
 
   it('are all keys of the dictionary, so a typo cannot hide a word', () => {
     for (const [name, set] of sets) {
