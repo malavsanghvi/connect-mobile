@@ -5,7 +5,7 @@ import { en } from '../../i18n/en';
 import { genericProfile, JAIN_PROFILE, JAIN_TERMS, parseCategoryProfile, type CategoryTerms } from '../categories';
 import { toAppError } from '../errors';
 import { hasOwnTerms, isTermToken, JAIN_WORDS, resolveTermTokens, retargetActive, retargetDictionary, retargetText, retargetWith, setActiveWording, termTokensIn } from '../wording';
-import { faithOtherPayload, gurdwaraPayload } from './neutral-fixtures';
+import { faithOtherPayload, gurdwaraPayload, learningCenterPayload } from './neutral-fixtures';
 
 const FAITH: CategoryTerms = { ...JAIN_TERMS, greeting: 'Welcome', practice_tab: 'Learn', school: 'Religious school', learning: 'Learning path', place: 'place of worship' };
 const NO_SCHOOL: CategoryTerms = { ...FAITH, practice_tab: null, school: null, learning: null, place: 'office' };
@@ -155,6 +155,15 @@ describe('the sentences written in code, said with the active community’s word
     expect(toAppError({ message: 'weird' }, 'load stavans and podcasts').userMessage).toBe('Something went wrong while trying to load songs and podcasts. Please try again.');
     expect(toAppError({ message: 'weird' }, 'load My Jain Way').userMessage).toBe('Something went wrong while trying to load this page. Please try again.');
     expect(toAppError({ message: 'weird' }, 'load the pachchakhan library').userMessage).toBe('Something went wrong while trying to load the daily reading library. Please try again.');
+  });
+
+  it('say the school’s own name in a failure when the school is the Learning Center', () => {
+    const lc = parseCategoryProfile(learningCenterPayload());
+    if (!lc) throw new Error('profile');
+    setActiveWording(lc.terms, phrasesFor(lc));
+    expect(toAppError(new TypeError('Failed to fetch'), 'load Pathshala terms').userMessage).toBe("We couldn't load Learning Center terms. Check your internet connection and try again.");
+    expect(toAppError({ message: 'weird' }, 'register for Pathshala').userMessage).toBe('Something went wrong while trying to register for Learning Center. Please try again.');
+    expect(toAppError({ message: 'weird' }, 'load Gyan Path goals').userMessage).toBe('Something went wrong while trying to load Learning path goals. Please try again.');
   });
 
   it('keep the capital letter of the word they replace, and leave a word that only contains one alone', () => {

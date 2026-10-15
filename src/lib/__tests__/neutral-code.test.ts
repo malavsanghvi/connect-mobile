@@ -7,7 +7,7 @@ import { phrasesFor } from '../../i18n/categories';
 import { genericProfile, JAIN_PROFILE, parseCategoryProfile, type CategoryProfile } from '../categories';
 import { retargetWith } from '../wording';
 import { bannedIn, ownWords } from './neutral-audit';
-import { chamberPayload, communityPayload, faithDemoPayload, faithOtherPayload, gurdwaraPayload } from './neutral-fixtures';
+import { chamberPayload, communityPayload, faithDemoPayload, faithOtherPayload, gurdwaraPayload, learningCenterPayload } from './neutral-fixtures';
 
 /**
  * The words the app writes in code, outside the dictionary (src/i18n/en.ts): the action of a failure ("We couldn't load Pathshala
@@ -89,6 +89,7 @@ function profileOf(payload: unknown): CategoryProfile {
 const OTHERS: [string, CategoryProfile][] = [
   ['Faith community', profileOf(faithOtherPayload())],
   ['Faith community in the demo', profileOf(faithDemoPayload())],
+  ['Faith community whose school is the Learning Center', profileOf(learningCenterPayload())],
   ['Community organization', profileOf(communityPayload())],
   ['Chamber of commerce', profileOf(chamberPayload())],
   ['A gurdwara', profileOf(gurdwaraPayload())],

@@ -152,6 +152,19 @@ export function chamberPayload(): unknown {
 }
 
 /**
+ * The demo's faith community as the owner has it (2026-10-15): the school is the "Learning Center" (the term and the module's
+ * label), not a "Religious school". `learning` is the term for the learning path ("Learning path" unless said otherwise).
+ */
+export function learningCenterPayload(learning = 'Learning path'): unknown {
+  const p = faithDemoPayload() as { category: { terms: Record<string, unknown> }; modules: Record<string, { availability: Availability; label: string | null }> };
+  return {
+    ...p,
+    category: { ...p.category, terms: { ...p.category.terms, school: 'Learning Center', learning } },
+    modules: { ...p.modules, pathshala: { availability: 'default_on', label: 'Learning Center' }, gyan_path: { availability: 'default_on', label: learning } },
+  };
+}
+
+/**
  * A faith the platform has no entry for yet, with words of its own for the school and the learning path: what a new experience
  * brings as data (here a gurdwara). Its terms must replace the category's, wherever the app says "school" or "learning path".
  */

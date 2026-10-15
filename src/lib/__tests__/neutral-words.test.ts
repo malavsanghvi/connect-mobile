@@ -7,7 +7,7 @@ import { categoryModuleMap, genericProfile, JAIN_PROFILE, layoutFor, parseCatego
 import { isModuleOn } from '../modules';
 import { retargetWith } from '../wording';
 import { bannedIn, BANNED, LANGUAGES_AUDITED, leaksOf, ownWords, resolved, type Leak } from './neutral-audit';
-import { chamberPayload, communityPayload, faithDemoPayload, faithOtherPayload, gurdwaraPayload } from './neutral-fixtures';
+import { chamberPayload, communityPayload, faithDemoPayload, faithOtherPayload, gurdwaraPayload, learningCenterPayload } from './neutral-fixtures';
 
 /**
  * "Make everything in the demo app neutral" (owner, 2026-10-15). The English dictionary is Jain Center's own wording; every other
@@ -29,6 +29,8 @@ function profileOf(payload: unknown): CategoryProfile {
 const AUDITED: [string, CategoryProfile][] = [
   ['Faith community (faith_other), as the database answers', profileOf(faithOtherPayload())],
   ['Faith community in the demo (school, learning path, store and Niva on)', profileOf(faithDemoPayload())],
+  ['Faith community in the demo with the school called the Learning Center (owner, 2026-10-15)', profileOf(learningCenterPayload())],
+  ['Faith community with the school and the learning path both called Learning Center', profileOf(learningCenterPayload('Learning Center'))],
   ['Community organization (nonprofit_secular)', profileOf(communityPayload())],
   ['Chamber of commerce', profileOf(chamberPayload())],
   ['A gurdwara: a new faith that brings its own terms as data', profileOf(gurdwaraPayload())],
@@ -100,14 +102,14 @@ describe('a category’s terms reach every sentence, not only the labels', () =>
 
   it('says the school, the learning path and the place of worship in the faith community’s own terms', () => {
     expect(text(faith, 'reg.title')).toBe('Religious school registration');
-    expect(text(faith, 'enrollReq.cta')).toBe('Register for Religious school');
+    expect(text(faith, 'enrollReq.cta')).toBe('Register for the Religious school');
     expect(text(faith, 'learn.noGoals')).toBe('Learning path is coming');
     expect(text(faith, 'learn.goalsGreeting')).toBe('Learning path · Welcome, {name}');
     expect(text(faith, 'guide.derasarToday')).toBe('Place of worship today');
     expect(text(faith, 'store.pickup')).toBe('Pickup at the place of worship');
     expect(text(faith, 'guide.heroEyebrow')).toBe('Welcome');
     expect(text(faith, 'jw.title')).toBe('Learn');
-    expect(text(faith, 'reg.strip.hint')).toBe('Opens Religious school in Learn');
+    expect(text(faith, 'reg.strip.hint')).toBe('Opens the Religious school in Learn');
   });
 
   it('says a new faith’s terms the same way, wherever the dictionary says Pathshala, Gyan Path or derasar', () => {
@@ -134,6 +136,63 @@ describe('a category’s terms reach every sentence, not only the labels', () =>
   it('uses the same placeholders for the one screen that fills them as the dictionary does', () => {
     // {place} is filled by the Today card's "When to visit the {place}": a pack's own text must not have taken it away
     expect(text(faith, 'home.serviceTimesLead')).toBe(en['home.serviceTimesLead']);
+  });
+});
+
+describe('the school and the learning path come from the profile’s terms, never from the app', () => {
+  const learningCenter = profileOf(learningCenterPayload());
+  const studyHall = profileOf({ ...(learningCenterPayload() as { category: { terms: object } }), category: { ...(learningCenterPayload() as { category: object }).category, terms: { ...learningCenter.terms, school: 'Study Hall', learning: 'Study Path' } } });
+  const said = (profile: CategoryProfile, key: StringKey): string => translateWith('en', key, undefined, wordsFor(profile));
+
+  it('reads naturally with the school called the Learning Center: the registration, the office, the tabs, the sections', () => {
+    expect(said(learningCenter, 'enrollReq.sentBody')).toBe('The Learning Center office will place {name} in a class. You will see it under Learn.');
+    expect(said(learningCenter, 'reg.strip.hint')).toBe('Opens the Learning Center in Learn');
+    expect(said(learningCenter, 'enrollReq.cta')).toBe('Register for the Learning Center');
+    expect(said(learningCenter, 'enrollReq.title')).toBe('Learning Center enrollment');
+    expect(said(learningCenter, 'reg.title')).toBe('Learning Center registration');
+    expect(said(learningCenter, 'reg.start.notMember')).toMatch(/^The Learning Center is for member families\./);
+    expect(said(learningCenter, 'reg.who.intro')).toBe('Choose everyone in your family who will join the Learning Center this term: children, and adults for the adult classes.');
+    expect(said(learningCenter, 'reg.start.cannot')).toBe("Registration can't be completed in the app right now. Ask the Learning Center office.");
+    expect(said(learningCenter, 'teach.title')).toBe('Teach at the Learning Center');
+    expect(said(learningCenter, 'teach.intro')).toMatch(/^The Learning Center runs on volunteer teachers\./);
+    expect(said(learningCenter, 'learn.pathshala')).toBe('Learning Center');
+    expect(said(learningCenter, 'learn.noEnrollments')).toBe('No Learning Center enrollments');
+    expect(said(learningCenter, 'drawer.pathshala')).toBe('Learning Center');
+    expect(said(learningCenter, 'modules.label.pathshala')).toBe('Learning Center');
+    expect(said(learningCenter, 'guide.regPathshala')).toBe('Learning Center enrollment');
+    expect(said(learningCenter, 'niva.q4')).toBe('How do I sign my child up for the Learning Center?');
+    expect(said(learningCenter, 'paid.feeBody')).toBe('We received {amount} for the Learning Center fee. Thank you.');
+    expect(said(learningCenter, 'source.pathshala_fee')).toBe('Learning Center fee');
+    expect(said(learningCenter, 'announce.all')).toBe('The whole Learning Center');
+    expect(said(learningCenter, 'learn.noLevels')).toBe('Levels for this goal are coming from the Learning Center.');
+  });
+
+  it('says a notification topic the database named "Pathshala updates" with the school’s own name', () => {
+    const phrases = phrasesFor(learningCenter);
+    expect(retargetWith('Pathshala updates', learningCenter.terms, phrases)).toBe('Learning Center updates');
+    expect(retargetWith('Giving opportunities and bolis', learningCenter.terms, phrases)).toBe('Giving opportunities and auctions');
+    expect(retargetWith('Satvik Store', learningCenter.terms, phrases)).toBe('Store');
+  });
+
+  it('puts no school or learning-path name in a string that the profile did not give: not one string of the dictionary has another category’s term', () => {
+    // 'Religious school' and 'Learning path' are the faith community’s terms and 'Pathshala' and 'Gyan Path' Jain Center’s: a profile
+    // with its own terms must show none of them, in any language, so none is hard-coded in the app’s words.
+    const others = /religious school|learning path|pathshala|gyan path/i;
+    for (const profile of [learningCenter, studyHall, profileOf(learningCenterPayload('Learning Center'))]) {
+      for (const lang of LANGUAGES_AUDITED) {
+        const offenders = resolved(profile, lang)
+          .filter(([, text]) => others.test(text.split(profile.terms.learning ?? '\u0000').join(' ')))
+          .map(([key, text]) => key + ': ' + text);
+        expect([profile.terms.school, profile.terms.learning, lang, offenders]).toEqual([profile.terms.school, profile.terms.learning, lang, []]);
+      }
+    }
+  });
+
+  it('uses the school and the learning path it was given, in place of the ones another category has', () => {
+    expect(said(studyHall, 'learn.noGoals')).toBe('Study Path is coming');
+    expect(said(studyHall, 'reg.title')).toBe('Study Hall registration');
+    expect(said(studyHall, 'access.area.learn')).toBe('Study Path');
+    expect(said(studyHall, 'modules.label.gyan_path')).toBe('Study Path');
   });
 });
 

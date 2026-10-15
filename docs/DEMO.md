@@ -113,7 +113,7 @@ The source of truth is connect-crm `docs/MEMBER_APP_DEMO.md`; what the app reads
 
 The demo communities are not Jain Centers, so the app speaks neutrally in them: **no Jain word, and no word of any one tradition, on any
 screen** (owner, 2026-10-15). A faith community ("Sunrise Worship Center (Demo)", category `faith_other`: "Faith community") reads
-"Welcome", "Learn", "Religious school", "Learning path" and "place of worship", never "Jai Jinendra", "My Jain Way", "Pathshala",
+"Welcome", "Learn", "Religious school" (or, as the demo has it, "Learning Center"), "Learning path" and "place of worship", never "Jai Jinendra", "My Jain Way", "Pathshala",
 "Gyan Path", "derasar", "bolis", "labh", "tithi", "stavans" or "pachchakhan". It holds in the guest look-around and for every demo person
 (the family adult, the center administrator, the treasurer, membership, an event lead, a teacher), in English, Gujarati and Hindi. How:
 README "The words of each kind of organization"; `src/i18n/categories/neutral.ts`, `faith.ts`, `src/lib/wording.ts`. The demo

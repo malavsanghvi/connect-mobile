@@ -28,7 +28,10 @@ How a release is made:
   - **A category's own terms reach every sentence.** The school, the learning path, the place of worship and the greeting were only
     in the tab and drawer labels; `src/lib/wording.ts` now says them wherever the dictionary says Pathshala, Gyan Path, derasar or
     Jai Jinendra ("Register for Religious school", "Learning path · Welcome", "Pickup at the place of worship"), for Faith community,
-    for a gurdwara that brings its own terms, for anything.
+    for a gurdwara that brings its own terms, for anything. The demo's school is the "Learning Center": "The Learning Center office will
+    place {name} in a class", "Opens the Learning Center in Learn", "Teach at the Learning Center". No app word names a school or a
+    learning path of its own: they all come from the profile's terms (a test with a school called Learning Center, Study Hall or
+    anything proves it).
   - **The sentences written in code are neutral too:** the action of a failure ("We couldn't load Pathshala terms"), the few messages
     the data layer writes, and a notification topic the database names "Pathshala updates", are said with the community's words.
   - **The tradition's own calendar and texts are for a tradition's community.** A kind of organization without one (Faith community,
