@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Banner, Button, LinkText, Segmented, SectionTitle, Txt } from '@/components/ui';
 import { loadDemoChoices } from '@/lib/api/demo';
-import { canOpenAsGuest, sectionsByArea, type DemoChoices, type DemoCommunity, type DemoGuest, type DemoKind, type DemoPerson } from '@/lib/demo';
+import { canOpenAsGuest, familyPerson, sectionsByArea, type DemoChoices, type DemoCommunity, type DemoGuest, type DemoKind, type DemoPerson } from '@/lib/demo';
 import { logError } from '@/lib/errors';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -82,19 +82,60 @@ function LoadState({ load, onRetry }: { load: ChooserLoad; onRetry: () => void }
 
 // ── Step 1: which demo community ─────────────────────────────────────────────
 
-function CommunityCard({ community, disabled, onPress }: { community: DemoCommunity; disabled: boolean; onPress: () => void }) {
-  const t = useT();
-  const name = community.name || t(`demo.kind.${community.kind}`);
+/** Which card is working and what it is doing: starting as the family member, or opening the community as a guest. */
+export type DemoPending = { key: string; action: 'family' | 'guest' } | null;
+
+/** The card's own identity (the web name when the portal sends one). */
+const keyOf = (c: DemoCommunity): string => c.slug ?? c.id ?? c.kind;
+
+/** A quiet action under a card: text, underlined, at least 44 px tall. */
+function QuietAction({ label, hint, disabled, onPress }: { label: string; hint: string; disabled: boolean; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={t('demo.communityLabel', { kind: t(`demo.kind.${community.kind}`), name, blurb: t(`demo.kindBlurb.${community.kind}`) })}
-      accessibilityHint={t('demo.communityHint', { name })}
+      accessibilityLabel={label}
+      accessibilityHint={hint}
       accessibilityState={{ disabled }}
-      style={({ pressed }) => ({
-        minHeight: touch.row,
+      style={({ pressed }) => ({ minHeight: touch.min, justifyContent: 'center', opacity: disabled ? 0.5 : pressed ? 0.6 : 1 })}>
+      <Txt variant="smallStrong" color="navy" style={{ textDecorationLine: 'underline' }}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
+/**
+ * One demo community: what it is, then ONE primary button that starts as the family's main adult ("Start as a community member", the
+ * person the portal's list names for that area and role) and lands on the app's Home signed in; "Look around as a guest" and "Choose
+ * someone else" are quiet actions under it. A community with no family to start as keeps the guest look around as its main button.
+ */
+function CommunityCard({
+  community,
+  pending,
+  onFamily,
+  onGuest,
+  onPeople,
+}: {
+  community: DemoCommunity;
+  pending: DemoPending;
+  onFamily: (personId: string, key: string) => void;
+  onGuest: (guest: DemoGuest, key: string) => void;
+  onPeople: (slug: string) => void;
+}) {
+  const t = useT();
+  const name = community.name || t(`demo.kind.${community.kind}`);
+  const key = keyOf(community);
+  const person = familyPerson(community.people);
+  const guestSlug = canOpenAsGuest(community) ? community.slug : null;
+  const disabled = pending !== null;
+  const startingFamily = pending?.action === 'family' && pending.key === key;
+  const openingGuest = pending?.action === 'guest' && pending.key === key;
+  const guest = guestSlug ? () => onGuest({ slug: guestSlug, name }, key) : null;
+  return (
+    <View
+      style={{
         borderRadius: radii.xl,
         borderWidth: 1,
         borderColor: colors.border,
@@ -102,59 +143,103 @@ function CommunityCard({ community, disabled, onPress }: { community: DemoCommun
         paddingVertical: space.cardY,
         paddingHorizontal: space.cardX,
         gap: space.xxs,
-        opacity: disabled ? 0.6 : pressed ? 0.85 : 1,
-      })}>
+      }}>
       <Txt variant="eyebrow" color="brown">
         {t(`demo.kind.${community.kind}`)}
       </Txt>
-      <Txt variant="cardTitle">{name}</Txt>
+      <Txt variant="cardTitle" accessibilityRole="header">
+        {name}
+      </Txt>
       <Txt variant="small" color="ink2">
         {t(`demo.kindBlurb.${community.kind}`)}
       </Txt>
-    </Pressable>
+      <View style={{ gap: space.xs, marginTop: space.sm }}>
+        {person ? (
+          <>
+            <Button
+              label={startingFamily ? t('demo.starting') : t('demo.familyStart')}
+              busy={startingFamily}
+              disabled={disabled}
+              accessibilityHint={t('demo.familyStartHint', { name: person.name, community: name })}
+              onPress={() => onFamily(person.id, key)}
+            />
+            {person.story ? (
+              <Txt variant="small" color="ink2">
+                {person.story}
+              </Txt>
+            ) : null}
+          </>
+        ) : guest ? (
+          <Button
+            label={openingGuest ? t('demo.opening') : t('demo.lookAsGuest')}
+            busy={openingGuest}
+            disabled={disabled}
+            accessibilityHint={t('demo.cardGuestHint', { community: name })}
+            onPress={guest}
+          />
+        ) : null}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.lg }}>
+          {person && guest ? <QuietAction label={t('demo.lookAsGuest')} hint={t('demo.cardGuestHint', { community: name })} disabled={disabled} onPress={guest} /> : null}
+          {guestSlug && community.people.length > 0 ? (
+            <QuietAction label={t('demo.choosePerson')} hint={t('demo.choosePersonHint', { community: name })} disabled={disabled} onPress={() => onPeople(guestSlug)} />
+          ) : null}
+        </View>
+      </View>
+    </View>
   );
 }
 
 /**
- * Step 1 of "Try the demo": the demo communities, faith-based or not. Choosing one opens it at once as a guest (no sign-in, no other
- * question). A community the portal does not yet name for guests is left out; if none is left, the screen says they are not open yet.
+ * Step 1 of "Try the demo": the demo communities, faith-based or not. Each card starts as the family's main adult in ONE tap (straight to
+ * the app's Home, signed in as that person); looking around as a guest and choosing someone else are the quiet ways. A failed start is
+ * said in plain words above the list with Try again. A community the portal names neither a family nor a web name for is left out; if
+ * none is left, the screen says they are not open yet.
  */
 export function DemoCommunityStepView({
   load,
   notice,
   warning,
-  opening,
-  onPick,
+  pending,
+  startError,
+  onFamily,
+  onGuest,
+  onPeople,
+  onRetryStart,
   onRetryLoad,
   onBack,
 }: {
   load: ChooserLoad;
   notice?: string | null;
   warning?: string | null;
-  /** A community is being opened: the cards wait. */
-  opening: boolean;
-  onPick: (community: DemoGuest) => void;
+  /** A community is being started or opened: every card waits. */
+  pending: DemoPending;
+  /** Why the latest start did not happen, in the portal's own plain words. */
+  startError?: string | null;
+  onFamily: (personId: string, key: string) => void;
+  onGuest: (guest: DemoGuest, key: string) => void;
+  onPeople: (slug: string) => void;
+  onRetryStart?: () => void;
   onRetryLoad: () => void;
   onBack: () => void;
 }) {
   const t = useT();
   const ready = load.status === 'ready' ? load.choices : null;
-  const open = ready?.enabled ? ready.communities.filter(canOpenAsGuest) : [];
-  const state = <LoadState load={load} onRetry={onRetryLoad} />;
-  let body: ReactNode = state;
+  const listed = ready?.enabled ? ready.communities.filter((c) => canOpenAsGuest(c) || familyPerson(c.people) !== null) : [];
+  let body: ReactNode = <LoadState load={load} onRetry={onRetryLoad} />;
   if (ready) {
     if (!ready.enabled) body = <Banner tone="warning" message={ready.message ?? t('demo.off')} action={{ label: t('common.retry'), onPress: onRetryLoad }} />;
-    else if (open.length === 0) body = <Banner tone="info" message={ready.communities.length === 0 ? (ready.message ?? t('demo.empty')) : t('demo.guestNotReady')} action={{ label: t('common.retry'), onPress: onRetryLoad }} />;
+    else if (listed.length === 0) body = <Banner tone="info" message={ready.communities.length === 0 ? (ready.message ?? t('demo.empty')) : t('demo.guestNotReady')} action={{ label: t('common.retry'), onPress: onRetryLoad }} />;
     else
       body = (
         <View style={{ gap: space.md }}>
+          {startError ? <Banner tone="error" message={startError} action={onRetryStart ? { label: t('common.retry'), onPress: onRetryStart } : undefined} /> : null}
           <SectionTitle>{t('demo.communityTitle')}</SectionTitle>
-          {open.map((c) => (
-            <CommunityCard key={c.slug} community={c} disabled={opening} onPress={() => onPick({ slug: c.slug, name: c.name || t(`demo.kind.${c.kind}`) })} />
+          {listed.map((c) => (
+            <CommunityCard key={keyOf(c)} community={c} pending={pending} onFamily={onFamily} onGuest={onGuest} onPeople={onPeople} />
           ))}
-          {opening ? (
+          {pending ? (
             <Txt variant="small" color="muted" accessibilityLiveRegion="polite">
-              {t('demo.opening')}
+              {pending.action === 'guest' ? t('demo.opening') : t('demo.starting')}
             </Txt>
           ) : null}
         </View>
@@ -216,6 +301,7 @@ export function DemoPersonStepView({
   starting,
   startError,
   onStart,
+  onRetryStart,
   onRetryLoad,
   onBack,
 }: {
@@ -226,6 +312,8 @@ export function DemoPersonStepView({
   starting: boolean;
   startError: string | null;
   onStart: (persona: string) => void;
+  /** Repeat the start that failed (a link's, or Try again): offered when no person is chosen and trying again can help. */
+  onRetryStart?: () => void;
   onRetryLoad: () => void;
   onBack: () => void;
 }) {
@@ -238,6 +326,8 @@ export function DemoPersonStepView({
   const named = communitySlug ? communities.find((c) => c.slug === communitySlug) : undefined;
   const community: DemoCommunity | null = named ?? communities.find((c) => c.kind === kind) ?? communities[0] ?? null;
   const person = community?.people.find((p) => p.id === picked) ?? null;
+  // Try again starts the person chosen, else repeats the start that failed (when that can help).
+  const retryAction = person ? { label: t('common.retry'), onPress: () => onStart(person.id) } : onRetryStart ? { label: t('common.retry'), onPress: onRetryStart } : undefined;
 
   let body: ReactNode = <LoadState load={load} onRetry={onRetryLoad} />;
   if (ready) {
@@ -246,6 +336,8 @@ export function DemoPersonStepView({
     else
       body = (
         <View style={{ gap: space.lg }}>
+          {/* At the top, where it is seen: a start that began on its own (a link) fails before anything here was tapped. */}
+          {startError ? <Banner tone="error" message={startError} action={retryAction} /> : null}
           {!named && communities.length > 1 ? (
             <Segmented<DemoKind>
               label={t('demo.kindLabel')}
@@ -275,7 +367,6 @@ export function DemoPersonStepView({
               </View>
             ))}
           </View>
-          {startError ? <Banner tone="error" message={startError} action={person ? { label: t('common.retry'), onPress: () => onStart(person.id) } : undefined} /> : null}
         </View>
       );
   }
@@ -311,14 +402,17 @@ function noticeText(notice: DemoNotice | null, t: ReturnType<typeof useT>): stri
   return null;
 }
 
-/** The chooser: loads the demo communities and people from the portal; the community step opens a community as a guest, the person step starts a demo person. */
+/**
+ * The chooser: loads the demo communities and people from the portal. The community step starts the family's main adult in one tap (or
+ * opens the community as a guest, or lists its people); the person step starts the person chosen. Why a start failed comes from the
+ * provider (`startError`), so a failure of a link that started on its own is shown here too.
+ */
 export function DemoChooserScreen() {
   const t = useT();
   const demo = useDemo();
   const app = useApp();
   const choices = useLoad(() => loadDemoChoices(), [], 'load the demo');
-  const [startError, setStartError] = useState<string | null>(null);
-  const [opening, setOpening] = useState(false);
+  const [pending, setPending] = useState<DemoPending>(null);
 
   const load: ChooserLoad = choices.data ? { status: 'ready', choices: choices.data } : choices.error ? { status: 'error', message: choices.error.userMessage } : { status: 'loading' };
   const warning = app.session && !demo.active ? t('demo.signedInWarning') : null;
@@ -327,34 +421,40 @@ export function DemoChooserScreen() {
     return (
       <DemoPersonStepView
         load={load}
-        communitySlug={demo.slug}
+        communitySlug={demo.slug ?? demo.peopleOf}
         notice={noticeText(demo.notice, t)}
+        warning={warning}
         starting={demo.starting}
-        startError={startError}
+        startError={demo.startError}
         onStart={(persona) => {
-          setStartError(null);
-          void demo.start(persona).then((result) => {
-            if (!result.ok) setStartError(result.message);
-          });
+          void demo.start(persona);
         }}
+        onRetryStart={demo.canRetry ? demo.retryStart : undefined}
         onRetryLoad={() => void choices.reload()}
         onBack={demo.closeChooser}
       />
     );
   }
+  // A start that began on its own (a retry, a link) shows as "Starting the demo…" with every card waiting.
+  const working: DemoPending = pending ?? (demo.starting ? { key: '', action: 'family' } : null);
+  const finish = () => setPending(null);
   return (
     <DemoCommunityStepView
       load={load}
       notice={noticeText(demo.notice, t)}
       warning={warning}
-      opening={opening}
-      onPick={(community) => {
-        setOpening(true);
-        demo
-          .enterGuest(community)
-          .catch((err: unknown) => logError('opening the demo community', err))
-          .finally(() => setOpening(false));
+      pending={working}
+      startError={demo.startError}
+      onFamily={(personId, key) => {
+        setPending({ key, action: 'family' });
+        demo.start(personId).catch((err: unknown) => logError('starting the demo', err)).finally(finish);
       }}
+      onGuest={(community, key) => {
+        setPending({ key, action: 'guest' });
+        demo.enterGuest(community).catch((err: unknown) => logError('opening the demo community', err)).finally(finish);
+      }}
+      onPeople={demo.openPeople}
+      onRetryStart={demo.canRetry ? demo.retryStart : undefined}
       onRetryLoad={() => void choices.reload()}
       onBack={demo.closeChooser}
     />

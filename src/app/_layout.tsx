@@ -115,8 +115,11 @@ function RootNavigator() {
 
   if (!app.configured) return <SetupScreen />;
   // "Try the demo": choosing a demo community (from the button, from /demo, or after a demo ended) comes before any community. Choosing
-  // who to be happens over the running demo community instead (below), so the screen the visitor was on is still there under it.
-  if (demo.chooser === 'community') return <DemoChooserScreen />;
+  // who to be happens over the running demo community instead (below), so the screen the visitor was on is still there under it; with no
+  // demo running yet ("Choose someone else" on a demo community) there is nothing to draw it over, so it takes the screen like the first step.
+  if (demo.chooser === 'community' || (demo.chooser === 'person' && demo.mode === 'off')) return <DemoChooserScreen />;
+  // A demo that is starting on its own (a /demo?as=family or ?persona= link, Try again) says so instead of showing another screen first.
+  if (demo.starting && demo.chooser === null) return <FullScreenLoading label={t('demo.starting')} />;
   // A new install (or Settings › Switch community): choose the community first.
   if (app.needsCommunity || app.choosingCommunity) return <FindCommunityScreen />;
   if (app.booting) return <FullScreenLoading />;

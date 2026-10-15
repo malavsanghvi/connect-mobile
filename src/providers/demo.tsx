@@ -2,24 +2,30 @@ import * as Linking from 'expo-linking';
 import { createContext, useContext, useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
 import { AppState } from 'react-native';
 
-import { checkDemoState, leaveDemo, startDemo, type DemoStartResult } from '@/lib/api/demo';
+import { checkDemoState, leaveDemo, loadDemoChoices, startDemo, type DemoStartResult } from '@/lib/api/demo';
 import { openedPath } from '@/lib/community';
 import {
   DEMO_CHECK_MS,
+  canRetryStart,
   endFor,
   infoFromState,
   isDemoGuest,
   isDemoInfo,
   isDemoLogin,
   isDemoPath,
+  parseDemoLink,
+  pickFamily,
   secondsUntil,
   startFailureMessage,
+  type DemoFailureCode,
   type DemoGuest,
   type DemoInfo,
+  type DemoLink,
   type DemoMode,
 } from '@/lib/demo';
+import { forgetDemoLink } from '@/lib/demo-address';
 import { env, isConfigured } from '@/lib/env';
-import { logError } from '@/lib/errors';
+import { AppError, logError } from '@/lib/errors';
 import { readPref, writePref } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 
@@ -29,6 +35,12 @@ import { supabase } from '@/lib/supabase';
  *  - GUEST (`mode: 'guest'`): looking around a demo community with no sign-in, the same experience as any visitor (the app's guest
  *    mode, scoped to that community). This is where "Try the demo" lands, with no question asked first.
  *  - PERSON (`mode: 'person'`): signed in as one of the invented demo people, a real sign-in that lasts two hours.
+ *
+ * The shortest way in (owner request 2026-10-15) is one tap, or a link, straight to PERSON: "Start as a community member" on a demo
+ * community starts the family's main adult (`start(id)`, the same path as choosing that person in the list), and the addresses
+ * `/demo?as=family[&community=<web name>]` and `/demo?persona=<id>` (also `connect://demo?...`) do the same without a tap (`runLink`).
+ * A start that fails never leaves a blank screen: the chooser comes back with the reason (`startError`) and Try again (`retryStart`).
+ * A link does not start over a REAL sign-in on the device (that would sign the person out without asking): it opens the chooser, which warns.
  *
  * This provider holds which of the three the device is in (`mode`, `guest`, `active`), the community the demo opens (`slug`), the
  * chooser that is open (`chooser`: the community step or the person step), starting and leaving, and the check of a running person
@@ -61,6 +73,12 @@ type Core = {
   chooser: DemoChooser | null;
   starting: boolean;
   notice: DemoNotice | null;
+  /** Why the latest start did not happen, in plain words (the portal's own sentence when it sent one); cleared when another start begins. */
+  startError: string | null;
+  /** Trying the latest start again can help (the portal was busy or unreachable), as opposed to a person or community that is not on the list. */
+  canRetry: boolean;
+  /** The demo community whose people the person step lists when no demo is running yet (reached from "Choose someone else"). */
+  peopleOf: string | null;
   info: DemoInfo | null;
   guest: DemoGuest | null;
   /** The device clock when `info` was last read or checked, for the countdown (kept in state so a render never reads the clock). */
@@ -88,13 +106,24 @@ export type DemoContextValue = {
   choosing: boolean;
   chooser: DemoChooser | null;
   notice: DemoNotice | null;
+  /** Why the latest start did not happen, in plain words; null when none failed (or another start has begun). */
+  startError: string | null;
+  /** Whether `retryStart` is worth offering for `startError`. */
+  canRetry: boolean;
+  /** The community the person step lists when no demo runs yet ("Choose someone else" on a demo community); otherwise `slug` names it. */
+  peopleOf: string | null;
   /** "Try the demo" / "Be someone in the demo" / "Switch person": the community step when not in a demo, the person step when in one. */
   openChooser: () => void;
+  /** Back: from the people of a community reached from the community step, to that step; from anything else, out of the chooser. */
   closeChooser: () => void;
+  /** "Choose someone else" on a demo community: the people of that community (the web name), with no demo running yet. */
+  openPeople: (slug: string) => void;
   /** Open this demo community as a guest: no sign-in, no question. A sign-in on this device is signed out first. */
   enterGuest: (community: DemoGuest) => Promise<void>;
   /** Start a demo as this person. A refusal or a failure comes back as a result with a plain sentence; nothing throws. */
   start: (persona: string) => Promise<DemoStartResult>;
+  /** Try the latest start again (the same person, or the same `?as=family` request). */
+  retryStart: () => void;
   /** From a demo person back to looking around the same community as a guest. */
   toGuest: () => Promise<void>;
   /** Leave the demo: tell the database (a person), sign out on this device, back to "Find your community". */
@@ -115,17 +144,35 @@ const inert: DemoContextValue = {
   choosing: false,
   chooser: null,
   notice: null,
+  startError: null,
+  canRetry: false,
+  peopleOf: null,
   openChooser: () => undefined,
   closeChooser: () => undefined,
+  openPeople: () => undefined,
   enterGuest: async () => undefined,
   start: async () => ({ ok: false, code: 'failed', message: startFailureMessage('failed') }),
+  retryStart: () => undefined,
   toGuest: async () => undefined,
   leave: async () => undefined,
 };
 
 export const DemoContext = createContext<DemoContextValue>(inert);
 
-type Live = { info: DemoInfo | null; guest: DemoGuest | null; ending: boolean };
+/** What a start asked for, kept so "Try again" repeats it: one exact person, or the family's main adult of a community (null: the first). */
+type StartRequest = { kind: 'persona'; persona: string } | { kind: 'family'; community: string | null };
+
+type Live = {
+  info: DemoInfo | null;
+  guest: DemoGuest | null;
+  ending: boolean;
+  /** A start is running (a link that arrives meanwhile is not acted on). */
+  starting: boolean;
+  /** The latest start, for Try again. */
+  last: StartRequest | null;
+  /** The saved demo and the opening link have been read. */
+  ready: boolean;
+};
 type Controls = { setCore: Dispatch<SetStateAction<Core>>; live: RefObject<Live> };
 
 async function signOutHere(): Promise<void> {
@@ -149,7 +196,7 @@ function forget(pref: string): Promise<void> {
 async function endDemo(ctrl: Controls, how: { notice: DemoNotice | null; chooser: DemoChooser | null }, tellDatabase: boolean): Promise<void> {
   if (ctrl.live.current.ending) return;
   ctrl.live.current.ending = true;
-  ctrl.setCore((c) => ({ ...c, chooser: how.chooser, notice: how.notice }));
+  ctrl.setCore((c) => ({ ...c, chooser: how.chooser, notice: how.notice, startError: null, peopleOf: null }));
   try {
     if (ctrl.live.current.info) {
       if (tellDatabase) {
@@ -188,7 +235,7 @@ async function personToGuest(ctrl: Controls): Promise<void> {
     await writePref(GUEST_PREF, guest).catch((err: unknown) => logError('remembering the demo on this device', err));
     ctrl.live.current.info = null;
     ctrl.live.current.guest = guest;
-    ctrl.setCore((c) => ({ ...c, info: null, guest, chooser: null, notice: null }));
+    ctrl.setCore((c) => ({ ...c, info: null, guest, chooser: null, notice: null, startError: null, peopleOf: null }));
   } finally {
     ctrl.live.current.ending = false;
   }
@@ -217,9 +264,129 @@ async function verify(ctrl: Controls): Promise<void> {
   }
 }
 
+/**
+ * Start a demo as this person (the portal signs them in, this device keeps the tokens, the database names the community and the time
+ * left). A refusal or a failure comes back as a result AND is kept as `startError`, so whichever screen is showing can say it; the
+ * previous demo person (if any) ends first, and a new session that cannot be kept is signed out again.
+ */
+async function startPerson(ctrl: Controls, persona: string, request: StartRequest = { kind: 'persona', persona }): Promise<DemoStartResult> {
+  ctrl.live.current.last = request;
+  ctrl.live.current.starting = true;
+  ctrl.setCore((c) => ({ ...c, starting: true, startError: null, canRetry: false }));
+  try {
+    const result = await startDemo(persona);
+    if (!result.ok) {
+      ctrl.setCore((c) => ({ ...c, starting: false, startError: result.message, canRetry: canRetryStart(result.code) }));
+      return result;
+    }
+    try {
+      // Switching person: the one before ends first (with its own sign-in), so it does not wait out its two hours.
+      if (ctrl.live.current.info) {
+        try {
+          await leaveDemo();
+        } catch (err) {
+          logError('ending the previous demo person (carrying on)', err);
+        }
+      }
+      const { error } = await supabase.auth.setSession({ access_token: result.session.access_token, refresh_token: result.session.refresh_token });
+      if (error) throw error;
+      // The database names the community the demo person belongs to and the time left; the portal's own answer is only a fallback for the words.
+      const state = await checkDemoState();
+      if (state.state !== 'ok') throw new Error(`the new demo session was not accepted (${state.state})`);
+      const now = Date.now();
+      const info = infoFromState(state, now);
+      ctrl.live.current.info = info;
+      ctrl.live.current.guest = null;
+      await writePref(DEMO_PREF, info).catch((err: unknown) => logError('remembering the demo on this device', err));
+      await forget(GUEST_PREF);
+      ctrl.setCore((c) => ({ ...c, info, guest: null, now, starting: false, chooser: null, notice: null, startError: null, peopleOf: null }));
+      return result;
+    } catch (err) {
+      logError('start the demo (signing out the new session)', err);
+      await signOutHere();
+      const message = startFailureMessage('failed');
+      ctrl.setCore((c) => ({ ...c, starting: false, startError: message, canRetry: true }));
+      return { ok: false, code: 'failed', message };
+    }
+  } finally {
+    ctrl.live.current.starting = false;
+  }
+}
+
+/**
+ * Start as the family's main adult: read who the demo communities have (the portal's list), pick by area then by role (`pickFamily`),
+ * and start that person. `community` is a web name (`?as=family&community=`), or null for the first community that has a family.
+ */
+async function startFamily(ctrl: Controls, community: string | null): Promise<DemoStartResult> {
+  const request: StartRequest = { kind: 'family', community };
+  ctrl.live.current.last = request;
+  ctrl.live.current.starting = true;
+  ctrl.setCore((c) => ({ ...c, starting: true, startError: null, canRetry: false }));
+  const refuse = (code: DemoFailureCode, message: string): DemoStartResult => {
+    ctrl.live.current.starting = false;
+    ctrl.setCore((c) => ({ ...c, starting: false, startError: message, canRetry: canRetryStart(code) }));
+    return { ok: false, code, message };
+  };
+  let choices;
+  try {
+    choices = await loadDemoChoices();
+  } catch (err) {
+    // loadDemoChoices has logged the detail; what it says is already plain English.
+    return refuse('failed', err instanceof AppError ? err.userMessage : startFailureMessage('failed'));
+  }
+  if (!choices.enabled || choices.communities.length === 0) return refuse('off', choices.message ?? startFailureMessage('off'));
+  const pick = pickFamily(choices, community);
+  if (!pick.ok) return refuse(pick.code, startFailureMessage(pick.code));
+  return startPerson(ctrl, pick.person.id, request);
+}
+
+/** Try the latest start again. */
+function retry(ctrl: Controls): void {
+  const last = ctrl.live.current.last;
+  if (!last || ctrl.live.current.starting) return;
+  void (last.kind === 'persona' ? startPerson(ctrl, last.persona) : startFamily(ctrl, last.community));
+}
+
+/**
+ * Start what a demo link asked for, then clean the address. A failure (an id the portal does not know, the limit, the demo switched off,
+ * the portal not answering) brings the chooser back with the reason and Try again, never a blank screen.
+ */
+async function runLink(ctrl: Controls, link: DemoLink): Promise<void> {
+  let result: DemoStartResult;
+  if (link.kind === 'unknown_person') {
+    const message = startFailureMessage('unknown_person');
+    ctrl.setCore((c) => ({ ...c, starting: false, startError: message, canRetry: false }));
+    result = { ok: false, code: 'unknown_person', message };
+  } else {
+    result = link.kind === 'persona' ? await startPerson(ctrl, link.persona) : await startFamily(ctrl, link.community);
+  }
+  forgetDemoLink(result.ok);
+  if (!result.ok) ctrl.setCore((c) => ({ ...c, chooser: c.info || c.guest ? 'person' : 'community' }));
+}
+
+/**
+ * A link that arrives while the app is open. Over a REAL sign-in on this device it starts nothing (the start would sign that person
+ * out): the chooser opens instead, and it says so before anything is tapped.
+ */
+async function openLink(ctrl: Controls, link: DemoLink): Promise<void> {
+  let real = false;
+  try {
+    const { data } = await supabase.auth.getSession();
+    real = !!data.session && !isDemoLogin(data.session.user);
+  } catch (err) {
+    logError('checking for a sign-in before a demo link (treating it as none)', err);
+  }
+  if (real) {
+    forgetDemoLink(false);
+    ctrl.setCore((c) => ({ ...c, chooser: 'community', notice: null }));
+    return;
+  }
+  await runLink(ctrl, link);
+}
+
 export function DemoProvider({ children }: { children: ReactNode }) {
-  const [core, setCore] = useState<Core>({ ready: !isConfigured, chooser: null, starting: false, notice: null, info: null, guest: null, now: 0 });
-  const live = useRef<Live>({ info: null, guest: null, ending: false });
+  const [core, setCore] = useState<Core>({ ready: !isConfigured, chooser: null, starting: false, notice: null, startError: null, canRetry: false, peopleOf: null, info: null, guest: null, now: 0 });
+  const live = useRef<Live>({ info: null, guest: null, ending: false, starting: false, last: null, ready: false });
   const ctrl: Controls = { setCore, live };
   const running = core.info !== null;
 
@@ -268,10 +435,18 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       if (!alive) return;
       live.current.info = info;
       live.current.guest = guest;
+      live.current.ready = true;
       // /demo opens the chooser, but only in a build that has a demo to offer and only when no demo is running already.
       const opened = env.demoUrl.length > 0 && isDemoPath(openedPath(url));
-      const chooser: DemoChooser | null = !info && !guest && (opened || notice !== null) ? 'community' : null;
-      setCore((c) => ({ ...c, ready: true, info, guest, now: Date.now(), notice, chooser }));
+      // /demo?as=family and /demo?persona=<id> start straight away (no chooser, no tap), unless a REAL sign-in is on the device: starting
+      // would sign that person out, so the chooser opens instead and warns. The demo that was running (a reload) is replaced by the link.
+      const link = env.demoUrl.length > 0 ? parseDemoLink(url, openedPath(url)) : null;
+      const realSignIn = !!session && !isDemoLogin(session.user);
+      const auto = link !== null && !realSignIn;
+      if (link && !auto) forgetDemoLink(false);
+      const chooser: DemoChooser | null = !auto && !info && !guest && (opened || notice !== null) ? 'community' : null;
+      setCore((c) => ({ ...c, ready: true, info, guest, now: Date.now(), notice, chooser, starting: auto || c.starting }));
+      if (link && auto) void runLink(ctrl, link);
     })().catch((err: unknown) => {
       logError('reading the saved demo (continuing without one)', err);
       if (alive) setCore((c) => ({ ...c, ready: true }));
@@ -279,8 +454,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     return () => {
       alive = false;
     };
-    // Once, when the app opens.
-  }, []);
+    // Once, when the app opens. (`ctrl` only holds a setter and a ref, which never change.)
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // While a demo person is signed in: ask the database every minute, and when the app comes back to the foreground.
   useEffect(() => {
@@ -318,45 +493,19 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const guest: DemoGuest = { slug: community.slug, name: community.name };
     live.current.guest = guest;
     await writePref(GUEST_PREF, guest).catch((err: unknown) => logError('remembering the demo on this device', err));
-    setCore((c) => ({ ...c, guest, info: null, chooser: null, notice: null }));
+    setCore((c) => ({ ...c, guest, info: null, chooser: null, notice: null, startError: null, peopleOf: null }));
   };
 
-  const start = async (persona: string): Promise<DemoStartResult> => {
-    setCore((c) => ({ ...c, starting: true }));
-    const result = await startDemo(persona);
-    if (!result.ok) {
-      setCore((c) => ({ ...c, starting: false }));
-      return result;
-    }
-    try {
-      // Switching person: the one before ends first (with its own sign-in), so it does not wait out its two hours.
-      if (live.current.info) {
-        try {
-          await leaveDemo();
-        } catch (err) {
-          logError('ending the previous demo person (carrying on)', err);
-        }
-      }
-      const { error } = await supabase.auth.setSession({ access_token: result.session.access_token, refresh_token: result.session.refresh_token });
-      if (error) throw error;
-      // The database names the community the demo person belongs to and the time left; the portal's own answer is only a fallback for the words.
-      const state = await checkDemoState();
-      if (state.state !== 'ok') throw new Error(`the new demo session was not accepted (${state.state})`);
-      const now = Date.now();
-      const info = infoFromState(state, now);
-      live.current.info = info;
-      live.current.guest = null;
-      await writePref(DEMO_PREF, info).catch((err: unknown) => logError('remembering the demo on this device', err));
-      await forget(GUEST_PREF);
-      setCore((c) => ({ ...c, info, guest: null, now, starting: false, chooser: null, notice: null }));
-      return result;
-    } catch (err) {
-      logError('start the demo (signing out the new session)', err);
-      await signOutHere();
-      setCore((c) => ({ ...c, starting: false }));
-      return { ok: false, code: 'failed', message: startFailureMessage('failed') };
-    }
-  };
+  // A demo link that arrives while the app is open (connect://demo?as=family tapped on a phone that already runs the app).
+  useEffect(() => {
+    if (!isConfigured) return;
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const link = env.demoUrl.length > 0 ? parseDemoLink(url, openedPath(url)) : null;
+      if (link && live.current.ready && !live.current.starting) void openLink(ctrl, link);
+    });
+    return () => sub.remove();
+    // `ctrl` only holds a setter and a ref, which never change.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mode: DemoMode = core.info ? 'person' : core.guest ? 'guest' : 'off';
   const value: DemoContextValue = {
@@ -373,10 +522,16 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     choosing: core.chooser !== null,
     chooser: core.chooser,
     notice: core.notice,
-    openChooser: () => setCore((c) => ({ ...c, chooser: c.info || c.guest ? 'person' : 'community', notice: null })),
-    closeChooser: () => setCore((c) => ({ ...c, chooser: null, notice: null })),
+    startError: core.startError,
+    canRetry: core.canRetry,
+    peopleOf: core.peopleOf,
+    openChooser: () => setCore((c) => ({ ...c, chooser: c.info || c.guest ? 'person' : 'community', notice: null, startError: null, peopleOf: null })),
+    // Back from the people of a community that was reached from the community step returns to that step; from anywhere else it closes.
+    closeChooser: () => setCore((c) => ({ ...c, chooser: c.chooser === 'person' && !c.info && !c.guest ? 'community' : null, notice: null, startError: null, peopleOf: null })),
+    openPeople: (slug) => setCore((c) => ({ ...c, chooser: 'person', peopleOf: slug, notice: null, startError: null })),
     enterGuest,
-    start,
+    start: (persona) => startPerson(ctrl, persona),
+    retryStart: () => retry(ctrl),
     toGuest: () => personToGuest(ctrl),
     leave: () => endDemo(ctrl, { notice: null, chooser: null }, true),
   };

@@ -14,6 +14,27 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.21.0 — 2026-10-15
+
+- **One tap to the family Home.** The demo used to take five steps (Try the demo, choose a community, open it as a guest, Be someone, choose
+  a person, Start). Each demo community now has one main button, **Start as a community member**: one tap signs in as the family's main
+  adult of that community and lands on the real signed-in Home (greeting, Family tab with the household and children, events, giving,
+  learning), with nothing about "guest". The strip reads "Demo · Primary adult · 1 h 59 min left" (the role as the database words it), exactly as for any demo person.
+  The person is chosen from the portal's list by area, then by role (never by name or id), so it follows whatever the portal lists.
+  - **Look around as a guest** and **Choose someone else** (the list of that community's people) are quieter actions on the same card.
+  - The card says who you will be (the portal's sentence about that person) and shows **Starting the demo…** while it works. If the start
+    fails, the reason is shown above the list in the portal's own plain words (the hourly limit, the demo switched off, the portal not
+    answering) with **Try again**, never a blank screen.
+- **Links that start straight away.** `https://app.weaverams.org/demo?as=family` starts as the family person of the first demo community
+  (add `&community=<web name>` to pick one); `https://app.weaverams.org/demo?persona=<id>` starts exactly that person (an id from the
+  portal's list, which the portal's /demo page links to). The same in the app: `connect://demo?as=family` and `connect://demo?persona=<id>`
+  (also `weaver://`), when the app is opened by the link or already running. While it starts the app says "Starting the demo…"; an unknown
+  id or a failed start falls back to the demo communities with the reason. The address is cleaned once the start has settled (no id left in
+  the address bar or the history), and a reload keeps the demo. A link never signs a real person out by itself: on a device that has a real
+  sign-in, it opens the demo communities with the usual warning instead.
+- JavaScript only (no new native code or permission, `runtimeVersion` stays 3): ships over the air; the web build ships with the normal
+  deploy. Details: `docs/DEMO.md`.
+
 ## 1.20.1 — 2026-10-15
 
 - **The app speaks neutrally for every community that is not a Jain Center.** The demo's "Sunrise Worship Center" (a Faith
