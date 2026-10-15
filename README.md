@@ -152,6 +152,9 @@ src/brand/          the Weaver brand kit as the app reads it (tokens.json is a c
   is logged (`src/lib/errors.ts`).
 - Money, RSVPs, bolis and pledges are **adults only** (18+ or unknown date of birth,
   mirroring `app.i_am_adult`); children see "Ask a parent". RLS enforces the same.
+- **RSVP without signing in** (`src/features/rsvp-contact/`, `src/lib/api/rsvp-contact.ts`; connect-crm `docs/RSVP_WITHOUT_LOGIN.md`): a guest
+  on an event whose own switch is on types a mobile number or an email, sees the family with names partly hidden (the database hides them; the
+  app never has more), optionally types a 6-digit code first, ticks who is coming and saves. Signed-in members see the RSVP form as before.
 - Money is integer cents; formatted only at the edge.
 - Bolis always say **pledge**, never "bid".
 - **Payments are not live**: there is no payment edge function yet, so every Pay

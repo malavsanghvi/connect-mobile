@@ -14,6 +14,30 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.23.0 — 2026-10-16
+
+- **RSVP without signing in.** A visitor who is not signed in can now RSVP for their family with just a mobile number or an email address
+  (owner request, 2026-10-15). On an event that offers it, under the **Sign in** card, a second button reads **RSVP without signing in**:
+  - **Find your family.** Type the mobile number or the email address the community has for your family. The family appears with names
+    partly hidden (for example "M***v S**h", "Child 1", the children's tag "under 12") and the phone number and email the confirmation
+    goes to, also partly hidden. Names and numbers are hidden by the database; the app never receives more than it shows.
+  - **A 6-digit code when the event asks for one.** The code goes to that phone or email and works for 10 minutes; nothing about the family is
+    shown, and no sentence says whether a number is on a record, until the right code is typed. "Send a new code" after a minute, three at most.
+  - **Who is coming.** Everyone is ticked the first time; untick who is not coming. "Needs help getting around" appears where the event allows it,
+    and the lunch note where the event has lunch. No donation and no extra guests this way: those need a sign-in.
+  - **Saving, done, undo.** The confirmation goes to the email on file (never to anything typed) with a link to see the tickets or cancel. For
+    15 minutes **Undo this RSVP** takes it back.
+  - **Every refusal in plain words, with the way on:** no family found, a number on more than one family, the family already has an RSVP, no email
+    to send to, the event is full, the places for this way are taken, a wrong code (with the tries left), too many tries, a page that timed out,
+    a demo community. Each offers Sign in, Start again or Back as fits.
+  - **Nothing changes for anyone else.** A signed-in member sees the same RSVP form as before. Nothing is drawn unless the event has the
+    switch on (events.manage or the event's lead, in the portal), the community allows it (Settings › Rules), the RSVPs are open, and the event is
+    free and open to the public or to members and guests.
+  - The wording is neutral (no tradition is named); English text is shown in Gujarati and Hindi until reviewed translations are added, as for
+    every new string.
+  - Needs connect-crm 0822 to 0824 (the database part, already in use) and its portal switches (crm #289). Types were copied in #112.
+- JavaScript only (no new native code or permission, `runtimeVersion` stays 3): ships over the air; the web build ships with the normal deploy.
+
 ## 1.22.0 — 2026-10-15
 
 - **The store has sections.** The store now shows **Food** as a section above its categories (owner request, 2026-10-15: "have a Food
