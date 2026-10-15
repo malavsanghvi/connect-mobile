@@ -5,12 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorState, LoadingState } from '@/components/states';
 import { Banner, Button, Card, Row, Txt, VStack } from '@/components/ui';
 import { loadCalendarMonth, loadCalendarRange, type CalendarLayer } from '@/lib/api/calendar';
+import { ownCalendarsOnly } from '@/lib/calendar-tradition';
 import { AppError, logError, report } from '@/lib/errors';
 import { addDays, formatDay, monthName, parseISODate, toISODate, todayAt, weekdayOf } from '@/lib/format';
 import { tithiLabel, tithiShort } from '@/lib/rules';
 import { readPref, writePref } from '@/lib/storage';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useFeedback } from '@/providers/feedback';
 import { useT } from '@/providers/settings';
 import { colors, components, fonts, radii, space, touch } from '@/theme';
@@ -69,6 +71,8 @@ function NavCircle({ label, glyph, onPress }: { label: string; glyph: string; on
 export function CalendarView() {
   const t = useT();
   const { center } = useApp();
+  // The panchang, the festival pack and the Vir Samvat year are the tradition's own calendar: a kind of organization without one shows its own.
+  const { layout } = useCategory();
   const { toast } = useFeedback();
   const [today] = useState(() => todayAt(center?.time_zone));
   const start = parseISODate(today) ?? { y: 2026, m: 1, d: 1 };
@@ -92,7 +96,7 @@ export function CalendarView() {
   const state = useLoad(() => (center ? loadCalendarMonth(center, ym.y, ym.m) : Promise.reject(new Error('no center'))), [center?.id, ym.y, ym.m], 'load the calendar');
 
   if (state.data === undefined) return state.error ? <ErrorState error={state.error} onRetry={() => void state.reload()} /> : <LoadingState />;
-  const { layers, items, tithis } = state.data;
+  const { layers, items, tithis } = layout.traditionContent ? state.data : ownCalendarsOnly(state.data, center?.id ?? null);
   const { main, schools } = orderLayers(layers);
   const hiddenIds = hidden ?? layers.filter((l) => !l.default_on).map((l) => l.id);
   const visibleLayers = layers.filter((l) => !hiddenIds.includes(l.id));
@@ -123,7 +127,7 @@ export function CalendarView() {
   };
   const jainMonths = [tithis[first]?.month_name, tithis[last]?.month_name, ...Object.values(tithis).map((x) => x.month_name)].filter((v, i, a): v is string => !!v && a.indexOf(v) === i);
   const monthPair = jainMonths.length > 1 ? `${jainMonths[0]} – ${jainMonths[jainMonths.length - 1]}` : (jainMonths[0] ?? '');
-  const samvat = virSamvat(last, tithis[last]?.month_name ?? null);
+  const samvat = layout.traditionContent ? virSamvat(last, tithis[last]?.month_name ?? null) : null;
   const jainLine = [monthPair, samvat ? t('calendar.virSamvat', { year: samvat }) : null].filter(Boolean).join(' · ');
 
   const saveFile = async (chosen: CalendarLayer[]) => {

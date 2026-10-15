@@ -2,7 +2,11 @@
  * Error surfacing rule (connect-crm/docs/ARCHITECTURE.md): every failure is
  * shown to the member in plain English, with a retry where one exists. The
  * technical detail is logged, never shown raw and never swallowed.
+ *
+ * The action phrases written in code ("load Pathshala terms") are Jain Center's own words; `toAppError` and `must` say them with
+ * the words of the community the app is showing (src/lib/wording.ts), so no other kind of organization reads them.
  */
+import { retargetActive } from './wording';
 
 export class AppError extends Error {
   /** Plain-English message that is safe to show to a member. */
@@ -49,8 +53,9 @@ function centsInRpcMessage(msg: string): string {
  * an AppError with a member-facing sentence. `action` is a short verb phrase
  * such as "load your events" or "save your RSVP".
  */
-export function toAppError(err: unknown, action: string): AppError {
+export function toAppError(err: unknown, phrase: string): AppError {
   if (err instanceof AppError) return err;
+  const action = retargetActive(phrase);
   const e = asErrorLike(err);
   const message = typeof e.message === 'string' ? e.message : '';
   const code = typeof e.code === 'string' ? e.code : e.code != null ? String(e.code) : null;
@@ -140,7 +145,7 @@ type SupabaseResult = { data: unknown; error: unknown };
 export function must<R extends SupabaseResult>(res: R, action: string): NonNullable<R['data']> {
   if (res.error) throw report(res.error, action);
   if (res.data === null || res.data === undefined) {
-    const err = new AppError(`We couldn't ${action} — the server returned nothing. Please try again.`, `null data for "${action}"`);
+    const err = new AppError(`We couldn't ${retargetActive(action)} — the server returned nothing. Please try again.`, `null data for "${action}"`);
     logError(action, err);
     throw err;
   }

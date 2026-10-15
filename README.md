@@ -305,6 +305,23 @@ active `centers`). While no live community exists it lists the active sandboxes 
 is live it lists live communities only, so the 2026-09-25 rule needs no switch (owner decision
 2026-10-07, `pickableCommunities` in `src/lib/community.ts`).
 
+### The words of each kind of organization
+
+`src/i18n/en.ts` is **Jain Center's own wording**: a Jain community reads exactly what it always read. Every other kind of
+organization (Faith community, Community organization, Chamber of commerce, a gurdwara, anything the platform adds) reads none of
+it, on any screen, in any language (owner, 2026-10-15). That is data, never a check in a screen:
+
+- `src/i18n/categories/neutral.ts` and `faith.ts` hold the neutral words; the set a category starts from is its own entry, else the
+  pack its `wording_pack` names, else faith-based or not (`packFor`). Terms are written as tokens (`{School}`, `{place}`) and said
+  with the category's own terms (`src/lib/wording.ts`), so "Religious school" or "Punjabi school" reaches every sentence.
+- What the database says wins: the named `terms`, then `words` (a dictionary key to English text) in `category_profile`.
+- Sentences written in code (the action of a failure, the data layer's messages) and names the database wrote (a notification
+  topic) are said with the same words (`toAppError`, `useSaid`); Jain Center's pass through unchanged.
+- The tradition's own calendar and texts (lunar days, the panchang and festival pack, the pachchakhan library) show only for a category
+  whose profile says `uses_tradition` (`layout.traditionContent`).
+- `src/lib/__tests__/neutral-words.test.ts` and `neutral-code.test.ts` audit every string and fail, with the key and the word, if a
+  Jain word reaches another kind of organization. A new string needs its neutral word in `neutral.ts`.
+
 ### One web address per organization
 
 With `EXPO_PUBLIC_MEMBER_BASE_DOMAIN` set (repository variable `MEMBER_BASE_DOMAIN`, web build

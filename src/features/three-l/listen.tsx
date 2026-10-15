@@ -14,6 +14,7 @@ import type { QueueItem } from '@/lib/player-queue';
 import { useLoad } from '@/lib/use-load';
 import { useFeature } from '@/providers/access';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useModules } from '@/providers/modules';
 import { usePlayer } from '@/providers/player';
 import { useT } from '@/providers/settings';
@@ -52,6 +53,8 @@ export function ListenSection() {
   const { member } = useApp();
   const { isOn } = useModules();
   const listen = useFeature('listen');
+  // The pachchakhan library is the tradition's own text: a kind of organization without one has no such shelf (and no empty one).
+  const { layout } = useCategory();
   return (
     <VStack gap={18}>
       {listen.allowed && member ? (
@@ -62,7 +65,7 @@ export function ListenSection() {
       ) : (
         <FeatureNotice feature="listen" />
       )}
-      <PachchakhanShelf />
+      {layout.traditionContent ? <PachchakhanShelf /> : null}
     </VStack>
   );
 }

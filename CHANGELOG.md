@@ -14,6 +14,32 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.20.1 — 2026-10-15
+
+- **The app speaks neutrally for every community that is not a Jain Center.** The demo's "Sunrise Worship Center" (a Faith
+  community) used to be read in Jain Center's own words in places: "Jai Jinendra", "My Jain Way", "Derasar hours, aarti, address",
+  "Pathshala", "Gyan Path", "bolis", "labh", "tithi", "stavans", "pachchakhan", "anumodana", "seva". Now no screen of a community whose
+  kind is not a Jain Center shows a word of one tradition, for a visitor looking around as a guest and for every demo person (a family
+  adult, the center administrator, the treasurer, membership, an event lead, a teacher), in English, Gujarati and Hindi. A Jain
+  Center reads exactly what it read before, key for key.
+  - **Every kind of organization has words, as data.** `src/i18n/categories/neutral.ts` (any kind that is not a Jain Center) and
+    `faith.ts` (a house of worship: a few places say "service") replace the dictionary's Jain wording; the pack a category starts from
+    is its own, else the one its `wording_pack` names, else faith-based or not. A new kind of organization needs no app change.
+  - **A category's own terms reach every sentence.** The school, the learning path, the place of worship and the greeting were only
+    in the tab and drawer labels; `src/lib/wording.ts` now says them wherever the dictionary says Pathshala, Gyan Path, derasar or
+    Jai Jinendra ("Register for Religious school", "Learning path · Welcome", "Pickup at the place of worship"), for Faith community,
+    for a gurdwara that brings its own terms, for anything.
+  - **The sentences written in code are neutral too:** the action of a failure ("We couldn't load Pathshala terms"), the few messages
+    the data layer writes, and a notification topic the database names "Pathshala updates", are said with the community's words.
+  - **The tradition's own calendar and texts are for a tradition's community.** A kind of organization without one (Faith community,
+    Community organization, Chamber of commerce) has no day remembered by its lunar date or "Jain tithi" in Special days, no
+    panchang, Vir Samvat or festival pack in the calendar (its own calendars stay), and no pachchakhan library under Listen. New layout
+    fact `traditionContent` (from the profile's `uses_tradition`; the database may set it in `layout.tradition_content`).
+  - **A test audits every string.** `src/lib/__tests__/neutral-words.test.ts` resolves the whole dictionary (about 2,800 strings) for
+    eight kinds of organization in three languages and fails, with the key and the word, if one still has a Jain word;
+    `neutral-code.test.ts` does the same for the sentences written in code. A new string cannot bring one back.
+- JavaScript only (no new native code or permission, `runtimeVersion` stays 3): ships over the air; the web build ships with the normal deploy.
+
 ## 1.20.0 — 2026-10-14
 
 - **Try the demo.** "Find your community" has a "Try the demo" button under the join-code area ("See the app as a family, a volunteer or a

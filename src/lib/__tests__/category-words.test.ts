@@ -6,6 +6,7 @@ import { gu } from '../../i18n/gu';
 import { hi } from '../../i18n/hi';
 import { hasWords, translate, translateWith, type Language, type StringKey, type WordSet } from '../../i18n';
 import { genericProfile, JAIN_PROFILE, parseCategoryProfile } from '../categories';
+import { isTermToken } from '../wording';
 import { newExperiencePayload } from './categories-fixtures';
 
 const LANGS: Language[] = ['en', 'gu', 'hi'];
@@ -76,7 +77,8 @@ describe('the words the app has for kinds of organization', () => {
   });
 
   it('keep every placeholder of the word they replace', () => {
-    const placeholders = (s: string): string[] => s.match(/\{\w+\}/g) ?? [];
+    // A term token ({School}, {place}) is said with the category's terms before a screen fills its placeholders: it is not one.
+    const placeholders = (s: string): string[] => (s.match(/\{\w+\}/g) ?? []).filter((p) => !isTermToken(p));
     for (const [name, set] of sets) {
       for (const [key, value] of Object.entries(set.en ?? {})) {
         const base = en[key as StringKey];

@@ -14,6 +14,14 @@ export type Occasion = (typeof OCCASIONS)[number];
 /** Kept for older call sites. */
 export const SPECIAL_DAY_KINDS = OCCASIONS;
 
+/**
+ * The occasions the form offers. A day remembered by its lunar date (a birth tithi) is the tradition's own calendar, so a
+ * kind of organization without one (`layout.traditionContent`) offers the others: a birthday, an anniversary, a remembrance day.
+ */
+export function occasionsFor(lunar: boolean): readonly Occasion[] {
+  return lunar ? OCCASIONS : OCCASIONS.filter((k) => k !== 'birth_tithi');
+}
+
 /** The occasion a stored row represents. */
 export function occasionOf(day: Pick<SpecialDay, 'kind' | 'calendar_date' | 'tithi'>): Occasion | 'diksha' {
   if (day.kind === 'birthday' && !day.calendar_date && day.tithi) return 'birth_tithi';

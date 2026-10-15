@@ -1575,6 +1575,7 @@ export const en = {
   'days.date': 'Date',
   'days.dateInvalid': 'Use the format MM/DD/YYYY, for example 10/06/2016.',
   'days.tithiField': 'Tithi (month, paksha and day)',
+  'days.tithiPlaceholder': 'Kartak sud 12',
   'days.tithiRequired': 'Enter the Jain month, paksha and day, e.g. Kartak sud 12.',
   'days.remind': 'Remind me',
   'days.save': 'Save special day',

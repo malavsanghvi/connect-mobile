@@ -44,6 +44,7 @@ describe('Jain Center is today, exactly', () => {
       practiceTab: true,
       todayCard: 'full',
       specialDays: true,
+      traditionContent: true,
       interests: ['events', 'pathshala', 'volunteering', 'youth', 'seniors', 'giving'],
       shortcuts: ['learn', 'playlist', 'photos', 'recipe', 'podcast', 'guide'],
     });

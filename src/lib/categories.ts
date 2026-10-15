@@ -27,6 +27,7 @@ import { en, type StringKey } from '../i18n/en';
 import { HOME_SHORTCUT_KEYS, isHomeShortcut, type HomeShortcut } from './home-shortcuts';
 import { CORE_MODULES, isModuleKey, type ModuleKey, type ModuleMap } from './modules';
 import { parseTemplate, todayCardFor, type MemberTemplate } from './template';
+import { JAIN_WORDS } from './wording';
 
 export const JAIN_CENTER = 'jain_center';
 
@@ -60,6 +61,12 @@ export type CategoryLayout = {
   todayCard: 'full' | 'basic';
   /** Special days (birthdays, anniversaries): the sign-up step "Plan special days", Home's row and tile, the Family tab's card. */
   specialDays: boolean;
+  /**
+   * The tradition's own calendar and texts: remembering a day by its lunar date, the panchang and festival layers of the
+   * calendar, the library of daily readings. Only a category that `uses_tradition` has them (connect-crm 0594: the shared
+   * library applies to it); every other kind of organization has its dates, its events and its own calendars.
+   */
+  traditionContent: boolean;
   /** Which topics "Interested in" offers (keys of INTEREST_CATALOG). */
   interests: readonly string[];
   /** The Home shortcuts a community that has not chosen its own starts with. */
@@ -73,6 +80,8 @@ export type CategoryProfile = {
   usesTradition: boolean;
   /** The sign-up question that asks a person's own path (null: the category asks none). */
   pathLabel: string | null;
+  /** Optional, from the database (`wording_pack`: jain, faith, neutral or chamber): which built-in set of words the category starts from. Null: the app decides from the profile's facts. */
+  wordingPack: string | null;
   terms: CategoryTerms;
   modules: Partial<Record<ModuleKey, ModuleAvailability>>;
   paths: CategoryPath[];
@@ -90,14 +99,14 @@ export type CategoryProfile = {
 // ---------------------------------------------------------------------------
 
 export const JAIN_TERMS: CategoryTerms = {
-  greeting: 'Jai Jinendra',
+  greeting: JAIN_WORDS.greeting,
   practice_tab: 'Jain Way',
   give_tab: 'Give',
   family_tab: 'Family',
   store: 'My Store',
-  school: 'Pathshala',
-  learning: 'Gyan Path',
-  place: 'derasar',
+  school: JAIN_WORDS.school,
+  learning: JAIN_WORDS.learning,
+  place: JAIN_WORDS.place,
   assistant_context: 'a Jain community',
 };
 
@@ -118,6 +127,7 @@ export const JAIN_LAYOUT: CategoryLayout = {
   practiceTab: true,
   todayCard: 'full',
   specialDays: true,
+  traditionContent: true,
   interests: JAIN_INTERESTS,
   shortcuts: HOME_SHORTCUT_KEYS,
 };
@@ -128,6 +138,7 @@ export const JAIN_PROFILE: CategoryProfile = {
   faithBased: true,
   usesTradition: true,
   pathLabel: 'Which Jain tradition do you follow?',
+  wordingPack: null,
   terms: JAIN_TERMS,
   // Every module default_on: exactly "no row means on".
   modules: {},
@@ -154,9 +165,10 @@ export const GENERIC_TERMS: CategoryTerms = {
   assistant_context: 'an organization',
 };
 
-/** Until the database says otherwise, an unknown category has none of the Jain-only modules. */
+/** Until the database says otherwise, an unknown category has none of the Jain-only modules (Labh follows Bolis: connect-crm 0741). */
 const GENERIC_MODULES: Partial<Record<ModuleKey, ModuleAvailability>> = {
   bolis: { availability: 'not_available', label: null },
+  labh: { availability: 'not_available', label: null },
   jain_way: { availability: 'not_available', label: null },
   pathshala: { availability: 'not_available', label: null },
   gyan_path: { availability: 'not_available', label: null },
@@ -186,6 +198,7 @@ export function genericProfile(key: string, label?: string | null): CategoryProf
     faithBased: false,
     usesTradition: false,
     pathLabel: null,
+    wordingPack: null,
     terms: GENERIC_TERMS,
     modules: GENERIC_MODULES,
     paths: [],
@@ -309,6 +322,7 @@ export function parseLayoutHints(raw: unknown): Partial<CategoryLayout> | null {
   const out: Partial<CategoryLayout> = {};
   if (o.today_card === 'full' || o.today_card === 'basic') out.todayCard = o.today_card;
   if (typeof o.special_days === 'boolean') out.specialDays = o.special_days;
+  if (typeof o.tradition_content === 'boolean') out.traditionContent = o.tradition_content;
   if (typeof o.practice_tab === 'boolean') out.practiceTab = o.practice_tab;
   if (Array.isArray(o.interests)) {
     const list = o.interests.filter((k): k is string => typeof k === 'string' && Object.prototype.hasOwnProperty.call(INTEREST_CATALOG, k));
@@ -330,6 +344,7 @@ export function parseCategoryProfile(raw: unknown): CategoryProfile | null {
     faithBased: c.faith_based === true,
     usesTradition: c.uses_tradition === true,
     pathLabel: str(c.path_label),
+    wordingPack: str(c.wording_pack),
     terms: parseTerms(c.terms),
     modules: parseModules(root.modules),
     paths: parsePaths(root.paths),
@@ -391,6 +406,7 @@ export function layoutFor(profile: CategoryProfile): CategoryLayout {
     practiceTab: profile.terms.practice_tab !== null,
     todayCard: profile.usesTradition ? 'full' : 'basic',
     specialDays: profile.faithBased,
+    traditionContent: profile.usesTradition,
     interests: own.interests,
     shortcuts: own.shortcuts,
     ...(todayCard ? { todayCard } : {}),
