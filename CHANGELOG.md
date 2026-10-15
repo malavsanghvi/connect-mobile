@@ -14,6 +14,18 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.25.0 — 2026-10-15
+
+- **Android phones can receive notifications.** The Android build now carries Weaver's Firebase configuration (`google-services.json`, referenced by
+  `android.googleServicesFile` in `app.json`), which Android needs to hand a push token to the app. Before this, every Android phone showed "Something went
+  wrong while trying to register this phone for notifications" in Settings › Push notifications and no announcement, reminder or notice could reach it. The
+  server side was already working. The Firebase service-account key that lets Expo deliver to Android is stored in Expo (Credentials), not in this repository.
+- **Plain words when a phone cannot get a push token.** The cause is now said in one sentence (a copy of the app installed without notification support, a
+  phone without Google Play services, or no connection to the notification service); the technical detail is logged, never shown.
+- **Native change: `runtimeVersion` goes from 3 to 4.** This needs a NEW APK (an over-the-air update cannot add Firebase), and an installed runtime-3 app
+  keeps working but receives no further over-the-air updates until it is replaced by the runtime-4 APK. Build:
+  `npx --yes eas-cli@24.8.0 build --platform android --profile preview --non-interactive`, then publish JavaScript newer than the build for runtime 4.
+
 ## 1.24.0 — 2026-10-16
 
 - **The page behind the link in the confirmation email of an RSVP made without signing in.** The email a family gets after RSVPing without signing in

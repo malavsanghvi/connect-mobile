@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "718030283886",
+    "project_id": "weaverapp-a3569",
+    "storage_bucket": "weaverapp-a3569.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:718030283886:android:498cd9436012997b50727f",
+        "android_client_info": {
+          "package_name": "org.connectplatform.member"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCn_hlppnJNnRe0Ws6pbQ051RTiXVhUs4s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,7 +3,8 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import { check } from './errors';
+import { check, logError } from './errors';
+import { explainPushTokenError } from './push-errors';
 import { supabase } from './supabase';
 
 export type PushStatus =
@@ -39,7 +40,16 @@ export async function registerPushDevice(_userId: string, centerId: string, opts
   if (status !== 'granted' && opts.prompt) status = (await Notifications.requestPermissionsAsync()).status;
   if (status !== 'granted') return { state: 'denied', reason: "Notifications are turned off for Weaver in your phone's settings." };
 
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  let token: string;
+  try {
+    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  } catch (err) {
+    // Expo and Android word this technically (a build without Firebase says "Default FirebaseApp is not initialized"):
+    // the member reads one plain sentence, the detail is logged.
+    const explained = explainPushTokenError(err);
+    logError('get a push token', explained);
+    throw explained;
+  }
   // app.register_push_device (o-messaging): the phone follows the login now using it (a
   // plain upsert fails when the token was registered by another login on this phone),
   // and a token Expo reported dead is re-armed.

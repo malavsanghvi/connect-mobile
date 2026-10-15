@@ -2,7 +2,7 @@
   "expo": {
     "name": "Weaver",
     "slug": "connect-mobile",
-    "version": "1.24.0",
+    "version": "1.25.0",
     "orientation": "portrait",
     "icon": "./assets/brand/weaver-mark-on-white-1024.png",
     "scheme": ["connect", "communityconnect", "weaver"],
@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "org.connectplatform.member",
+    "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -30,7 +31,7 @@
       "backgroundColor": "#fffaf5",
       "themeColor": "#2b2a8a"
     },
-    "runtimeVersion": "3",
+    "runtimeVersion": "4",
     "updates": {
       "url": "https://u.expo.dev/d61c6e7c-7999-4c49-aa39-bef5baf1fea7"
     },
