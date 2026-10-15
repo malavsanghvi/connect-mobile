@@ -1,9 +1,12 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
+import { isOrderable } from '@/lib/store-sections';
+
 /** giftQty is either 0 or qty: a line is gift-packed as a whole (prototype). giftPack = the item can be gift-packed. */
 export type CartLine = { itemId: string; name: string; unitCents: number; qty: number; giftQty: number; giftPack: boolean };
 
-type CartItem = { id: string; name: string; price_cents: number; gift_pack?: boolean };
+/** `section`: the store section the item is in; only a Food item can be added (connect-crm docs/STORE_SECTIONS.md section 4.3). A missing section is Food. */
+type CartItem = { id: string; name: string; price_cents: number; gift_pack?: boolean; section?: string | null };
 
 type CartContextValue = {
   lines: CartLine[];
@@ -20,6 +23,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const setQty: CartContextValue['setQty'] = (item, qty) =>
     setLines((prev) => {
+      // A Community Market item is never ordered through the kitchen's cart; taking one out is always allowed.
+      if (qty > 0 && !isOrderable(item)) return prev;
       const rest = prev.filter((l) => l.itemId !== item.id);
       if (qty <= 0) return rest;
       const existing = prev.find((l) => l.itemId === item.id);

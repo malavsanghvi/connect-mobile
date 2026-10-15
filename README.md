@@ -335,6 +335,29 @@ are unaffected. The server side (wildcard HTTPS names routed to these files) is 
 `MEMBER_BASE_DOMAIN`, see docs/DEPLOY.md there. Browser storage is per address, so a member signs
 in once per address.
 
+## The store: sections above categories
+
+The store (`src/app/(app)/store.tsx`) reads the same two tables as before (`store_categories`, active `store_items`, `loadStore` in
+`src/lib/api/store.ts`) and draws them as **sections, then categories, then items** (connect-crm migration 0821, its
+`docs/STORE_SECTIONS.md` §4 is the contract). The rule is pure and tested in `src/lib/store-sections.ts`; the screen's body is
+`src/features/store/catalog.tsx`.
+
+- **Food** is always there. A store with only Food (every store today) reads as it always did, under one **Food** heading:
+  category chips, items, quantities, gift packing, the cart, pickup windows and orders are unchanged.
+- **The Community Market** (`section = 'market'`) appears only when it has at least one active item. Then a switch (Food | Community
+  Market) sits above the category chips, one section at a time, starting on Food, each with its own category chips. A market
+  item is shown with its photo, name, description and price and has **no cart button**: ordering, pickup windows and the cart are
+  Food's (`isOrderable`; the cart provider also refuses a market item, so nothing can add one). While the market is selected the
+  hero says what the market is instead of the kitchen's line and the pickup-times pill. No tab, teaser or "coming soon" is drawn for
+  a section with nothing in it, and a category alone does not make a section appear.
+- A row **without a `section`** (a database older than 0821) is Food. A row whose section this build does not know is **not shown**.
+- **Guests** read the same tables (the demo guest gate is unchanged) and see the Food store as a member does. The Community Market is
+  for members (`MARKET_OPEN_TO_GUESTS`, plan decision CM14): a guest is not shown it.
+- The names are the dictionary's (`store.section.food`, `store.section.market` in `src/i18n/en.ts`); the store's own name still follows
+  the community's `store` term. The Community Market's name is the owner's to change in that one string.
+- Not here yet: the market's own listings, inquiries and sellers (connect-crm `docs/STORE_MARKETPLACE.md`, slices 2 to 4), "Ask for a
+  quote" (a price mode of those listings, not a column of `store_items`) and any purchase of a market item.
+
 ## Event flyers
 
 The portal (connect-crm › Events › builder) designs or uploads an event's flyer and stores its
