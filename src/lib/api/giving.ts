@@ -3,6 +3,7 @@ import { parseOptions, WAITING_STATUS, type Availability } from '@/features/give
 import type { Enums, Tables } from '../database.types';
 import { AppError, check, maybe, must } from '../errors';
 import { supabase } from '../supabase';
+import { retargetActive } from '../wording';
 
 export type Pledge = Tables<'pledges'>;
 export type Campaign = Tables<'campaigns'>;
@@ -376,7 +377,7 @@ export async function loadLabh(centerId: string, dayId: string, nextDate: (day: 
 
 /** One open pledge per chosen option (+ a yearly gift each when repeating). Returns the pledge numbers. */
 export async function commitLabh(args: { dayId: string; optionIds: string[]; dedication: string; repeatYearly: boolean }): Promise<string[]> {
-  if (args.optionIds.length === 0) throw new AppError('Choose at least one labh.', 'no labh options');
+  if (args.optionIds.length === 0) throw new AppError(retargetActive('Choose at least one labh.'), 'no labh options');
   return must(
     await supabase.rpc('commit_labh', { p_special_day: args.dayId, p_option_ids: args.optionIds, p_dedication: args.dedication.trim(), p_repeat_yearly: args.repeatYearly }),
     'save your labh',

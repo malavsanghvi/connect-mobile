@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { wordsFor } from '@/i18n/categories';
+import { phrasesFor, wordsFor } from '@/i18n/categories';
 import {
   categoryModuleLabels,
   categoryModuleMap,
@@ -16,6 +16,7 @@ import { logError } from '@/lib/errors';
 import { HOME_ROWS } from '@/lib/home-rails';
 import type { ModuleKey, ModuleMap } from '@/lib/modules';
 import { resolveTemplate, type ResolvedTemplate } from '@/lib/template';
+import { retargetWith, setActiveWording } from '@/lib/wording';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
 import { useForegroundTick } from '@/providers/foreground';
@@ -150,6 +151,13 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   );
   const words = useMemo(() => wordsFor(profile), [profile]);
 
+  // The sentences written in code (the action of a failure: "We couldn't load Pathshala terms") have no screen to translate
+  // them; they are said with this community's words (src/lib/wording.ts), and as written for a Jain Center.
+  useEffect(() => {
+    setActiveWording(profile.terms, phrasesFor(profile));
+    return () => setActiveWording(null);
+  }, [profile]);
+
   return (
     <CategoryContext.Provider value={value}>
       <WordsProvider words={words}>{children}</WordsProvider>
@@ -160,6 +168,16 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
 /** The community's kind of organization and how the app is laid out for it (Jain Center's, outside a provider). */
 export function useCategory(): CategoryValue {
   return useContext(CategoryContext);
+}
+
+/**
+ * A text the database wrote in Jain Center's own words (a notification topic named "Pathshala updates"), said with this community's
+ * words. Unchanged for a Jain Center. For a sentence written in code, `toAppError` does the same (src/lib/errors.ts).
+ */
+export function useSaid(): (text: string) => string {
+  const { profile } = useCategory();
+  const phrases = useMemo(() => phrasesFor(profile), [profile]);
+  return useCallback((text: string) => retargetWith(text, profile.terms, phrases), [profile, phrases]);
 }
 
 /** The community's own greeting word ("Welcome", or what its organization has configured: Jain Center's is its own), for the first words of a message. */

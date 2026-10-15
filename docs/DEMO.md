@@ -109,6 +109,22 @@ The source of truth is connect-crm `docs/MEMBER_APP_DEMO.md`; what the app reads
 - Database: `app.demo_session_state()` (`state`: `ok`, `expired`, `off`, `unknown`, `not_demo`; with `ok`: `seconds_left`, `role`, `name`,
   `center_name`, `center_slug`) and `app.demo_leave()`. Both are in connect-crm migration 0679 and already in `database.types.ts`.
 
+## Neutral words (1.20.1)
+
+The demo communities are not Jain Centers, so the app speaks neutrally in them: **no Jain word, and no word of any one tradition, on any
+screen** (owner, 2026-10-15). A faith community ("Sunrise Worship Center (Demo)", category `faith_other`: "Faith community") reads
+"Welcome", "Learn", "Religious school" (or, as the demo has it, "Learning Center"), "Learning path" and "place of worship", never "Jai Jinendra", "My Jain Way", "Pathshala",
+"Gyan Path", "derasar", "bolis", "labh", "tithi", "stavans" or "pachchakhan". It holds in the guest look-around and for every demo person
+(the family adult, the center administrator, the treasurer, membership, an event lead, a teacher), in English, Gujarati and Hindi. How:
+README "The words of each kind of organization"; `src/i18n/categories/neutral.ts`, `faith.ts`, `src/lib/wording.ts`. The demo
+chooser's own words (`src/i18n/demo.ts`) never named a tradition.
+
+What the app does not need from the database: the words are bundled, keyed by the profile's facts (`faith_based`) or its `wording_pack`.
+`category_profile` may send `words` (a dictionary key to English text) or `layout.tradition_content` to say more for one category; it does
+not have to. What the database must keep true for the demo to look right: `centers.tradition = 'other'` and no Jain library rows for the
+demo communities (the Gyan Path, practice and panchang libraries are read for a tradition), and the category's `terms` as above.
+`src/lib/__tests__/neutral-words.test.ts` and `neutral-code.test.ts` audit every string.
+
 ## OTA or native build
 
 JavaScript only: a new route, screens, strings and provider, no new native module or permission, `runtimeVersion` stays `3`. It ships over

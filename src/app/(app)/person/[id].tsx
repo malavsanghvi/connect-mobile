@@ -39,7 +39,7 @@ import { ageOn } from '@/lib/rules';
 import { supabase } from '@/lib/supabase';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
-import { useCategory } from '@/providers/category';
+import { useCategory, useSaid } from '@/providers/category';
 import { useDemo } from '@/providers/demo';
 import { useFeedback } from '@/providers/feedback';
 import { useSettings, useT } from '@/providers/settings';
@@ -95,6 +95,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
   const router = useRouter();
   const { member, center, refreshMember, orgMemberLabel } = useApp();
   const { layout } = useCategory();
+  const said = useSaid();
   const { toast } = useFeedback();
   // In a demo the email and phone cannot be changed (src/lib/demo.ts DEMO_LIMITED): the contact fields are not offered.
   const demo = useDemo();
@@ -280,7 +281,7 @@ function PersonBody({ fm, prefs }: { fm: FamilyMember; prefs: ContactPrefs }) {
                 <CardTitle>{t('profile.notifications', { name: first })}</CardTitle>
               </View>
               {prefs.topics.map((topic) => (
-                <Toggle key={topic.key} label={topic.name} value={topics.includes(topic.key)} onChange={() => edit(setTopics)(toggle(topics, topic.key))} />
+                <Toggle key={topic.key} label={said(topic.name)} value={topics.includes(topic.key)} onChange={() => edit(setTopics)(toggle(topics, topic.key))} />
               ))}
             </Card>
           ) : null}

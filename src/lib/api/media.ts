@@ -2,6 +2,7 @@ import { AppError, logError, report } from '../errors';
 import { mostLikedQueue, onlyFullyJain, parseMediaRows, pictureOf, searchQuery, type AudioRef, type MediaItem, type MediaKind, type MediaSort } from '../media-library';
 import { isMissingRpcError } from '../modules';
 import { supabase } from '../supabase';
+import { retargetActive } from '../wording';
 
 import { BUCKETS, signedUrl, signedUrls } from './files';
 
@@ -22,7 +23,7 @@ function unwrap(res: RpcResult, action: string): unknown {
   if (!res.error) return res.data;
   if (isMissingRpcError(res.error)) {
     const err = new AppError(
-      "Stavans, videos, podcasts and recipes aren't set up for your community yet. Please try again later.",
+      retargetActive("Stavans, videos, podcasts and recipes aren't set up for your community yet. Please try again later."),
       `${action}: the media RPCs are not deployed (connect-crm 0560) :: ${JSON.stringify(res.error)}`,
     );
     logError(action, err);

@@ -1,11 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { CATEGORY_WORDS, GENERIC_WORDS, wordsFor } from '../../i18n/categories';
+import { CATEGORY_WORDS, FAITH_WORDS, GENERIC_WORDS, wordsFor } from '../../i18n/categories';
 import { en } from '../../i18n/en';
 import { gu } from '../../i18n/gu';
 import { hi } from '../../i18n/hi';
 import { hasWords, translate, translateWith, type Language, type StringKey, type WordSet } from '../../i18n';
 import { genericProfile, JAIN_PROFILE, parseCategoryProfile } from '../categories';
+import { isTermToken } from '../wording';
 import { newExperiencePayload } from './categories-fixtures';
 
 const LANGS: Language[] = ['en', 'gu', 'hi'];
@@ -56,7 +57,7 @@ describe('another kind of organization’s words', () => {
 });
 
 describe('the words the app has for kinds of organization', () => {
-  const sets: [string, WordSet][] = [['generic', GENERIC_WORDS], ...Object.entries(CATEGORY_WORDS)];
+  const sets: [string, WordSet][] = [['generic', GENERIC_WORDS], ['faith', FAITH_WORDS], ...Object.entries(CATEGORY_WORDS)];
 
   it('are all keys of the dictionary, so a typo cannot hide a word', () => {
     for (const [name, set] of sets) {
@@ -76,7 +77,8 @@ describe('the words the app has for kinds of organization', () => {
   });
 
   it('keep every placeholder of the word they replace', () => {
-    const placeholders = (s: string): string[] => s.match(/\{\w+\}/g) ?? [];
+    // A term token ({School}, {place}) is said with the category's terms before a screen fills its placeholders: it is not one.
+    const placeholders = (s: string): string[] => (s.match(/\{\w+\}/g) ?? []).filter((p) => !isTermToken(p));
     for (const [name, set] of sets) {
       for (const [key, value] of Object.entries(set.en ?? {})) {
         const base = en[key as StringKey];

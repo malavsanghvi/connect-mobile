@@ -5,7 +5,7 @@ import { ErrorState } from '@/components/states';
 import { Banner, Button, Card, Chip, ChipGroup, LinkText, Row, TextField, Txt } from '@/components/ui';
 import { CheckRow } from '@/features/give/parts';
 import { turningAge } from '@/features/give/rules';
-import { OCCASIONS, asClause, canPlanLabh, kindLabel, labhDedication, labhToPledge, listDisplayName, reminderSpan, splitTithi, type Occasion } from '@/features/special-days';
+import { asClause, canPlanLabh, kindLabel, labhDedication, labhToPledge, listDisplayName, occasionsFor, reminderSpan, splitTithi, type Occasion } from '@/features/special-days';
 import { saveSpecialDay } from '@/lib/api/family';
 import { commitLabh, loadLabhOptions, type LabhOption } from '@/lib/api/giving';
 import { report } from '@/lib/errors';
@@ -13,6 +13,7 @@ import { formatCents, formatDob, fullName, parseDobInput } from '@/lib/format';
 import { nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
+import { useCategory } from '@/providers/category';
 import { useDataVersion } from '@/providers/data-version';
 import { useFeedback } from '@/providers/feedback';
 import { useModule } from '@/providers/modules';
@@ -61,6 +62,9 @@ export function PlanDaysQuestion({ question, onYes, onNotNow }: { question: stri
 export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => void; /** Preview of onboarding: check the form as usual but save nothing. */ preview?: boolean }) {
   const t = useT();
   const { member, center } = useApp();
+  // A day remembered by its lunar date (a birth tithi, a punyatithi) is the tradition's own calendar: only a category that has one offers it.
+  const { layout } = useCategory();
+  const lunar = layout.traditionContent;
   // Labh is an add-on of Giving (connect-crm 0741): off whenever Giving is off, and for a kind without it.
   const labhOn = useModule('labh');
   const { invalidate } = useDataVersion();
@@ -91,7 +95,7 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
   };
   const pickOccasion = (o: Occasion) => {
     setOccasion(o);
-    if (o === 'birth_tithi' || o === 'punyatithi') setBy('tithi');
+    if (lunar && (o === 'birth_tithi' || o === 'punyatithi')) setBy('tithi');
   };
 
   const kind = occasion === 'birth_tithi' ? 'birthday' : occasion;
@@ -236,19 +240,23 @@ export function AddSpecialDayForm({ onDone, preview = false }: { onDone: () => v
       {who === null ? <TextField size="sm" label={t('days.label')} value={label} onChangeText={setLabel} placeholder={t('days.labelPlaceholder')} /> : null}
       <FieldLabel>{t('days.occasion')}</FieldLabel>
       <ChipGroup>
-        {OCCASIONS.map((k) => (
+        {occasionsFor(lunar).map((k) => (
           <Chip key={k} label={kindLabel(t, k)} selected={occasion === k} onPress={() => pickOccasion(k)} />
         ))}
       </ChipGroup>
-      <FieldLabel>{t('days.rememberBy')}</FieldLabel>
-      <ChipGroup columns={2}>
-        <Chip grid label={t('days.byDate')} selected={by === 'date'} onPress={() => setBy('date')} />
-        <Chip grid label={t('days.byTithi')} selected={by === 'tithi'} onPress={() => setBy('tithi')} />
-      </ChipGroup>
-      {by === 'date' ? (
+      {lunar ? (
+        <>
+          <FieldLabel>{t('days.rememberBy')}</FieldLabel>
+          <ChipGroup columns={2}>
+            <Chip grid label={t('days.byDate')} selected={by === 'date'} onPress={() => setBy('date')} />
+            <Chip grid label={t('days.byTithi')} selected={by === 'tithi'} onPress={() => setBy('tithi')} />
+          </ChipGroup>
+        </>
+      ) : null}
+      {by === 'date' || !lunar ? (
         <TextField size="sm" label={t('days.date')} value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" keyboardType="numbers-and-punctuation" />
       ) : (
-        <TextField size="sm" label={t('days.tithiField')} value={tithi} onChangeText={setTithi} placeholder="Kartak sud 12" />
+        <TextField size="sm" label={t('days.tithiField')} value={tithi} onChangeText={setTithi} placeholder={t('days.tithiPlaceholder')} />
       )}
       <FieldLabel>{t('days.remind')}</FieldLabel>
       <ChipGroup columns={3}>

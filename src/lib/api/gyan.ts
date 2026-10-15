@@ -3,6 +3,7 @@ import { attemptDetail, parseAttemptResult, type AttemptDetail, type AttemptResu
 import type { Tables } from '../database.types';
 import { AppError, check, logError, maybe, must, report } from '../errors';
 import { supabase } from '../supabase';
+import { retargetActive } from '../wording';
 
 import { isMissingBucket } from './photos';
 
@@ -396,7 +397,7 @@ export async function redeemAttendance(sessionId: string, token: string, personI
 }
 
 export function assertCanLearn(personId: string | null): string {
-  if (!personId) throw new AppError('Sign in to track your Gyan Path progress.', 'guest');
+  if (!personId) throw new AppError(retargetActive('Sign in to track your Gyan Path progress.'), 'guest');
   return personId;
 }
 

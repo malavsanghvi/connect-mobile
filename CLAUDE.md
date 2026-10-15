@@ -30,7 +30,9 @@ Platform conventions live in `connect-crm/docs/ARCHITECTURE.md` — read it firs
 - **Online payment** goes through `src/features/pay/online.ts` (the portal's /api/payments/intent → the organization's Stripe/PayPal; recorded only by the provider's webhook). Without it the Pay sheet shows the honest notice and the offline "how to give" instructions — never fake success.
 - **No mock data**: when env vars are missing the app shows the setup screen.
 - **Strings** live in `src/i18n/en.ts` (complete); `gu.ts` / `hi.ts` carry every key
-  and fall back to English. Use `useT()`.
+  and fall back to English. Use `useT()`. `en.ts` is **Jain Center's own wording**: a string that names a tradition (Jain, Pathshala,
+  Gyan Path, derasar, puja, boli, labh, tithi, stavan, seva…) needs its neutral word in `src/i18n/categories/neutral.ts` (the term words
+  as tokens: `{School}`, `{place}`), or `neutral-words.test.ts` fails with the key. No screen asks whether a community is Jain.
 - **Design tokens** in `src/theme.ts`, built from the Weaver brand kit (`src/brand/tokens.json`, a verbatim copy of
   connect-crm `brand/tokens.json`: copy it over, never edit it; `docs/BRAND_CONFORMANCE.md`); never hard-code colours (a test
   fails on a colour literal outside the theme). Faces are Bricolage Grotesque, Hanken Grotesk and JetBrains Mono for identifiers (`assets/fonts`, `Ident` / `Txt variant="identifier"`). The product
