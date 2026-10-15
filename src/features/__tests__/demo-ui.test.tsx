@@ -434,6 +434,18 @@ describe('step 2: who to be (six people in two areas)', () => {
     expect(onStart).toHaveBeenCalledWith('f-treasurer');
   });
 
+  it('shows the failure at the top, above the people, where a failed link is seen; Try again repeats the failed start when nobody is chosen', async () => {
+    const onRetryStart = jest.fn();
+    const sentence = 'Could not start the demo — you have started a lot of demos in the last hour. Please wait a while, then try again.';
+    const tree = await render(<DemoPersonStepView {...base} startError={sentence} onRetryStart={onRetryStart} load={ready()} />);
+    const all = texts(tree);
+    expect(all.indexOf(sentence)).toBeGreaterThan(-1);
+    expect(all.indexOf(sentence)).toBeLessThan(all.indexOf('Community roles'));
+    await press(tree, 'Try again');
+    expect(onRetryStart).toHaveBeenCalledTimes(1);
+    expect(base.onStart).not.toHaveBeenCalled();
+  });
+
   it('shows Starting… and waits while the demo starts', async () => {
     const tree = await render(<DemoPersonStepView {...base} starting load={ready()} />);
     const [busy] = pressables(tree, 'Choose a person to start').concat(pressables(tree, 'Starting the demo…'));

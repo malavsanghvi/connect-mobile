@@ -301,6 +301,7 @@ export function DemoPersonStepView({
   starting,
   startError,
   onStart,
+  onRetryStart,
   onRetryLoad,
   onBack,
 }: {
@@ -311,6 +312,8 @@ export function DemoPersonStepView({
   starting: boolean;
   startError: string | null;
   onStart: (persona: string) => void;
+  /** Repeat the start that failed (a link's, or Try again): offered when no person is chosen and trying again can help. */
+  onRetryStart?: () => void;
   onRetryLoad: () => void;
   onBack: () => void;
 }) {
@@ -323,6 +326,8 @@ export function DemoPersonStepView({
   const named = communitySlug ? communities.find((c) => c.slug === communitySlug) : undefined;
   const community: DemoCommunity | null = named ?? communities.find((c) => c.kind === kind) ?? communities[0] ?? null;
   const person = community?.people.find((p) => p.id === picked) ?? null;
+  // Try again starts the person chosen, else repeats the start that failed (when that can help).
+  const retryAction = person ? { label: t('common.retry'), onPress: () => onStart(person.id) } : onRetryStart ? { label: t('common.retry'), onPress: onRetryStart } : undefined;
 
   let body: ReactNode = <LoadState load={load} onRetry={onRetryLoad} />;
   if (ready) {
@@ -331,6 +336,8 @@ export function DemoPersonStepView({
     else
       body = (
         <View style={{ gap: space.lg }}>
+          {/* At the top, where it is seen: a start that began on its own (a link) fails before anything here was tapped. */}
+          {startError ? <Banner tone="error" message={startError} action={retryAction} /> : null}
           {!named && communities.length > 1 ? (
             <Segmented<DemoKind>
               label={t('demo.kindLabel')}
@@ -360,7 +367,6 @@ export function DemoPersonStepView({
               </View>
             ))}
           </View>
-          {startError ? <Banner tone="error" message={startError} action={person ? { label: t('common.retry'), onPress: () => onStart(person.id) } : undefined} /> : null}
         </View>
       );
   }
@@ -423,6 +429,7 @@ export function DemoChooserScreen() {
         onStart={(persona) => {
           void demo.start(persona);
         }}
+        onRetryStart={demo.canRetry ? demo.retryStart : undefined}
         onRetryLoad={() => void choices.reload()}
         onBack={demo.closeChooser}
       />

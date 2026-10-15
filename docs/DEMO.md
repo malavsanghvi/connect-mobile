@@ -21,7 +21,8 @@ communities start over every night. The portal side (the endpoints, the limits, 
      portal's "Community member · Adult" (household Patni in the faith demo);
    - starts that person with the very same call as choosing them in the list (`demo.start(id)`: `POST /api/demo/session`, then
      `supabase.auth.setSession`, then `demo_session_state`), so the state is the same: `mode: 'person'`, `active: true`, `guest: false`,
-     banner "Demo · Community member · Adult · 1 h 59 min left". There is no guest step and no person list in between;
+     banner "Demo · Primary adult · 1 h 59 min left" (the role is the database's wording from `demo_session_state`, not the portal list's).
+     There is no guest step and no person list in between;
    - lands on the app's Home signed in as that person: the real family Home (greeting, the Family tab with the household and the
      children, events, giving, learning), because from there on it is the ordinary app for a linked member of the community
      (`AppProvider` opens the community the database names; nothing says "guest").

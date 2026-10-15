@@ -19,7 +19,7 @@ How a release is made:
 - **One tap to the family Home.** The demo used to take five steps (Try the demo, choose a community, open it as a guest, Be someone, choose
   a person, Start). Each demo community now has one main button, **Start as a community member**: one tap signs in as the family's main
   adult of that community and lands on the real signed-in Home (greeting, Family tab with the household and children, events, giving,
-  learning), with nothing about "guest". The strip reads "Demo · Community member · Adult · 1 h 59 min left", exactly as for any demo person.
+  learning), with nothing about "guest". The strip reads "Demo · Primary adult · 1 h 59 min left" (the role as the database words it), exactly as for any demo person.
   The person is chosen from the portal's list by area, then by role (never by name or id), so it follows whatever the portal lists.
   - **Look around as a guest** and **Choose someone else** (the list of that community's people) are quieter actions on the same card.
   - The card says who you will be (the portal's sentence about that person) and shows **Starting the demo…** while it works. If the start

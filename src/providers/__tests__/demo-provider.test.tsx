@@ -100,7 +100,8 @@ const choices = (): DemoChoices => {
   if (!parsed) throw new Error('bad fixture');
   return parsed;
 };
-const familyOk = (over: Record<string, unknown> = {}): DemoState => ok({ role: 'Community member · Adult', name: 'Tarun Patni', ...over });
+// The database words the role for the banner as it likes (the live demo says "Primary adult"); the app shows that, not the portal list's role.
+const familyOk = (over: Record<string, unknown> = {}): DemoState => ok({ role: 'Primary adult', name: 'Tarun Patni', ...over });
 
 let latest!: DemoContextValue;
 function Probe() {
@@ -585,11 +586,11 @@ describe('one tap: Start as a community member (no guest step, no list)', () => 
     expect(mockStart).toHaveBeenCalledTimes(1);
     expect(mockStart).toHaveBeenCalledWith('f-adult');
     expect(latest).toMatchObject({ mode: 'person', active: true, guest: false, slug: 'demo-worship', chooser: null, starting: false, startError: null, secondsLeft: 7200 });
-    expect(latest.info).toMatchObject({ role: 'Community member · Adult', name: 'Tarun Patni', community: 'Sunrise Worship Center' });
+    expect(latest.info).toMatchObject({ role: 'Primary adult', name: 'Tarun Patni', community: 'Sunrise Worship Center' });
     // Never passed through the guest look around.
     expect(latest.guestCommunity).toBeNull();
     expect(mockPrefs.demoGuest ?? null).toBeNull();
-    expect(mockPrefs.demo).toMatchObject({ slug: 'demo-worship', role: 'Community member · Adult' });
+    expect(mockPrefs.demo).toMatchObject({ slug: 'demo-worship', role: 'Primary adult' });
     expect(calls).toEqual(['setSession']);
   });
 
@@ -668,7 +669,7 @@ describe('demo links that start straight away', () => {
     expect(mockChoices).toHaveBeenCalledTimes(1);
     expect(mockStart).toHaveBeenCalledWith('f-adult');
     expect(latest).toMatchObject({ ready: true, mode: 'person', active: true, guest: false, slug: 'demo-worship', chooser: null, starting: false, startError: null });
-    expect(latest.info).toMatchObject({ role: 'Community member · Adult', name: 'Tarun Patni' });
+    expect(latest.info).toMatchObject({ role: 'Primary adult', name: 'Tarun Patni' });
   });
 
   it('?as=family&community=<web name> picks that community', async () => {
