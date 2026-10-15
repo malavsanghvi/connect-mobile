@@ -1976,6 +1976,13 @@ export const en = {
   'store.cancelBody': 'Nothing has been charged. The kitchen is told right away and the items go back on the shelf.',
   'store.keepOrder': 'Keep my order',
   'store.cancelledToast': 'Order {order} cancelled',
+  // The store's sections (connect-crm 0821). The Community Market's name is the owner's to change (docs/STORE_MARKETPLACE.md CM1):
+  // it is said here and nowhere else.
+  'store.sections': 'Store sections',
+  'store.section.food': 'Food',
+  'store.section.market': 'Community Market',
+  'store.marketHeroBody': 'Products and services offered through your community. You can look through them here; to get one, ask your community.',
+  'store.marketEmpty': 'Nothing is listed here right now.',
 
   // Volunteer (Volunteer.dc.html)
   'volunteer.title': 'Volunteer mode',

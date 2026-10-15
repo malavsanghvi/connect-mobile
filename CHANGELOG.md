@@ -14,6 +14,22 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.22.0 — 2026-10-15
+
+- **The store has sections.** The store now shows **Food** as a section above its categories (owner request, 2026-10-15: "have a Food
+  section and put all current food items in there"). Nothing about ordering changes: with only Food (every store today) the screen is
+  the same under one **Food** heading, with the same category chips, quantities, gift packing, cart, pickup times and orders.
+  - **A Community Market section appears only when it has items.** Then a switch (Food | Community Market) sits above the category
+    chips, one section at a time, starting on Food. Community Market items are shown (photo, name, description, price) with **no cart
+    button**; ordering stays Food's, and the cart refuses a market item. While the market is shown the hero says what it is instead of
+    the kitchen's line and the pickup-times pill. Nothing is drawn for a section with nothing in it: no tab, no teaser, no "coming soon".
+  - A row without a `section` (a database older than connect-crm 0821) is Food; a row whose section this build does not know is not
+    shown. A guest sees the Food store as before; the Community Market is for members.
+  - This is the app that has to be in members' hands before a community can have a market (connect-crm `docs/STORE_SECTIONS.md` §4.5).
+    It reads the section column that the generated types (#110) already carry; there is no database change here.
+- JavaScript only (no new native code or permission, `runtimeVersion` stays 3): ships over the air; the web build ships with the
+  normal deploy.
+
 ## 1.21.0 — 2026-10-15
 
 - **One tap to the family Home.** The demo used to take five steps (Try the demo, choose a community, open it as a guest, Be someone, choose
