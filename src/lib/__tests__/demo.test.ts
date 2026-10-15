@@ -1,10 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { openedPath } from '../community';
 import {
   DEMO_LIMITED,
   canOpenAsGuest,
+  canRetryStart,
   demoAllows,
   endFor,
+  familyPerson,
   infoFromState,
   isDemoGuest,
   isDemoInfo,
@@ -12,7 +15,9 @@ import {
   isDemoPath,
   isSlug,
   parseChoices,
+  parseDemoLink,
   parseDemoState,
+  pickFamily,
   portalCode,
   portalSentence,
   secondsUntil,
@@ -130,6 +135,100 @@ describe('the demo people in two areas', () => {
   });
 });
 
+describe('the family to start as ("Start as a community member")', () => {
+  it('is the person of the community area, found by area and not by name or id', () => {
+    const faith = parseChoices(payload)?.communities[0];
+    expect(familyPerson(faith?.people ?? [])).toMatchObject({ id: 'f2', name: 'Tarun Patni', role: 'Community member · Adult' });
+    const neutral = parseChoices(payload)?.communities[1];
+    expect(familyPerson(neutral?.people ?? [])).toMatchObject({ id: 'n1', name: 'Kwame Osei' });
+  });
+  it('prefers an adult among several people of the community area, else the first the portal lists', () => {
+    expect(familyPerson([person('a', 'Community member · Youth', 'community'), person('b', 'Community member · Adult', 'community'), person('c', 'Teacher', 'operations')])?.id).toBe('b');
+    expect(familyPerson([person('a', 'Community member · Youth', 'community'), person('b', 'Community member · Child', 'community')])?.id).toBe('a');
+  });
+  it('never picks an operational person, even one with the word adult in the role', () => {
+    expect(familyPerson([person('a', 'Adult education lead', 'operations'), person('b', 'Treasurer', 'operations')])).toBeNull();
+  });
+  it('reads a portal that sends no areas by the role alone', () => {
+    expect(familyPerson([person('a', 'Teacher'), person('b', 'Community member · Adult')])?.id).toBe('b');
+    expect(familyPerson([person('a', 'Teacher'), person('b', 'Treasurer')])).toBeNull();
+  });
+  it('is null for nobody', () => {
+    expect(familyPerson([])).toBeNull();
+  });
+
+  it('?as=family takes the first community that has a family (faith-based first, as the portal sorts them)', () => {
+    const choices = parseChoices(payload);
+    const pick = choices && pickFamily(choices);
+    expect(pick).toMatchObject({ ok: true, community: { slug: 'demo-worship' }, person: { id: 'f2' } });
+  });
+  it('skips a community with no family and takes the next one', () => {
+    // The payload lists the club first and the worship center second; the app sorts faith-based first. Here the worship center has no family.
+    const noFamily = { ...payload, communities: [payload.communities[0], { ...payload.communities[1], people: [payload.communities[1].people[0]] }] };
+    const choices = parseChoices(noFamily);
+    const pick = choices && pickFamily(choices);
+    expect(pick).toMatchObject({ ok: true, community: { slug: 'demo-club' }, person: { id: 'n1' } });
+  });
+  it('&community=<web name> picks that community, and says so when it is not on the list or has no family', () => {
+    const choices = parseChoices(payload);
+    if (!choices) throw new Error('bad fixture');
+    expect(pickFamily(choices, 'demo-club')).toMatchObject({ ok: true, person: { id: 'n1' } });
+    expect(pickFamily(choices, 'nowhere')).toEqual({ ok: false, code: 'unknown_community' });
+    const without = parseChoices({ ...payload, communities: [{ ...payload.communities[1], people: [payload.communities[1].people[0]] }] });
+    if (!without) throw new Error('bad fixture');
+    expect(pickFamily(without, 'demo-worship')).toEqual({ ok: false, code: 'no_family' });
+    expect(pickFamily(without)).toEqual({ ok: false, code: 'no_family' });
+  });
+  it('says there is nothing when the portal lists no community', () => {
+    const none = parseChoices({ ok: true, enabled: true, communities: [] });
+    if (!none) throw new Error('bad fixture');
+    expect(pickFamily(none)).toEqual({ ok: false, code: 'unknown_community' });
+  });
+});
+
+describe('demo links that start straight away (?as=family, ?persona=<id>)', () => {
+  const link = (url: string) => parseDemoLink(url, openedPath(url));
+
+  it('?as=family on the web and in the app', () => {
+    expect(link('https://app.weaverams.org/demo?as=family')).toEqual({ kind: 'family', community: null });
+    expect(link('connect://demo?as=family')).toEqual({ kind: 'family', community: null });
+    expect(link('exp://192.168.1.2:8081/--/demo?as=family')).toEqual({ kind: 'family', community: null });
+    expect(link('https://app.weaverams.org/demo/?as=FAMILY')).toEqual({ kind: 'family', community: null });
+  });
+  it('&community=<web name> picks the community (in any order, any case)', () => {
+    expect(link('https://app.weaverams.org/demo?as=family&community=demo-club')).toEqual({ kind: 'family', community: 'demo-club' });
+    expect(link('connect://demo?community=Demo-Club&as=family')).toEqual({ kind: 'family', community: 'demo-club' });
+    expect(link('connect://demo?as=family&community=')).toEqual({ kind: 'family', community: null });
+  });
+  it('?persona=<id> is exactly that person, and wins over ?as=family', () => {
+    const id = '0f381a89-ac5c-4d68-8af0-a06a578e759c';
+    expect(link(`https://app.weaverams.org/demo?persona=${id}`)).toEqual({ kind: 'persona', persona: id });
+    expect(link(`connect://demo?persona=${id}`)).toEqual({ kind: 'persona', persona: id });
+    expect(link(`https://app.weaverams.org/demo?as=family&persona=${id}&utm_source=site`)).toEqual({ kind: 'persona', persona: id });
+    expect(link(`https://app.weaverams.org/demo?persona=${id}#top`)).toEqual({ kind: 'persona', persona: id });
+  });
+  it('an id that cannot be an id is an unknown person, and nothing is sent for it', () => {
+    expect(link('https://app.weaverams.org/demo?persona=%3Cscript%3E')).toEqual({ kind: 'unknown_person' });
+    expect(link('https://app.weaverams.org/demo?persona=a%20b')).toEqual({ kind: 'unknown_person' });
+    expect(link(`https://app.weaverams.org/demo?persona=${'x'.repeat(200)}`)).toEqual({ kind: 'unknown_person' });
+    expect(link('https://app.weaverams.org/demo?persona=%E0%A4%A')).toEqual({ kind: 'unknown_person' });
+  });
+  it('asks for nothing on a plain visit, another kind of start, or an empty value', () => {
+    expect(link('https://app.weaverams.org/demo')).toBeNull();
+    expect(link('connect://demo')).toBeNull();
+    expect(link('https://app.weaverams.org/demo?as=teacher')).toBeNull();
+    expect(link('https://app.weaverams.org/demo?persona=')).toBeNull();
+    expect(link('https://app.weaverams.org/demo?from=site')).toBeNull();
+  });
+  it('is only for the demo address', () => {
+    expect(link('https://app.weaverams.org/?as=family')).toBeNull();
+    expect(link('https://app.weaverams.org/events/12?persona=abc')).toBeNull();
+    expect(link('connect://join/AB12?as=family')).toBeNull();
+    expect(parseDemoLink(null, '/demo')).toBeNull();
+    expect(parseDemoLink('connect://demo?as=family', null)).toBeNull();
+  });
+});
+
 describe('opening a demo community as a guest', () => {
   it('needs the web name the portal sends', () => {
     const [faith, neutral] = parseChoices({ ...payload, communities: [{ ...payload.communities[1], slug: undefined }, payload.communities[0]] })?.communities ?? [];
@@ -161,6 +260,12 @@ describe('start failures, in plain words', () => {
   it('says the app-side failures too', () => {
     expect(startFailureMessage('network')).toContain('Check your internet connection');
     expect(startFailureMessage('unreadable')).toContain('not what we expected');
+    expect(startFailureMessage('unknown_community')).toBe("We couldn't start the demo — that demo community is not available. Choose one below.");
+    expect(startFailureMessage('no_family')).toContain('no family to start as');
+  });
+  it('offers Try again only where the same start could work', () => {
+    for (const code of ['off', 'limit', 'failed', 'network', 'unreadable'] as const) expect(canRetryStart(code)).toBe(true);
+    for (const code of ['unknown_person', 'unknown_community', 'no_family'] as const) expect(canRetryStart(code)).toBe(false);
   });
   it("reads the portal's codes, and the names of an earlier draft of the contract", () => {
     expect(portalCode('off')).toBe('off');

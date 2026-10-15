@@ -11,12 +11,15 @@ export const demoStrings = {
   'demo.entryButton': 'Try the demo',
   'demo.entryHint': 'Opens a list of demo communities to look around',
 
-  // Step 1: which demo community (opens it as a guest, no sign-in)
+  // Step 1: which demo community. One tap starts as a family member; looking around as a guest and choosing someone else are quieter.
   'demo.title': 'Try the demo',
-  'demo.subtitle': 'Look around a demo community as a guest, then be someone in it if you like. Nothing real is sent, and the demo starts over every night.',
+  'demo.subtitle': 'Start as a family member and use the whole app, or look around as a guest. Nothing real is sent, and the demo starts over every night.',
   'demo.communityTitle': 'Choose a demo community',
-  'demo.communityLabel': '{kind}: {name}. {blurb}',
-  'demo.communityHint': 'Opens {name} in the app as a guest',
+  'demo.familyStart': 'Start as a community member',
+  'demo.familyStartHint': 'Signs in as {name} and opens the Home of {community}',
+  'demo.cardGuestHint': 'Opens {community} without signing in',
+  'demo.choosePerson': 'Choose someone else',
+  'demo.choosePersonHint': 'Shows the people of {community} to start as',
   'demo.opening': 'Opening the demo community…',
   'demo.loading': 'Loading the demo…',
   'demo.off': 'The demo is switched off right now. Please try again later.',

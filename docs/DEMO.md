@@ -12,14 +12,33 @@ communities start over every night. The portal side (the endpoints, the limits, 
    (`src/app/demo.tsx`) is the same entry: `https://app.weaverams.org/demo` and `connect://demo` open the demo communities directly. (The
    chooser itself is drawn by the root layout, not by the route, because it has to appear before any community is chosen, when no
    navigator exists yet; the route only makes `/demo` a real address and sends anyone past the chooser on to the app.)
-2. **Choose a demo community** (step 1, `DemoCommunityStepView`): the communities from `GET /api/demo/choices`, faith-based first.
-   Tapping one opens it **at once as a guest** (no sign-in, no person asked for). The app does this through its normal community path:
-   the demo provider's `slug` is what `communityToOpen` returns first, so `loadCenter(slug)` and every guest read is scoped to that
-   community, and `AppProvider` reports `guest: true` (the app's existing guest mode: Home with the public events and the guest sign-in
-   card, the guide, alerts, the store, per the community's access levels).
-3. **Be someone in the demo** (step 2, `DemoPersonStepView`): from the guest strip, from any "Sign in" button in the guest app
-   (`setGuest(false)` opens the people instead of the real sign-in), or from "Switch person". It is drawn **over** the running demo, so
-   Back returns to the screen the visitor was on. The people of the community being looked
+2. **Choose a demo community, and start in one tap** (step 1, `DemoCommunityStepView`): the communities from `GET /api/demo/choices`,
+   faith-based first, each a card with **one main button, "Start as a community member"** (owner request 2026-10-15: "directly drop the
+   user on the demo mobile app's home page ... assume as if they have logged in"). One tap:
+   - picks the family's main adult of that community **from the portal's list, by area then by role, never by name or id**
+     (`familyPerson` in `src/lib/demo.ts`: the person whose `area` is `community`, an "Adult" role before any other role of that area,
+     else the first the portal lists; a portal that sends no areas is read by the role "Community member" alone). Today that is the
+     portal's "Community member · Adult" (household Patni in the faith demo);
+   - starts that person with the very same call as choosing them in the list (`demo.start(id)`: `POST /api/demo/session`, then
+     `supabase.auth.setSession`, then `demo_session_state`), so the state is the same: `mode: 'person'`, `active: true`, `guest: false`,
+     banner "Demo · Community member · Adult · 1 h 59 min left". There is no guest step and no person list in between;
+   - lands on the app's Home signed in as that person: the real family Home (greeting, the Family tab with the household and the
+     children, events, giving, learning), because from there on it is the ordinary app for a linked member of the community
+     (`AppProvider` opens the community the database names; nothing says "guest").
+   The card says who that is (the portal's sentence about the person) and shows "Starting the demo…" while it works. If the start fails,
+   the reason is shown above the list **in the portal's own words** (or the app's, when it sent none) with **Try again** (`retryStart`, the
+   same person again); a person or community that is not on the list gets no Try again, the cards are the way on.
+   Two **quiet actions** sit under the button on the same card (a community with no family to start as keeps "Look around as a guest"
+   as its main button):
+   - **Look around as a guest** (`demo.enterGuest`): opens the community **at once as a guest**, no sign-in. The app does this through its
+     normal community path: the demo provider's `slug` is what `communityToOpen` returns first, so `loadCenter(slug)` and every guest read
+     is scoped to that community, and `AppProvider` reports `guest: true` (the app's existing guest mode: Home with the public events and
+     the guest sign-in card, the guide, alerts, the store, per the community's access levels);
+   - **Choose someone else** (`demo.openPeople(slug)`): the people of that community (step 3). Back returns to the communities.
+3. **Be someone in the demo** (step 2, `DemoPersonStepView`): from "Choose someone else", from the guest strip, from any "Sign in" button
+   in the guest app (`setGuest(false)` opens the people instead of the real sign-in), or from "Switch person". Over a running demo it is
+   drawn **over** it, so Back returns to the screen the visitor was on; with no demo running yet ("Choose someone else") it takes the
+   screen like step 1 (`peopleOf` names the community). The people of the community being looked
    at come in two sections, **Community roles** first and **Non-profit operational roles** second, each a large card (role, name, one
    sentence). A portal that sends no `area` gets one plain list. **Start** calls `POST /api/demo/session`, stores the tokens with
    `supabase.auth.setSession` (the same client and storage as a normal sign-in), asks the database who the person is
@@ -29,6 +48,39 @@ communities start over every night. The portal side (the endpoints, the limits, 
    - person: "Demo · Teacher · 1 h 42 min left" · **Switch person** · **Look around as a guest** · **Leave the demo**.
 5. **Leave the demo** (guest or person) goes back to "Find your community". For a person it tells the database (`demo_leave`), signs out
    on this device and forgets the demo. **Look around as a guest** does the same sign-out and keeps the community as a guest.
+
+## Deep links that start straight away
+
+These start a demo with no tap and no chooser. The same query works on the web (`https://app.weaverams.org/demo?...`) and in the app
+(`connect://demo?...`, also `weaver://demo?...`), both when the app is opened by the link and when it is already running.
+
+| Link | Starts as |
+| --- | --- |
+| `/demo?as=family` | the family person (`familyPerson`) of the **first** demo community that has one (faith-based first, as the portal sorts them) |
+| `/demo?as=family&community=<web name>` | the family person of the demo community with that web name (`slug` in `GET /api/demo/choices`) |
+| `/demo?persona=<id>` | exactly that person: an `id` from `GET /api/demo/choices` (the portal's `/demo` page links to this). Wins over `as=family` when both are there |
+| `/demo` or `/demo?as=<anything else>` | nobody: the demo communities (step 1), as before |
+
+How it behaves (`runLink` / `openLink` in `src/providers/demo.tsx`; the reading of the link is `parseDemoLink` in `src/lib/demo.ts`):
+
+- **While it starts** the provider reports `ready: true, starting: true, chooser: null`, so the root layout shows "Starting the demo…"
+  (`FullScreenLoading`) and `AppProvider` holds the community back: no other screen flashes first. On success the app is on the Home
+  of the demo community, signed in, exactly as after the one-tap button.
+- **Unknown id, or any failure** (the portal says `unknown_person`, the hourly limit, the demo switched off, the portal or the list not
+  answering, a community that is not on the list, a community with no family to start as) falls back to step 1 with the plain sentence
+  above the list (`startError`; the portal's own sentence when it sent one) and Try again where it can help (`canRetry`:
+  `canRetryStart(code)`). An id that cannot be an id (not letters, digits, `-`, `_`, at most 80) never reaches the portal: it is "that
+  person is not available. Choose someone else."
+- **The address is cleaned** once the start has settled (`forgetDemoLink` in `src/lib/demo-address.ts`, web only): the history entry is
+  replaced by `/` when the demo started and by `/demo` when it did not, so no id lingers in the address bar or the history, and a reload
+  keeps the demo (the saved sign-in) instead of starting it again. On a phone there is no address bar, so nothing is done.
+- **A real sign-in on the device is never replaced by a link.** Starting would sign that person out without asking, so a link over a real
+  sign-in only opens step 1, which shows the usual "You are signed in on this device. Opening the demo signs you out here" warning; the
+  one-tap button is then a deliberate choice. A demo that was already running (a reload with the link in the address) is replaced by
+  the link's person, the one before ending first.
+- **Notices stay.** "The demo ended. Start again any time." and "The demo was switched off ..." still show when step 1 comes back; the
+  limit and switched-off sentences of the portal show as the start error.
+- A build with no demo address (`EXPO_PUBLIC_DEMO_URL` / `EXPO_PUBLIC_PORTAL_URL`) ignores these links.
 
 ## Where the state lives
 
@@ -40,6 +92,9 @@ communities start over every night. The portal side (the endpoints, the limits, 
 | `guest` / `active` | `mode === 'guest'` / `mode === 'person'` |
 | `slug` | the community the demo opens (the guest's, or the person's from `demo_session_state`); `AppProvider` opens it whatever the address or the saved community |
 | `chooser` | `'community'` (step 1), `'person'` (step 2) or `null` |
+| `peopleOf` | with no demo running yet, the community whose people step 2 lists (set by `openPeople`, from "Choose someone else") |
+| `starting` | a person is being started (a tap, a link, Try again): the app opens no community meanwhile |
+| `startError`, `canRetry` | why the latest start did not happen, in plain words, and whether `retryStart()` can help |
 | `info`, `secondsLeft` | the demo person's role, name, community, and the time left |
 | `notice` | `'ended'` / `'off'`: why step 1 is showing a sentence |
 
@@ -96,8 +151,10 @@ The source of truth is connect-crm `docs/MEMBER_APP_DEMO.md`; what the app reads
 
 - `GET {demo}/api/demo/choices` → `{ ok, enabled, message?, communities: [ { kind: 'faith' | 'neutral', id, slug, name, people: [ { id, role, name, story, area: 'community' | 'operations' } ] } ] }`.
   `message` is the portal's own sentence when the demo is switched off or nothing is set up; the app shows it. A community without `slug`
-  cannot be opened as a guest and is left out of step 1 ("not open to guests yet"); a person without `area` is shown in a plain list. A 503
-  `{ ok: false, error, code: 'failed' }` is shown with the portal's `error` and Try again.
+  cannot be opened as a guest or have its people listed (the two quiet actions are left off its card), but it is still shown when it has a
+  family person to start as; a community with neither is left out of step 1 ("not open to guests yet"). A person without `area` is shown
+  in a plain list. The family person ("Start as a community member", `?as=family`) is the one whose `area` is `community` (an "Adult"
+  role first); the app does not know any name or id. A 503 `{ ok: false, error, code: 'failed' }` is shown with the portal's `error` and Try again.
 - `POST {demo}/api/demo/session` with `{ persona }` → `{ ok: true, session: { access_token, refresh_token, ... }, demo: { ends_at, role, name, community } }`
   or `{ ok: false, error, code }` where `code` is `off` (503), `limit` (429), `unknown_person` (404/400) or `failed`. The portal's `error`
   ("Could not start the demo — you have started a lot of demos in the last hour. ...") is shown **as it is**, because it is the wording
@@ -133,6 +190,9 @@ APK is needed.
 
 ## Tests
 
-`src/lib/__tests__/demo.test.ts` (rules, parsing, wording), `demo-api.test.ts` (the portal calls and the two database calls, with `fetch`
-and the client mocked), `src/providers/__tests__/demo-provider.test.tsx` (guest, person, switching between them, leaving, the minute check,
-expiry, reload), `src/features/__tests__/demo-ui.test.tsx` (the entry, both steps in every state, the banner, the limits).
+`src/lib/__tests__/demo.test.ts` (rules, parsing, wording; the family person picked by area then role, `?as=family` / `?persona=` links),
+`demo-address.test.ts` (cleaning the used link from the address bar), `demo-api.test.ts` (the portal calls and the two database calls, with
+`fetch` and the client mocked), `src/providers/__tests__/demo-provider.test.tsx` (guest, person, switching between them, leaving, the
+minute check, expiry, reload; the one-tap start, the deep links on a cold start and while running, unknown ids, failures and Try again, a
+real sign-in left alone, the address cleaned), `src/features/__tests__/demo-ui.test.tsx` (the entry, both steps in every state, the
+chooser screen wired to the provider, the banner, the limits).

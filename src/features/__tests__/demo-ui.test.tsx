@@ -9,9 +9,15 @@ import { DemoContext, type DemoContextValue } from '@/providers/demo';
 import { SettingsProvider } from '@/providers/settings';
 
 import { DemoBanner, DemoBannerView } from '../demo/banner';
-import { DemoCommunityStepView, DemoPersonStepView, type ChooserLoad } from '../demo/chooser';
+import { DemoChooserScreen, DemoCommunityStepView, DemoPersonStepView, type ChooserLoad, type DemoPending } from '../demo/chooser';
 import { DemoEntry } from '../demo/entry';
 import { DemoNote, HiddenInDemo } from '../demo/limits';
+
+// The portal's list, which the chooser screen asks for, and the app state it reads (only whether a real person is signed in).
+const mockLoadChoices = jest.fn<() => Promise<DemoChoices>>();
+const mockApp: { session: unknown } = { session: null };
+jest.mock('@/lib/api/demo', () => ({ loadDemoChoices: () => mockLoadChoices() }));
+jest.mock('@/providers/app', () => ({ useApp: () => mockApp }));
 
 // The device storage is not under test; the text size is read from it, so a test can ask for the largest.
 const mockPrefs: Record<string, unknown> = {};
@@ -71,10 +77,15 @@ function inert(over: Partial<DemoContextValue> = {}): DemoContextValue {
     choosing: false,
     chooser: null,
     notice: null,
+    startError: null,
+    canRetry: false,
+    peopleOf: null,
     openChooser: jest.fn(),
     closeChooser: jest.fn(),
+    openPeople: jest.fn(),
     enterGuest: jest.fn(async () => undefined),
     start: jest.fn(async () => ({ ok: true as const, session: { access_token: 'a', refresh_token: 'r' }, demo: { endsAt: '', role: '', name: '', community: '' } })),
+    retryStart: jest.fn(),
     toGuest: jest.fn(async () => undefined),
     leave: jest.fn(async () => undefined),
     ...over,
@@ -166,8 +177,8 @@ describe('the "Try the demo" button on Find your community', () => {
   });
 });
 
-describe('step 1: which demo community (straight to a guest look around, no sign-in)', () => {
-  const props = { opening: false, onPick: jest.fn(), onRetryLoad: jest.fn(), onBack: jest.fn() };
+describe('step 1: which demo community (one tap to the family Home)', () => {
+  const props = { pending: null as DemoPending, onFamily: jest.fn(), onGuest: jest.fn(), onPeople: jest.fn(), onRetryLoad: jest.fn(), onBack: jest.fn() };
 
   it('says it is loading', async () => {
     const tree = await render(<DemoCommunityStepView {...props} load={{ status: 'loading' }} />);
@@ -204,38 +215,126 @@ describe('step 1: which demo community (straight to a guest look around, no sign
     expect(hasText(tree, 'No demo communities are ready yet. Please try again later.')).toBe(true);
   });
 
-  it('says the communities are not open to guests yet when the portal names none of them', async () => {
-    const noSlugs = { ...choicesBody, communities: choicesBody.communities.map((c) => ({ ...c, slug: undefined })) };
-    const tree = await render(<DemoCommunityStepView {...props} load={ready(noSlugs)} />);
+  it('says the communities are not open yet when the portal names neither a web name nor a family for any of them', async () => {
+    const bare = { ...choicesBody, communities: choicesBody.communities.map((c) => ({ ...c, slug: undefined, people: c.people.filter((p) => p.area !== 'community') })) };
+    const tree = await render(<DemoCommunityStepView {...props} load={ready(bare)} />);
     expect(hasText(tree, 'The demo communities are not open to guests yet. Please try again later.')).toBe(true);
     expect(pressables(tree, 'Try again')).toHaveLength(1);
   });
 
-  it('lists the communities, faith-based first, as large cards', async () => {
+  it('still offers the one-tap button for a community the portal names no web name for (only the guest ways need it)', async () => {
+    const noSlugs = { ...choicesBody, communities: choicesBody.communities.map((c) => ({ ...c, slug: undefined })) };
+    const tree = await render(<DemoCommunityStepView {...props} load={ready(noSlugs)} />);
+    expect(pressables(tree, 'Start as a community member')).toHaveLength(2);
+    expect(pressables(tree, 'Look around as a guest')).toHaveLength(0);
+    expect(pressables(tree, 'Choose someone else')).toHaveLength(0);
+  });
+
+  it('lists the communities, faith-based first, each with ONE main button: Start as a community member', async () => {
     const tree = await render(<DemoCommunityStepView {...props} load={ready()} />);
     const all = texts(tree);
     expect(all.indexOf('Sunrise Worship Center')).toBeGreaterThan(-1);
     expect(all.indexOf('Sunrise Worship Center')).toBeLessThan(all.indexOf('Lakeside Neighbors Club'));
-    const [card] = pressables(tree, 'Faith-based: Sunrise Worship Center. A place of worship with classes, pledges, events and a store.');
-    expect(Number(styleOf(card).minHeight)).toBeGreaterThanOrEqual(48);
-    expect(card.props.accessibilityRole).toBe('button');
-    expect(card.props.accessibilityHint).toBe('Opens Sunrise Worship Center in the app as a guest');
+    expect(all).toEqual(expect.arrayContaining(['Faith-based', 'Not faith-based', 'A place of worship with classes, pledges, events and a store.']));
+    const starts = pressables(tree, 'Start as a community member');
+    expect(starts).toHaveLength(2);
+    expect(Number(styleOf(starts[0]).minHeight)).toBeGreaterThanOrEqual(48);
+    expect(starts[0].props.accessibilityRole).toBe('button');
+    expect(starts[0].props.accessibilityHint).toBe('Signs in as Tarun Patni and opens the Home of Sunrise Worship Center');
+    // The portal's sentence about who that is stays on the card, so the person is not a surprise.
+    expect(hasText(tree, 'The main adult of a family.')).toBe(true);
   });
 
-  it('opens the chosen community as a guest at once: one tap, the web name and the name, no person asked for', async () => {
-    const onPick = jest.fn();
-    const tree = await render(<DemoCommunityStepView {...props} onPick={onPick} load={ready()} />);
-    await press(tree, 'Not faith-based: Lakeside Neighbors Club. A neighborhood club with events, giving, a directory and notices.');
-    expect(onPick).toHaveBeenCalledTimes(1);
-    expect(onPick).toHaveBeenCalledWith({ slug: 'demo-club', name: 'Lakeside Neighbors Club' });
+  it('starts as the family person in ONE tap: the person the portal lists in the community area, and the card it came from', async () => {
+    const onFamily = jest.fn();
+    const tree = await render(<DemoCommunityStepView {...props} onFamily={onFamily} load={ready()} />);
+    await press(tree, 'Start as a community member');
+    expect(onFamily).toHaveBeenCalledTimes(1);
+    expect(onFamily).toHaveBeenCalledWith('f-adult', 'demo-worship');
+    await act(async () => {
+      pressables(tree, 'Start as a community member')[1].props.onPress();
+    });
+    expect(onFamily).toHaveBeenLastCalledWith('n-adult', 'demo-club');
+    // Neither of the quiet ways was involved.
+    expect(props.onGuest).not.toHaveBeenCalled();
+    expect(props.onPeople).not.toHaveBeenCalled();
   });
 
-  it('waits while a community is opening', async () => {
-    const tree = await render(<DemoCommunityStepView {...props} opening load={ready()} />);
+  it('keeps Look around as a guest and Choose someone else as quiet actions on the same card, and they still work', async () => {
+    const onGuest = jest.fn();
+    const onPeople = jest.fn();
+    const onFamily = jest.fn();
+    const tree = await render(<DemoCommunityStepView {...props} onFamily={onFamily} onGuest={onGuest} onPeople={onPeople} load={ready()} />);
+    const guests = pressables(tree, 'Look around as a guest');
+    const others = pressables(tree, 'Choose someone else');
+    expect(guests).toHaveLength(2);
+    expect(others).toHaveLength(2);
+    for (const quiet of [...guests, ...others]) expect(Number(styleOf(quiet).minHeight)).toBeGreaterThanOrEqual(44);
+    expect(guests[0].props.accessibilityHint).toBe('Opens Sunrise Worship Center without signing in');
+    expect(others[0].props.accessibilityHint).toBe('Shows the people of Sunrise Worship Center to start as');
+    await act(async () => {
+      guests[1].props.onPress();
+    });
+    expect(onGuest).toHaveBeenCalledWith({ slug: 'demo-club', name: 'Lakeside Neighbors Club' }, 'demo-club');
+    await act(async () => {
+      others[0].props.onPress();
+    });
+    expect(onPeople).toHaveBeenCalledWith('demo-worship');
+    expect(onFamily).not.toHaveBeenCalled();
+  });
+
+  it('keeps Look around as a guest as the main button of a community with no family to start as', async () => {
+    const noFamily = { ...choicesBody, communities: choicesBody.communities.map((c) => ({ ...c, people: c.people.filter((p) => p.area !== 'community') })) };
+    const onGuest = jest.fn();
+    const tree = await render(<DemoCommunityStepView {...props} onGuest={onGuest} load={ready(noFamily)} />);
+    expect(pressables(tree, 'Start as a community member')).toHaveLength(0);
+    const guests = pressables(tree, 'Look around as a guest');
+    expect(guests).toHaveLength(2);
+    await act(async () => {
+      guests[0].props.onPress();
+    });
+    expect(onGuest).toHaveBeenCalledWith({ slug: 'demo-worship', name: 'Sunrise Worship Center' }, 'demo-worship');
+  });
+
+  it('says Starting the demo… on the card that was tapped, and holds every card while it works', async () => {
+    const tree = await render(<DemoCommunityStepView {...props} pending={{ key: 'demo-worship', action: 'family' }} load={ready()} />);
+    const [busy] = pressables(tree, 'Starting the demo…');
+    expect(busy.props.accessibilityState).toMatchObject({ busy: true });
+    // The other community's button waits too, and so do the quiet ways.
+    expect(pressables(tree, 'Start as a community member')[0].props.disabled).toBe(true);
+    for (const quiet of [...pressables(tree, 'Look around as a guest'), ...pressables(tree, 'Choose someone else')]) expect(quiet.props.disabled).toBe(true);
+  });
+
+  it('says Opening the demo community… while a guest look around opens, and holds every card', async () => {
+    const tree = await render(<DemoCommunityStepView {...props} pending={{ key: 'demo-club', action: 'guest' }} load={ready()} />);
     expect(hasText(tree, 'Opening the demo community…')).toBe(true);
-    const cards = tree.root.findAll((n) => isPressable(n) && n.props.accessibilityRole === 'button' && String(n.props.accessibilityLabel).includes(':'));
-    expect(cards.length).toBeGreaterThan(0);
-    for (const c of cards) expect(c.props.disabled).toBe(true);
+    for (const start of pressables(tree, 'Start as a community member')) expect(start.props.disabled).toBe(true);
+  });
+
+  it('shows a start that started on its own (Try again, a link) as Starting the demo… with every card waiting', async () => {
+    const tree = await render(<DemoCommunityStepView {...props} pending={{ key: '', action: 'family' }} load={ready()} />);
+    expect(hasText(tree, 'Starting the demo…')).toBe(true);
+    for (const start of pressables(tree, 'Start as a community member')) expect(start.props.disabled).toBe(true);
+  });
+
+  it('says a failed start in plain words above the list, with Try again that repeats it', async () => {
+    const onRetryStart = jest.fn();
+    const sentence = 'Could not start the demo — you have started a lot of demos in the last hour. Please wait a while, then try again.';
+    const tree = await render(<DemoCommunityStepView {...props} startError={sentence} onRetryStart={onRetryStart} load={ready()} />);
+    expect(hasText(tree, sentence)).toBe(true);
+    const all = texts(tree);
+    expect(all.indexOf(sentence)).toBeLessThan(all.indexOf('Sunrise Worship Center'));
+    await press(tree, 'Try again');
+    expect(onRetryStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('says why without Try again when trying the same thing again cannot help (a person that is not on the list)', async () => {
+    const sentence = "We couldn't start the demo — that person is not available. Choose someone else.";
+    const tree = await render(<DemoCommunityStepView {...props} startError={sentence} load={ready()} />);
+    expect(hasText(tree, sentence)).toBe(true);
+    expect(pressables(tree, 'Try again')).toHaveLength(0);
+    // The way on is still there: the cards.
+    expect(pressables(tree, 'Start as a community member')).toHaveLength(2);
   });
 
   it('shows why it is back (the demo ended) above the list, and has a way back', async () => {
@@ -359,6 +458,135 @@ describe('step 2: who to be (six people in two areas)', () => {
     // eyebrow caption is 12 px: at the largest setting (1.3) it is drawn larger, and no card has a fixed height to clip it.
     expect(sizes.some((s) => s.fontSize > 15)).toBe(true);
     for (const card of tree.root.findAll((n) => isPressable(n) && n.props.accessibilityRole === 'radio')) expect(styleOf(card).height).toBeUndefined();
+  });
+});
+
+describe('the chooser as the app shows it (the screen between the buttons and the demo provider)', () => {
+  const sentence = 'Could not start the demo — you have started a lot of demos in the last hour. Please wait a while, then try again.';
+  const settle = async () => {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  };
+  async function screen(demo: DemoContextValue): Promise<ReactTestRenderer> {
+    const tree = await render(<DemoChooserScreen />, demo);
+    await settle();
+    return tree;
+  }
+
+  beforeEach(() => {
+    mockLoadChoices.mockReset();
+    mockLoadChoices.mockResolvedValue(choices());
+    mockApp.session = null;
+  });
+
+  it('loads the portal’s list and shows the communities with the main button', async () => {
+    const tree = await screen(inert({ chooser: 'community', choosing: true }));
+    expect(mockLoadChoices).toHaveBeenCalledTimes(1);
+    expect(pressables(tree, 'Start as a community member')).toHaveLength(2);
+  });
+
+  it('one tap on Start as a community member starts the family person at once: no guest step, no list, no second question', async () => {
+    const demo = inert({ chooser: 'community', choosing: true });
+    const tree = await screen(demo);
+    await press(tree, 'Start as a community member');
+    expect(demo.start).toHaveBeenCalledTimes(1);
+    expect(demo.start).toHaveBeenCalledWith('f-adult');
+    expect(demo.enterGuest).not.toHaveBeenCalled();
+    expect(demo.openPeople).not.toHaveBeenCalled();
+  });
+
+  it('says Starting the demo… while it starts, then lets go when it is done', async () => {
+    let finish!: () => void;
+    const demo = inert({
+      chooser: 'community',
+      choosing: true,
+      start: jest.fn(
+        () =>
+          new Promise<never>((_resolve, reject) => {
+            finish = () => reject(new Error('stopped'));
+          }),
+      ),
+    });
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const tree = await screen(demo);
+    await press(tree, 'Start as a community member');
+    expect(hasText(tree, 'Starting the demo…')).toBe(true);
+    expect(pressables(tree, 'Look around as a guest')[0].props.disabled).toBe(true);
+    await act(async () => {
+      finish();
+    });
+    expect(hasText(tree, 'Starting the demo…')).toBe(false);
+    expect(pressables(tree, 'Start as a community member')).toHaveLength(2);
+  });
+
+  it('Look around as a guest opens the community as a guest (the existing path)', async () => {
+    const demo = inert({ chooser: 'community', choosing: true });
+    const tree = await screen(demo);
+    await press(tree, 'Look around as a guest');
+    expect(demo.enterGuest).toHaveBeenCalledWith({ slug: 'demo-worship', name: 'Sunrise Worship Center' });
+    expect(demo.start).not.toHaveBeenCalled();
+  });
+
+  it('Choose someone else opens the people of that community (the existing list)', async () => {
+    const demo = inert({ chooser: 'community', choosing: true });
+    const tree = await screen(demo);
+    await press(tree, 'Choose someone else');
+    expect(demo.openPeople).toHaveBeenCalledWith('demo-worship');
+  });
+
+  it('shows why a start failed, from the provider (a failed link too), with Try again when it can help', async () => {
+    const demo = inert({ chooser: 'community', choosing: true, startError: sentence, canRetry: true });
+    const tree = await screen(demo);
+    expect(hasText(tree, sentence)).toBe(true);
+    await press(tree, 'Try again');
+    expect(demo.retryStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the failure without Try again when it cannot help', async () => {
+    const tree = await screen(inert({ chooser: 'community', choosing: true, startError: "We couldn't start the demo — that person is not available. Choose someone else.", canRetry: false }));
+    expect(texts(tree).some((t) => t.includes('that person is not available'))).toBe(true);
+    expect(pressables(tree, 'Try again')).toHaveLength(0);
+  });
+
+  it('shows Starting the demo… for a start that began on its own (a link, Try again)', async () => {
+    const tree = await screen(inert({ chooser: 'community', choosing: true, starting: true }));
+    expect(hasText(tree, 'Starting the demo…')).toBe(true);
+    expect(pressables(tree, 'Start as a community member')[0].props.disabled).toBe(true);
+  });
+
+  it('warns about a real sign-in on the device before anything is tapped', async () => {
+    mockApp.session = { user: { email: 'member@example.org' } };
+    const tree = await screen(inert({ chooser: 'community', choosing: true }));
+    expect(texts(tree).some((t) => t.startsWith('You are signed in on this device'))).toBe(true);
+  });
+
+  it('says it could not load the demo, in plain words, with Try again that loads again', async () => {
+    mockLoadChoices.mockRejectedValue(Object.assign(new Error('offline'), { userMessage: "We couldn't load the demo. Check your internet connection and try again." }));
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const tree = await screen(inert({ chooser: 'community', choosing: true }));
+    expect(pressables(tree, 'Start as a community member')).toHaveLength(0);
+    expect(pressables(tree, 'Try again')).toHaveLength(1);
+  });
+
+  it('the people of a community reached from Choose someone else: only that community, Start starts the person, Back goes back', async () => {
+    const demo = inert({ chooser: 'person', choosing: true, peopleOf: 'demo-club', slug: null });
+    const tree = await screen(demo);
+    expect(texts(tree)).toContain('Kwame Osei');
+    expect(texts(tree)).not.toContain('Tarun Patni');
+    await press(tree, 'Event lead: Irina Petrov. Runs one event.');
+    await press(tree, 'Start as Irina Petrov');
+    expect(demo.start).toHaveBeenCalledWith('n-lead');
+    await press(tree, 'Back');
+    expect(demo.closeChooser).toHaveBeenCalledTimes(1);
+  });
+
+  it('the people of a running demo community are still the running community’s (Be someone, Switch person)', async () => {
+    const demo = inert({ chooser: 'person', choosing: true, mode: 'guest', guest: true, slug: 'demo-worship', peopleOf: null, startError: sentence });
+    const tree = await screen(demo);
+    expect(texts(tree)).toContain('Tarun Patni');
+    expect(texts(tree)).not.toContain('Kwame Osei');
+    expect(hasText(tree, sentence)).toBe(true);
   });
 });
 

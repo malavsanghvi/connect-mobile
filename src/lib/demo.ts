@@ -43,6 +43,55 @@ export function isDemoPath(path: string | null | undefined): boolean {
   return /^\/demo\/?$/i.test((path ?? '').split(/[?#]/)[0]);
 }
 
+/**
+ * What a demo link asks for, besides opening the demo communities (docs/DEMO.md, "Deep links"):
+ *  - `?persona=<id>`: start as exactly this person (an id from GET /api/demo/choices, which the portal's /demo page links to);
+ *  - `?as=family`: start as the family's main adult of the first demo community, or of the one `&community=<web name>` names;
+ *  - an id that cannot be an id is `unknown_person` (nothing is sent to the portal for it).
+ * `persona` wins when both are there. Anything else (`/demo`, `?as=teacher`) is a plain visit: the chooser, nothing started.
+ */
+export type DemoLink = { kind: 'persona'; persona: string } | { kind: 'family'; community: string | null } | { kind: 'unknown_person' };
+
+const PERSONA_ID = /^[A-Za-z0-9_-]{1,80}$/;
+
+/** One piece of a query, decoded; a bad escape keeps the raw text. */
+function unescapeQuery(s: string): string {
+  const spaced = s.replace(/\+/g, ' ');
+  try {
+    return decodeURIComponent(spaced);
+  } catch {
+    return spaced;
+  }
+}
+
+/** The query of a link as name → first value ("connect://demo?as=family&community=x#top"). */
+function queryOf(url: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const noHash = url.split('#')[0];
+  const at = noHash.indexOf('?');
+  if (at < 0) return out;
+  for (const pair of noHash.slice(at + 1).split('&')) {
+    if (!pair) continue;
+    const eq = pair.indexOf('=');
+    const name = unescapeQuery(eq < 0 ? pair : pair.slice(0, eq));
+    if (!out.has(name)) out.set(name, eq < 0 ? '' : unescapeQuery(pair.slice(eq + 1)));
+  }
+  return out;
+}
+
+/**
+ * Reads a link the app was opened with (`https://app.weaverams.org/demo?as=family`, `connect://demo?persona=…`). `path` is that link's
+ * path from openedPath(). Null when it is not the demo address or asks for nothing to be started.
+ */
+export function parseDemoLink(url: string | null | undefined, path: string | null | undefined): DemoLink | null {
+  if (!url || !isDemoPath(path)) return null;
+  const query = queryOf(url);
+  const persona = (query.get('persona') ?? '').trim();
+  if (persona) return PERSONA_ID.test(persona) ? { kind: 'persona', persona } : { kind: 'unknown_person' };
+  if ((query.get('as') ?? '').trim().toLowerCase() !== 'family') return null;
+  return { kind: 'family', community: (query.get('community') ?? '').trim().toLowerCase().slice(0, 80) || null };
+}
+
 // ── The people to choose from ────────────────────────────────────────────────
 
 export type DemoKind = 'faith' | 'neutral';
@@ -135,6 +184,42 @@ export function sectionsByArea(people: readonly DemoPerson[]): PeopleSection[] {
   return sections.filter((s) => s.people.length > 0);
 }
 
+// ── The family to start as (one tap: "Start as a community member") ─────────────
+
+const ADULT = /\badult\b/i;
+const MEMBER_ROLE = /\b(community member|family)\b/i;
+
+/**
+ * The person "Start as a community member" signs in as: the family's main adult. Chosen by AREA first (the portal puts the member app's
+ * own people in `community`), then by ROLE (an adult before any other role of that area, else the first the portal lists). A portal that
+ * sends no areas is read by role alone. No name or id is known to the app: the portal's list decides who exists. Null when nobody fits.
+ */
+export function familyPerson(people: readonly DemoPerson[]): DemoPerson | null {
+  const inArea = people.filter((p) => p.area === 'community');
+  const pool = inArea.length > 0 ? inArea : people.filter((p) => p.area === null && MEMBER_ROLE.test(p.role));
+  return pool.find((p) => ADULT.test(p.role)) ?? pool[0] ?? null;
+}
+
+export type FamilyPick = { ok: true; community: DemoCommunity; person: DemoPerson } | { ok: false; code: 'unknown_community' | 'no_family' };
+
+/**
+ * Who `?as=family` starts as: the family person of the community named by its web name, else of the first community (faith-based first,
+ * as the portal sorts them) that has one.
+ */
+export function pickFamily(choices: DemoChoices, communitySlug?: string | null): FamilyPick {
+  if (communitySlug) {
+    const community = choices.communities.find((c) => c.slug === communitySlug);
+    if (!community) return { ok: false, code: 'unknown_community' };
+    const person = familyPerson(community.people);
+    return person ? { ok: true, community, person } : { ok: false, code: 'no_family' };
+  }
+  for (const community of choices.communities) {
+    const person = familyPerson(community.people);
+    if (person) return { ok: true, community, person };
+  }
+  return { ok: false, code: choices.communities.length > 0 ? 'no_family' : 'unknown_community' };
+}
+
 // ── Starting ─────────────────────────────────────────────────────────────────
 
 export type DemoTokens = { access_token: string; refresh_token: string };
@@ -142,9 +227,15 @@ export type DemoStartInfo = { endsAt: string; role: string; name: string; commun
 
 /**
  * Why a start did not happen. `off`, `limit`, `unknown_person` and `failed` are the portal's own codes (connect-crm docs/MEMBER_APP_DEMO.md);
- * `network` and `unreadable` are the app's (nothing answered, or the answer was not what was promised).
+ * `network` and `unreadable` are the app's (nothing answered, or the answer was not what was promised), and so are `unknown_community`
+ * and `no_family` (a link named a demo community that is not on the list, or one with no family to start as).
  */
-export type DemoFailureCode = 'off' | 'limit' | 'unknown_person' | 'failed' | 'network' | 'unreadable';
+export type DemoFailureCode = 'off' | 'limit' | 'unknown_person' | 'failed' | 'network' | 'unreadable' | 'unknown_community' | 'no_family';
+
+/** Does trying the same start again make sense? Not when the person or the community is not on the list: choosing another is the way on. */
+export function canRetryStart(code: DemoFailureCode): boolean {
+  return code !== 'unknown_person' && code !== 'unknown_community' && code !== 'no_family';
+}
 
 /** The portal's code, from what it sent. The names of an earlier draft of the contract (`ip_limit`, `busy`, `not_ready`, `unknown_persona`) read the same. */
 export function portalCode(v: unknown): DemoFailureCode | null {
@@ -187,6 +278,10 @@ export function startFailureMessage(code: DemoFailureCode): string {
       return `${COULD_NOT}you have started a lot of demos in the last hour. Please wait a while, then try again.`;
     case 'unknown_person':
       return `${COULD_NOT}that person is not available. Choose someone else.`;
+    case 'unknown_community':
+      return `${COULD_NOT}that demo community is not available. Choose one below.`;
+    case 'no_family':
+      return `${COULD_NOT}there is no family to start as in that community. Choose someone else.`;
     case 'network':
       return `${COULD_NOT}we could not reach the demo. Check your internet connection and try again.`;
     case 'unreadable':
