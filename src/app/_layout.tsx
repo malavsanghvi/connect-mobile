@@ -20,6 +20,7 @@ import { PayHost } from '@/features/pay';
 import { ReopenEventLink } from '@/features/return-to-event';
 import { logError } from '@/lib/errors';
 import { setClientScreen } from '@/lib/request-context';
+import { auditScreenName, isRsvpLinkPath } from '@/lib/rsvp-link';
 import { AccessProvider } from '@/providers/access';
 import { AppProvider, useApp } from '@/providers/app';
 import { CategoryProvider, useCategory } from '@/providers/category';
@@ -102,7 +103,8 @@ function WebFrame({ children }: { children: ReactNode }) {
 function ScreenTracker() {
   const pathname = usePathname();
   useEffect(() => {
-    setClientScreen(pathname);
+    // The route, never the token in the link of a confirmation email: this goes into the audit trail of every request.
+    setClientScreen(auditScreenName(pathname));
   }, [pathname]);
   return null;
 }
@@ -112,8 +114,11 @@ function RootNavigator() {
   const category = useCategory();
   const demo = useDemo();
   const t = useT();
+  const pathname = usePathname();
 
   if (!app.configured) return <SetupScreen />;
+  // The link in the confirmation email of an RSVP made without signing in needs no community, no sign-in and no lock: the token in it is the key.
+  if (isRsvpLinkPath(pathname)) return <RsvpLinkNavigator />;
   // "Try the demo": choosing a demo community (from the button, from /demo, or after a demo ended) comes before any community. Choosing
   // who to be happens over the running demo community instead (below), so the screen the visitor was on is still there under it; with no
   // demo running yet ("Choose someone else" on a demo community) there is nothing to draw it over, so it takes the screen like the first step.
@@ -173,6 +178,7 @@ function RootNavigator() {
         </Stack.Protected>
         <Stack.Screen name="join/[code]" />
         <Stack.Screen name="e/[id]" />
+        <Stack.Screen name="rsvp/[token]" />
         <Stack.Screen name="demo" />
       </Stack>
       {/* "Be someone in the demo" / "Switch person": the demo people over the running demo, which keeps its place under them. */}
@@ -192,6 +198,15 @@ function RootNavigator() {
       <ActivityRecorder />
       </View>
     </BiometricGate>
+  );
+}
+
+/** The page behind a confirmation-email link and nothing else; "Open the app" on it goes back to the normal start. */
+function RsvpLinkNavigator() {
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
+      <Stack.Screen name="rsvp/[token]" />
+    </Stack>
   );
 }
 

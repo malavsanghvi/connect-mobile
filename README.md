@@ -155,6 +155,10 @@ src/brand/          the Weaver brand kit as the app reads it (tokens.json is a c
 - **RSVP without signing in** (`src/features/rsvp-contact/`, `src/lib/api/rsvp-contact.ts`; connect-crm `docs/RSVP_WITHOUT_LOGIN.md`): a guest
   on an event whose own switch is on types a mobile number or an email, sees the family with names partly hidden (the database hides them; the
   app never has more), optionally types a 6-digit code first, ticks who is coming and saves. Signed-in members see the RSVP form as before.
+- **The link in the confirmation email of an RSVP made without signing in** opens `/rsvp/<token>` (`src/app/rsvp/[token].tsx`,
+  `src/features/rsvp-contact/manage.tsx`; connect-crm `docs/RSVP_WITHOUT_LOGIN.md`): the event, the people with names partly hidden, a QR each, and
+  cancel. The token is the key, so the page is decided before the community choice and the sign-in guards (`src/app/_layout.tsx`), and the token
+  is kept out of the audit trail (`src/lib/rsvp-link.ts`).
 - Money is integer cents; formatted only at the edge.
 - Bolis always say **pledge**, never "bid".
 - **Payments are not live**: there is no payment edge function yet, so every Pay

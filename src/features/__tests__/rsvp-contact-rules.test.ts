@@ -4,7 +4,7 @@ import { en } from '../../i18n/en';
 import { translate } from '../../i18n';
 import type { ContactPerson } from '../../lib/api/rsvp-contact';
 import { failureText, specFor, stageAfter } from '../rsvp-contact/failures';
-import { allPicked, allowsAssistance, assistSlots, canUndo, guestRsvpAvailable, mmss, personTagKey, pickedSlots, readCode, readContact } from '../rsvp-contact/rules';
+import { allPicked, allowsAssistance, assistSlots, canSeeTickets, canUndo, guestRsvpAvailable, mmss, personTagKey, pickedSlots, readCode, readContact } from '../rsvp-contact/rules';
 
 // RSVP without signing in (connect-crm docs/RSVP_WITHOUT_LOGIN.md section 2): who is offered it, what a typed contact becomes,
 // and what is said for every refusal the database can give.
@@ -99,6 +99,14 @@ describe('after the RSVP is saved', () => {
     expect(canUndo(until, Date.parse('2026-10-16T12:15:00Z'))).toBe(false);
     expect(canUndo(null, 0)).toBe(false);
     expect(canUndo('soon', 0)).toBe(false);
+  });
+
+  it('can show the tickets from the visit’s handle for 29 minutes (the handle lasts 30)', () => {
+    const saved = Date.parse('2026-10-16T12:00:00Z');
+    expect(canSeeTickets(saved, saved)).toBe(true);
+    expect(canSeeTickets(saved, saved + 28 * 60_000)).toBe(true);
+    expect(canSeeTickets(saved, saved + 29 * 60_000)).toBe(false);
+    expect(canSeeTickets(saved, saved - 1)).toBe(false);
   });
 
   it('counts the seconds to a new code as minutes and seconds', () => {

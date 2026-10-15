@@ -79,6 +79,12 @@ export function canUndo(undoUntil: string | null, nowMs: number): boolean {
   return Number.isFinite(until) && nowMs < until;
 }
 
+/** The tickets page can be opened with the visit's handle for 30 minutes after saving (a minute is left out so it never opens on a timed-out page). */
+export const TICKETS_MINUTES = 29;
+export function canSeeTickets(savedAtMs: number, nowMs: number): boolean {
+  return nowMs >= savedAtMs && nowMs < savedAtMs + TICKETS_MINUTES * 60_000;
+}
+
 /** "1:05" for the seconds left before a new code can be asked for. */
 export function mmss(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
