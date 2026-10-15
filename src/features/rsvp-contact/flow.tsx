@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { Banner, Button, Card, Ident, LinkText, Row, Segmented, TextField, Toggle, Txt, VStack } from '@/components/ui';
@@ -9,7 +10,7 @@ import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space } from '@/theme';
 
 import { failureText, specFor, type FailureAction } from './failures';
-import { allowsAssistance, canUndo, CODE_LENGTH, mmss, personTagKey, pickedSlots } from './rules';
+import { allowsAssistance, canSeeTickets, canUndo, CODE_LENGTH, mmss, personTagKey, pickedSlots } from './rules';
 import { useGuestRsvp, type GuestRsvp as Guest } from './use-guest-rsvp';
 
 /**
@@ -322,10 +323,13 @@ function SavingStep({ g, event }: { g: Guest; event: EventRow }) {
 /** Saved. Stays on the event (without "Done") so the visitor does not RSVP twice; "Undo" is there for 15 minutes. */
 function RegisteredCard({ g, event }: { g: Guest; event: EventRow }) {
   const t = useT();
+  const router = useRouter();
   const r = g.registered;
   if (!r) return null;
   const people = peopleLabel(t, r.count);
   const undoable = canUndo(r.undoUntil, g.nowMs);
+  // The tickets, with a QR each, for 30 minutes from the visit's handle (look only; the emailed link also cancels). See src/app/rsvp/[token].tsx.
+  const tickets = !!g.handle && canSeeTickets(r.at, g.nowMs);
   return (
     <Card tone="green" style={{ gap: space.sm }}>
       <Txt variant="section" color="greenDark" style={{ fontFamily: fonts.bodyBold }} accessibilityRole="header">
@@ -348,7 +352,8 @@ function RegisteredCard({ g, event }: { g: Guest; event: EventRow }) {
         </VStack>
       ) : (
         <>
-          {!g.finished ? <Button label={t('common.done')} onPress={g.finish} size="md" /> : null}
+          {tickets ? <Button label={t('guestRsvp.seeTickets')} onPress={() => router.push({ pathname: '/rsvp/[token]', params: { token: g.handle as string, visit: '1' } })} size="md" /> : null}
+          {!g.finished ? <Button label={t('common.done')} onPress={g.finish} size="md" tone={tickets ? 'secondary' : 'primary'} /> : null}
           {undoable ? <Button label={t('guestRsvp.undo')} tone="secondary" size="md" onPress={() => g.askUndo(true)} /> : null}
         </>
       )}

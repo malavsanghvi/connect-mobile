@@ -17,6 +17,7 @@ const mockLookup = jest.fn<(eventId: string, contact: string) => Promise<LookupA
 const mockVerify = jest.fn<(handle: string, code: string) => Promise<VerifyAnswer>>();
 const mockSubmit = jest.fn<(handle: string, slots: number[], assist: number[]) => Promise<SubmitAnswer>>();
 const mockUndo = jest.fn<(handle: string) => Promise<UndoAnswer>>();
+const mockPush = jest.fn();
 
 jest.mock('@/lib/api/rsvp-contact', () => ({
   lookupFamily: (e: string, c: string) => mockLookup(e, c),
@@ -24,6 +25,7 @@ jest.mock('@/lib/api/rsvp-contact', () => ({
   submitContactRsvp: (h: string, s: number[], a: number[]) => mockSubmit(h, s, a),
   undoContactRsvp: (h: string) => mockUndo(h),
 }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@/lib/storage', () => ({ readPref: async (_k: string, fallback: unknown) => fallback, writePref: async () => undefined }));
 
 const insets = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
@@ -93,7 +95,7 @@ async function toFamily(e: EventRow = event(), onSignIn: () => void = () => unde
 }
 
 beforeEach(() => {
-  for (const m of [mockLookup, mockVerify, mockSubmit, mockUndo]) m.mockReset();
+  for (const m of [mockLookup, mockVerify, mockSubmit, mockUndo, mockPush]) m.mockReset();
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 afterEach(async () => {
@@ -170,6 +172,28 @@ describe('an event without a code', () => {
     expect(mockUndo).toHaveBeenCalledWith(HANDLE);
     expect(hasText(tree, 'Your RSVP was cancelled and the places were let go.')).toBe(true);
     expect(has(tree, 'RSVP without signing in')).toBe(true);
+  });
+
+  it('opens the tickets page for looking only, with the visit’s handle, for 30 minutes after saving', async () => {
+    jest.useFakeTimers();
+    try {
+      const tree = await toFamily();
+      mockSubmit.mockResolvedValue(saved());
+      await press(tree, 'RSVP 3 people');
+      expect(has(tree, 'See my tickets')).toBe(true);
+      await press(tree, 'See my tickets');
+      expect(mockPush).toHaveBeenCalledWith({ pathname: '/rsvp/[token]', params: { token: HANDLE, visit: '1' } });
+      // the clock ticks every 15 seconds; at half an hour the handle is about to time out, so the button goes
+      for (let s = 0; s < 125; s++) {
+        await act(async () => {
+          jest.advanceTimersByTime(15_000);
+        });
+      }
+      expect(has(tree, 'See my tickets')).toBe(false);
+      expect(hasText(tree, 'You are registered')).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('keeps the RSVP when the visitor says keep it', async () => {

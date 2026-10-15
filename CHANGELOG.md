@@ -14,6 +14,25 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.24.0 — 2026-10-16
+
+- **The page behind the link in the confirmation email of an RSVP made without signing in.** The email a family gets after RSVPing without signing in
+  has a link, `/rsvp/<token>`. It now opens in the app (and on the web app) to **Your RSVP**: the event, when and where, that the family is
+  registered, the people with their names partly hidden by the database, a **QR per person** to show at the entrance (tap a person to show or hide
+  it), and **We can't make it** (asks "Cancel this RSVP for 3 people?", then lets the places go and stops the tickets). Opening the link from the email
+  also marks the RSVP verified, which the community's event team sees. No adding people in this version: sign in or ask the office.
+  - **It needs no community and no sign-in.** The link alone is the key, so it opens on a phone where the app was never set up, without first asking
+    which community to choose, and without the app lock. "Open the app" leaves it for the normal start.
+  - **The link is a secret and is kept out of the audit trail.** The screen name recorded with every request is the route (`/rsvp/[token]`), never
+    the token in the link.
+  - **Every case in plain words:** an expired or wrong link, too many tries (with a retry), an event that is over, someone has already arrived, a lost
+    connection (with Try again), an RSVP that was already cancelled.
+  - **See my tickets.** The "You are registered" card of RSVP without signing in now has a **See my tickets** button, for 30 minutes after saving: it opens
+    this page for looking only (`?visit=1`). The database lets that visit look, not cancel (that is Undo, for 15 minutes), so the cancel button is not
+    drawn and the page says where cancelling is (the link in the email).
+  - Needs connect-crm 0822 (already in use). Wording is neutral; English text is shown in Gujarati and Hindi until reviewed translations are added.
+- JavaScript only (no new native code or permission, `runtimeVersion` stays 3): ships over the air; the web build ships with the normal deploy.
+
 ## 1.23.0 — 2026-10-16
 
 - **RSVP without signing in.** A visitor who is not signed in can now RSVP for their family with just a mobile number or an email address

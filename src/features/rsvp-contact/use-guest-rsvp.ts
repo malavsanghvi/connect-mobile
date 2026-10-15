@@ -27,7 +27,7 @@ import { allPicked, assistSlots, MAX_CODES, pickedSlots, readCode, readContact, 
 
 export type Step = 'closed' | Stage;
 export type Fault = { message: string; retry: () => void };
-export type Registered = { count: number; email: string | null; undoUntil: string | null };
+export type Registered = { count: number; email: string | null; undoUntil: string | null; /** When it was saved, in ms. */ at: number };
 
 export function useGuestRsvp(eventId: string) {
   const [step, setStep] = useState<Step>('closed');
@@ -180,8 +180,9 @@ export function useGuestRsvp(eventId: string) {
       async () => {
         const answer = await submitContactRsvp(handle, slots, going);
         if (!answer.ok) return refuse(answer, 'choose');
-        setRegistered({ count: answer.count, email: answer.sendTo.email, undoUntil: answer.undoUntil });
-        setNowMs(Date.now());
+        const now = Date.now();
+        setRegistered({ count: answer.count, email: answer.sendTo.email, undoUntil: answer.undoUntil, at: now });
+        setNowMs(now);
         setStep('done');
       },
       () => setStep('choose'),
@@ -247,6 +248,7 @@ export function useGuestRsvp(eventId: string) {
     pick: (slot: number, on: boolean) => setPicked((p) => ({ ...p, [slot]: on })),
     needHelp: (slot: number, on: boolean) => setAssist((a) => ({ ...a, [slot]: on })),
     // done
+    handle,
     registered,
     finished,
     undone,
