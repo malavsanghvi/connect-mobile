@@ -11,6 +11,7 @@ import { pledgeSubtitle, pledgeTitle } from '@/features/give/pledge-labels';
 import { CheckBox, TintTile } from '@/features/give/parts';
 import { isYearOpen } from '@/features/give/rules';
 import { startPayment } from '@/features/pay';
+import { PaidAnotherWay } from '@/features/pay/paid-another-way';
 import { ProofSheet, type ProofSheetPledge } from '@/features/pay/proof-sheet';
 import { useProofSetup } from '@/features/pay/proof-setup';
 import { pledgesWithWaitingReport } from '@/features/pay/zelle-report';
@@ -217,6 +218,8 @@ export default function PledgesScreen() {
               forLabel: sel.length === 1 && sel[0].pledge_number ? t('pay.forPledge', { pledge: sel[0].pledge_number }) : t('pay.forPledges', { n: sel.length }),
               pledgeIds: sel.map((p) => p.id),
               context: 'pledges',
+              // Shown on the sheet only when nothing can be paid online: the sheet closes, then the proof sheet opens for the ticked pledges.
+              alternative: proofs.setup ? { label: t('pledges.paidAnotherWay'), run: () => setProofOpen(true) } : undefined,
             }).catch((err: unknown) => setError(report(err, 'open the payment sheet').userMessage));
           return (
             <VStack gap={space.md}>
@@ -315,10 +318,8 @@ export default function PledgesScreen() {
                   onPress={pay}
                 />
               ) : null}
-              {/* Hidden, not disabled, when proofs are off, the community takes no offline method, or nothing is left to pay. */}
-              {proofs.setup && payable.length > 0 ? (
-                <Button label={t('pledges.paidAnotherWay')} tone="secondary" accessibilityHint={t('pledges.paidAnotherWayHint')} onPress={() => setProofOpen(true)} />
-              ) : null}
+              {/* Hidden when proofs are off or nothing is left to pay; when the community takes no offline method, a note says so instead of a silent gap. */}
+              {payable.length > 0 ? <PaidAnotherWay setup={proofs.setup} reason={proofs.reason} onPress={() => setProofOpen(true)} /> : null}
               {proofsOn ? <Button label={t('pledges.myProofs')} tone="ghost" size="md" onPress={() => router.push('/payment-proofs')} /> : null}
               <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
                 {t('pledges.footer')}

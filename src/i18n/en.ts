@@ -3016,6 +3016,7 @@ export const en = {
   'pledges.confirmedByBank': 'Confirmed by the bank',
   'pledges.paidAnotherWay': 'I paid another way',
   'pledges.paidAnotherWayHint': 'Tell the treasury team about a check, cash, a bank transfer or another way you paid',
+  'pledges.paidAnotherWayNone': 'Your community has not set up cash, check or bank transfer yet. Ask the treasurer to turn them on.',
   'pledges.myProofs': 'My payment proofs',
   'pledges.openDetails': 'Open details for {name}',
   'pledges.proofWithTeam': 'Your {amount} of soft credit is with the treasury team. Open balance leaves out what it covers.',

@@ -14,6 +14,12 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.28.1 — 2026-10-16 · over-the-air (runtime 5)
+
+- **"I paid another way" is no longer missing without a word.** When the community has not set up cash, check or bank transfer, Pledges now says so ("Your community has
+  not set up cash, check or bank transfer yet. Ask the treasurer to turn them on.") in place of the button. A single pledge that is still open or partly paid now has the
+  button too (and the same note), bound to that pledge, and the Pay sheet offers it when nothing can be paid online. `useProofSetup` also says why it is off.
+
 ## 1.28.0 — 2026-10-16 · needs a new build (runtime 5)
 
 **Native change: `runtimeVersion` goes from 4 to 5.** This needs a NEW APK (an over-the-air update cannot add the camera permission or the new native modules), and an

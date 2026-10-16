@@ -5,7 +5,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import renderer, { act, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 import PledgeDetailsScreen from '@/app/(app)/pledge/[id]';
-import { parseEvidence } from '@/lib/proofs';
+import type { ProofReason, ProofSetup } from '@/features/pay/proof-setup';
+import { DEFAULT_POLICY, parseEvidence } from '@/lib/proofs';
 import { SettingsProvider } from '@/providers/settings';
 
 const mockPledge = jest.fn<() => Promise<unknown>>();
@@ -13,7 +14,9 @@ const mockPayments = jest.fn<() => Promise<unknown[]>>();
 const mockEvidence = jest.fn<() => Promise<unknown>>();
 const mockPush = jest.fn();
 const mockOpen = jest.fn<(url: string) => Promise<void>>();
-const mockApp: { member: unknown } = { member: null };
+const mockSheet = jest.fn<(props: Record<string, unknown>) => void>();
+const mockApp: { member: unknown; center: unknown } = { member: null, center: null };
+const mockSetup: { value: ProofSetup | null; reason: ProofReason } = { value: null, reason: 'ok' };
 const mockModules: Record<string, boolean> = {};
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }), useLocalSearchParams: () => ({ id: 'p1' }) }));
@@ -23,6 +26,13 @@ jest.mock('@/providers/app', () => ({ useApp: () => mockApp }));
 jest.mock('@/providers/data-version', () => ({ useDataVersion: () => ({ version: 0, invalidate: () => undefined }) }));
 jest.mock('@/providers/modules', () => ({ useModule: (key: string) => mockModules[key] ?? true }));
 jest.mock('@/lib/storage', () => ({ readPref: async (_k: string, fallback: unknown) => fallback, writePref: async () => undefined }));
+jest.mock('@/features/pay/proof-setup', () => ({ useProofSetup: () => ({ setup: mockSetup.value, reason: mockSetup.reason, error: null, reload: () => undefined }) }));
+jest.mock('@/features/pay/proof-sheet', () => ({
+  ProofSheet: (props: Record<string, unknown>) => {
+    mockSheet(props);
+    return null;
+  },
+}));
 jest.mock('@/lib/api/giving', () => ({ getPledgeDetail: () => mockPledge(), listPledgePayments: () => mockPayments() }));
 jest.mock('@/lib/api/proofs', () => ({
   pledgeEvidence: () => mockEvidence(),
@@ -93,7 +103,8 @@ async function open(args: { pledge?: unknown; payments?: unknown[]; evidence?: u
   mockPledge.mockResolvedValue('pledge' in args ? args.pledge : pledgeRow());
   mockPayments.mockResolvedValue(args.payments ?? [payment]);
   mockEvidence.mockResolvedValue(parseEvidence(args.evidence ?? [proofItem()])?.items);
-  mockApp.member = { isAdult: args.adult ?? true, household: { id: 'h1' }, members: [] };
+  mockApp.member = { isAdult: args.adult ?? true, today: '2026-10-15', household: { id: 'h1' }, members: [] };
+  mockApp.center = { id: 'c1' };
   return render(<PledgeDetailsScreen />);
 }
 
@@ -104,6 +115,9 @@ beforeEach(() => {
   mockPush.mockReset();
   mockOpen.mockReset();
   mockOpen.mockResolvedValue(undefined);
+  mockSheet.mockReset();
+  mockSetup.value = { methods: ['check', 'cash'], policy: DEFAULT_POLICY };
+  mockSetup.reason = 'ok';
   for (const k of Object.keys(mockModules)) delete mockModules[k];
 });
 afterEach(() => {
@@ -225,5 +239,59 @@ describe('Pledge details in other states', () => {
     expect(texts(tree).some((t) => /Check your internet connection/.test(t))).toBe(true);
     expect(pressables(tree, 'Try again')).toHaveLength(1);
     expect(has(tree, 'No proof was sent for this pledge.')).toBe(false);
+  });
+});
+
+describe('"I paid another way" on a single pledge', () => {
+  const NOTE = 'Your community has not set up cash, check or bank transfer yet. Ask the treasurer to turn them on.';
+  const openPledge = pledgeRow({ status: 'open', paid_cents: 0, closed_at: null, reconciled_at: null });
+  const partly = pledgeRow({ status: 'partially_paid', paid_cents: 6000, closed_at: null, reconciled_at: null });
+  const lastSheet = () => mockSheet.mock.calls[mockSheet.mock.calls.length - 1][0];
+
+  it('is there on an open pledge and opens the proof sheet bound to that pledge', async () => {
+    const tree = await open({ pledge: openPledge, payments: [], evidence: [] });
+    expect(pressables(tree, 'I paid another way')).toHaveLength(1);
+    expect(has(tree, NOTE)).toBe(false);
+    await press(tree, 'I paid another way');
+    expect(lastSheet()).toMatchObject({ visible: true, entry: 'open_pledges', initialPledgeIds: ['p1'], centerId: 'c1', householdId: 'h1', today: '2026-10-15' });
+    expect((lastSheet().pledges as { id: string; title: string; number: string }[]).map((p) => [p.id, p.title, p.number])).toEqual([['p1', 'Harvest supper', 'P-0587']]);
+  });
+
+  it('is there on a partly paid pledge too', async () => {
+    const tree = await open({ pledge: partly, payments: [], evidence: [] });
+    expect(pressables(tree, 'I paid another way')).toHaveLength(1);
+  });
+
+  it('is not there on a paid, soft credit or cancelled pledge, and says nothing about it', async () => {
+    mockSetup.value = null;
+    mockSetup.reason = 'no_methods';
+    for (const over of [{}, { status: 'soft_credit', paid_cents: 0, soft_credit_cents: 16000 }, { status: 'cancelled', paid_cents: 0 }]) {
+      const tree = await open({ pledge: pledgeRow(over), payments: [], evidence: [] });
+      expect(pressables(tree, 'I paid another way')).toHaveLength(0);
+      expect(has(tree, NOTE)).toBe(false);
+    }
+  });
+
+  it('says why when the community accepts no cash, check or bank transfer, in place of the button', async () => {
+    mockSetup.value = null;
+    mockSetup.reason = 'no_methods';
+    const tree = await open({ pledge: openPledge, payments: [], evidence: [] });
+    expect(pressables(tree, 'I paid another way')).toHaveLength(0);
+    expect(has(tree, NOTE)).toBe(true);
+  });
+
+  it('is hidden, with no note, when proofs are off for this person or the rules could not be read', async () => {
+    for (const reason of ['off', 'no_rules', 'loading'] as const) {
+      mockSetup.value = null;
+      mockSetup.reason = reason;
+      const tree = await open({ pledge: openPledge, payments: [], evidence: [] });
+      expect(pressables(tree, 'I paid another way')).toHaveLength(0);
+      expect(has(tree, NOTE)).toBe(false);
+    }
+    mockModules.giving_proofs = false;
+    mockSetup.value = { methods: ['check'], policy: DEFAULT_POLICY };
+    mockSetup.reason = 'ok';
+    const tree = await open({ pledge: openPledge, payments: [], evidence: [] });
+    expect(pressables(tree, 'I paid another way')).toHaveLength(0);
   });
 });

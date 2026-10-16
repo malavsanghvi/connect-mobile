@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import renderer, { act, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 import PledgesScreen from '@/app/(app)/pledges';
-import type { ProofSetup } from '@/features/pay/proof-setup';
+import type { ProofReason, ProofSetup } from '@/features/pay/proof-setup';
 import { AppError } from '@/lib/errors';
 import { DEFAULT_POLICY, parseProof, type PaymentProof } from '@/lib/proofs';
 import { SettingsProvider } from '@/providers/settings';
@@ -16,7 +16,7 @@ const mockStartPayment = jest.fn<(req: Record<string, unknown>) => Promise<unkno
 const mockPush = jest.fn();
 const mockSheet = jest.fn<(props: Record<string, unknown>) => void>();
 const mockApp: { member: unknown; center: unknown } = { member: null, center: null };
-const mockSetup: { value: ProofSetup | null } = { value: null };
+const mockSetup: { value: ProofSetup | null; reason: ProofReason } = { value: null, reason: 'ok' };
 const mockModules: Record<string, boolean> = {};
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -31,7 +31,7 @@ jest.mock('@/lib/api/proofs', () => ({ myPaymentProofs: (c: string, h: string) =
 jest.mock('@/lib/api/payments', () => ({ listPaymentReports: async () => ({ available: true, reports: [] }) }));
 jest.mock('@/lib/api/files', () => ({ BUCKETS: { statements: 'statements' }, signedUrl: async () => 'https://signed' }));
 jest.mock('@/features/pay', () => ({ startPayment: (req: Record<string, unknown>) => mockStartPayment(req) }));
-jest.mock('@/features/pay/proof-setup', () => ({ useProofSetup: () => ({ setup: mockSetup.value, error: null, reload: () => undefined }) }));
+jest.mock('@/features/pay/proof-setup', () => ({ useProofSetup: () => ({ setup: mockSetup.value, reason: mockSetup.reason, error: null, reload: () => undefined }) }));
 jest.mock('@/features/pay/proof-sheet', () => ({
   ProofSheet: (props: Record<string, unknown>) => {
     mockSheet(props);
@@ -46,6 +46,7 @@ jest.mock('@/components/screen', () => {
   return { Screen: ({ children }: { children: ReactNode }) => createElement(View, null, children) };
 });
 
+const NOTE = 'Your community has not set up cash, check or bank transfer yet. Ask the treasurer to turn them on.';
 const insets = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 
 const row = (over: Record<string, unknown> & { id: string }) => ({
@@ -125,6 +126,7 @@ beforeEach(() => {
   mockProofs.mockResolvedValue([]);
   mockApp.center = { id: 'c1', short_name: 'Riverbend', time_zone: 'America/Chicago' };
   mockSetup.value = { methods: ['check', 'cash'], policy: DEFAULT_POLICY };
+  mockSetup.reason = 'ok';
   for (const k of Object.keys(mockModules)) delete mockModules[k];
 });
 afterEach(() => {
@@ -253,16 +255,58 @@ describe('"I paid another way" on Family pledges', () => {
     expect((last.pledges as { id: string; title: string }[]).map((p) => [p.id, p.title])).toEqual([['building', 'Building fund'], ['food', 'Fall food drive']]);
   });
 
-  it('is hidden, not disabled, when proofs are off or the community takes no offline way', async () => {
+  it('says why it is missing when the community takes no cash, check or bank transfer, in place of the button', async () => {
     mockSetup.value = null;
+    mockSetup.reason = 'no_methods';
     const tree = await open();
     expect(hasButton(tree, 'I paid another way')).toBe(false);
-    expect(hasButton(tree, 'Pay 0 pledges')).toBe(false);
+    expect(hasText(tree, NOTE)).toBe(true);
   });
 
-  it('is hidden when nothing is left to pay', async () => {
+  it('is hidden, with no note, when proofs are off, the rules could not be read, or it is still finding out', async () => {
+    for (const reason of ['off', 'no_rules', 'loading'] as const) {
+      mockSetup.value = null;
+      mockSetup.reason = reason;
+      const tree = await open();
+      expect(hasButton(tree, 'I paid another way')).toBe(false);
+      expect(hasText(tree, NOTE)).toBe(false);
+    }
+  });
+
+  it('shows no note while the button is there', async () => {
+    const tree = await open();
+    expect(hasText(tree, NOTE)).toBe(false);
+  });
+
+  it('is hidden, and so is the note, when nothing is left to pay', async () => {
     const tree = await open([FAMILY[0], FAMILY[3]]);
     expect(hasButton(tree, 'I paid another way')).toBe(false);
+    mockSetup.value = null;
+    mockSetup.reason = 'no_methods';
+    expect(hasText(await open([FAMILY[0], FAMILY[3]]), NOTE)).toBe(false);
+  });
+
+  it('offers "I paid another way" on the Pay sheet, to open the proof sheet, when a proof can be sent', async () => {
+    const tree = await open();
+    await press(tree, 'Select Fall food drive to pay, $100 open');
+    await press(tree, 'Pay 1 pledge · $100');
+    const req = mockStartPayment.mock.calls[0][0] as { alternative?: { label: string; withOnline?: boolean; run: () => void } };
+    expect(req.alternative).toMatchObject({ label: 'I paid another way' });
+    // Only while nothing can be paid online: the sheet shows an alternative without withOnline only then.
+    expect(req.alternative?.withOnline).toBeUndefined();
+    await act(async () => {
+      req.alternative?.run();
+    });
+    expect(mockSheet.mock.calls[mockSheet.mock.calls.length - 1][0]).toMatchObject({ visible: true, initialPledgeIds: ['food'] });
+  });
+
+  it('adds nothing to the Pay sheet when no proof can be sent', async () => {
+    mockSetup.value = null;
+    mockSetup.reason = 'no_methods';
+    const tree = await open();
+    await press(tree, 'Select Fall food drive to pay, $100 open');
+    await press(tree, 'Pay 1 pledge · $100');
+    expect((mockStartPayment.mock.calls[0][0] as { alternative?: unknown }).alternative).toBeUndefined();
   });
 
   it('links to My payment proofs only while the Payment proofs add-on is on', async () => {
