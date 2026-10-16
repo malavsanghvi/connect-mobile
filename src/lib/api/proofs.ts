@@ -128,6 +128,9 @@ async function uploadAll(attempt: ProofAttempt, args: { centerId: string; househ
   return out;
 }
 
+/** Where "I paid another way" was opened: the Open pledges screen, an RSVP's checkout, or a store order's checkout (the amount is then locked to its pledge). */
+export type ProofEntry = 'open_pledges' | 'rsvp' | 'store';
+
 export type SubmitProofArgs = {
   attempt: ProofAttempt;
   centerId: string;
@@ -140,7 +143,8 @@ export type SubmitProofArgs = {
   note?: string | null;
   /** The pledges the family chose (or the checkout's one). Null = all of the family's open pledges, oldest first. Never an empty list. */
   pledgeIds: string[] | null;
-  entry: 'open_pledges' | 'rsvp';
+  entry: ProofEntry;
+  /** The RSVP's or the store order's id, for the entries that have one. */
   entryRef?: string | null;
   files: readonly PickedProofFile[];
 };

@@ -202,6 +202,11 @@ describe('sending a proof (app.submit_payment_proof)', () => {
     await expect(submitPaymentProof(baseArgs({ pledgeIds: [], files: [] }))).rejects.toBeInstanceOf(AppError);
     expect(mockRpc).toHaveBeenCalledTimes(2);
   });
+  it('sends a pledge of a store order with the order as its entry', async () => {
+    mockRpc.mockResolvedValue({ data: { proof: proofRow({ entry: 'store' }), replayed: false }, error: null });
+    await submitPaymentProof(baseArgs({ entry: 'store', entryRef: 'order-1', pledgeIds: [PL], amountCents: 4250, files: [] }));
+    expect(mockRpc.mock.calls[0][1]).toMatchObject({ p_entry: 'store', p_entry_ref: 'order-1', p_pledge_ids: [PL], p_amount_cents: 4250 });
+  });
   it('is never "sent" when the database refuses: the reason is in plain words, with the action in front', async () => {
     mockUpload.mockResolvedValue({ error: null });
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'You have no open pledge that this can cover.' } });

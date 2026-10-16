@@ -421,6 +421,20 @@ export function isWaitingProof(status: ProofStatus): boolean {
   return status === 'submitted' || status === 'needs_info';
 }
 
+/**
+ * The pledges a proof is attached to once the treasury team accepted it: an approved, merged or bank-reconciled proof that still has a file
+ * the family can open. A pledge it was released from (its share given back), or whose files were removed, is left out.
+ */
+export function pledgesWithProofAttached(proofs: readonly PaymentProof[]): Set<string> {
+  const out = new Set<string>();
+  for (const proof of proofs) {
+    if (proof.status !== 'approved' && proof.status !== 'merged' && proof.status !== 'auto_reconciled') continue;
+    if (!proof.files.some((f) => !f.removed)) continue;
+    for (const cover of proof.covered) if (cover.state !== 'released') out.add(cover.pledgeId);
+  }
+  return out;
+}
+
 export type ProofTone = 'amber' | 'navy' | 'green' | 'red' | 'grey';
 
 export type ProofLook = { labelKey: StringKey; tone: ProofTone };

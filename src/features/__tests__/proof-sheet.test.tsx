@@ -389,6 +389,34 @@ describe('I paid another way from an RSVP', () => {
   });
 });
 
+describe('I paid another way from a store order', () => {
+  const orderPledge = pledge('order-pledge', 'P-0700', 'Store order S-0042', 4250, '2026-10-16T10:00:00Z');
+  async function openStore(): Promise<ReactTestRenderer> {
+    return open({ pledges: [orderPledge], entry: 'store', lockedPledgeId: 'order-pledge', entryRef: 'order-1', forLabel: 'P-0700 · Store order S-0042' });
+  }
+
+  it('locks the amount to the order total and does not let it be typed', async () => {
+    const tree = await openStore();
+    expect(hasText(tree, 'P-0700 · Store order S-0042')).toBe(true);
+    expect(hasText(tree, '$42.50, the total of your order')).toBe(true);
+    expect(() => input(tree, 'Amount you paid')).toThrow();
+  });
+
+  it('sends the proof for the pledge of the order only, with the order as its entry, and says the order is held', async () => {
+    const tree = await openStore();
+    await press(tree, 'Next: add your proof');
+    mockPick.mockResolvedValueOnce(photo());
+    await press(tree, 'Choose a photo');
+    await press(tree, 'Next: check and send');
+    expect(mentions(tree, /^Your order is held\. It is released for pickup once the treasury team has checked your proof\.$/)).toBe(true);
+    mockSubmit.mockResolvedValueOnce(sentAnswer({ entry: 'store', amount_cents: 4250 }));
+    await press(tree, 'Send proof for my order');
+    expect(mockSubmit).toHaveBeenCalledWith(expect.objectContaining({ entry: 'store', entryRef: 'order-1', pledgeIds: ['order-pledge'], amountCents: 4250 }));
+    expect(hasText(tree, 'Sent to the treasury team')).toBe(true);
+    expect(hasButton(tree, 'Done')).toBe(true);
+  });
+});
+
 describe('closing the sheet', () => {
   it('starts again from the first step with a new form when it is opened again', async () => {
     const onClose = jest.fn();

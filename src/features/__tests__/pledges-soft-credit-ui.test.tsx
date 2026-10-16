@@ -6,10 +6,12 @@ import renderer, { act, type ReactTestInstance, type ReactTestRenderer } from 'r
 
 import PledgesScreen from '@/app/(app)/pledges';
 import type { ProofSetup } from '@/features/pay/proof-setup';
-import { DEFAULT_POLICY } from '@/lib/proofs';
+import { AppError } from '@/lib/errors';
+import { DEFAULT_POLICY, parseProof, type PaymentProof } from '@/lib/proofs';
 import { SettingsProvider } from '@/providers/settings';
 
 const mockListPledges = jest.fn<() => Promise<{ pledges: unknown[]; paymentsByYear: Record<number, number>; statements: unknown[] }>>();
+const mockProofs = jest.fn<(centerId: string, householdId: string) => Promise<PaymentProof[]>>();
 const mockStartPayment = jest.fn<(req: Record<string, unknown>) => Promise<unknown>>();
 const mockPush = jest.fn();
 const mockSheet = jest.fn<(props: Record<string, unknown>) => void>();
@@ -25,6 +27,7 @@ jest.mock('@/providers/feedback', () => ({ useFeedback: () => ({ toast: () => un
 jest.mock('@/providers/modules', () => ({ useModule: (key: string) => mockModules[key] ?? true }));
 jest.mock('@/lib/storage', () => ({ readPref: async (_k: string, fallback: unknown) => fallback, writePref: async () => undefined }));
 jest.mock('@/lib/api/giving', () => ({ listPledges: () => mockListPledges() }));
+jest.mock('@/lib/api/proofs', () => ({ myPaymentProofs: (c: string, h: string) => mockProofs(c, h) }));
 jest.mock('@/lib/api/payments', () => ({ listPaymentReports: async () => ({ available: true, reports: [] }) }));
 jest.mock('@/lib/api/files', () => ({ BUCKETS: { statements: 'statements' }, signedUrl: async () => 'https://signed' }));
 jest.mock('@/features/pay', () => ({ startPayment: (req: Record<string, unknown>) => mockStartPayment(req) }));
@@ -118,6 +121,8 @@ beforeEach(() => {
   mockStartPayment.mockResolvedValue(undefined);
   mockPush.mockReset();
   mockSheet.mockReset();
+  mockProofs.mockReset();
+  mockProofs.mockResolvedValue([]);
   mockApp.center = { id: 'c1', short_name: 'Riverbend', time_zone: 'America/Chicago' };
   mockSetup.value = { methods: ['check', 'cash'], policy: DEFAULT_POLICY };
   for (const k of Object.keys(mockModules)) delete mockModules[k];
@@ -173,6 +178,65 @@ describe('Family pledges with soft credit', () => {
     await press(tree, 'Open');
     expect(texts(tree)).toContain('Harvest supper');
     expect(texts(tree)).not.toContain('Membership 2026');
+  });
+});
+
+const proof = (over: Record<string, unknown>): PaymentProof => {
+  const parsed = parseProof({
+    id: 'pr1',
+    household_id: 'h1',
+    status: 'approved',
+    entry: 'open_pledges',
+    method: 'check',
+    amount_cents: 12000,
+    paid_on: '2026-01-14',
+    created_at: '2026-01-14T10:00:00Z',
+    covered: [{ pledge_id: 'member', pledge_number: 'P-0412', title: 'Membership 2026', amount_cents: 12000, pledge_amount_cents: 12000, state: 'converted' }],
+    files: [{ id: 'f1', storage_path: 'c1/h1/pr1/a.jpg', content_type: 'image/jpeg', bytes: 1000, removed: false, created_at: '2026-01-14T10:00:00Z' }],
+    ...over,
+  });
+  if (!parsed) throw new Error('fixture');
+  return parsed;
+};
+
+describe('The proof mark on closed pledges', () => {
+  it('marks the closed pledge that has an accepted proof, with one request for the whole family', async () => {
+    mockProofs.mockResolvedValue([proof({})]);
+    const tree = await open();
+    await press(tree, 'Closed');
+    expect(texts(tree).filter((t) => t === 'Proof attached')).toHaveLength(1);
+    expect(mockProofs).toHaveBeenCalledTimes(1);
+    expect(mockProofs).toHaveBeenCalledWith('c1', 'h1');
+  });
+
+  it('leaves out a proof that was rejected, one whose files were removed, and a closed pledge with none', async () => {
+    mockProofs.mockResolvedValue([
+      proof({ id: 'pr2', status: 'rejected' }),
+      proof({ id: 'pr3', covered: [{ pledge_id: 'picnic', pledge_number: 'P-0398', title: 'Summer picnic', amount_cents: 6000, pledge_amount_cents: 6000, state: 'converted' }], files: [{ id: 'f2', storage_path: 'c1/h1/pr3/a.jpg', content_type: 'image/jpeg', bytes: 1000, removed: true, created_at: null }] }),
+    ]);
+    const tree = await open();
+    await press(tree, 'Closed');
+    expect(texts(tree)).not.toContain('Proof attached');
+  });
+
+  it('is not asked for when Payment proofs is off', async () => {
+    mockModules.giving_proofs = false;
+    const tree = await open();
+    await press(tree, 'Closed');
+    expect(mockProofs).not.toHaveBeenCalled();
+    expect(texts(tree)).not.toContain('Proof attached');
+  });
+
+  it('says so, with a retry, when the proofs cannot be loaded; the pledges still show', async () => {
+    mockProofs.mockRejectedValueOnce(new AppError('Could not load your payment proofs — try again.', 'boom'));
+    const tree = await open();
+    expect(texts(tree)).toContain('Could not load your payment proofs — try again.');
+    expect(hasButton(tree, 'Try again')).toBe(true);
+    mockProofs.mockResolvedValue([proof({})]);
+    await press(tree, 'Try again');
+    await press(tree, 'Closed');
+    expect(texts(tree)).toContain('Proof attached');
+    expect(texts(tree)).toContain('Membership 2026');
   });
 });
 
