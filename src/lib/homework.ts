@@ -32,8 +32,8 @@ export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
 
 export type ParentCheck = 'never' | 'children' | 'always';
 
-/** Kinds this release cannot take over the air: "Attach a file" needs the native file picker of the next APK (plan §1.3 F6, H10). */
-export const NATIVE_ONLY_KINDS: readonly AnswerKind[] = ['file'];
+/** Kinds a build cannot take over the air. None now: "Attach a file" uses the native file picker that arrived with runtime 5 (plan §1.3 F6, H10). */
+export const NATIVE_ONLY_KINDS: readonly AnswerKind[] = [];
 
 /** A text answer is at most this long (gyan_submissions.text_answer). */
 export const MAX_TEXT_CHARS = 2000;
@@ -395,8 +395,8 @@ export type AnswerButton = { kind: AnswerKind; available: boolean };
 const ANSWER_ORDER: readonly AnswerKind[] = ['photo', 'voice', 'file', 'text'];
 
 /**
- * The answer buttons to show, in order: Choose a photo, Record a voice note, Attach a file, Write. A kind this release
- * cannot take over the air (`file`) is still shown, disabled, so the learner knows it arrives with the next app update.
+ * The answer buttons to show, in order: Choose a photo, Record a voice note, Attach a file, Write. A kind a build cannot
+ * take over the air (see NATIVE_ONLY_KINDS) is still shown, disabled, so the learner knows it arrives with the next app update.
  */
 export function answerButtons(allowed: readonly AnswerKind[]): AnswerButton[] {
   return ANSWER_ORDER.filter((k) => allowed.includes(k)).map((kind) => ({ kind, available: !NATIVE_ONLY_KINDS.includes(kind) }));

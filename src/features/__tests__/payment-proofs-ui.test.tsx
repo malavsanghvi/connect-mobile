@@ -25,7 +25,11 @@ jest.mock('expo-web-browser', () => ({ openBrowserAsync: async () => undefined }
 jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
   launchImageLibraryAsync: (opts: unknown) => mockPick(opts),
+  requestCameraPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
+  launchCameraAsync: async () => ({ canceled: true, assets: [] }),
 }));
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: async () => ({ canceled: true, assets: null }) }));
+jest.mock('@/features/pay/proof-photo', () => ({ reencodeProofPhoto: async (uri: string) => ({ uri: uri.replace('file:///', 'file:///ready/'), width: 1500, height: 1000, bytes: 400_000 }) }));
 jest.mock('@/providers/app', () => ({ useApp: () => mockApp }));
 jest.mock('@/providers/data-version', () => ({ useDataVersion: () => ({ version: 0, invalidate: () => mockInvalidate() }) }));
 jest.mock('@/providers/feedback', () => ({ useFeedback: () => ({ toast: (m: string) => mockToast(m), confirm: (o: Record<string, unknown>) => mockConfirm(o) }) }));
@@ -236,13 +240,14 @@ describe('answering the treasury team', () => {
       tree.root.findAllByType(TextInput).find((n) => n.props.accessibilityLabel === 'Your reply (optional)')?.props.onChangeText('Here is a new photo, taken in daylight.');
     });
     mockPick.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///new.jpg', fileName: 'new.jpg', mimeType: 'image/jpeg', fileSize: 1_600_000 }] });
+    expect(['Take a photo', 'Choose a photo', 'Attach a file'].every((b) => has(tree, b))).toBe(true);
     await press(tree, 'Choose a photo');
     mockAnswer.mockResolvedValueOnce(one({ ...NEEDS, status: 'submitted' }));
     await press(tree, 'Send to the treasury team');
     expect(mockAnswer).toHaveBeenCalledWith(expect.objectContaining({ centerId: 'c1', message: 'Here is a new photo, taken in daylight.' }));
     const sent = mockAnswer.mock.calls[0][0] as { files: { uri: string }[]; proof: { id: string } };
     expect(sent.proof.id).toBe('pr2');
-    expect(sent.files.map((f) => f.uri)).toEqual(['file:///new.jpg']);
+    expect(sent.files.map((f) => f.uri)).toEqual(['file:///ready/new.jpg']);
     expect(mockToast).toHaveBeenCalledWith('Your reply was sent.');
   });
 

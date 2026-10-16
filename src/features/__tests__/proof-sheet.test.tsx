@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { ReactElement } from 'react';
-import { Text, TextInput } from 'react-native';
+import { Linking, Text, TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import renderer, { act, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
@@ -12,6 +12,10 @@ import { SettingsProvider } from '@/providers/settings';
 
 const mockSubmit = jest.fn<(args: Record<string, unknown>) => Promise<SubmittedProof>>();
 const mockPick = jest.fn<(opts: unknown) => Promise<{ canceled: boolean; assets: { uri: string; fileName: string | null; mimeType: string | null; fileSize: number | null }[] }>>();
+const mockCamera = jest.fn<(opts: unknown) => Promise<{ canceled: boolean; assets: { uri: string; fileName: string | null; mimeType: string | null; fileSize: number | null }[] }>>();
+const mockCameraPermission = jest.fn<() => Promise<{ granted: boolean; status: string }>>();
+const mockDocument = jest.fn<(opts: unknown) => Promise<{ canceled: boolean; assets: { uri: string; name: string; mimeType?: string; size?: number }[] | null }>>();
+const mockReencode = jest.fn<(uri: string) => Promise<{ uri: string; width: number; height: number; bytes: number | null }>>();
 const mockPush = jest.fn();
 const mockInvalidate = jest.fn();
 
@@ -23,7 +27,11 @@ jest.mock('expo-web-browser', () => ({ openBrowserAsync: async () => undefined }
 jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
   launchImageLibraryAsync: (opts: unknown) => mockPick(opts),
+  requestCameraPermissionsAsync: () => mockCameraPermission(),
+  launchCameraAsync: (opts: unknown) => mockCamera(opts),
 }));
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: (opts: unknown) => mockDocument(opts) }));
+jest.mock('@/features/pay/proof-photo', () => ({ reencodeProofPhoto: (uri: string) => mockReencode(uri) }));
 jest.mock('@/lib/api/proofs', () => ({
   newProofAttempt: () => ({ proofId: '11111111-1111-4111-8111-111111111111', key: 'proof-key-1234', uploaded: new Map() }),
   submitPaymentProof: (args: Record<string, unknown>) => mockSubmit(args),
@@ -127,9 +135,18 @@ async function open(over: Partial<React.ComponentProps<typeof ProofSheet>> = {})
   );
 }
 
+/** The phone saves a photo again as a smaller JPEG in its cache; a file named "huge" is still over the limit after that. */
+const ready = (uri: string) => ({ uri: uri.replace('file:///photos/', 'file:///ready/'), width: 1500, height: 1000, bytes: uri.includes('huge') ? 20 * 1024 * 1024 : 400_000 });
+
 beforeEach(() => {
   mockSubmit.mockReset();
   mockPick.mockReset();
+  mockCamera.mockReset();
+  mockDocument.mockReset();
+  mockCameraPermission.mockReset();
+  mockCameraPermission.mockResolvedValue({ granted: true, status: 'granted' });
+  mockReencode.mockReset();
+  mockReencode.mockImplementation(async (uri) => ready(uri));
   mockPush.mockReset();
   mockInvalidate.mockReset();
 });
@@ -206,28 +223,151 @@ describe('I paid another way: step 2, the proof', () => {
     expect(hasText(tree, 'Step 3 of 3')).toBe(true);
   });
 
-  it('adds photos from the gallery, shows them, takes one off, and stops at five', async () => {
+  it('offers Take a photo, Choose a photo and Attach a file side by side', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    expect(['Take a photo', 'Choose a photo', 'Attach a file'].every((b) => hasButton(tree, b))).toBe(true);
+  });
+
+  it('adds photos from the library, saves each again without its location, shows them, takes one off, and stops at five', async () => {
     const tree = await open();
     await press(tree, 'Next: add your proof');
     mockPick.mockResolvedValueOnce(photo('front.jpg'));
     await press(tree, 'Choose a photo');
     expect(mockPick).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 5 }));
+    expect(mockReencode).toHaveBeenCalledWith('file:///photos/front.jpg');
     expect(hasText(tree, '1 of 5 files')).toBe(true);
     expect(hasText(tree, 'Photo 1')).toBe(true);
-    expect(hasText(tree, '1.3 MB')).toBe(true);
-    mockPick.mockResolvedValueOnce({ canceled: false, assets: ['b', 'c', 'd', 'e', 'f'].map((n) => ({ uri: `file:///photos/${n}.jpg`, fileName: `${n}.jpg`, mimeType: 'image/jpeg', fileSize: 1000 })) });
-    await press(tree, 'Add another photo');
+    expect(hasText(tree, '391 KB')).toBe(true);
+    mockPick.mockResolvedValueOnce({ canceled: false, assets: ['b', 'c', 'd', 'e'].map((n) => ({ uri: `file:///photos/${n}.jpg`, fileName: `${n}.jpg`, mimeType: 'image/jpeg', fileSize: 1000 })) });
+    await press(tree, 'Choose a photo');
     expect(mockPick).toHaveBeenLastCalledWith(expect.objectContaining({ selectionLimit: 4 }));
     expect(hasText(tree, '5 of 5 files')).toBe(true);
-    expect(buttonDisabled(tree, 'Add another photo')).toBe(true);
+    expect(buttonDisabled(tree, 'Choose a photo')).toBe(true);
+    expect(buttonDisabled(tree, 'Take a photo')).toBe(true);
+    expect(buttonDisabled(tree, 'Attach a file')).toBe(true);
     await press(tree, 'Remove Photo 5');
     expect(hasText(tree, '4 of 5 files')).toBe(true);
+  });
+
+  it('takes a photo with the camera after asking, and saves it again like any other', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockCamera.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///photos/shot.jpg', fileName: null, mimeType: 'image/jpeg', fileSize: 6_000_000 }] });
+    await press(tree, 'Take a photo');
+    expect(mockCameraPermission).toHaveBeenCalledTimes(1);
+    expect(mockCamera).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ['images'], allowsEditing: false }));
+    expect(mockReencode).toHaveBeenCalledWith('file:///photos/shot.jpg');
+    expect(hasText(tree, '1 of 5 files')).toBe(true);
+    expect(hasText(tree, 'Photo 1')).toBe(true);
+  });
+
+  it('adds nothing when the camera is closed without a photo', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockCamera.mockResolvedValueOnce({ canceled: true, assets: [] });
+    await press(tree, 'Take a photo');
+    expect(mockReencode).not.toHaveBeenCalled();
+    expect(hasText(tree, '0 of 5 files')).toBe(true);
+  });
+
+  it('explains a refused camera in words and offers the phone Settings', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockCameraPermission.mockResolvedValueOnce({ granted: false, status: 'denied' });
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    await press(tree, 'Take a photo');
+    expect(mockCamera).not.toHaveBeenCalled();
+    expect(mentions(tree, /^Weaver cannot use the camera\. Turn it on for Weaver in the Settings app on your phone, or choose a photo you already have\.$/)).toBe(true);
+    const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+    await press(tree, 'Open settings');
+    expect(openSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('says so when the phone Settings cannot be opened', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockCameraPermission.mockResolvedValueOnce({ granted: false, status: 'denied' });
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    await press(tree, 'Take a photo');
+    jest.spyOn(Linking, 'openSettings').mockRejectedValueOnce(new Error('no settings'));
+    await press(tree, 'Open settings');
+    expect(mentions(tree, /^We couldn't open Settings\. Open the Settings app on your phone/)).toBe(true);
+  });
+
+  it('attaches PDFs as they are and pictures saved again, up to five together', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockDocument.mockResolvedValueOnce({
+      canceled: false,
+      assets: [
+        { uri: 'file:///cache/statement.pdf', name: 'statement.pdf', mimeType: 'application/pdf', size: 250_000 },
+        { uri: 'file:///photos/scan.png', name: 'scan.png', mimeType: 'image/png', size: 3_000_000 },
+      ],
+    });
+    await press(tree, 'Attach a file');
+    expect(mockDocument).toHaveBeenCalledWith(expect.objectContaining({ type: ['application/pdf', 'image/*'], multiple: true }));
+    expect(mockReencode).toHaveBeenCalledTimes(1);
+    expect(mockReencode).toHaveBeenCalledWith('file:///photos/scan.png');
+    expect(hasText(tree, '2 of 5 files')).toBe(true);
+    expect(hasText(tree, 'File 1')).toBe(true);
+    expect(hasText(tree, 'Photo 2')).toBe(true);
+    expect(hasText(tree, '244 KB')).toBe(true);
+  });
+
+  it('refuses a PDF over 10 MB or a file of another kind, in words, and keeps the good ones', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockDocument.mockResolvedValueOnce({
+      canceled: false,
+      assets: [
+        { uri: 'file:///cache/big.pdf', name: 'big.pdf', mimeType: 'application/pdf', size: 12 * 1024 * 1024 },
+        { uri: 'file:///cache/notes.docx', name: 'notes.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 1000 },
+        { uri: 'file:///cache/ok.pdf', name: 'ok.pdf', mimeType: 'application/pdf', size: 1000 },
+      ],
+    });
+    await press(tree, 'Attach a file');
+    expect(hasText(tree, '1 of 5 files')).toBe(true);
+    expect(hasText(tree, 'That file is over 10 MB. Please choose a smaller one.')).toBe(true);
+  });
+
+  it('leaves out a photo that cannot be saved again, and never sends the original', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockReencode.mockRejectedValueOnce(new Error('cannot decode'));
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockPick.mockResolvedValueOnce(photo('broken.jpg'));
+    await press(tree, 'Choose a photo');
+    expect(hasText(tree, '0 of 5 files')).toBe(true);
+    expect(hasText(tree, "We couldn't get that photo ready. Please take it or choose it again.")).toBe(true);
+    expect(hasButton(tree, 'Try again')).toBe(true);
+  });
+
+  it('tells a family that more files were chosen than fit, and adds the ones that do', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockDocument.mockResolvedValueOnce({ canceled: false, assets: ['a', 'b', 'c', 'd', 'e', 'f'].map((n) => ({ uri: `file:///cache/${n}.pdf`, name: `${n}.pdf`, mimeType: 'application/pdf', size: 1000 })) });
+    await press(tree, 'Attach a file');
+    expect(hasText(tree, '5 of 5 files')).toBe(true);
+    expect(hasText(tree, 'You can add up to 5 files.')).toBe(true);
+  });
+
+  it('says so when the files cannot be opened, and Try again opens them again', async () => {
+    const tree = await open();
+    await press(tree, 'Next: add your proof');
+    mockDocument.mockRejectedValueOnce(new Error('picker crashed'));
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    await press(tree, 'Attach a file');
+    expect(mentions(tree, /^We couldn't open your files\./)).toBe(true);
+    mockDocument.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///cache/ok.pdf', name: 'ok.pdf', mimeType: 'application/pdf', size: 1000 }] });
+    await press(tree, 'Try again');
+    expect(hasText(tree, '1 of 5 files')).toBe(true);
   });
 
   it('says why a photo was left out, in plain words, and keeps the good ones', async () => {
     const tree = await open();
     await press(tree, 'Next: add your proof');
-    mockPick.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///a.gif', fileName: 'a.gif', mimeType: 'image/gif', fileSize: 10 }, { uri: 'file:///b.jpg', fileName: 'b.jpg', mimeType: 'image/jpeg', fileSize: 20 * 1024 * 1024 }, { uri: 'file:///c.jpg', fileName: 'c.jpg', mimeType: 'image/jpeg', fileSize: 500 }] });
+    mockPick.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///a.gif', fileName: 'a.gif', mimeType: 'image/gif', fileSize: 10 }, { uri: 'file:///photos/huge.jpg', fileName: 'huge.jpg', mimeType: 'image/jpeg', fileSize: 20 * 1024 * 1024 }, { uri: 'file:///photos/c.jpg', fileName: 'c.jpg', mimeType: 'image/jpeg', fileSize: 500 }] });
     await press(tree, 'Choose a photo');
     expect(hasText(tree, '1 of 5 files')).toBe(true);
     expect(hasText(tree, 'Choose a JPEG, PNG, WebP or HEIC photo, or a PDF.')).toBe(true);
@@ -304,7 +444,7 @@ describe('I paid another way: step 3 and sending', () => {
       expect.objectContaining({ centerId: 'c1', householdId: 'h1', method: 'check', amountCents: 25000, paidOn: '2026-10-15', reference: '1048', pledgeIds: null, entry: 'open_pledges', entryRef: null }),
     );
     const sent = mockSubmit.mock.calls[0][0] as { files: { uri: string }[] };
-    expect(sent.files.map((f) => f.uri)).toEqual(['file:///photos/check-front.jpg']);
+    expect(sent.files.map((f) => f.uri)).toEqual(['file:///ready/check-front.jpg']);
   });
 
   it('a second tap while it is being sent does not send a second proof', async () => {
@@ -444,5 +584,54 @@ describe('closing the sheet', () => {
     expect(input(tree, 'Amount you paid').props.value).toBe('560');
     await press(tree, 'Close');
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('I paid another way: Zelle', () => {
+  const zelleSetup: ProofSetup = { methods: ['check', 'zelle'], policy: DEFAULT_POLICY };
+
+  it('is a choice when the community takes Zelle, with its own reference and a plain note that it credits nothing yet', async () => {
+    const tree = await open({ setup: zelleSetup });
+    expect(hasButton(tree, 'Zelle')).toBe(true);
+    await press(tree, 'Zelle');
+    expect(() => input(tree, 'Zelle confirmation number (optional)')).not.toThrow();
+    expect(mentions(tree, /^Zelle goes straight from bank to bank\. This only tells the treasury team about it\. Nothing is paid until they match it at the bank\.$/)).toBe(true);
+  });
+
+  it('is not offered when the community does not take it', async () => {
+    const tree = await open();
+    expect(hasButton(tree, 'Zelle')).toBe(false);
+  });
+
+  it('needs no photo by default, and goes on to the review with none', async () => {
+    const tree = await open({ setup: zelleSetup });
+    await press(tree, 'Zelle');
+    await type(tree, 'Amount you paid', '100');
+    await press(tree, 'Next: add your proof');
+    expect(mentions(tree, /^A proof is optional for Zelle/)).toBe(true);
+    await press(tree, 'Next: check and send');
+    expect(hasText(tree, 'Step 3 of 3')).toBe(true);
+    expect(hasText(tree, '$100 · Zelle')).toBe(true);
+  });
+
+  it('needs a photo when the community lists Zelle among the ways that need one', async () => {
+    const tree = await open({ setup: { ...zelleSetup, policy: { ...DEFAULT_POLICY, requiredMethods: ['check', 'zelle'] } } });
+    await press(tree, 'Zelle');
+    await type(tree, 'Amount you paid', '100');
+    await press(tree, 'Next: add your proof');
+    expect(mentions(tree, /^Add at least one photo or file\. A proof is needed for Zelle\.$/)).toBe(true);
+    await press(tree, 'Next: check and send');
+    expect(hasText(tree, 'Step 2 of 3')).toBe(true);
+  });
+
+  it('sends Zelle as the method', async () => {
+    const tree = await open({ setup: zelleSetup });
+    await press(tree, 'Zelle');
+    await type(tree, 'Amount you paid', '100');
+    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: check and send');
+    mockSubmit.mockResolvedValueOnce(sentAnswer({ method: 'zelle', amount_cents: 10000 }));
+    await press(tree, 'Send to the treasury team');
+    expect(mockSubmit).toHaveBeenCalledWith(expect.objectContaining({ method: 'zelle', amountCents: 10000, files: [] }));
   });
 });

@@ -14,6 +14,27 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.28.0 — 2026-10-16 · needs a new build (runtime 5)
+
+**Native change: `runtimeVersion` goes from 4 to 5.** This needs a NEW APK (an over-the-air update cannot add the camera permission or the new native modules), and an
+installed runtime-4 app keeps working but receives no further over-the-air updates until it is replaced by the runtime-5 APK. Build:
+`npx --yes eas-cli@24.8.0 build --platform android --profile preview --non-interactive`, then publish JavaScript newer than the build for runtime 5.
+New native parts: `expo-document-picker` (the phone's file picker) and `expo-image-manipulator` (saving a photo again), and the camera permission for
+`expo-image-picker` (its text now also covers the camera in `expo-camera`, so both name the same two uses). Needs connect-crm 0864 to 0870 on the database,
+and the Payment proofs add-on switched on for the community.
+
+- **Take a photo, Choose a photo, Attach a file.** The "I paid another way" sheet (and the reply to a treasury team question under My payment proofs) now has three
+  buttons. The camera asks first; if it is refused, the screen says so in words and offers **Open settings**. Attach a file takes PDFs and pictures, up to 5 files
+  together, 10 MB each; a larger or unsupported file is turned away in plain words and the good ones are kept.
+- **Photos are saved again on the phone before they go.** Every picture, from the camera, the library or the files, is drawn again and saved as a new JPEG (no more
+  than 2000 px on its longest side, about 80% quality), which leaves out where it was taken and the phone's details; a HEIC photo arrives as a JPEG. A PDF goes as it is.
+  A photo that cannot be prepared is left out with a plain message, never sent as it was. The 10 MB limit is judged on the saved photo.
+- **Zelle in the sheet.** When the community takes Zelle, it is one of the ways to choose, with a Zelle confirmation number (optional) and a note that it only tells the
+  treasury team; nothing is paid until they match it at the bank. A proof is optional for Zelle unless the community's rules list it. A proof for Zelle credits no
+  money: the pledge shows Soft credit, as for any other proof. The existing "I sent a Zelle" report is unchanged.
+- **Homework: Attach a file works.** The button is no longer disabled; it opens the phone's file picker for a PDF, Word, Excel, PowerPoint, text or picture file
+  (25 MB, as the homework bucket already allowed).
+
 ## 1.27.0 — 2026-10-16
 
 JavaScript only (OTA): the runtime stays 4. Needs connect-crm 0870 (`store_order_pledge`, deployed) and the Payment proofs add-on switched on for the community.
