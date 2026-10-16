@@ -1,11 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Card, dotted, Ident, Row, Txt, VStack } from '@/components/ui';
 import { pledgeTitle } from '@/features/give/pledge-labels';
+import { PaidAnotherWay } from '@/features/pay/paid-another-way';
 import { evidenceLine, ProofFiles, proofMethodName, Timeline } from '@/features/pay/proof-parts';
+import { ProofSheet } from '@/features/pay/proof-sheet';
+import { useProofSetup } from '@/features/pay/proof-setup';
 import type { Translate } from '@/i18n';
 import type { StringKey } from '@/i18n/en';
 import { getPledgeDetail, listPledgePayments, type PledgeWithPeople } from '@/lib/api/giving';
@@ -13,7 +17,7 @@ import { pledgeEvidence } from '@/lib/api/proofs';
 import { report } from '@/lib/errors';
 import { formatCents, formatLongDate, fullName } from '@/lib/format';
 import { openableFiles, pledgeTimeline, removedFiles, type EvidenceItem, type PledgePayment } from '@/lib/proofs';
-import { isSoftCreditPledge, openBalanceCents, softCreditOf } from '@/lib/rules';
+import { isPayablePledge, isSoftCreditPledge, openBalanceCents, softCreditOf } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useModule } from '@/providers/modules';
@@ -126,6 +130,8 @@ function Details({ data, proofsOn, onRetry }: { data: Data & { pledge: PledgeWit
         ) : null}
       </Card>
 
+      {proofsOn && isPayablePledge(pledge) ? <PaidAnotherWayBlock pledge={pledge} /> : null}
+
       <VStack gap={space.sm}>
         <Txt variant="eyebrow" color="muted" accessibilityRole="header">
           {t('pledge.paymentTitle')}
@@ -172,6 +178,36 @@ function Details({ data, proofsOn, onRetry }: { data: Data & { pledge: PledgeWit
         </Txt>
         <Timeline entries={timeline} />
       </VStack>
+    </VStack>
+  );
+}
+
+/**
+ * "I paid another way" for this one pledge (it is still open or partly paid): the button, or a note when the community takes no
+ * offline way yet. The proof sheet is bound to this pledge; it refreshes the screen itself once a proof is sent.
+ */
+function PaidAnotherWayBlock({ pledge }: { pledge: PledgeWithPeople }) {
+  const t = useT();
+  const { member, center } = useApp();
+  const proofs = useProofSetup();
+  const [open, setOpen] = useState(false);
+  return (
+    <VStack gap={space.sm}>
+      {proofs.error ? <Banner tone="error" message={proofs.error.userMessage} action={{ label: t('common.retry'), onPress: proofs.reload }} /> : null}
+      <PaidAnotherWay setup={proofs.setup} reason={proofs.reason} onPress={() => setOpen(true)} />
+      {proofs.setup && center && member?.household ? (
+        <ProofSheet
+          visible={open}
+          onClose={() => setOpen(false)}
+          setup={proofs.setup}
+          centerId={center.id}
+          householdId={member.household.id}
+          today={member.today}
+          pledges={[{ ...pledge, title: pledgeTitle(t, pledge), number: pledge.pledge_number }]}
+          entry="open_pledges"
+          initialPledgeIds={[pledge.id]}
+        />
+      ) : null}
     </VStack>
   );
 }
