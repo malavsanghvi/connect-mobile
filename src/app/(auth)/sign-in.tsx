@@ -12,7 +12,7 @@ import { passwordErrorKey } from '@/lib/password-sign-in';
 import { supabase } from '@/lib/supabase';
 import { useT } from '@/providers/settings';
 
-const RESEND_SECONDS = 60;
+const RESEND_SECONDS = 180;
 
 /**
  * Onboarding step 1: email → one-time code (Supabase OTP). Signing in or creating an account with a mobile number is

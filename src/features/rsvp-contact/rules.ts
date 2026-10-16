@@ -42,8 +42,8 @@ export function readCode(typed: string): string | null {
   return digits.length === CODE_LENGTH ? digits : null;
 }
 
-/** "Send a new code" is allowed after 60 seconds, 3 codes at most (the database allows 3 an hour for one phone or email). */
-export const RESEND_SECONDS = 60;
+/** "Send a new code" is allowed after 180 seconds (3 minutes), 3 codes at most (the database allows 3 an hour for one phone or email). */
+export const RESEND_SECONDS = 180;
 export const MAX_CODES = 3;
 
 /** The first time the family is shown, everyone is ticked. */
