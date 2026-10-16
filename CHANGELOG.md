@@ -14,6 +14,19 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.27.0 — 2026-10-16
+
+JavaScript only (OTA): the runtime stays 4. Needs connect-crm 0870 (`store_order_pledge`, deployed) and the Payment proofs add-on switched on for the community.
+
+- **Proof of payment at store checkout.** Under the pay button on Your order, a family that already paid another way taps **I already paid another way**. The order is
+  placed as usual (items, pickup time), the order gets its pledge for the order total, and the same "I paid another way" sheet opens bound to that pledge with the
+  amount locked to the order total. "Your order is held. It is released for pickup once the treasury team has checked your proof." If the order is placed but the pledge
+  or the sheet cannot be reached, the screen says so in words, keeps the order, and Try again carries on without placing a second order. Send it later leaves the
+  order placed; the pledge can be sent a proof from Open pledges. The button is hidden, not disabled, when Payment proofs is off, the community takes no offline way,
+  or the visitor is a child. "Place order · pay at pickup" is unchanged.
+- **Proof mark on closed pledges.** On Family pledges, a closed pledge whose proof the treasury team accepted, and whose files can still be opened, shows
+  "Proof attached". It is read with one request for the whole family (My payment proofs), never one per row; if that request fails the screen says so with Try again.
+
 ## 1.26.0 — 2026-10-16
 
 JavaScript only (OTA): the runtime stays 4. Needs connect-crm 0864 to 0867 (PR #303) on the database, and the Payment proofs add-on switched on for the community.

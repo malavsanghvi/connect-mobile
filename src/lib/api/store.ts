@@ -3,6 +3,7 @@ import { AppError, check, logError, must } from '../errors';
 import { supabase } from '../supabase';
 
 import type { Center } from './member';
+import { actionError } from './payments';
 
 export type StoreItem = Tables<'store_items'>;
 export type PickupWindow = Tables<'pickup_windows'>;
@@ -100,6 +101,21 @@ export async function submitOrder(order: PlacedOrder): Promise<void> {
     logError(`order ${order.orderNumber} left as an unplaced cart after a failure`, err);
     throw err;
   }
+}
+
+/**
+ * The pledge of a placed store order (connect-crm 0870 app.store_order_pledge): source 'store', the order's total. Asking again for the
+ * same order returns the same pledge, so a retry never makes a second one. It records no payment; the proof does the rest.
+ */
+export async function storeOrderPledge(orderId: string): Promise<string> {
+  const res = await supabase.rpc('store_order_pledge', { p_order: orderId });
+  if (res.error) throw actionError('Could not set up the payment proof for your order', 'set up the payment proof for your order', res.error);
+  if (typeof res.data !== 'string' || res.data.length === 0) {
+    const err = new AppError('Could not set up the payment proof for your order — the answer was not what we expected. Please try again.', `store_order_pledge returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 200) ?? 'nothing'}`);
+    logError('set up the payment proof for your order', err);
+    throw err;
+  }
+  return res.data;
 }
 
 /** Both steps in one call. */

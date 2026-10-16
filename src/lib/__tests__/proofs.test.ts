@@ -13,6 +13,7 @@ import {
   parseProof,
   parseProofs,
   parseSubmitted,
+  pledgesWithProofAttached,
   pledgeTimeline,
   proofFileProblem,
   proofFileType,
@@ -210,6 +211,24 @@ describe('reading a proof (app._proof_json)', () => {
     if (!a || !b || !c) throw new Error('fixture');
     expect(newestProofFirst([a, b, c]).map((p) => p.id)).toEqual(['b', 'c', 'a']);
     expect(waitingProofs([a, b, c]).map((p) => p.id)).toEqual(['a', 'c']);
+  });
+});
+
+describe('which pledges have a proof attached', () => {
+  const made = (over: Record<string, unknown>) => {
+    const p = parseProof(proofRow(over));
+    if (!p) throw new Error('fixture');
+    return p;
+  };
+  it('lists the pledges an accepted proof with an openable file covers', () => {
+    const ids = pledgesWithProofAttached([made({ status: 'approved', covered: [{ pledge_id: 'a', amount_cents: 100, state: 'converted' }, { pledge_id: 'b', amount_cents: 100, state: 'converted' }] }), made({ id: 'pr2', status: 'merged', covered: [{ pledge_id: 'c', amount_cents: 100, state: 'converted' }] })]);
+    expect([...ids].sort()).toEqual(['a', 'b', 'c']);
+  });
+  it('leaves out a proof still waiting, rejected or taken back, a share that was released, and a proof with no file left to open', () => {
+    const cover = [{ pledge_id: 'a', amount_cents: 100, state: 'converted' }];
+    expect(pledgesWithProofAttached([made({ status: 'submitted', covered: cover }), made({ status: 'rejected', covered: cover }), made({ status: 'withdrawn', covered: cover })]).size).toBe(0);
+    expect(pledgesWithProofAttached([made({ status: 'approved', covered: [{ pledge_id: 'a', amount_cents: 100, state: 'released' }] })]).size).toBe(0);
+    expect(pledgesWithProofAttached([made({ status: 'approved', covered: cover, files: [{ id: 'f1', storage_path: 'x', content_type: 'image/jpeg', bytes: 1, removed: true, created_at: null }] }), made({ status: 'approved', covered: cover, files: [] })]).size).toBe(0);
   });
 });
 

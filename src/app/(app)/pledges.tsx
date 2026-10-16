@@ -18,9 +18,11 @@ import type { Translate } from '@/i18n';
 import { BUCKETS, signedUrl } from '@/lib/api/files';
 import { listPledges, type PledgeWithPeople } from '@/lib/api/giving';
 import { listPaymentReports } from '@/lib/api/payments';
+import { myPaymentProofs } from '@/lib/api/proofs';
 import type { Tables } from '@/lib/database.types';
 import { report } from '@/lib/errors';
 import { formatCents, formatLongDate, fullName } from '@/lib/format';
+import { pledgesWithProofAttached } from '@/lib/proofs';
 import { filterPledges, groupPledgesByYear, isPayablePledge, isSoftCreditPledge, openBalanceCents, pledgeTotals, softCreditOf, type PledgeFilter } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -47,7 +49,7 @@ function statusPill(t: Translate, p: PledgeWithPeople): { label: string; fg: str
   }
 }
 
-function PledgeRow({ t, p, selected, onToggle, onOpen, reported }: { t: Translate; p: PledgeWithPeople; selected: boolean; onToggle: () => void; onOpen: () => void; reported: boolean }) {
+function PledgeRow({ t, p, selected, onToggle, onOpen, reported, hasProof }: { t: Translate; p: PledgeWithPeople; selected: boolean; onToggle: () => void; onOpen: () => void; reported: boolean; hasProof: boolean }) {
   const payable = isPayablePledge(p);
   const title = pledgeTitle(t, p);
   const sub = pledgeSubtitle(t, p, title);
@@ -94,6 +96,12 @@ function PledgeRow({ t, p, selected, onToggle, onOpen, reported }: { t: Translat
           {confirmed ? (
             <Txt variant="fine" color="greenDark" style={{ fontFamily: fonts.bodySemi }}>
               {`✓ ${t('pledges.confirmedByBank')}`}
+            </Txt>
+          ) : null}
+          {/* A closed pledge the family sent a proof for: a small text mark, so it can be told apart without opening each one. */}
+          {hasProof && !payable && !softCredited ? (
+            <Txt variant="fine" color="navy" style={{ fontFamily: fonts.bodySemi }}>
+              {t('pledges.proofAttached')}
             </Txt>
           ) : null}
         </View>
@@ -150,6 +158,13 @@ export default function PledgesScreen() {
     'load your Zelle reports',
   );
   const reportedPledges = pledgesWithWaitingReport(reports.data ?? []);
+  // The proofs the family sent, in ONE request for the whole family (never one per row), to mark the closed pledges that have one.
+  const sentProofs = useLoad(
+    async () => (member?.household && center && member.isAdult && proofsOn ? await myPaymentProofs(center.id, member.household.id) : []),
+    [member?.household?.id, center?.id, member?.isAdult ?? false, proofsOn],
+    'load your payment proofs',
+  );
+  const proofPledgeIds = pledgesWithProofAttached(sentProofs.data ?? []);
   const [year, setYear] = useState<number | null>(null);
   const [filter, setFilter] = useState<PledgeFilter>('all');
   const [selected, setSelected] = useState<string[]>([]);
@@ -229,6 +244,7 @@ export default function PledgesScreen() {
               />
               {error ? <Banner tone="error" message={error} /> : null}
               {reports.error ? <Banner tone="error" message={reports.error.userMessage} action={{ label: t('common.retry'), onPress: () => void reports.reload() }} /> : null}
+              {sentProofs.error ? <Banner tone="error" message={sentProofs.error.userMessage} action={{ label: t('common.retry'), onPress: () => void sentProofs.reload() }} /> : null}
               {proofs.error ? <Banner tone="error" message={proofs.error.userMessage} action={{ label: t('common.retry'), onPress: proofs.reload }} /> : null}
               {pledges.length === 0 ? <EmptyState icon="receipt-outline" title={t('pledges.none')} /> : null}
               {groups.map((g) => {
@@ -276,6 +292,7 @@ export default function PledgesScreen() {
                             t={t}
                             p={p}
                             reported={reportedPledges.has(p.id)}
+                            hasProof={proofPledgeIds.has(p.id)}
                             selected={selected.includes(p.id)}
                             onToggle={() => setSelected(selected.includes(p.id) ? selected.filter((x) => x !== p.id) : [...selected, p.id])}
                             onOpen={() => router.push({ pathname: '/pledge/[id]', params: { id: p.id } })}

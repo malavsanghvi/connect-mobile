@@ -7,7 +7,7 @@ import { DateField } from '@/components/pickers';
 import { Banner, Button, Chip, ChipGroup, Row, TextField, Txt, VStack } from '@/components/ui';
 import { DollarField } from '@/features/give/parts';
 import type { StringKey } from '@/i18n/en';
-import { newProofAttempt, submitPaymentProof } from '@/lib/api/proofs';
+import { newProofAttempt, submitPaymentProof, type ProofEntry } from '@/lib/api/proofs';
 import { report } from '@/lib/errors';
 import { formatCents, formatDob, formatLongDate } from '@/lib/format';
 import {
@@ -45,15 +45,15 @@ export type ProofSheetProps = {
   today: string;
   /** The family's pledges: the preview picks among them, oldest first, exactly as the database does. */
   pledges: ProofSheetPledge[];
-  /** Where it was opened from: Open pledges, or an RSVP's checkout (the amount is then locked to its pledge). */
-  entry: 'open_pledges' | 'rsvp';
+  /** Where it was opened from: Open pledges, an RSVP's checkout or a store order's checkout (the amount is then locked to its pledge). */
+  entry: ProofEntry;
   /** Open pledges: the pledges ticked on the screen. None = all of the family's open pledges. */
   initialPledgeIds?: string[];
-  /** RSVP: the one pledge the proof is bound to. */
+  /** RSVP and store: the one pledge the proof is bound to. */
   lockedPledgeId?: string;
-  /** RSVP: the RSVP's id. */
+  /** RSVP: the RSVP's id. Store: the order's id. */
   entryRef?: string;
-  /** RSVP: what the pledge is for, e.g. "P-0587 · Harvest supper". */
+  /** RSVP and store: what the pledge is for, e.g. "P-0587 · Harvest supper". */
   forLabel?: string;
   /** The proof reached the database (the Sent screen is up). */
   onSent?: (sent: SubmittedProof) => void;
@@ -81,7 +81,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
   const { invalidate } = useDataVersion();
   const chosen = lockedPledgeId ? [lockedPledgeId] : initialPledgeIds && initialPledgeIds.length > 0 ? initialPledgeIds : null;
   const coverable = stillToPayCents(pledges, chosen);
-  const lockedCents = entry === 'rsvp' ? coverable : null;
+  const lockedCents = entry !== 'open_pledges' ? coverable : null;
   const year = Number(today.slice(0, 4));
 
   const [step, setStep] = useState<Step>('details');
@@ -143,7 +143,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
         reference: value.reference,
         pledgeIds: chosen,
         entry,
-        entryRef: entry === 'rsvp' ? (entryRef ?? null) : null,
+        entryRef: entry !== 'open_pledges' ? (entryRef ?? null) : null,
         files,
       });
       // Only now: the database has answered with the proof.
@@ -215,7 +215,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
                       <Txt variant="meta" color="muted">
                         {t('proof.amountLockedLabel')}
                       </Txt>
-                      <Txt variant="bodyStrong">{t('proof.amountLocked', { amount: formatCents(lockedCents) })}</Txt>
+                      <Txt variant="bodyStrong">{t(entry === 'store' ? 'proof.amountLockedStore' : 'proof.amountLocked', { amount: formatCents(lockedCents) })}</Txt>
                     </View>
                   ) : (
                     <View style={{ gap: 4 }}>
@@ -317,7 +317,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
                   </View>
                   {preview.excessCents > 0 ? <Banner tone="info" message={t('proof.excess', { amount: formatCents(value.amountCents), used: formatCents(preview.creditedCents) })} /> : null}
                   <Txt variant="small" color="ink2">
-                    {entry === 'rsvp' ? t('proof.rsvpNote') : t('proof.notPaid')}
+                    {entry === 'rsvp' ? t('proof.rsvpNote') : entry === 'store' ? t('proof.storeNote') : t('proof.notPaid')}
                   </Txt>
                   {error ? <Banner tone="error" message={error} action={{ label: t('common.retry'), onPress: () => void send() }} /> : null}
                 </>
@@ -341,7 +341,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
                   <Button label={t('proof.back')} tone="secondary" disabled={sending} onPress={() => setStep('proof')} />
                 </View>
                 <View style={{ flex: 2 }}>
-                  <Button label={sending ? t('proof.sending') : entry === 'rsvp' ? t('proof.sendRsvp') : t('proof.send')} busy={sending} disabled={sending || !preview || preview.lines.length === 0} onPress={() => void send()} />
+                  <Button label={sending ? t('proof.sending') : entry === 'rsvp' ? t('proof.sendRsvp') : entry === 'store' ? t('proof.sendStore') : t('proof.send')} busy={sending} disabled={sending || !preview || preview.lines.length === 0} onPress={() => void send()} />
                 </View>
               </Row>
             ) : null}
@@ -352,7 +352,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
   );
 }
 
-function SentView({ sent, entry, t, onClose, onFollow }: { sent: SubmittedProof; entry: 'open_pledges' | 'rsvp'; t: ReturnType<typeof useT>; onClose: () => void; onFollow: () => void }) {
+function SentView({ sent, entry, t, onClose, onFollow }: { sent: SubmittedProof; entry: ProofEntry; t: ReturnType<typeof useT>; onClose: () => void; onFollow: () => void }) {
   const n = sent.proof.covered.length;
   const amount = formatCents(sent.proof.amountCents);
   return (
@@ -382,7 +382,7 @@ function SentView({ sent, entry, t, onClose, onFollow }: { sent: SubmittedProof;
       ))}
       {sent.lookalikes.length > 0 ? <Banner tone="info" message={t('proof.lookalike', { what: sent.lookalikes.map((l) => l.label).join('; ') })} /> : null}
       <Button label={t('proof.followProof')} tone="secondary" onPress={onFollow} />
-      <Button label={entry === 'rsvp' ? t('proof.done') : t('proof.backToPledges')} onPress={onClose} />
+      <Button label={entry === 'open_pledges' ? t('proof.backToPledges') : t('proof.done')} onPress={onClose} />
     </VStack>
   );
 }

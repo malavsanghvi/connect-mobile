@@ -7,6 +7,8 @@ import { EmptyState, Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Card, Row, TextField, Txt, VStack } from '@/components/ui';
 import { GiftToggle, QtyButton } from '@/features/give/store-parts';
 import { runSaving, startPayment } from '@/features/pay';
+import { useProofSetup } from '@/features/pay/proof-setup';
+import { HeldStoreOrder, type HeldOrder } from '@/features/pay/store-proof';
 import { giftPackCents, listPickupWindows, startOrder, submitOrder, type PlacedOrder } from '@/lib/api/store';
 import { report } from '@/lib/errors';
 import { formatCents, formatDate, formatTimeRange } from '@/lib/format';
@@ -28,12 +30,23 @@ export default function CartScreen() {
   const [windowId, setWindowId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // "I already paid another way": the order that was placed and is now waiting for its proof.
+  const proofs = useProofSetup();
+  const [held, setHeld] = useState<HeldOrder | null>(null);
   const giftCents = giftPackCents(center);
   const tz = center?.time_zone ?? null;
   const items = cart.lines.reduce((s, l) => s + l.qty * l.unitCents, 0);
   const giftUnits = cart.lines.reduce((s, l) => s + l.giftQty, 0);
   const gift = giftCents ? giftUnits * giftCents : 0;
   const total = items + gift;
+
+  if (held) {
+    return (
+      <Screen title={t('store.orderTitle')}>
+        <HeldStoreOrder held={held} onDone={() => router.dismissTo('/')} />
+      </Screen>
+    );
+  }
 
   if (member && !member.isAdult) {
     return (
@@ -53,8 +66,11 @@ export default function CartScreen() {
 
   const windowLabel = (w: { starts_at: string; ends_at: string }) => `${formatDate(w.starts_at, tz)} · ${formatTimeRange(w.starts_at, w.ends_at, tz)}`;
 
-  /** Place the order unpaid ("pay at pickup") through the Saving screen. */
-  const placeUnpaid = () => {
+  /**
+   * Place the order through the Saving screen. Unpaid ("pay at pickup"), or for "I already paid another way": the same two steps, then the
+   * order is kept on screen (held) while its pledge is set up and the proof sheet opens for it.
+   */
+  const placeUnpaid = (forProof = false) => {
     if (!member?.household || !center) return;
     const chosen = windows.data?.find((w) => w.id === (windowId ?? windows.data?.[0]?.id)) ?? null;
     if (!chosen) return setError(t('store.pickupRequired'));
@@ -64,6 +80,8 @@ export default function CartScreen() {
     const count = cart.count;
     const gifted = giftCents ? giftUnits : 0;
     const placed: { order: PlacedOrder | null } = { order: null };
+    const setup = forProof ? proofs.setup : null;
+    if (forProof && !setup) return setError(t('store.paidOtherWayUnavailable'));
     runSaving({
       title: t('store.savingTitle'),
       steps: [
@@ -83,15 +101,22 @@ export default function CartScreen() {
           },
         },
       ],
-      result: () => [t('store.placedResult', { order: placed.order?.orderNumber ?? '', when: windowLabel(chosen) }), gifted ? t('store.placedGifts', { n: gifted }) : null, t('store.payAtPickup', { amount: formatCents(placed.order?.totalCents ?? total) })].filter(Boolean).join(' '),
-      cta: { label: t('common.done'), onPress: () => router.dismissTo('/') },
-    }).catch((err: unknown) => setError(report(err, 'place your order').userMessage));
+      result: () =>
+        forProof
+          ? t('store.proofPlacedResult', { order: placed.order?.orderNumber ?? '' })
+          : [t('store.placedResult', { order: placed.order?.orderNumber ?? '', when: windowLabel(chosen) }), gifted ? t('store.placedGifts', { n: gifted }) : null, t('store.payAtPickup', { amount: formatCents(placed.order?.totalCents ?? total) })].filter(Boolean).join(' '),
+      cta: forProof ? { label: t('store.proofCta'), onPress: () => undefined } : { label: t('common.done'), onPress: () => router.dismissTo('/') },
+    })
+      .then((outcome) => {
+        if (forProof && setup && outcome.ok && placed.order) setHeld({ order: placed.order, setup, centerId: center.id, householdId: household.id, today: member.today });
+      })
+      .catch((err: unknown) => setError(report(err, 'place your order').userMessage));
   };
 
   const pay = () => {
     if (!(windows.data ?? []).length) return setError(t('store.noPickup'));
     setError(null);
-    startPayment({ amountCents: total, forLabel: t('store.payFor'), context: 'store', alternative: { label: t('store.placeUnpaid'), run: placeUnpaid } }).catch((err: unknown) =>
+    startPayment({ amountCents: total, forLabel: t('store.payFor'), context: 'store', alternative: { label: t('store.placeUnpaid'), run: () => placeUnpaid() } }).catch((err: unknown) =>
       setError(report(err, 'open the payment sheet').userMessage),
     );
   };
@@ -188,13 +213,25 @@ export default function CartScreen() {
         </Txt>
       </Card>
       {error ? <Banner tone="error" message={error} /> : null}
+      {proofs.error ? <Banner tone="error" message={proofs.error.userMessage} action={{ label: t('common.retry'), onPress: proofs.reload }} /> : null}
       {!member ? (
         <Card tone="panel">
           <Txt variant="small">{t('store.signIn')}</Txt>
           <Button label={t('common.signIn')} onPress={() => setGuest(false)} size="md" />
         </Card>
       ) : (
-        <Button label={t('store.pay', { amount: formatCents(total, { alwaysCents: true }) })} tone="black" onPress={pay} disabled={(windows.data ?? []).length === 0} />
+        <VStack gap={space.sm}>
+          <Button label={t('store.pay', { amount: formatCents(total, { alwaysCents: true }) })} tone="black" onPress={pay} disabled={(windows.data ?? []).length === 0} />
+          {/* Hidden, not disabled, when proofs are off, the community takes no offline method, or the visitor is a child (the whole screen is then locked). */}
+          {proofs.setup ? (
+            <>
+              <Button label={t('store.paidOtherWay')} tone="secondary" onPress={() => placeUnpaid(true)} disabled={(windows.data ?? []).length === 0} />
+              <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
+                {t('store.paidOtherWayNote')}
+              </Txt>
+            </>
+          ) : null}
+        </VStack>
       )}
       <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
         {t('store.footer')}
