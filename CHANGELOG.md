@@ -14,6 +14,10 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.29.1
+
+- **Sign-in and RSVP without signing in:** the wait before "Send a new code" is now 3 minutes (it was 1 minute). The code itself works for as long as the sign-in settings say.
+
 ## 1.29.0 — 2026-10-16 · over-the-air (runtime 5)
 
 - **One way to say "I paid another way", everywhere.** Choosing the way to pay (Zelle, cash, check, bank transfer ...), the date, the reference and the payment

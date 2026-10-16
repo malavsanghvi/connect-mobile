@@ -315,14 +315,14 @@ describe('an event that asks for a code', () => {
     expect(has(tree, 'Sign in')).toBe(true);
   });
 
-  it('asks for a new code only after a minute, by looking the contact up again', async () => {
+  it('asks for a new code only after three minutes, by looking the contact up again', async () => {
     jest.useFakeTimers();
     try {
       const tree = await toCode();
-      expect(hasText(tree, 'Send a new code in 1:00')).toBe(true);
+      expect(hasText(tree, 'Send a new code in 3:00')).toBe(true);
       expect(has(tree, 'Send a new code')).toBe(false);
       // the countdown is one second at a time, each scheduled once the screen has drawn the one before
-      for (let s = 0; s < 60; s++) {
+      for (let s = 0; s < 180; s++) {
         await act(async () => {
           jest.advanceTimersByTime(1000);
         });
@@ -332,7 +332,7 @@ describe('an event that asks for a code', () => {
       mockLookup.mockResolvedValue({ ok: true, step: 'code', handle: 'd'.repeat(32), expiresIn: 600 });
       await press(tree, 'Send a new code');
       expect(mockLookup).toHaveBeenCalledWith('e1', '+17135550142');
-      expect(hasText(tree, 'Send a new code in 1:00')).toBe(true);
+      expect(hasText(tree, 'Send a new code in 3:00')).toBe(true);
     } finally {
       jest.useRealTimers();
     }
