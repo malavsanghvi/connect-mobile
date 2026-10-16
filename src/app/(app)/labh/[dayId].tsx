@@ -8,10 +8,13 @@ import { Banner, Button, Card, Row, TextField, Toggle, Txt, VStack } from '@/com
 import { CheckRow } from '@/features/give/parts';
 import { ordinal, pronounFor, turningAge } from '@/features/give/rules';
 import { runSaving, startPayment } from '@/features/pay';
+import { confirmationTarget } from '@/features/pay/confirm-target';
+import { HeldPledgeConfirmation, type HeldPledges } from '@/features/pay/pledge-confirmation';
+import { useProofSetup } from '@/features/pay/proof-setup';
 import { listDisplayName } from '@/features/special-days';
 import { nextTithiDates } from '@/lib/api/family';
-import { commitLabh, loadLabh, type LabhData } from '@/lib/api/giving';
-import { report } from '@/lib/errors';
+import { commitLabh, loadLabh, pledgesByNumbers, type LabhData } from '@/lib/api/giving';
+import { AppError, report } from '@/lib/errors';
 import { formatCents, formatDay, formatLongDate, fullName, todayAt } from '@/lib/format';
 import { nextOccurrence } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
@@ -75,14 +78,27 @@ function LabhBody({ data }: { data: LabhData & { next: string | null } }) {
   // Repeating every year is a recurring gift: Recurring gifts, an add-on of Giving (connect-crm 0741).
   const repeatOn = useModule('giving_recurring');
   const [error, setError] = useState<string | null>(null);
+  // "I paid another way": the labh is saved as pledges first, then this screen holds them while the payment confirmation is added.
+  const proofs = useProofSetup();
+  const [held, setHeld] = useState<HeldPledges | null>(null);
   const chosen = options.filter((o) => picked.includes(o.id));
   const total = chosen.reduce((s, o) => s + o.amount_cents, 0);
   const names = chosen.map((o) => o.name).join(', ');
 
-  const commit = () => {
+  /**
+   * Save the labh through the Saving screen. With `forConfirmation` ("I paid another way"), the same save, one more step that finds the
+   * pledges it made, then they are held on this screen and the payment confirmation form opens for them. The labh is saved once: Try again
+   * goes on from the step that failed.
+   */
+  const commit = (forConfirmation = false) => {
     if (chosen.length === 0) return setError(t('labh.selectOne'));
+    const setup = forConfirmation ? proofs.setup : null;
+    if (forConfirmation && !setup) return setError(t('payconf.unavailable'));
+    if (forConfirmation && !member?.household) return setError(t('payconf.unavailable'));
     setError(null);
     let numbers: string[] = [];
+    let ids: string[] = [];
+    const householdId = member?.household?.id ?? '';
     runSaving({
       title: t('labh.savingTitle'),
       steps: [
@@ -95,20 +111,47 @@ function LabhBody({ data }: { data: LabhData & { next: string | null } }) {
         },
         // Same call as above: commit_labh adds the yearly gifts in the same transaction.
         ...(repeat ? [{ label: t('labh.stepRepeat') }] : []),
+        // commit_labh answers with the pledge numbers; this finds their rows. A step of its own, so a failure here never saves the labh twice.
+        ...(forConfirmation
+          ? [
+              {
+                label: t('payconf.stepReady'),
+                run: async () => {
+                  const rows = await pledgesByNumbers(householdId, numbers);
+                  if (rows.length === 0) throw new AppError(t('payconf.pledgeGone'), `no pledge found for ${numbers.join(', ')} after commit_labh`);
+                  ids = rows.map((r) => r.id);
+                },
+              },
+            ]
+          : []),
       ],
       result: () =>
-        [t(numbers.length === 1 ? 'labh.resultOne' : 'labh.resultMany', { pledge: numbers.join(', '), date: next ? formatLongDate(next) : t('labh.dateUnknown') }), repeat ? t('labh.resultRepeat') : null].filter(Boolean).join(' '),
-      cta: { label: t('labh.backToDays'), onPress: () => router.dismissTo('/special-days') },
-    }).catch((err: unknown) => setError(report(err, 'save your labh').userMessage));
+        forConfirmation
+          ? t('payconf.savedResult', { numbers: numbers.join(', '), amount: formatCents(total) })
+          : [t(numbers.length === 1 ? 'labh.resultOne' : 'labh.resultMany', { pledge: numbers.join(', '), date: next ? formatLongDate(next) : t('labh.dateUnknown') }), repeat ? t('labh.resultRepeat') : null].filter(Boolean).join(' '),
+      cta: forConfirmation ? { label: t('payconf.cta'), onPress: () => undefined } : { label: t('labh.backToDays'), onPress: () => router.dismissTo('/special-days') },
+    })
+      .then((outcome) => {
+        if (!setup || !outcome.ok || ids.length === 0) return;
+        setHeld({ target: confirmationTarget({ kind: 'labh', refId: day.id, pledgeIds: ids, title: heading }), setup, numbers, amountCents: total });
+      })
+      .catch((err: unknown) => setError(report(err, 'save your labh').userMessage));
   };
 
   const pay = () => {
     if (chosen.length === 0) return setError(t('labh.selectOne'));
     setError(null);
-    startPayment({ amountCents: total, forLabel: heading, context: 'labh', alternative: { label: t('pay.pledgeInstead', { amount: formatCents(total) }), run: commit } }).catch((err: unknown) =>
-      setError(report(err, 'open the payment sheet').userMessage),
-    );
+    startPayment({
+      amountCents: total,
+      forLabel: heading,
+      context: 'labh',
+      alternative: { label: t('pay.pledgeInstead', { amount: formatCents(total) }), run: () => commit() },
+      // The same payment confirmation form as everywhere: the way, the date, the confirmation to attach.
+      paidAnotherWay: proofs.setup ? () => commit(true) : undefined,
+    }).catch((err: unknown) => setError(report(err, 'open the payment sheet').userMessage));
   };
+
+  if (held) return <HeldPledgeConfirmation held={held} onDone={() => router.dismissTo('/special-days')} />;
 
   return (
     <VStack gap={space.md}>
@@ -143,7 +186,8 @@ function LabhBody({ data }: { data: LabhData & { next: string | null } }) {
       </Card>
       ) : null}
       {error ? <Banner tone="error" message={error} /> : null}
-      <Button label={t('opp.commit', { amount: formatCents(total) })} tone="brown" onPress={commit} disabled={total === 0} />
+      {proofs.error ? <Banner tone="error" message={proofs.error.userMessage} action={{ label: t('common.retry'), onPress: proofs.reload }} /> : null}
+      <Button label={t('opp.commit', { amount: formatCents(total) })} tone="brown" onPress={() => commit()} disabled={total === 0} />
       <Button label={t('opp.payNow', { amount: formatCents(total) })} tone="outlineBlack" size="md" onPress={pay} disabled={total === 0} />
     </VStack>
   );

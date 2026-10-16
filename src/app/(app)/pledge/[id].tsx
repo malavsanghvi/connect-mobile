@@ -61,7 +61,7 @@ export default function PledgeDetailsScreen() {
         proofsOn
           ? pledgeEvidence(id).then(
               (items) => ({ items, error: null as string | null }),
-              (err: unknown) => ({ items: [] as EvidenceItem[], error: report(err, 'load your proof').userMessage }),
+              (err: unknown) => ({ items: [] as EvidenceItem[], error: report(err, 'load your confirmation').userMessage }),
             )
           : Promise.resolve({ items: [] as EvidenceItem[], error: null as string | null }),
       ]);

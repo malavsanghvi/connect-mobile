@@ -15,7 +15,7 @@ import { colors, fonts, radii, space, touch } from '@/theme';
 
 import { cardCharger, registerPayHost, useCardCharger, type PaymentOutcome, type PaymentRequest, type SavingJob, type SavingOutcome } from './controller';
 import { HowToGive } from './how-to-give';
-import { canReportZelle, chosenOnline, joinNames, onlineMethods, otherMethods, type OnlineMethod, type PaymentMethods } from './methods';
+import { chosenOnline, joinNames, onlineMethods, otherMethods, type OnlineMethod, type PaymentMethods } from './methods';
 import { usePaymentMethods } from './online';
 import { processorLabel } from './online-wait';
 import { runSteps, stepStatuses, type StepStatus } from './steps';
@@ -34,9 +34,8 @@ export function PayHost() {
   const [saving, setSaving] = useState<SavingState | null>(null);
   const [paid, setPaid] = useState<{ amountCents: number; context: PaymentRequest['context'] } | null>(null);
   const savingRef = useRef<SavingState | null>(null);
-  // "I sent it" opens a screen once, however many times it is tapped while the sheet slides away.
-  const openingReport = useRef(false);
-  const router = useRouter();
+  // "I paid another way" opens the confirmation form once, however many times it is tapped while the sheet slides away.
+  const choosingOtherWay = useRef(false);
   // What this community takes (Card, PayPal, Zelle, the office's instructions); registers the card charger.
   const { methods, error: methodsError, loading: methodsLoading } = usePaymentMethods();
   const { invalidate } = useDataVersion();
@@ -114,17 +113,17 @@ export function PayHost() {
     }
   };
 
-  // "I sent it" (Zelle): the sheet closes, then the report form opens with this payment's amount and pledges filled in.
-  // Once only: a second tap while the sheet slides away must not open a second form.
-  const reportZelleSent = () => {
-    const req = sheet?.req;
-    if (!req || openingReport.current) return;
-    openingReport.current = true;
-    closeSheet({ status: 'cancelled' });
-    const ids = req.pledgeIds ?? (req.pledgeId ? [req.pledgeId] : []);
+  // "I paid another way", and "I sent it" under Zelle: the sheet closes, then the screen opens the payment confirmation form for what
+  // is being paid (the same form everywhere: the way, the date, the confirmation to attach). Once only: a second tap while the
+  // sheet slides away must not open a second form. There is no other way to say "I sent it": a Zelle without a confirmation is not taken.
+  const paidAnotherWay = () => {
+    const run = sheet?.req.paidAnotherWay;
+    if (!run || choosingOtherWay.current) return;
+    choosingOtherWay.current = true;
+    closeSheet({ status: 'alternative' });
     setTimeout(() => {
-      openingReport.current = false;
-      router.push({ pathname: '/zelle-report', params: { amount: String(req.amountCents), pledges: ids.join(',') } });
+      choosingOtherWay.current = false;
+      run();
     }, MODAL_GAP_MS);
   };
 
@@ -139,7 +138,7 @@ export function PayHost() {
 
   return (
     <>
-      <PaySheet state={sheet} methods={methods} loadError={methodsError} loading={methodsLoading} onRetryLoad={invalidate} charge={available} onCancel={() => closeSheet({ status: sheet && !available ? 'not_available' : 'cancelled' })} onAlternative={alternative} onChoose={choose} onReport={reportZelleSent} onConfirm={confirm} />
+      <PaySheet state={sheet} methods={methods} loadError={methodsError} loading={methodsLoading} onRetryLoad={invalidate} charge={available} onCancel={() => closeSheet({ status: sheet && !available ? 'not_available' : 'cancelled' })} onAlternative={alternative} onChoose={choose} onPaidAnotherWay={paidAnotherWay} onConfirm={confirm} />
       <SavingView state={saving} onRetry={() => void run(saving?.done ?? 0)} onClose={() => finishSaving(false)} onContinue={() => finishSaving(true)} />
       <ThankYou state={paid} onClose={() => setPaid(null)} />
     </>
@@ -178,7 +177,7 @@ function PaySheet({
   onCancel,
   onAlternative,
   onChoose,
-  onReport,
+  onPaidAnotherWay,
   onConfirm,
 }: {
   state: SheetState | null;
@@ -191,7 +190,7 @@ function PaySheet({
   onCancel: () => void;
   onAlternative: () => void;
   onChoose: (key: string) => void;
-  onReport: () => void;
+  onPaidAnotherWay: () => void;
   onConfirm: () => void;
 }) {
   const t = useT();
@@ -207,7 +206,9 @@ function PaySheet({
   const others = adult ? otherMethods(methods) : [];
   const offReason = methods?.onlineUnavailable;
   const centerName = center?.short_name || center?.name || '';
-  const reportOpens = canReportZelle(methods) ? onReport : undefined;
+  // Only a screen that can open the confirmation form for this payment offers it (here and as "I sent it" under Zelle).
+  const paidWay = adult && req?.paidAnotherWay ? onPaidAnotherWay : undefined;
+  const paidWayButton = paidWay ? <Button label={t('pledges.paidAnotherWay')} tone="secondary" size="md" accessibilityHint={t('pledges.paidAnotherWayHint')} onPress={paidWay} /> : null;
   // The list could not be read, or is still being read: say that, rather than "not set up yet".
   const unknown = online.length === 0 && !methods && (!!loadError || loading);
   // Under the choices, the other ways to give: shown with the new list (the older list never showed them on the sheet).
@@ -277,7 +278,7 @@ function PaySheet({
                       {othersOpen ? t('pay.otherWaysHide') : t('pay.otherWays')}
                     </Txt>
                   </Pressable>
-                  {othersOpen ? <HowToGive methods={others} onReport={reportOpens} /> : null}
+                  {othersOpen ? <HowToGive methods={others} onPaidAnotherWay={paidWay} /> : null}
                 </View>
               ) : null}
               {unknown && loadError ? <Banner tone="error" title={t('pay.loadFailed')} message={loadError} action={{ label: t('common.retry'), onPress: onRetryLoad }} /> : null}
@@ -299,7 +300,7 @@ function PaySheet({
                         : t('pay.notSetUpNoPledge')}
                   </Txt>
                   {others.length > 0 ? (
-                    <HowToGive methods={others} tone="brown" onReport={reportOpens} />
+                    <HowToGive methods={others} tone="brown" onPaidAnotherWay={paidWay} />
                   ) : (
                     <Txt variant="meta" color="brownText">
                       {t('pay.howToPay')}
@@ -328,11 +329,13 @@ function PaySheet({
               ) : null}
               <Button label={t('pay.confirm')} tone="black" onPress={onConfirm} busy={state?.busy} />
               {req?.alternative?.withOnline && !state?.busy ? <Button label={req.alternative.label} tone="secondary" size="md" onPress={onAlternative} /> : null}
+              {!state?.busy ? paidWayButton : null}
             </>
           ) : (
             <>
               {req?.alternative ? <Button label={req.alternative.label} onPress={onAlternative} /> : null}
-              <Button label={t('common.gotIt')} tone={req?.alternative ? 'secondary' : 'primary'} size={req?.alternative ? 'md' : 'cta'} onPress={onCancel} />
+              {paidWayButton}
+              <Button label={t('common.gotIt')} tone={req?.alternative || paidWayButton ? 'secondary' : 'primary'} size={req?.alternative || paidWayButton ? 'md' : 'cta'} onPress={onCancel} />
             </>
           )}
         </View>

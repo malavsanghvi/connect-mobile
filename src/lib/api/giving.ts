@@ -427,7 +427,26 @@ export async function commitLabh(args: { dayId: string; optionIds: string[]; ded
   );
 }
 
-export type OpenPledge = Pick<Pledge, 'id' | 'pledge_number' | 'amount_cents' | 'paid_cents' | 'soft_credit_cents' | 'status' | 'pledged_at' | 'closed_at'>;
+export type OpenPledge = Pick<Pledge, 'id' | 'pledge_number' | 'amount_cents' | 'paid_cents' | 'soft_credit_cents' | 'status' | 'pledged_at' | 'created_at' | 'closed_at'>;
+
+/**
+ * The pledges with these ids (an adult of the family sees their own). Used to open the payment confirmation form for pledges that were
+ * just saved: a row the database does not return is simply missing, and the caller says so in words.
+ */
+export async function listPledgesByIds(ids: readonly string[]): Promise<Pledge[]> {
+  if (ids.length === 0) return [];
+  return must(await supabase.from('pledges').select('*').in('id', [...ids]), 'load your pledge');
+}
+
+/**
+ * The pledges a labh was saved as. `commit_labh` answers with their numbers only, so the rows are found by number inside the family
+ * (a pledge number is issued once). Oldest first, like the database orders them.
+ */
+export async function pledgesByNumbers(householdId: string, numbers: readonly string[]): Promise<Pledge[]> {
+  const wanted = numbers.filter(Boolean);
+  if (wanted.length === 0) return [];
+  return must(await supabase.from('pledges').select('*').eq('household_id', householdId).in('pledge_number', wanted).order('created_at').order('id'), 'load your pledge');
+}
 
 /**
  * Pledges of the household that still have something to pay (Give → "Pay open balance"): Open or Partly paid, and not
@@ -435,7 +454,7 @@ export type OpenPledge = Pick<Pledge, 'id' | 'pledge_number' | 'amount_cents' | 
  */
 export async function listOpenPledges(householdId: string): Promise<OpenPledge[]> {
   const rows = must(
-    await supabase.from('pledges').select('id, pledge_number, amount_cents, paid_cents, soft_credit_cents, status, pledged_at, closed_at').eq('household_id', householdId).in('status', ['open', 'partially_paid']),
+    await supabase.from('pledges').select('id, pledge_number, amount_cents, paid_cents, soft_credit_cents, status, pledged_at, created_at, closed_at').eq('household_id', householdId).in('status', ['open', 'partially_paid']),
     'load your pledges',
   );
   return rows.filter((p) => openBalanceCents(p) > 0);

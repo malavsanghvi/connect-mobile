@@ -17,23 +17,24 @@ type Tone = 'plain' | 'brown';
 
 /**
  * Zelle on the Pay sheet and in "How to give": the community's Zelle address with a copy button, the name to look for
- * in the member's bank app, the memo to write, and "I sent it" to tell us about it afterwards. In a sandbox there is no
- * address (Zelle has no test mode, so nobody can send real money): only "Sandbox: no real money moves" and a way to
- * report a test payment.
+ * in the member's bank app, the memo to write, and "I paid another way" to tell us about it afterwards. That is the same payment
+ * confirmation form as for cash and check (the way, the date, the confirmation to attach): there is no shortcut that says "I sent
+ * it" without one. In a sandbox there is no address (Zelle has no test mode, so nobody can send real money): only "Sandbox: no
+ * real money moves" and a way to add a test payment confirmation.
  */
-export function ZelleBlock({ method, tone = 'plain', onReport }: { method: ZelleMethod; tone?: Tone; onReport?: () => void }) {
+export function ZelleBlock({ method, tone = 'plain', onPaidAnotherWay }: { method: ZelleMethod; tone?: Tone; onPaidAnotherWay?: () => void }) {
   const t = useT();
   const { toast } = useFeedback();
   const [copyError, setCopyError] = useState<string | null>(null);
-  // "I sent it" opens a screen: a double tap must not open two.
+  // "I paid another way" opens a form: a double tap must not open two.
   const opening = useRef(false);
   const color = tone === 'brown' ? 'brownDark' : 'ink';
   const { recipient, name, memoHint } = method.instructions;
 
-  const openReport = () => {
-    if (!onReport || opening.current) return;
+  const openForm = () => {
+    if (!onPaidAnotherWay || opening.current) return;
     opening.current = true;
-    onReport();
+    onPaidAnotherWay();
     setTimeout(() => {
       opening.current = false;
     }, 1500);
@@ -95,12 +96,12 @@ export function ZelleBlock({ method, tone = 'plain', onReport }: { method: Zelle
           {t('howToGive.field.memo_hint')}: {memoHint}
         </Txt>
       ) : null}
-      {onReport && method.reportAvailable ? (
+      {onPaidAnotherWay ? (
         <VStack gap={space.xs} style={{ paddingTop: space.xs }}>
           <Txt variant="meta" color={color}>
             {t(method.rehearsal ? 'zelle.afterSendingTest' : 'zelle.afterSending')}
           </Txt>
-          <Button label={t(method.rehearsal ? 'zelle.reportTest' : 'zelle.iSentIt')} tone={tone === 'brown' ? 'outlineBrown' : 'secondary'} size="md" fill={false} onPress={openReport} />
+          <Button label={t('pledges.paidAnotherWay')} accessibilityHint={t('pledges.paidAnotherWayHint')} tone={tone === 'brown' ? 'outlineBrown' : 'secondary'} size="md" fill={false} onPress={openForm} />
         </VStack>
       ) : null}
     </View>

@@ -10,6 +10,9 @@ import { EventIcon } from '@/features/event-icons';
 import { compactTime, lunchWhy } from '@/features/event-rules';
 import { shareOnWhatsApp } from '@/features/media';
 import { startPayment } from '@/features/pay';
+import { confirmationTarget, type ConfirmationTarget } from '@/features/pay/confirm-target';
+import { PledgeConfirmation } from '@/features/pay/pledge-confirmation';
+import { useProofSetup } from '@/features/pay/proof-setup';
 import { findEventSurvey, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, listLunchSlots, moveLunchSlot, rsvpState, type Attendee, type EventRow, type LunchSlot } from '@/lib/api/events';
 import { logError, report } from '@/lib/errors';
 import { formatCents, formatDate, formatTime, joinNames } from '@/lib/format';
@@ -35,6 +38,10 @@ export default function TicketsScreen() {
   const { payNotice } = useFeedback();
   const tz = center?.time_zone ?? null;
   const [shareError, setShareError] = useState<string | null>(null);
+  // "I paid another way" on the Pay sheet: the same payment confirmation form as at the RSVP, bound to this RSVP's pledge.
+  const proofs = useProofSetup();
+  const [confirm, setConfirm] = useState<ConfirmationTarget | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const state = useLoad(
     async () => {
       const event = await getEvent(id);
@@ -141,7 +148,19 @@ export default function TicketsScreen() {
                         fill={false}
                         onPress={() =>
                           void startPayment(
-                            { amountCents: openBalanceCents(pledge), forLabel: event.name, pledgeId: pledge.id, pledgeNumber: pledge.pledge_number, context: 'rsvp_later' },
+                            {
+                              amountCents: openBalanceCents(pledge),
+                              forLabel: event.name,
+                              pledgeId: pledge.id,
+                              pledgeNumber: pledge.pledge_number,
+                              context: 'rsvp_later',
+                              paidAnotherWay: proofs.setup
+                                ? () => {
+                                    setConfirm(confirmationTarget({ kind: 'rsvp', refId: rsvp.id, pledgeIds: [pledge.id], title: [pledge.pledge_number, event.name].filter(Boolean).join(' · ') }));
+                                    setConfirmOpen(true);
+                                  }
+                                : undefined,
+                            },
                             { payNotice, formatAmount: (c) => formatCents(c) },
                           )
                         }
@@ -182,6 +201,7 @@ export default function TicketsScreen() {
           );
         }}
       </Loaded>
+      {confirm && proofs.setup ? <PledgeConfirmation setup={proofs.setup} target={confirm} open={confirmOpen} onClose={() => setConfirmOpen(false)} /> : null}
     </Screen>
   );
 }

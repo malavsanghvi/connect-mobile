@@ -163,7 +163,7 @@ export default function PledgesScreen() {
   const sentProofs = useLoad(
     async () => (member?.household && center && member.isAdult && proofsOn ? await myPaymentProofs(center.id, member.household.id) : []),
     [member?.household?.id, center?.id, member?.isAdult ?? false, proofsOn],
-    'load your payment proofs',
+    'load your payment confirmations',
   );
   const proofPledgeIds = pledgesWithProofAttached(sentProofs.data ?? []);
   const [year, setYear] = useState<number | null>(null);
@@ -218,8 +218,8 @@ export default function PledgesScreen() {
               forLabel: sel.length === 1 && sel[0].pledge_number ? t('pay.forPledge', { pledge: sel[0].pledge_number }) : t('pay.forPledges', { n: sel.length }),
               pledgeIds: sel.map((p) => p.id),
               context: 'pledges',
-              // Shown on the sheet only when nothing can be paid online: the sheet closes, then the proof sheet opens for the ticked pledges.
-              alternative: proofs.setup ? { label: t('pledges.paidAnotherWay'), run: () => setProofOpen(true) } : undefined,
+              // On the Pay sheet, and as "I sent it" under Zelle: the sheet closes, then the payment confirmation form opens for the ticked pledges.
+              paidAnotherWay: proofs.setup ? () => setProofOpen(true) : undefined,
             }).catch((err: unknown) => setError(report(err, 'open the payment sheet').userMessage));
           return (
             <VStack gap={space.md}>

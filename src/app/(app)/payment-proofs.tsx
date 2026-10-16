@@ -38,7 +38,7 @@ export default function PaymentProofsScreen() {
       return { proofs: newestProofFirst(proofs), policy: policy ?? DEFAULT_POLICY, receipts };
     },
     [member?.household?.id, member?.isAdult ?? false, center?.id],
-    'load your payment proofs',
+    'load your payment confirmations',
   );
 
   if (!member?.isAdult) {
@@ -152,7 +152,7 @@ function ProofDetail({ proof, policy, receipt, onBack }: { proof: PaymentProof; 
       toast(t('proofs.withdrawn'));
       invalidate();
     } catch (err) {
-      setError(report(err, 'take your proof back').userMessage);
+      setError(report(err, 'take your confirmation back').userMessage);
       // Decided in the meantime? Read the proofs again, so the screen shows where it really stands.
       invalidate();
     } finally {

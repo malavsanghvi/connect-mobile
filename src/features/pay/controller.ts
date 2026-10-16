@@ -52,6 +52,13 @@ export type PaymentRequest = {
    * instead" for a Pathshala seat held for payment).
    */
   alternative?: { label: string; run: () => void; withOnline?: boolean };
+  /**
+   * "I paid another way": the one road for a member who paid outside the app (cash, check, bank transfer, Zelle ...). The sheet
+   * closes and `run` opens the payment confirmation form (the ProofSheet) for what is being paid, with the ways to choose from
+   * and the confirmation to attach; the same on every screen. Offered on the Pay sheet, and as "I sent it" under Zelle. A screen
+   * that cannot open the form (no ways accepted, the module off, a child) leaves it out, and the sheet shows no such button.
+   */
+  paidAnotherWay?: () => void;
 };
 
 export type PaymentOutcome = { status: 'not_available' } | { status: 'paid'; paymentId: string } | { status: 'cancelled' } | { status: 'alternative' };

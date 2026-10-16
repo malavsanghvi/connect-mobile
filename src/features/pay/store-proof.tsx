@@ -46,7 +46,7 @@ export function HeldStoreOrder({ held, onDone }: { held: HeldOrder; onDone: () =
       }
       setOpen(true);
     } catch (err) {
-      setError(report(err, 'open the payment proof form').userMessage);
+      setError(report(err, 'open the payment confirmation form').userMessage);
     } finally {
       working.current = false;
       setBusy(false);

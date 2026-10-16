@@ -201,52 +201,52 @@ const proof = (over: Record<string, unknown>): PaymentProof => {
   return parsed;
 };
 
-describe('The proof mark on closed pledges', () => {
-  it('marks the closed pledge that has an accepted proof, with one request for the whole family', async () => {
+describe('The confirmation mark on closed pledges', () => {
+  it('marks the closed pledge that has an accepted confirmation, with one request for the whole family', async () => {
     mockProofs.mockResolvedValue([proof({})]);
     const tree = await open();
     await press(tree, 'Closed');
-    expect(texts(tree).filter((t) => t === 'Proof attached')).toHaveLength(1);
+    expect(texts(tree).filter((t) => t === 'Confirmation attached')).toHaveLength(1);
     expect(mockProofs).toHaveBeenCalledTimes(1);
     expect(mockProofs).toHaveBeenCalledWith('c1', 'h1');
   });
 
-  it('leaves out a proof that was rejected, one whose files were removed, and a closed pledge with none', async () => {
+  it('leaves out a confirmation that was rejected, one whose files were removed, and a closed pledge with none', async () => {
     mockProofs.mockResolvedValue([
       proof({ id: 'pr2', status: 'rejected' }),
       proof({ id: 'pr3', covered: [{ pledge_id: 'picnic', pledge_number: 'P-0398', title: 'Summer picnic', amount_cents: 6000, pledge_amount_cents: 6000, state: 'converted' }], files: [{ id: 'f2', storage_path: 'c1/h1/pr3/a.jpg', content_type: 'image/jpeg', bytes: 1000, removed: true, created_at: null }] }),
     ]);
     const tree = await open();
     await press(tree, 'Closed');
-    expect(texts(tree)).not.toContain('Proof attached');
+    expect(texts(tree)).not.toContain('Confirmation attached');
   });
 
-  it('is not asked for when Payment proofs is off', async () => {
+  it('is not asked for when Payment confirmations is off', async () => {
     mockModules.giving_proofs = false;
     const tree = await open();
     await press(tree, 'Closed');
     expect(mockProofs).not.toHaveBeenCalled();
-    expect(texts(tree)).not.toContain('Proof attached');
+    expect(texts(tree)).not.toContain('Confirmation attached');
   });
 
-  it('says so, with a retry, when the proofs cannot be loaded; the pledges still show', async () => {
-    mockProofs.mockRejectedValueOnce(new AppError('Could not load your payment proofs — try again.', 'boom'));
+  it('says so, with a retry, when the confirmations cannot be loaded; the pledges still show', async () => {
+    mockProofs.mockRejectedValueOnce(new AppError('Could not load your payment confirmations — try again.', 'boom'));
     const tree = await open();
-    expect(texts(tree)).toContain('Could not load your payment proofs — try again.');
+    expect(texts(tree)).toContain('Could not load your payment confirmations — try again.');
     expect(hasButton(tree, 'Try again')).toBe(true);
     mockProofs.mockResolvedValue([proof({})]);
     await press(tree, 'Try again');
     await press(tree, 'Closed');
-    expect(texts(tree)).toContain('Proof attached');
+    expect(texts(tree)).toContain('Confirmation attached');
     expect(texts(tree)).toContain('Membership 2026');
   });
 });
 
 describe('"I paid another way" on Family pledges', () => {
-  it('is there when proofs are on and the community takes an offline way, and opens the sheet for the ticked pledges', async () => {
+  it('is there when confirmations are on and the community takes an offline way, and opens the sheet for the ticked pledges', async () => {
     const tree = await open();
     expect(hasButton(tree, 'I paid another way')).toBe(true);
-    expect(hasButton(tree, 'My payment proofs')).toBe(true);
+    expect(hasButton(tree, 'My payment confirmations')).toBe(true);
     await press(tree, 'Select Fall food drive to pay, $100 open');
     await press(tree, 'I paid another way');
     const last = mockSheet.mock.calls[mockSheet.mock.calls.length - 1][0];
@@ -263,7 +263,7 @@ describe('"I paid another way" on Family pledges', () => {
     expect(hasText(tree, NOTE)).toBe(true);
   });
 
-  it('is hidden, with no note, when proofs are off, the rules could not be read, or it is still finding out', async () => {
+  it('is hidden, with no note, when confirmations are off, the rules could not be read, or it is still finding out', async () => {
     for (const reason of ['off', 'no_rules', 'loading'] as const) {
       mockSetup.value = null;
       mockSetup.reason = reason;
@@ -286,33 +286,33 @@ describe('"I paid another way" on Family pledges', () => {
     expect(hasText(await open([FAMILY[0], FAMILY[3]]), NOTE)).toBe(false);
   });
 
-  it('offers "I paid another way" on the Pay sheet, to open the proof sheet, when a proof can be sent', async () => {
+  it('offers "I paid another way" on the Pay sheet, to open the confirmation sheet, when a confirmation can be sent', async () => {
     const tree = await open();
     await press(tree, 'Select Fall food drive to pay, $100 open');
     await press(tree, 'Pay 1 pledge · $100');
-    const req = mockStartPayment.mock.calls[0][0] as { alternative?: { label: string; withOnline?: boolean; run: () => void } };
-    expect(req.alternative).toMatchObject({ label: 'I paid another way' });
-    // Only while nothing can be paid online: the sheet shows an alternative without withOnline only then.
-    expect(req.alternative?.withOnline).toBeUndefined();
+    const req = mockStartPayment.mock.calls[0][0] as { alternative?: unknown; paidAnotherWay?: () => void };
+    // The one road for "I paid another way" (the Pay sheet button, and "I sent it" under Zelle): not an alternative that only shows offline.
+    expect(req.alternative).toBeUndefined();
+    expect(typeof req.paidAnotherWay).toBe('function');
     await act(async () => {
-      req.alternative?.run();
+      req.paidAnotherWay?.();
     });
     expect(mockSheet.mock.calls[mockSheet.mock.calls.length - 1][0]).toMatchObject({ visible: true, initialPledgeIds: ['food'] });
   });
 
-  it('adds nothing to the Pay sheet when no proof can be sent', async () => {
+  it('adds nothing to the Pay sheet when no confirmation can be sent', async () => {
     mockSetup.value = null;
     mockSetup.reason = 'no_methods';
     const tree = await open();
     await press(tree, 'Select Fall food drive to pay, $100 open');
     await press(tree, 'Pay 1 pledge · $100');
-    expect((mockStartPayment.mock.calls[0][0] as { alternative?: unknown }).alternative).toBeUndefined();
+    expect((mockStartPayment.mock.calls[0][0] as { paidAnotherWay?: unknown }).paidAnotherWay).toBeUndefined();
   });
 
-  it('links to My payment proofs only while the Payment proofs add-on is on', async () => {
+  it('links to My payment confirmations only while the Payment confirmations add-on is on', async () => {
     mockModules.giving_proofs = false;
     const tree = await open();
-    expect(hasButton(tree, 'My payment proofs')).toBe(false);
+    expect(hasButton(tree, 'My payment confirmations')).toBe(false);
   });
 
   it('asks a child to ask a parent, with no sheet and no figures', async () => {

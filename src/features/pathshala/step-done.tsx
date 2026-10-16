@@ -1,10 +1,9 @@
-import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { Loaded } from '@/components/states';
 import { Banner, Button, Card, Txt, VStack } from '@/components/ui';
 import { HowToGive } from '@/features/pay/how-to-give';
-import { canReportZelle, otherMethods } from '@/features/pay/methods';
+import { otherMethods } from '@/features/pay/methods';
 import { loadPaymentMethods } from '@/lib/api/payments';
 import {
   countdownText,
@@ -26,7 +25,6 @@ import {
   type Selection,
 } from '@/lib/pathshala-registration';
 import { useLoad } from '@/lib/use-load';
-import { useModule } from '@/providers/modules';
 import { useT } from '@/providers/settings';
 import { colors, space } from '@/theme';
 
@@ -72,6 +70,7 @@ export function DoneStep({
   onPay,
   onPayPledges,
   onOffice,
+  onPaidAnotherWay,
   onCheckAgain,
 }: {
   options: RegistrationOptions;
@@ -90,6 +89,8 @@ export function DoneStep({
   onPay: () => void;
   onPayPledges: () => void;
   onOffice: () => void;
+  /** "I paid another way" under the office's Zelle: opens the payment confirmation form for these fee pledges. Left out when it cannot open. */
+  onPaidAnotherWay?: (pledgeIds: string[]) => void;
   onCheckAgain: () => void;
 }) {
   const t = useT();
@@ -224,8 +225,8 @@ export function DoneStep({
               centerId={centerId}
               until={holdUntil}
               timeZone={timeZone}
-              amountCents={officeChoice?.amountCents ?? pay.amountCents}
               pledgeIds={officeChoice && officeChoice.pledgeIds.length > 0 ? officeChoice.pledgeIds : pay.pledgeIds}
+              onPaidAnotherWay={onPaidAnotherWay}
             />
           ) : (
             <>
@@ -244,13 +245,10 @@ export function DoneStep({
   );
 }
 
-/** "Pay at the office by …": the community's Zelle, check and cash instructions (app.member_payment_methods), with "I sent it" for Zelle. */
-function OfficeInstructions({ centerId, until, timeZone, amountCents, pledgeIds }: { centerId: string; until: string | null; timeZone: string | null; amountCents: number; pledgeIds: string[] }) {
+/** "Pay at the office by …": the community's Zelle, check and cash instructions (app.member_payment_methods), with "I paid another way" for Zelle. */
+function OfficeInstructions({ centerId, until, timeZone, pledgeIds, onPaidAnotherWay }: { centerId: string; until: string | null; timeZone: string | null; pledgeIds: string[]; onPaidAnotherWay?: (pledgeIds: string[]) => void }) {
   const t = useT();
-  const router = useRouter();
   const methods = useLoad(() => loadPaymentMethods(centerId), [centerId], 'load how to pay at the office');
-  // Zelle reports belong to Bank reconciliation, an add-on of Giving (connect-crm 0741).
-  const bankOn = useModule('giving_bank');
   return (
     <VStack gap={space.sm}>
       <Txt variant="small" color="brownDark">
@@ -258,11 +256,7 @@ function OfficeInstructions({ centerId, until, timeZone, amountCents, pledgeIds 
       </Txt>
       <Loaded state={methods}>
         {(m) => (
-          <HowToGive
-            methods={otherMethods(m)}
-            tone="brown"
-            onReport={bankOn && canReportZelle(m) ? () => router.push({ pathname: '/zelle-report', params: { amount: String(amountCents), pledges: pledgeIds.join(',') } }) : undefined}
-          />
+          <HowToGive methods={otherMethods(m)} tone="brown" onPaidAnotherWay={onPaidAnotherWay && pledgeIds.length > 0 ? () => onPaidAnotherWay(pledgeIds) : undefined} />
         )}
       </Loaded>
     </VStack>
