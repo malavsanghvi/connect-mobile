@@ -84,6 +84,13 @@ export function EnrollmentFee({ row, rows, nameOf, now, timeZone }: { row: Enrol
   }
 
   if (fee.kind === 'none') return null;
+  if (fee.kind === 'pending') {
+    return (
+      <Txt variant="meta" color="navy">
+        {t('reg.fee.pending')}
+      </Txt>
+    );
+  }
   if (fee.kind === 'paid') {
     return (
       <Txt variant="meta" color="greenDark">

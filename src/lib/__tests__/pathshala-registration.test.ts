@@ -970,6 +970,16 @@ describe('afterwards: holds, offers, status and the fee', () => {
     expect(read1({ status: 'no_fee', total_cents: 0, priced: true, assistance_requested: false, pledge: null })).toMatchObject({ status: 'no_fee', totalCents: 0, pledge: null });
   });
 
+  it('reads the soft credit on a fee pledge when the portal sends it, and refuses a half-read amount', () => {
+    const pledge = (over: Raw) => ({ id: 'pl', number: 'JSH-PL-1', amount_cents: 13000, paid_cents: 5000, status: 'partially_paid', due_on: '2026-09-20', ...over });
+    const read1 = (fee: Raw) => options('pledge', { learners: [{ person_id: ID.riya, first_name: 'Riya', enrollments: [enrollmentRaw({ fee })] }] }).learners[0].enrollments[0].fee;
+    const fee = (p: Raw | null) => ({ status: 'billed', total_cents: 13000, priced: true, assistance_requested: false, pledge: p });
+    expect(read1(fee(pledge({ soft_credit_cents: 2500 })))?.pledge).toMatchObject({ softCreditCents: 2500 });
+    expect(read1(fee(pledge({})))?.pledge).not.toHaveProperty('softCreditCents');
+    expect(read1(fee(pledge({ soft_credit_cents: 'lots' })))?.pledge).toBeNull();
+    expect(feeSummary([read1(fee(pledge({ soft_credit_cents: 2500 })))?.pledge as FeePledge])).toMatchObject({ kind: 'due', openCents: 5500, paidCents: 5000 });
+  });
+
   it('knows a seat held for payment is live only while it is requested, held for payment and its time has not ended', () => {
     const now = new Date('2026-08-20T12:00:00Z');
     expect(holdIsLive('requested', { holdReason: 'payment', holdUntil: '2026-08-22T18:00:00-05:00' }, now)).toBe(true);
@@ -1028,6 +1038,17 @@ describe('afterwards: holds, offers, status and the fee', () => {
   });
 
   const pledge = (over: Partial<FeePledge> = {}): FeePledge => ({ id: 'pl', number: 'JSH-PL-1', amountCents: 11700, paidCents: 0, status: 'open', dueOn: '2026-09-20', enrollmentId: 'e-dev', ...over });
+
+  it('a fee fully covered by a proof waiting for the treasury team is not paid and not hidden: the payment is waiting to be checked', () => {
+    expect(feeSummary([pledge({ status: 'soft_credit', softCreditCents: 11700 })])).toEqual({ kind: 'pending', totalCents: 11700 });
+    // Part of it checked, the rest covered by a waiting proof: still waiting, never "paid".
+    expect(feeSummary([pledge({ status: 'paid', paidCents: 5000, amountCents: 5000 }), pledge({ id: 'top', status: 'soft_credit', amountCents: 6700, softCreditCents: 6700 })])).toEqual({ kind: 'pending', totalCents: 11700 });
+  });
+
+  it('a fee partly covered by a waiting proof asks only for what is left; a portal that sends no soft credit changes nothing', () => {
+    expect(feeSummary([pledge({ softCreditCents: 5000 })])).toEqual({ kind: 'due', totalCents: 11700, openCents: 6700, paidCents: 0, dueOn: '2026-09-20', pledgeIds: ['pl'] });
+    expect(feeSummary([pledge()])).toMatchObject({ kind: 'due', openCents: 11700 });
+  });
 
   it("sums an enrollment's fee from its pledges (source pathshala_fee, source_ref_id = the enrollment); cancelled and written-off ones do not count", () => {
     expect(feeSummary([])).toEqual({ kind: 'none' });

@@ -39,7 +39,7 @@ describe('module keys', () => {
   it('matches the contract list exactly', () => {
     expect([...MODULE_KEYS].sort()).toEqual(
       ['people', 'membership', 'events', 'giving', 'bolis', 'store', 'pathshala', 'gyan_path', 'jain_way', 'content', 'calendar', 'comms', 'surveys', 'volunteers', 'accounting', 'reports', 'niva', 'governance',
-       'giving_bank', 'giving_counts', 'giving_insights', 'giving_opportunities', 'giving_recurring', 'giving_statements', 'labh'].sort(),
+       'giving_bank', 'giving_counts', 'giving_insights', 'giving_opportunities', 'giving_proofs', 'giving_recurring', 'giving_statements', 'labh'].sort(),
     );
   });
   it('only refers to known keys in every map', () => {
@@ -344,7 +344,7 @@ describe('isMissingRpcError', () => {
 });
 
 describe("Giving's add-ons (connect-crm 0741)", () => {
-  const addOns = ['giving_bank', 'giving_counts', 'giving_insights', 'giving_opportunities', 'giving_recurring', 'giving_statements', 'labh'] as const;
+  const addOns = ['giving_bank', 'giving_counts', 'giving_insights', 'giving_opportunities', 'giving_proofs', 'giving_recurring', 'giving_statements', 'labh'] as const;
   it('each needs Giving only, so each is off while Giving is off and on by default', () => {
     for (const k of addOns) {
       expect(MODULE_DEPENDS_ON[k]).toEqual(['giving']);
@@ -373,6 +373,11 @@ describe("Giving's add-ons (connect-crm 0741)", () => {
     expect(blockingModule(off('giving_recurring'), 'recurring')).toBe('giving_recurring');
     expect(blockingModule(off('giving_recurring'), 'recurring-setup')).toBe('giving_recurring');
     expect(blockingModule(off('labh'), 'labh/[dayId]')).toBe('labh');
+    // Payment proofs (connect-crm 0865): My payment proofs follows its own add-on; Pledge details stay with Giving.
+    expect(blockingModule(off('giving_proofs'), 'payment-proofs')).toBe('giving_proofs');
+    expect(blockingModule(off('giving_proofs'), 'pledge/[id]')).toBeNull();
+    expect(blockingModule(off('giving'), 'pledge/[id]')).toBe('giving');
+    expect(blockingModule(off('giving'), 'payment-proofs')).toBe('giving_proofs');
     expect(blockingModule(off('giving_bank'), 'zelle-report')).toBe('giving_bank');
     expect(blockingModule(off('giving_bank'), 'pledges')).toBeNull();
     // Giving off blocks them all, naming the add-on whose screen it is (as a boli's screen names Bolis).

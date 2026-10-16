@@ -11,13 +11,15 @@ import { EventFlyer } from '@/features/event-flyer';
 import { bandFor, peopleLabel, tierSingular } from '@/features/events';
 import { roleLabel } from '@/features/labels';
 import { startPayment } from '@/features/pay';
+import { ProofSheet, type ProofSheetPledge } from '@/features/pay/proof-sheet';
+import { useProofSetup } from '@/features/pay/proof-setup';
 import { returnToEventAfterSignIn } from '@/features/return-to-event';
 import { GuestRsvp } from '@/features/rsvp-contact/flow';
 import { guestRsvpAvailable } from '@/features/rsvp-contact/rules';
 import { commitmentOptions, findEvent, getHouseholdRsvp, getPledgeById, listAttendees, raiseRsvpCommitment, rsvpBlockReason, submitRsvp, type Attendee, type EventRow, type GoingPerson, type Rsvp } from '@/lib/api/events';
 import type { FamilyMember, Member } from '@/lib/api/member';
 import type { Tables } from '@/lib/database.types';
-import { report } from '@/lib/errors';
+import { AppError, report } from '@/lib/errors';
 import { formatCents, formatDate, formatTimeRange, fullName, parseAmountToCents, zonedParts } from '@/lib/format';
 import { ageOn, commitmentTotalCents, isSenior, isUnder12 } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
@@ -43,6 +45,20 @@ export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { member, center } = useApp();
   const [sync, setSync] = useState<Sync | null>(null);
+  const proofs = useProofSetup();
+  const [proof, setProof] = useState<{ pledge: ProofSheetPledge; rsvpId: string } | null>(null);
+  const [proofError, setProofError] = useState<{ message: string; retry: () => void } | null>(null);
+  // The RSVP and its pledge are saved; open the form that sends the proof for exactly that pledge. A failure is said with a retry.
+  const openProof = async (pledgeId: string, rsvpId: string, eventName: string): Promise<void> => {
+    setProofError(null);
+    try {
+      const row = await getPledgeById(pledgeId);
+      if (!row) throw new AppError(t('proof.pledgeGone'), `pledge ${pledgeId} is not visible after the RSVP was saved`);
+      setProof({ pledge: { ...row, title: eventName, number: row.pledge_number }, rsvpId });
+    } catch (err) {
+      setProofError({ message: report(err, 'open the payment proof form').userMessage, retry: () => void openProof(pledgeId, rsvpId, eventName) });
+    }
+  };
   const state = useLoad(
     async (): Promise<Loaded_ | null> => {
       // null: no such event, or one this visitor can't see (a guest opening a members-only event from a flyer's QR link).
@@ -61,8 +77,25 @@ export default function EventScreen() {
       {sync ? (
         <SyncView sync={sync} eventId={id} onBack={() => setSync(null)} />
       ) : (
-        <Loaded state={state}>{(d) => (d ? <EventBody data={d} member={member} tz={center?.time_zone ?? null} onSync={setSync} /> : <EventUnavailable eventId={id} member={member} />)}</Loaded>
+        <Loaded state={state}>{(d) => (d ? <EventBody data={d} member={member} tz={center?.time_zone ?? null} onSync={setSync} onProof={openProof} proofsAvailable={!!proofs.setup} /> : <EventUnavailable eventId={id} member={member} />)}</Loaded>
       )}
+      {sync && proofError ? <Banner tone="error" message={proofError.message} action={{ label: t('common.retry'), onPress: proofError.retry }} /> : null}
+      {/* "I paid another way" at checkout: the proof is bound to this RSVP's pledge and the amount is its remainder. */}
+      {proofs.setup && proof && center && member?.household ? (
+        <ProofSheet
+          visible
+          onClose={() => setProof(null)}
+          setup={proofs.setup}
+          centerId={center.id}
+          householdId={member.household.id}
+          today={member.today}
+          pledges={[proof.pledge]}
+          entry="rsvp"
+          lockedPledgeId={proof.pledge.id}
+          entryRef={proof.rsvpId}
+          forLabel={[proof.pledge.number, proof.pledge.title].filter(Boolean).join(' · ')}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -92,7 +125,7 @@ function EventUnavailable({ eventId, member }: { eventId: string; member: Member
   );
 }
 
-function EventBody({ data, member, tz, onSync }: { data: Loaded_; member: Member | null; tz: string | null; onSync: (s: Sync | ((prev: Sync | null) => Sync | null)) => void }) {
+function EventBody({ data, member, tz, onSync, onProof, proofsAvailable }: { data: Loaded_; member: Member | null; tz: string | null; onSync: (s: Sync | ((prev: Sync | null) => Sync | null)) => void; onProof: (pledgeId: string, rsvpId: string, eventName: string) => Promise<void>; proofsAvailable: boolean }) {
   const t = useT();
   const router = useRouter();
   const { setGuest } = useApp();
@@ -160,7 +193,7 @@ function EventBody({ data, member, tz, onSync }: { data: Loaded_; member: Member
       ) : block ? (
         <Banner tone="info" message={t('events.rsvpClosed')} />
       ) : (
-        <RsvpForm data={data} member={member} tz={tz} onSync={onSync} />
+        <RsvpForm data={data} member={member} tz={tz} onSync={onSync} onProof={onProof} proofsAvailable={proofsAvailable} />
       )}
       {guestRsvpAvailable({ member, event, block }) ? <GuestRsvp event={event} onSignIn={signInFromEvent} /> : null}
     </VStack>
@@ -253,7 +286,7 @@ function AmountTile({ label, selected, onPress, border = colors.brown, tint = co
   );
 }
 
-function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member; tz: string | null; onSync: (s: Sync | ((prev: Sync | null) => Sync | null)) => void }) {
+function RsvpForm({ data, member, tz, onSync, onProof, proofsAvailable }: { data: Loaded_; member: Member; tz: string | null; onSync: (s: Sync | ((prev: Sync | null) => Sync | null)) => void; onProof: (pledgeId: string, rsvpId: string, eventName: string) => Promise<void>; proofsAvailable: boolean }) {
   const t = useT();
   const { center } = useApp();
   const { payNotice } = useFeedback();
@@ -285,7 +318,9 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
   const [mode, setMode] = useState<Mode>(defaultMode);
   const [unit, setUnit] = useState<number | 'other'>(defaultMode === 'per_person' ? (options.perPerson[1] ?? options.perPerson[0] ?? 0) : 0);
   const [other, setOther] = useState('');
-  const [payNow, setPayNow] = useState(true);
+  // How the commitment is paid: right now (card), later (it stays a pledge), or already paid another way (a proof goes to the treasury team).
+  const [payChoice, setPayChoice] = useState<'now' | 'pledge' | 'other'>('now');
+  const payNow = payChoice === 'now';
   const [error, setError] = useState<string | null>(null);
 
   const selectedMembers = member.members.filter((m) => going[m.person.id]?.going);
@@ -344,6 +379,10 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
       onSync((prev) => (prev ? { ...prev, at: prev.steps.length, result } : prev));
       if (committing && payNow && pledgeId) {
         await startPayment({ amountCents: total, forLabel: event.name, pledgeId, pledgeNumber, context: 'rsvp' }, { payNotice, formatAmount: (c) => formatCents(c) });
+      }
+      // "I paid another way": the pledge exists now; the sheet sends the proof for exactly that pledge.
+      if (committing && payChoice === 'other' && pledgeId) {
+        await onProof(pledgeId, res.rsvpId, event.name);
       }
     } catch (err) {
       const message = report(err, 'save your RSVP').userMessage;
@@ -468,11 +507,16 @@ function RsvpForm({ data, member, tz, onSync }: { data: Loaded_; member: Member;
                 </Txt>
               </Row>
               <Row gap={space.xs}>
-                <AmountTile label={t('events.payNow')} selected={payNow} onPress={() => setPayNow(true)} border={colors.navy} tint={colors.navyTint} />
-                <AmountTile label={t('events.addAsPledge')} selected={!payNow} onPress={() => setPayNow(false)} border={colors.navy} tint={colors.navyTint} />
+                <AmountTile label={t('events.payNow')} selected={payNow} onPress={() => setPayChoice('now')} border={colors.navy} tint={colors.navyTint} />
+                <AmountTile label={t('events.addAsPledge')} selected={payChoice === 'pledge'} onPress={() => setPayChoice('pledge')} border={colors.navy} tint={colors.navyTint} />
               </Row>
+              {proofsAvailable ? (
+                <Row gap={space.xs}>
+                  <AmountTile label={t('events.paidOtherWay')} selected={payChoice === 'other'} onPress={() => setPayChoice('other')} border={colors.navy} tint={colors.navyTint} />
+                </Row>
+              ) : null}
               <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
-                {payNow ? t('events.payNowNote') : t('events.commitNote')}
+                {payChoice === 'other' ? t('events.paidOtherWayNote') : payNow ? t('events.payNowNote') : t('events.commitNote')}
               </Txt>
             </VStack>
           ) : null}

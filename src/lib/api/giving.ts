@@ -3,6 +3,8 @@ import { parseOptions, WAITING_STATUS, type Availability } from '@/features/give
 import type { Enums, Tables } from '../database.types';
 import { AppError, check, maybe, must } from '../errors';
 import { supabase } from '../supabase';
+import type { PledgePayment } from '../proofs';
+import { openBalanceCents } from '../rules';
 import { retargetActive } from '../wording';
 
 export type Pledge = Tables<'pledges'>;
@@ -64,6 +66,7 @@ export type GiveSummary = {
   year: number;
   givenThisYearCents: number;
   openCount: number;
+  /** Open balance: amount - paid - soft credit, over the pledges that are Open or Partly paid (owner rule, 2026-10-15). */
   openCents: number;
   paidThisYearCents: number;
   recurringActive: number;
@@ -76,7 +79,8 @@ const COUNTED_PAYMENT = ['captured', 'settled', 'pending_clearing', 'partially_r
 export async function loadGiveSummary(householdId: string, year: number): Promise<GiveSummary> {
   const [paymentsRes, pledgesRes, recurringRes] = await Promise.all([
     supabase.from('payments').select('amount_cents, refunded_cents, status, received_on').eq('household_id', householdId).gte('received_on', `${year}-01-01`).lte('received_on', `${year}-12-31`),
-    supabase.from('pledges').select('amount_cents, paid_cents, status').eq('household_id', householdId).in('status', ['open', 'partially_paid']),
+    // A pledge fully covered by Soft credit has status soft_credit and adds nothing to the open balance; a partly covered one is subtracted below.
+    supabase.from('pledges').select('amount_cents, paid_cents, soft_credit_cents, status, pledged_at, closed_at').eq('household_id', householdId).in('status', ['open', 'partially_paid']),
     supabase.from('recurring_gifts').select('amount_cents, frequency, status').eq('household_id', householdId),
   ]);
   const payments = must(paymentsRes, 'load your giving');
@@ -84,12 +88,13 @@ export async function loadGiveSummary(householdId: string, year: number): Promis
   const recurring = must(recurringRes, 'load your recurring gifts');
   const given = payments.filter((p) => COUNTED_PAYMENT.includes(p.status)).reduce((s, p) => s + p.amount_cents - p.refunded_cents, 0);
   const active = recurring.filter((r) => r.status === 'active');
+  const payable = open.filter((p) => openBalanceCents(p) > 0);
   const PER_YEAR: Record<string, number> = { weekly: 52, monthly: 12, quarterly: 4, yearly: 1, special_day: 1 };
   return {
     year,
     givenThisYearCents: given,
-    openCount: open.length,
-    openCents: open.reduce((s, p) => s + Math.max(0, p.amount_cents - p.paid_cents), 0),
+    openCount: payable.length,
+    openCents: payable.reduce((s, p) => s + openBalanceCents(p), 0),
     paidThisYearCents: given,
     recurringActive: active.length,
     recurringTotal: recurring.length,
@@ -137,15 +142,8 @@ export function pledgeSourceFor(campaign: Campaign | null): PledgeSource {
 
 export type PledgeWithPeople = Pledge & { pledgedByName: string | null; campaignName: string | null; opportunityName: string | null; optionLabel: string | null };
 
-export async function listPledges(householdId: string, names: Map<string, string>): Promise<{ pledges: PledgeWithPeople[]; paymentsByYear: Record<number, number>; statements: Tables<'statements'>[] }> {
-  const [pledgesRes, paymentsRes, statementsRes] = await Promise.all([
-    supabase.from('pledges').select('*').eq('household_id', householdId).order('pledged_at', { ascending: false }).limit(500),
-    supabase.from('payments').select('amount_cents, refunded_cents, status, received_on').eq('household_id', householdId).limit(2000),
-    supabase.from('statements').select('*').eq('household_id', householdId).order('tax_year', { ascending: false }),
-  ]);
-  const pledges = must(pledgesRes, 'load your pledges');
-  const payments = must(paymentsRes, 'load your payments');
-  const statements = must(statementsRes, 'load your statements');
+/** What each pledge is for: the names of its campaign and opportunity, and who pledged it. */
+async function decoratePledges(pledges: Pledge[], names: Map<string, string>): Promise<PledgeWithPeople[]> {
   const campaignIds = [...new Set(pledges.map((p) => p.campaign_id).filter((x): x is string => !!x))];
   const oppIds = [...new Set(pledges.map((p) => p.opportunity_id).filter((x): x is string => !!x))];
   const [campaigns, opps] = await Promise.all([
@@ -158,23 +156,68 @@ export async function listPledges(householdId: string, names: Map<string, string
     if (!oppId || !key) return null;
     return parseOptions(oppById.get(oppId)?.options).find((o) => o.key === key)?.label ?? null;
   };
+  return pledges.map((p) => ({
+    ...p,
+    pledgedByName: p.pledged_by_person_id ? (names.get(p.pledged_by_person_id) ?? null) : null,
+    campaignName: p.campaign_id ? (campaignName.get(p.campaign_id) ?? null) : null,
+    opportunityName: p.opportunity_id ? (oppById.get(p.opportunity_id)?.name ?? null) : null,
+    optionLabel: optionLabel(p.opportunity_id, p.opportunity_option),
+  }));
+}
+
+/**
+ * The family's pledges in every status and year, newest first. `select('*')` carries the Soft credit status and the new
+ * columns (soft_credit_cents, reconciled_at; connect-crm 0865); the screens read them through lib/rules.
+ */
+export async function listPledges(householdId: string, names: Map<string, string>): Promise<{ pledges: PledgeWithPeople[]; paymentsByYear: Record<number, number>; statements: Tables<'statements'>[] }> {
+  const [pledgesRes, paymentsRes, statementsRes] = await Promise.all([
+    supabase.from('pledges').select('*').eq('household_id', householdId).order('pledged_at', { ascending: false }).limit(500),
+    supabase.from('payments').select('amount_cents, refunded_cents, status, received_on').eq('household_id', householdId).limit(2000),
+    supabase.from('statements').select('*').eq('household_id', householdId).order('tax_year', { ascending: false }),
+  ]);
+  const pledges = must(pledgesRes, 'load your pledges');
+  const payments = must(paymentsRes, 'load your payments');
+  const statements = must(statementsRes, 'load your statements');
   const paymentsByYear: Record<number, number> = {};
   for (const p of payments) {
     if (!COUNTED_PAYMENT.includes(p.status)) continue;
     const y = Number(p.received_on.slice(0, 4));
     paymentsByYear[y] = (paymentsByYear[y] ?? 0) + p.amount_cents - p.refunded_cents;
   }
-  return {
-    pledges: pledges.map((p) => ({
-      ...p,
-      pledgedByName: p.pledged_by_person_id ? (names.get(p.pledged_by_person_id) ?? null) : null,
-      campaignName: p.campaign_id ? (campaignName.get(p.campaign_id) ?? null) : null,
-      opportunityName: p.opportunity_id ? (oppById.get(p.opportunity_id)?.name ?? null) : null,
-      optionLabel: optionLabel(p.opportunity_id, p.opportunity_option),
-    })),
-    paymentsByYear,
-    statements,
-  };
+  return { pledges: await decoratePledges(pledges, names), paymentsByYear, statements };
+}
+
+/** One pledge of the household, in any status and from any year (the Pledge details screen). Null when it is not one the family can read. */
+export async function getPledgeDetail(householdId: string, pledgeId: string, names: Map<string, string>): Promise<PledgeWithPeople | null> {
+  const rows = must(await supabase.from('pledges').select('*').eq('id', pledgeId).eq('household_id', householdId).limit(1), 'load this pledge');
+  if (rows.length === 0) return null;
+  return (await decoratePledges(rows, names))[0] ?? null;
+}
+
+/** The payments that credited one pledge, newest first, with what each put on it (an adult of the family reads them; failed and voided ones are left out). */
+export async function listPledgePayments(pledgeId: string): Promise<PledgePayment[]> {
+  const allocations = must(await supabase.from('payment_allocations').select('payment_id, amount_cents').eq('pledge_id', pledgeId), 'load the payments on this pledge');
+  if (allocations.length === 0) return [];
+  const ids = [...new Set(allocations.map((a) => a.payment_id))];
+  const payments = must(
+    await supabase.from('payments').select('id, method, status, received_on, receipt_number, check_number, amount_cents, reconciled_at').in('id', ids),
+    'load the payments on this pledge',
+  );
+  const applied = new Map<string, number>();
+  for (const a of allocations) applied.set(a.payment_id, (applied.get(a.payment_id) ?? 0) + a.amount_cents);
+  return payments
+    .filter((p) => p.status !== 'failed' && p.status !== 'voided')
+    .map((p) => ({
+      paymentId: p.id,
+      method: p.method,
+      receivedOn: p.received_on.slice(0, 10),
+      receiptNumber: p.receipt_number,
+      checkNumber: p.check_number,
+      appliedCents: applied.get(p.id) ?? 0,
+      totalCents: p.amount_cents,
+      reconciledAt: p.reconciled_at,
+    }))
+    .sort((a, b) => b.receivedOn.localeCompare(a.receivedOn));
 }
 
 export type RecurringGift = Tables<'recurring_gifts'> & { purpose: string };
@@ -384,7 +427,16 @@ export async function commitLabh(args: { dayId: string; optionIds: string[]; ded
   );
 }
 
-/** Open pledges of the household (Give → "Pay open balance"). */
-export async function listOpenPledges(householdId: string): Promise<Pick<Pledge, 'id' | 'pledge_number' | 'amount_cents' | 'paid_cents'>[]> {
-  return must(await supabase.from('pledges').select('id, pledge_number, amount_cents, paid_cents').eq('household_id', householdId).in('status', ['open', 'partially_paid']), 'load your pledges');
+export type OpenPledge = Pick<Pledge, 'id' | 'pledge_number' | 'amount_cents' | 'paid_cents' | 'soft_credit_cents' | 'status' | 'pledged_at' | 'closed_at'>;
+
+/**
+ * Pledges of the household that still have something to pay (Give → "Pay open balance"): Open or Partly paid, and not
+ * already covered by Soft credit. What is left to pay on each is `openBalanceCents` (amount - paid - soft credit).
+ */
+export async function listOpenPledges(householdId: string): Promise<OpenPledge[]> {
+  const rows = must(
+    await supabase.from('pledges').select('id, pledge_number, amount_cents, paid_cents, soft_credit_cents, status, pledged_at, closed_at').eq('household_id', householdId).in('status', ['open', 'partially_paid']),
+    'load your pledges',
+  );
+  return rows.filter((p) => openBalanceCents(p) > 0);
 }

@@ -127,7 +127,7 @@ function sentenceFrom(error: unknown): { sentence: string; code: string } | null
  * "Could not send your report — The date you sent the Zelle cannot be after today." for a refusal in plain words; the
  * usual plain-English message (network, expired sign-in …) for anything else. Logged either way.
  */
-function actionError(prefix: string, action: string, error: unknown): AppError {
+export function actionError(prefix: string, action: string, error: unknown): AppError {
   if (isMissingRpcError(error)) {
     const err = new AppError(`${prefix} — this is not available yet. Nothing was changed.`, `payments function missing: ${JSON.stringify(error)?.slice(0, 200)}`);
     logError(action, err);

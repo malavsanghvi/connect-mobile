@@ -19,20 +19,25 @@ export function Heading({ children }: { children: string }) {
   );
 }
 
-/** Tinted amount tile (prototype Give / Family pledges summary). */
-export function TintTile({ tone, label, value, sub, size = 20 }: { tone: 'amber' | 'green'; label: string; value: string; sub?: string; size?: number }) {
-  const amber = tone === 'amber';
+/** Tinted amount tile (prototype Give / Family pledges summary). `navy` is the Soft credit tile: money the treasury team has not checked yet. */
+export function TintTile({ tone, label, value, sub, size = 20 }: { tone: 'amber' | 'green' | 'navy'; label: string; value: string; sub?: string; size?: number }) {
   const { scale } = useSettings();
+  const look = {
+    amber: { bg: colors.brownTint, label: 'brownText', value: 'brown' },
+    green: { bg: colors.greenTint, label: 'greenDark2', value: 'green' },
+    navy: { bg: colors.navyTint, label: 'navy', value: 'navy' },
+  } as const;
+  const t = look[tone];
   return (
-    <View style={{ flex: 1, backgroundColor: amber ? colors.brownTint : colors.greenTint, borderRadius: size > 20 ? radii.card : radii.lg, padding: size > 20 ? space.md : 10, gap: 2 }}>
-      <Txt variant="caption" color={amber ? 'brownText' : 'greenDark2'} style={{ fontFamily: fonts.body }}>
+    <View style={{ flex: 1, backgroundColor: t.bg, borderRadius: size > 20 ? radii.card : radii.lg, padding: size > 20 ? space.md : 10, gap: 2 }}>
+      <Txt variant="caption" color={t.label} style={{ fontFamily: fonts.body }}>
         {label}
       </Txt>
-      <Txt color={amber ? 'brown' : 'green'} style={{ fontFamily: fonts.bodyBold, fontSize: size * scale, lineHeight: Math.round(size * 1.3) * scale }}>
+      <Txt color={t.value} style={{ fontFamily: fonts.bodyBold, fontSize: size * scale, lineHeight: Math.round(size * 1.3) * scale }}>
         {value}
       </Txt>
       {sub ? (
-        <Txt variant="caption" color={amber ? 'brownText' : 'greenDark2'} style={{ fontFamily: fonts.body }}>
+        <Txt variant="caption" color={t.label} style={{ fontFamily: fonts.body }}>
           {sub}
         </Txt>
       ) : null}
