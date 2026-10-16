@@ -13,7 +13,7 @@ import { startPayment } from '@/features/pay';
 import { findEventSurvey, getEvent, getHouseholdRsvp, getPledgeById, listAttendees, listLunchSlots, moveLunchSlot, rsvpState, type Attendee, type EventRow, type LunchSlot } from '@/lib/api/events';
 import { logError, report } from '@/lib/errors';
 import { formatCents, formatDate, formatTime, joinNames } from '@/lib/format';
-import { lunchCard, type LunchGroup } from '@/lib/rules';
+import { isSoftCreditPledge, lunchCard, openBalanceCents, type LunchGroup } from '@/lib/rules';
 import { readPref, writePref } from '@/lib/storage';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -125,10 +125,15 @@ export default function TicketsScreen() {
                         {t('tickets.committed', { amount: formatCents(pledge.amount_cents) })}
                       </Txt>
                       <Txt variant="caption" color="brownText" style={{ fontFamily: fonts.body }}>
-                        {dotted([how, pledge.pledge_number ? <Ident>{pledge.pledge_number}</Ident> : null, pledge.status === 'paid' ? t('tickets.receiptEmailed') : t('tickets.openPledge')])}
+                        {dotted([how, pledge.pledge_number ? <Ident>{pledge.pledge_number}</Ident> : null, pledge.status === 'paid' ? t('tickets.receiptEmailed') : isSoftCreditPledge(pledge) ? t('tickets.paymentPending') : t('tickets.openPledge')])}
                       </Txt>
                     </View>
-                    {pledge.status !== 'paid' ? (
+                    {pledge.status === 'paid' ? (
+                      <Pill label={t('pledges.paid')} tone="green" />
+                    ) : isSoftCreditPledge(pledge) ? (
+                      // Fully covered by a proof the treasury team has not checked yet: nothing left to pay, and the tickets still work.
+                      <Pill label={t('pledges.softCredit')} tone="navy" />
+                    ) : (
                       <Button
                         label={t('give.payNow')}
                         tone="brown"
@@ -136,13 +141,11 @@ export default function TicketsScreen() {
                         fill={false}
                         onPress={() =>
                           void startPayment(
-                            { amountCents: pledge.amount_cents - pledge.paid_cents, forLabel: event.name, pledgeId: pledge.id, pledgeNumber: pledge.pledge_number, context: 'rsvp_later' },
+                            { amountCents: openBalanceCents(pledge), forLabel: event.name, pledgeId: pledge.id, pledgeNumber: pledge.pledge_number, context: 'rsvp_later' },
                             { payNotice, formatAmount: (c) => formatCents(c) },
                           )
                         }
                       />
-                    ) : (
-                      <Pill label={t('pledges.paid')} tone="green" />
                     )}
                   </Row>
                 </Card>

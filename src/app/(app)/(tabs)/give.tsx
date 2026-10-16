@@ -184,6 +184,8 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
           <TintTile tone="green" label={t('give.paidIn', { year: summary.year })} value={formatCents(summary.paidThisYearCents)} />
         </Row>
         <Button label={t('give.seeAllPledges')} tone="secondary" size="md" style={{ borderRadius: radii.pill }} onPress={() => router.push('/pledges')} />
+        {/* Payment proofs (connect-crm 0865): where the family follows what it sent to the treasury team. */}
+        {isModuleOn(map, 'giving_proofs') ? <Button label={t('pledges.myProofs')} tone="secondary" size="md" style={{ borderRadius: radii.pill }} onPress={() => router.push('/payment-proofs')} /> : null}
         {/* Recurring is an option on each opportunity, not a third list. Families that already have a gift keep a way to pause, change or stop it. */}
         {summary.recurringTotal > 0 && isGiveSectionVisible(map, 'recurring') ? (
           <Button

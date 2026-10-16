@@ -238,14 +238,43 @@ export type PledgeLike = {
   status: string;
   pledged_at: string;
   closed_at: string | null;
+  /** Soft credit: money the family says it paid, waiting for the treasury team (connect-crm 0865). Absent on an older portal. */
+  soft_credit_cents?: number | null;
+  /** When every payment on a paid pledge was matched to the bank (connect-crm 0865). */
+  reconciled_at?: string | null;
 };
 
+/** Still to be paid (the pledge is not covered): the database's `open` and `partially_paid`. A Soft credit pledge is not open. */
 export function isOpenPledge(p: Pick<PledgeLike, 'status'>): boolean {
   return p.status === 'open' || p.status === 'partially_paid';
 }
 
+/** Fully covered by a proof the treasury team has not checked yet (status `soft_credit`). */
+export function isSoftCreditPledge(p: Pick<PledgeLike, 'status'>): boolean {
+  return p.status === 'soft_credit';
+}
+
+/** Soft credit on one pledge, never negative; 0 when the portal does not send the column yet. */
+export function softCreditOf(p: Pick<PledgeLike, 'soft_credit_cents'>): number {
+  return Math.max(0, p.soft_credit_cents ?? 0);
+}
+
+/**
+ * What a family still has to pay on one pledge. Owner rule (2026-10-15): amount - paid - soft credit, and only for a
+ * pledge that is Open or Partly paid. A Soft credit, Paid, Written off or Cancelled pledge adds nothing.
+ */
 export function openBalanceCents(p: PledgeLike): number {
-  return isOpenPledge(p) ? Math.max(0, p.amount_cents - p.paid_cents) : 0;
+  return isOpenPledge(p) ? Math.max(0, p.amount_cents - p.paid_cents - softCreditOf(p)) : 0;
+}
+
+/** A pledge the family can still pay or send a proof for: Open or Partly paid, with something left to pay. */
+export function isPayablePledge(p: PledgeLike): boolean {
+  return openBalanceCents(p) > 0;
+}
+
+/** Soft credit waiting on one pledge, for the "Soft credit waiting" figure; a pledge that is already paid, cancelled or written off has none to show. */
+export function softCreditWaitingCents(p: PledgeLike): number {
+  return isOpenPledge(p) || isSoftCreditPledge(p) ? softCreditOf(p) : 0;
 }
 
 /** Group by the year of the PLEDGE date (Family pledges screen), newest first. */
@@ -267,13 +296,86 @@ export function groupPledgesByYear<T extends PledgeLike>(pledges: T[]): { year: 
 
 export type PledgeFilter = 'all' | 'open' | 'closed';
 
+/** Open = not paid yet (Open, Partly paid and Soft credit); Closed = Paid, Written off and Cancelled. */
 export function filterPledges<T extends PledgeLike>(pledges: T[], filter: PledgeFilter, year: number | null): T[] {
   return pledges.filter((p) => {
     if (year != null && Number(p.pledged_at.slice(0, 4)) !== year) return false;
-    if (filter === 'open') return isOpenPledge(p);
-    if (filter === 'closed') return !isOpenPledge(p);
+    const notPaidYet = isOpenPledge(p) || isSoftCreditPledge(p);
+    if (filter === 'open') return notPaidYet;
+    if (filter === 'closed') return !notPaidYet;
     return true;
   });
+}
+
+/** The family's figures for the three tiles: Open balance, Soft credit waiting, and how many pledges are open or closed. */
+export function pledgeTotals(pledges: PledgeLike[]): { openCents: number; openCount: number; softCreditCents: number; softCreditCount: number; closedCount: number } {
+  let openCents = 0;
+  let openCount = 0;
+  let softCreditCents = 0;
+  let softCreditCount = 0;
+  let closedCount = 0;
+  for (const p of pledges) {
+    if (isOpenPledge(p)) {
+      openCents += openBalanceCents(p);
+      openCount += 1;
+    } else if (!isSoftCreditPledge(p)) {
+      closedCount += 1;
+    }
+    const waiting = softCreditWaitingCents(p);
+    softCreditCents += waiting;
+    if (waiting > 0) softCreditCount += 1;
+  }
+  return { openCents, openCount, softCreditCents, softCreditCount, closedCount };
+}
+
+/** A pledge as the allocation preview needs it (the database orders by pledged_at, created_at, id). */
+export type AllocatablePledge = PledgeLike & { id: string; created_at: string };
+
+export type AllocationLine = {
+  pledgeId: string;
+  /** What this proof would reserve on the pledge, in cents. */
+  takeCents: number;
+  /** What is still to pay on the pledge after this proof. */
+  leftCents: number;
+  /** `soft_credit` when the pledge is then fully covered by claims; otherwise it stays Open or Partly paid with a Soft credit chip. */
+  becomes: 'soft_credit' | 'open';
+};
+
+export type AllocationPreview = { lines: AllocationLine[]; creditedCents: number; excessCents: number };
+
+function instant(iso: string): number {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/**
+ * Where a proof's amount would go, oldest pledge first. This is `app.submit_payment_proof` (connect-crm 0866) in the app: the
+ * pledges that are Open or Partly paid with something left to pay (amount - paid - soft credit), ordered by pledged_at,
+ * created_at, id; restricted to `chosenIds` when the family picked some (null or an empty choice = all of them); each takes
+ * what is left to pay, up to what remains of the amount. Whatever is left over is the excess (the treasury team decides it).
+ * The database decides in the end; this is only so the family sees the same thing before it sends.
+ */
+export function previewProofAllocation(pledges: readonly AllocatablePledge[], amountCents: number, chosenIds?: readonly string[] | null): AllocationPreview {
+  const chosen = chosenIds && chosenIds.length > 0 ? new Set(chosenIds) : null;
+  const ordered = pledges
+    .filter((p) => openBalanceCents(p) > 0 && (!chosen || chosen.has(p.id)))
+    .sort((a, b) => instant(a.pledged_at) - instant(b.pledged_at) || instant(a.created_at) - instant(b.created_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const lines: AllocationLine[] = [];
+  let remaining = Math.max(0, Math.trunc(amountCents));
+  for (const p of ordered) {
+    if (remaining <= 0) break;
+    const left = openBalanceCents(p);
+    const take = Math.min(left, remaining);
+    lines.push({ pledgeId: p.id, takeCents: take, leftCents: left - take, becomes: left - take === 0 ? 'soft_credit' : 'open' });
+    remaining -= take;
+  }
+  return { lines, creditedCents: lines.reduce((s, l) => s + l.takeCents, 0), excessCents: remaining };
+}
+
+/** What is left to pay on the pledges a proof could cover (the chosen ones, else all): the sheet's default amount. */
+export function stillToPayCents(pledges: readonly (PledgeLike & { id: string })[], chosenIds?: readonly string[] | null): number {
+  const chosen = chosenIds && chosenIds.length > 0 ? new Set(chosenIds) : null;
+  return pledges.reduce((s, p) => s + (!chosen || chosen.has(p.id) ? openBalanceCents(p) : 0), 0);
 }
 
 const PER_YEAR: Record<string, number> = { weekly: 52, monthly: 12, quarterly: 4, yearly: 1, special_day: 1 };

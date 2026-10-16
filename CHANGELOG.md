@@ -14,6 +14,33 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.26.0 — 2026-10-16
+
+JavaScript only (OTA): the runtime stays 4. Needs connect-crm 0864 to 0867 (PR #303) on the database, and the Payment proofs add-on switched on for the community.
+
+- **"I paid another way".** A family that paid by check, cash, bank transfer, stock, a donor-advised fund or a matching gift sends the treasury team a proof from
+  Family pledges (and from an RSVP's checkout): how it paid, the amount (the total still to pay by default), the date, a reference named for the way of paying
+  (check number, bank reference, shares and symbol), and photos chosen from the gallery. A step shows where it will go, oldest pledge first, and what each pledge
+  would become. A proof is required for the ways the community's rules name (by default check, bank transfer, stock, fund and matching gift). The button is
+  hidden, not disabled, when the community takes no such way, has Payment proofs off, or the family has nothing left to pay. Adults only. This release takes
+  photos from the gallery only: taking a photo and attaching a file need the next native build.
+- **Soft credit.** A pledge fully covered by a proof waiting for the treasury team shows **Soft credit** and can no longer be paid or sent a second proof; a pledge
+  partly covered shows "Soft credit $X waiting" and "$Y left to pay". Nothing is called paid until the treasury team has checked it. The Family pledges screen has
+  three tiles: Open balance (amount - paid - soft credit, only pledges that are Open or Partly paid), Soft credit waiting, and Paid. "Pay N now" and the Give tab's
+  "Pay open balance" use what is still to pay. A paid pledge shows "Confirmed by the bank" only once the bank statement has matched it. Tickets and the Pathshala
+  fee read a pledge covered by a waiting proof as "Payment waiting to be checked", and the tickets still work.
+- **Pledge details.** Every pledge row opens its details, in any status and from any year (use the Closed filter for old ones): the amount, a "What happened"
+  timeline, the payments with their receipts and what share each put on this pledge, and **Your proof**: the photos the family sent (opened through a private,
+  short-lived link), the share each proof covered of this pledge, and "You can open this until <date>". After the years ran out the screen says the photo was
+  removed, when, and that the receipt stays.
+- **My payment proofs** (Family pledges and the Give tab): every proof with where it stands (Waiting, Needs more, Paid, Not accepted, Taken back), its files, the
+  pledges it covers with the share of each, and its timeline. A waiting proof can be taken back (the pledges are Open again); when the treasury team asks for more, the
+  family answers with a message and more photos.
+- **Never "Sent" unless it was.** The photos go up first, then one call makes the claim with a confirmation key made when the sheet opens; a retry after a lost answer
+  sends the same key, so it can never become two proofs. Every failure is said in plain words next to the action, with a retry.
+- Types regenerated from connect-crm 0864 to 0867 (`src/lib/database.types.ts`, copied verbatim): the `soft_credit` pledge status, `soft_credit_cents`, `reconciled_at`,
+  and the proof functions.
+
 ## 1.25.0 — 2026-10-15
 
 - **Android phones can receive notifications.** The Android build now carries Weaver's Firebase configuration (`google-services.json`, referenced by

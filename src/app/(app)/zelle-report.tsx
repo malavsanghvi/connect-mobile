@@ -21,6 +21,7 @@ import type { StringKey } from '@/i18n/en';
 import { isAdultsOnlyRefusal, loadPaymentMethods, reportZelle, type ReportReceipt } from '@/lib/api/payments';
 import { listOpenPledges } from '@/lib/api/giving';
 import { AppError, report } from '@/lib/errors';
+import { openBalanceCents } from '@/lib/rules';
 import { formatCents, formatDob, todayAt } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
@@ -28,7 +29,7 @@ import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 import { space } from '@/theme';
 
-type OpenPledge = { id: string; pledge_number: string | null; amount_cents: number; paid_cents: number };
+type OpenPledge = { id: string; pledge_number: string | null; amount_cents: number; paid_cents: number; soft_credit_cents: number; status: string; pledged_at: string; closed_at: string | null };
 type FormData = { methods: PaymentMethods; pledges: OpenPledge[]; today: string };
 
 /**
@@ -203,7 +204,7 @@ function ReportForm({ data, wantedAmount, wantedPledges }: { data: FormData; wan
             <Checkbox
               key={p.id}
               label={p.pledge_number ?? t('zelle.pledgeNoNumber')}
-              sub={t('zelle.pledgeOpen', { amount: formatCents(Math.max(0, p.amount_cents - p.paid_cents)) })}
+              sub={t('zelle.pledgeOpen', { amount: formatCents(openBalanceCents(p)) })}
               checked={stillSelected.includes(p.id)}
               onChange={(on) => setSelected(on ? [...stillSelected, p.id] : stillSelected.filter((x) => x !== p.id))}
             />

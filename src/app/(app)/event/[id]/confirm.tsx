@@ -12,7 +12,7 @@ import type { Member } from '@/lib/api/member';
 import type { Tables } from '@/lib/database.types';
 import { report } from '@/lib/errors';
 import { formatCents, formatDate, fullName, todayAt, zonedParts } from '@/lib/format';
-import { isSenior, isUnder12 } from '@/lib/rules';
+import { isSenior, isUnder12, softCreditOf } from '@/lib/rules';
 import { useLoad } from '@/lib/use-load';
 import { useApp } from '@/providers/app';
 import { useDataVersion } from '@/providers/data-version';
@@ -112,7 +112,7 @@ function ConfirmBody({ event, rsvp, attendees, pledge, member }: { event: EventR
         title: paid > 0 ? t('confirm.creditTitle', { paid: formatCents(paid) }) : t('confirm.cancelPledgeTitle'),
         body: paid > 0
           ? t('confirm.creditBody', { paid: formatCents(paid), pledge: pledge.pledge_number ?? '' })
-          : t('confirm.cancelPledgeBody', { amount: formatCents(pledge.amount_cents), pledge: pledge.pledge_number ?? '' }),
+          : [t('confirm.cancelPledgeBody', { amount: formatCents(pledge.amount_cents), pledge: pledge.pledge_number ?? '' }), softCreditOf(pledge) > 0 ? t('confirm.cancelPledgeSoft') : null].filter(Boolean).join(' '),
         confirmLabel: paid > 0 ? t('confirm.creditYes') : t('confirm.cancelPledgeYes'),
         tone: paid > 0 ? 'primary' : 'danger',
         cancelLabel: paid > 0 ? t('confirm.creditNo') : t('confirm.cancelPledgeNo'),

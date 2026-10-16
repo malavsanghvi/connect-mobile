@@ -12,15 +12,23 @@ import {
   groupPledgesByYear,
   identifierLine,
   isAdult,
+  isPayablePledge,
   isSenior,
+  isSoftCreditPledge,
   isUnder12,
   isWithinReminder,
   lastSevenDays,
   lunchCard,
   lunchLines,
   nextOccurrence,
+  openBalanceCents,
   orgIdDisplay,
+  pledgeTotals,
+  previewProofAllocation,
+  softCreditOf,
+  softCreditWaitingCents,
   stepPledge,
+  stillToPayCents,
   streakDisplay,
   streakLabel,
   tithiLabel,
@@ -189,5 +197,131 @@ describe('special days', () => {
   it('is "soon" inside the reminder window', () => {
     expect(isWithinReminder('2026-10-06', '2026-09-22', 14)).toBe(true);
     expect(isWithinReminder('2026-10-07', '2026-09-22', 14)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Soft credit (connect-crm 0864-0866; owner rule 2026-10-15: Open balance = amount - paid - soft credit)
+// ---------------------------------------------------------------------------
+
+type P = { id: string; created_at: string; pledged_at: string; closed_at: string | null; amount_cents: number; paid_cents: number; soft_credit_cents: number; status: string };
+const pledge = (over: Partial<P> & { id: string }): P => ({ created_at: '2026-09-01T00:00:00Z', pledged_at: '2026-09-01T00:00:00Z', closed_at: null, amount_cents: 10000, paid_cents: 0, soft_credit_cents: 0, status: 'open', ...over });
+
+describe('open balance leaves out soft credit', () => {
+  it('is amount - paid - soft credit for an Open or Partly paid pledge', () => {
+    expect(openBalanceCents(pledge({ id: 'a' }))).toBe(10000);
+    expect(openBalanceCents(pledge({ id: 'a', status: 'partially_paid', paid_cents: 2500 }))).toBe(7500);
+    expect(openBalanceCents(pledge({ id: 'a', soft_credit_cents: 9000 }))).toBe(1000);
+    expect(openBalanceCents(pledge({ id: 'a', status: 'partially_paid', paid_cents: 2500, soft_credit_cents: 5000 }))).toBe(2500);
+  });
+  it('adds nothing for a Soft credit, Paid, Written off or Cancelled pledge', () => {
+    expect(openBalanceCents(pledge({ id: 'a', status: 'soft_credit', soft_credit_cents: 10000 }))).toBe(0);
+    for (const status of ['paid', 'written_off', 'cancelled']) expect(openBalanceCents(pledge({ id: 'a', status, paid_cents: 3000 }))).toBe(0);
+  });
+  it('never goes below zero and reads a portal without the column as no soft credit', () => {
+    expect(openBalanceCents(pledge({ id: 'a', soft_credit_cents: 99999 }))).toBe(0);
+    expect(openBalanceCents({ amount_cents: 5000, paid_cents: 0, status: 'open', pledged_at: '2026-09-01', closed_at: null })).toBe(5000);
+    expect(softCreditOf({ soft_credit_cents: null })).toBe(0);
+    expect(softCreditOf({})).toBe(0);
+  });
+  it('a pledge is payable only while something is left to pay; Soft credit is its own status', () => {
+    expect(isPayablePledge(pledge({ id: 'a' }))).toBe(true);
+    expect(isPayablePledge(pledge({ id: 'a', status: 'soft_credit', soft_credit_cents: 10000 }))).toBe(false);
+    expect(isSoftCreditPledge(pledge({ id: 'a', status: 'soft_credit' }))).toBe(true);
+    expect(isSoftCreditPledge(pledge({ id: 'a' }))).toBe(false);
+  });
+  it('soft credit waiting counts a chip on a partly covered pledge and a Soft credit pledge, but not a paid one', () => {
+    expect(softCreditWaitingCents(pledge({ id: 'a', soft_credit_cents: 9000 }))).toBe(9000);
+    expect(softCreditWaitingCents(pledge({ id: 'a', status: 'soft_credit', soft_credit_cents: 10000 }))).toBe(10000);
+    expect(softCreditWaitingCents(pledge({ id: 'a', status: 'paid', paid_cents: 10000, soft_credit_cents: 4000 }))).toBe(0);
+  });
+  it('the three tiles: Open balance, Soft credit waiting, closed count (the owner example)', () => {
+    const family = [
+      pledge({ id: 'supper', amount_cents: 16000, status: 'soft_credit', soft_credit_cents: 16000 }),
+      pledge({ id: 'building', amount_cents: 30000, soft_credit_cents: 9000 }),
+      pledge({ id: 'food', amount_cents: 10000 }),
+      pledge({ id: 'membership', amount_cents: 12000, paid_cents: 12000, status: 'paid' }),
+    ];
+    expect(pledgeTotals(family)).toEqual({ openCents: 21000 + 10000, openCount: 2, softCreditCents: 25000, softCreditCount: 2, closedCount: 1 });
+  });
+  it('the Open filter keeps Soft credit with the pledges not paid yet; Closed is Paid, Written off and Cancelled', () => {
+    const list = [pledge({ id: 'o' }), pledge({ id: 's', status: 'soft_credit', soft_credit_cents: 10000 }), pledge({ id: 'p', status: 'paid', paid_cents: 10000 }), pledge({ id: 'c', status: 'cancelled' })];
+    expect(filterPledges(list, 'open', null).map((p) => p.id)).toEqual(['o', 's']);
+    expect(filterPledges(list, 'closed', null).map((p) => p.id)).toEqual(['p', 'c']);
+  });
+  it('still-to-pay for the ticked pledges, or for all when none is ticked', () => {
+    const list = [pledge({ id: 'a', soft_credit_cents: 4000 }), pledge({ id: 'b', amount_cents: 5000 }), pledge({ id: 's', status: 'soft_credit', soft_credit_cents: 10000 })];
+    expect(stillToPayCents(list)).toBe(11000);
+    expect(stillToPayCents(list, [])).toBe(11000);
+    expect(stillToPayCents(list, ['b'])).toBe(5000);
+    expect(stillToPayCents(list, ['s'])).toBe(0);
+  });
+});
+
+describe('where a proof will go: the oldest-first preview (mirrors app.submit_payment_proof, connect-crm 0866)', () => {
+  const family = [
+    pledge({ id: 'building', amount_cents: 30000, pledged_at: '2026-09-20T10:00:00Z', created_at: '2026-09-20T10:00:00Z' }),
+    pledge({ id: 'supper', amount_cents: 16000, pledged_at: '2026-09-02T10:00:00Z', created_at: '2026-09-02T10:00:00Z' }),
+    pledge({ id: 'food', amount_cents: 10000, pledged_at: '2026-10-03T10:00:00Z', created_at: '2026-10-03T10:00:00Z' }),
+  ];
+  it('credits the oldest pledge first, and the last one only in part (the owner example)', () => {
+    const r = previewProofAllocation(family, 25000);
+    expect(r.lines).toEqual([
+      { pledgeId: 'supper', takeCents: 16000, leftCents: 0, becomes: 'soft_credit' },
+      { pledgeId: 'building', takeCents: 9000, leftCents: 21000, becomes: 'open' },
+    ]);
+    expect(r.creditedCents).toBe(25000);
+    expect(r.excessCents).toBe(0);
+  });
+  it('an amount smaller than the oldest pledge leaves it Open with a soft credit chip', () => {
+    const r = previewProofAllocation(family, 5000);
+    expect(r.lines).toEqual([{ pledgeId: 'supper', takeCents: 5000, leftCents: 11000, becomes: 'open' }]);
+  });
+  it('the total still to pay covers every pledge and leaves no excess', () => {
+    const r = previewProofAllocation(family, 56000);
+    expect(r.lines.map((l) => l.becomes)).toEqual(['soft_credit', 'soft_credit', 'soft_credit']);
+    expect(r.excessCents).toBe(0);
+  });
+  it('more than the open pledges need leaves the rest as excess, never credited', () => {
+    const r = previewProofAllocation(family, 60000);
+    expect(r.creditedCents).toBe(56000);
+    expect(r.excessCents).toBe(4000);
+  });
+  it('only the chosen pledges, oldest first among them; none chosen means all', () => {
+    expect(previewProofAllocation(family, 12000, ['food', 'building']).lines.map((l) => [l.pledgeId, l.takeCents])).toEqual([['building', 12000]]);
+    expect(previewProofAllocation(family, 12000, []).lines.map((l) => l.pledgeId)).toEqual(['supper']);
+    expect(previewProofAllocation(family, 12000, null).lines.map((l) => l.pledgeId)).toEqual(['supper']);
+  });
+  it('takes what is left after paid money and soft credit already on a pledge, and skips pledges with nothing left', () => {
+    const list = [
+      pledge({ id: 'a', amount_cents: 10000, paid_cents: 4000, soft_credit_cents: 3000, status: 'partially_paid', pledged_at: '2026-01-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z' }),
+      pledge({ id: 'done', status: 'soft_credit', soft_credit_cents: 10000, pledged_at: '2026-01-02T00:00:00Z', created_at: '2026-01-02T00:00:00Z' }),
+      pledge({ id: 'paid', status: 'paid', paid_cents: 10000, pledged_at: '2026-01-03T00:00:00Z', created_at: '2026-01-03T00:00:00Z' }),
+      pledge({ id: 'b', amount_cents: 2000, pledged_at: '2026-01-04T00:00:00Z', created_at: '2026-01-04T00:00:00Z' }),
+    ];
+    const r = previewProofAllocation(list, 4000);
+    expect(r.lines).toEqual([
+      { pledgeId: 'a', takeCents: 3000, leftCents: 0, becomes: 'soft_credit' },
+      { pledgeId: 'b', takeCents: 1000, leftCents: 1000, becomes: 'open' },
+    ]);
+  });
+  it('breaks a tie on the pledge date by created_at, then by id, as the database orders them', () => {
+    const same = '2026-09-02T10:00:00Z';
+    const list = [
+      pledge({ id: 'c', pledged_at: same, created_at: '2026-09-02T10:00:03Z' }),
+      pledge({ id: 'b', pledged_at: same, created_at: '2026-09-02T10:00:01Z' }),
+      pledge({ id: 'a', pledged_at: same, created_at: '2026-09-02T10:00:01Z' }),
+    ];
+    expect(previewProofAllocation(list, 30000).lines.map((l) => l.pledgeId)).toEqual(['a', 'b', 'c']);
+  });
+  it('compares times, not text, so the same moment in two spellings does not reorder', () => {
+    const list = [pledge({ id: 'nine-central', pledged_at: '2026-09-02T09:00:00-05:00' }), pledge({ id: 'noon-utc', pledged_at: '2026-09-02T12:00:00+00:00' })];
+    expect(previewProofAllocation(list, 10000).lines.map((l) => l.pledgeId)).toEqual(['noon-utc']);
+  });
+  it('credits nothing for a zero or negative amount and does not change what it was given', () => {
+    const before = JSON.stringify(family);
+    expect(previewProofAllocation(family, 0).lines).toEqual([]);
+    expect(previewProofAllocation(family, -5).lines).toEqual([]);
+    expect(JSON.stringify(family)).toBe(before);
   });
 });

@@ -302,8 +302,9 @@ function parseFeePledge(v: unknown, enrollmentId: string | null): FeePledge | nu
   const amountCents = count(v.amount_cents);
   const paidCents = v.paid_cents === undefined || v.paid_cents === null ? 0 : count(v.paid_cents);
   const status = str(v.status);
-  if (!id || amountCents === null || paidCents === null || !status) return null;
-  return { id, number: str(v.number), amountCents, paidCents, status, dueOn: str(v.due_on), enrollmentId };
+  const softCreditCents = v.soft_credit_cents === undefined || v.soft_credit_cents === null ? 0 : count(v.soft_credit_cents);
+  if (!id || amountCents === null || paidCents === null || softCreditCents === null || !status) return null;
+  return { id, number: str(v.number), amountCents, paidCents, ...(softCreditCents ? { softCreditCents } : {}), status, dueOn: str(v.due_on), enrollmentId };
 }
 
 function parseFee(v: unknown, enrollmentId: string | null): RegFee | null {
@@ -1151,18 +1152,20 @@ export function statusText(v: StatusView, t: (key: StringKey, vars?: Record<stri
 }
 
 /** A fee pledge of an enrollment (`pledges` with source `pathshala_fee` and `source_ref_id` = the enrollment). */
-export type FeePledge = { id: string; number: string | null; amountCents: number; paidCents: number; status: string; dueOn: string | null; enrollmentId: string | null };
+export type FeePledge = { id: string; number: string | null; amountCents: number; paidCents: number; /** Soft credit on the pledge (a proof waiting for the treasury team); 0 when the portal does not send it. */ softCreditCents?: number; status: string; dueOn: string | null; enrollmentId: string | null };
 
-export type FeeSummary = { kind: 'none' } | { kind: 'paid'; totalCents: number } | { kind: 'due'; totalCents: number; openCents: number; paidCents: number; dueOn: string | null; pledgeIds: string[] };
+export type FeeSummary = { kind: 'none' } | { kind: 'paid'; totalCents: number } | { kind: 'pending'; totalCents: number } | { kind: 'due'; totalCents: number; openCents: number; paidCents: number; dueOn: string | null; pledgeIds: string[] };
 
 /** An enrollment's fee from its pledges (adults only, P30): what it costs, what is still open and when it is due. Cancelled and written-off pledges do not count. */
 export function feeSummary(pledges: FeePledge[]): FeeSummary {
-  const live = pledges.filter((p) => p.status === 'open' || p.status === 'partially_paid' || p.status === 'paid');
+  const live = pledges.filter((p) => p.status === 'open' || p.status === 'partially_paid' || p.status === 'soft_credit' || p.status === 'paid');
   if (live.length === 0) return { kind: 'none' };
   const totalCents = live.reduce((s, p) => s + p.amountCents, 0);
-  const open = live.filter((p) => openBalanceCents({ amount_cents: p.amountCents, paid_cents: p.paidCents, status: p.status, pledged_at: '', closed_at: null }) > 0);
-  if (open.length === 0) return { kind: 'paid', totalCents };
-  const openCents = open.reduce((s, p) => s + Math.max(0, p.amountCents - p.paidCents), 0);
+  const left = (p: FeePledge) => openBalanceCents({ amount_cents: p.amountCents, paid_cents: p.paidCents, soft_credit_cents: p.softCreditCents ?? 0, status: p.status, pledged_at: '', closed_at: null });
+  const open = live.filter((p) => left(p) > 0);
+  // Nothing left to pay: Paid when the treasury team has checked everything, else the fee waits for it (a Soft credit pledge is not paid).
+  if (open.length === 0) return live.some((p) => p.status === 'soft_credit') ? { kind: 'pending', totalCents } : { kind: 'paid', totalCents };
+  const openCents = open.reduce((s, p) => s + left(p), 0);
   const dueOn = open.map((p) => p.dueOn).filter((d): d is string => !!d).sort()[0] ?? null;
   return { kind: 'due', totalCents, openCents, paidCents: live.reduce((s, p) => s + p.paidCents, 0), dueOn, pledgeIds: open.map((p) => p.id) };
 }
