@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { EmptyState, Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Card, Row, TextField, Txt, VStack } from '@/components/ui';
-import { PickedFiles, ProofFiles, ProofStatusPill, proofMethodName, Timeline } from '@/features/pay/proof-parts';
+import { PickedFiles, ProofFileButtons, ProofFiles, ProofStatusPill, proofMethodName, Timeline } from '@/features/pay/proof-parts';
 import { useProofFiles } from '@/features/pay/use-proof-files';
 import { answerProofQuestion, loadProofPolicy, myPaymentProofs, newProofAttempt, proofReceipts, withdrawPaymentProof } from '@/lib/api/proofs';
 import { report } from '@/lib/errors';
@@ -244,8 +244,7 @@ function ProofDetail({ proof, policy, receipt, onBack }: { proof: PaymentProof; 
       {proof.status === 'needs_info' ? (
         <VStack gap={space.md}>
           <TextField label={t('proofs.replyLabel')} value={message} onChangeText={setMessage} maxLength={500} multiline />
-          {room > 0 ? <Button label={picker.files.length === 0 ? t('proof.choosePhoto') : t('proof.chooseMore')} tone="secondary" size="md" disabled={picker.files.length >= room} onPress={() => void picker.pick()} /> : null}
-          {picker.notice ? <Banner tone="error" message={picker.notice} action={{ label: t('common.retry'), onPress: () => void picker.pick() }} /> : null}
+          {room > 0 ? <ProofFileButtons picker={picker} room={room} /> : null}
           <PickedFiles files={picker.files} onRemove={picker.remove} />
           <Button label={busy === 'reply' ? t('proofs.replySending') : t('proofs.replySend')} busy={busy === 'reply'} disabled={busy !== null} onPress={() => void reply()} />
           <Txt variant="meta" color="muted">

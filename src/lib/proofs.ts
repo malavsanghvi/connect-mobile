@@ -28,10 +28,11 @@ export const MIN_KEY_CHARS = 8;
 export const MAX_KEY_CHARS = 120;
 
 /**
- * The ways a family can say it paid. Zelle is not one of them: it has its own "I sent it" report, matched at the bank.
+ * The ways a family can say it paid. Zelle is one when the community takes it: a proof for it credits no money and only
+ * shows Soft credit on the pledge until the treasury team matches it at the bank, and the "I sent a Zelle" report stays as it is.
  * 'other' is the database's catch-all; a community that takes it lists it.
  */
-export const PROOF_METHOD_KEYS = ['cash', 'check', 'ach', 'stock', 'daf', 'matching_gift', 'other'] as const;
+export const PROOF_METHOD_KEYS = ['cash', 'check', 'ach', 'zelle', 'stock', 'daf', 'matching_gift', 'other'] as const;
 export type ProofMethodKey = (typeof PROOF_METHOD_KEYS)[number];
 
 export function isProofMethod(v: unknown): v is ProofMethodKey {
@@ -42,8 +43,10 @@ export function isProofMethod(v: unknown): v is ProofMethodKey {
 export function acceptedProofMethods(list: PaymentMethods | null): ProofMethodKey[] {
   const out: ProofMethodKey[] = [];
   for (const m of list?.methods ?? []) {
-    if (m.kind !== 'instructions' || !isProofMethod(m.method) || out.includes(m.method)) continue;
-    out.push(m.method);
+    // Zelle is its own kind of entry in the community's list (a transfer the family reports), not an office instruction.
+    const key = m.kind === 'zelle' ? 'zelle' : m.kind === 'instructions' ? m.method : null;
+    if (!isProofMethod(key) || out.includes(key)) continue;
+    out.push(key);
   }
   return out;
 }
@@ -147,6 +150,16 @@ const EXT_BY_TYPE: Record<string, string> = {
   'application/pdf': 'pdf',
 };
 
+/** A photo is saved again on the phone as a JPEG no longer than this on its longest side, at this quality (this drops the place it was taken). */
+export const PHOTO_MAX_SIDE = 2000;
+export const PHOTO_QUALITY = 0.8;
+
+/** The one size to ask for so the longest side is at most `max`; null when the photo is already small enough (or its size is unknown). */
+export function fitLongestSide(width: number, height: number, max: number = PHOTO_MAX_SIDE): { width: number } | { height: number } | null {
+  if (!(width > 0) || !(height > 0) || Math.max(width, height) <= max) return null;
+  return width >= height ? { width: max } : { height: max };
+}
+
 /** The content types the bucket takes (connect-crm 0865): JPEG, PNG, WebP, HEIC and PDF. */
 export const PROOF_TYPES: readonly string[] = Object.keys(EXT_BY_TYPE);
 
@@ -168,7 +181,7 @@ export type FileHints = { fileName?: string | null; mimeType?: string | null; ur
 /**
  * The extension and content type a file is uploaded under: the type the picker gave, else the extension of its name or uri,
  * else what the fetched file reported. Null when none of them names a type the bucket takes; with no hint at all it is
- * assumed to be a JPEG photo (the gallery picker only offers photos).
+ * assumed to be a JPEG photo (the photo pickers only offer photos).
  */
 export function proofFileType(hints: FileHints): { ext: string; contentType: string } | null {
   const mime = normalizeMime(hints.mimeType);

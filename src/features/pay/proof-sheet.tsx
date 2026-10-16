@@ -26,7 +26,7 @@ import { useDataVersion } from '@/providers/data-version';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
 
-import { PickedFiles, proofMethodName } from './proof-parts';
+import { PickedFiles, ProofFileButtons, proofMethodName } from './proof-parts';
 import type { ProofSetup } from './proof-setup';
 import { useProofFiles } from './use-proof-files';
 import { centsToField } from './zelle-report';
@@ -63,7 +63,7 @@ type Step = 'details' | 'proof' | 'review' | 'sent';
 
 const STEP_NUMBER: Record<Exclude<Step, 'sent'>, number> = { details: 1, proof: 2, review: 3 };
 
-/** "I paid another way": method, amount, date and reference → proof (photos from the gallery) → where it will go → sent. Adults only; callers hide it for a child. */
+/** "I paid another way": method, amount, date and reference → proof (photos, files) → where it will go → sent. Adults only; callers hide it for a child. */
 export function ProofSheet(props: ProofSheetProps) {
   return (
     <Modal visible={props.visible} transparent animationType="slide" onRequestClose={props.onClose}>
@@ -98,7 +98,8 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
   // One try at sending: the same proof folder and confirmation key through retries, so a lost answer never becomes two proofs.
   const [attempt] = useState(newProofAttempt);
   const busy = useRef(false);
-  const { files, notice, pick, remove: removeFile } = useProofFiles(attempt, MAX_PROOF_FILES);
+  const picker = useProofFiles(attempt, MAX_PROOF_FILES);
+  const { files, remove: removeFile } = picker;
 
   const methodName = (m: string): string => proofMethodName(t, m);
   const problemText = (field: ProofField): string | null => {
@@ -239,6 +240,11 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
                         {problemText('method')}
                       </Txt>
                     ) : null}
+                    {method === 'zelle' ? (
+                      <Txt variant="meta" color="muted">
+                        {t('proof.zelleHint')}
+                      </Txt>
+                    ) : null}
                   </View>
                   <DateField label={t('proof.dateLabel')} value={date} onChangeText={setDate} error={problemText('date')} minYear={year - 1} maxYear={year} />
                   <TextField
@@ -258,12 +264,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
                   <Txt variant="small" color="ink2">
                     {t('proof.proofIntro')}
                   </Txt>
-                  <Button label={files.length === 0 ? t('proof.choosePhoto') : t('proof.chooseMore')} tone="secondary" size="md" disabled={files.length >= MAX_PROOF_FILES} onPress={() => {
-                    setFilesProblem(null);
-                    void pick();
-                  }}
-                  />
-                  {notice ? <Banner tone="error" message={notice} action={{ label: t('common.retry'), onPress: () => void pick() }} /> : null}
+                  <ProofFileButtons picker={picker} room={MAX_PROOF_FILES} />
                   <Txt variant="meta" color="muted" accessibilityLiveRegion="polite">
                     {fileCountText}
                   </Txt>
@@ -273,7 +274,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
                       {proofNeeded(setup.policy, value?.method ?? null) ? t('proof.needed', { method: methodName(value?.method ?? '') }) : t('proof.optionalProof', { method: methodName(value?.method ?? '') })}
                     </Txt>
                   ) : null}
-                  {filesProblem ? (
+                  {filesProblem && validateProofFiles(files.length, value?.method ?? null, setup.policy) ? (
                     <Txt variant="meta" color="danger" accessibilityLiveRegion="polite">
                       {t(filesProblem)}
                     </Txt>

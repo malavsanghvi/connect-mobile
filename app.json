@@ -2,7 +2,7 @@
   "expo": {
     "name": "Weaver",
     "slug": "connect-mobile",
-    "version": "1.27.0",
+    "version": "1.28.0",
     "orientation": "portrait",
     "icon": "./assets/brand/weaver-mark-on-white-1024.png",
     "scheme": ["connect", "communityconnect", "weaver"],
@@ -31,7 +31,7 @@
       "backgroundColor": "#fffaf5",
       "themeColor": "#2b2a8a"
     },
-    "runtimeVersion": "4",
+    "runtimeVersion": "5",
     "updates": {
       "url": "https://u.expo.dev/d61c6e7c-7999-4c49-aa39-bef5baf1fea7"
     },
@@ -58,7 +58,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Weaver to use the camera to scan event tickets when you volunteer at check-in.",
+          "cameraPermission": "Allow Weaver to use the camera to photograph a receipt or check for a payment proof, and to scan event tickets when you volunteer at check-in.",
           "microphonePermission": "Allow Weaver to use the microphone to record your recitation for a lesson your organization offers, and to listen while you practise it.",
           "recordAudioAndroid": false
         }
@@ -80,7 +80,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Weaver to choose photos you want to add to an event album.",
-          "cameraPermission": false,
+          "cameraPermission": "Allow Weaver to use the camera to photograph a receipt or check for a payment proof, and to scan event tickets when you volunteer at check-in.",
           "microphonePermission": false
         }
       ],

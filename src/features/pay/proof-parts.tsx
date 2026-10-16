@@ -3,7 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { Banner, Pill, Row, Txt, VStack } from '@/components/ui';
+import { Banner, Button, Pill, Row, Txt, VStack } from '@/components/ui';
 import type { Translate } from '@/i18n';
 import { proofFileUrls, type PickedProofFile } from '@/lib/api/proofs';
 import { report } from '@/lib/errors';
@@ -12,6 +12,8 @@ import { formatFileSize, humanizeMethod, isImageType, isPdfType, methodNameKey, 
 import { useLoad } from '@/lib/use-load';
 import { useT } from '@/providers/settings';
 import { colors, fonts, radii, space, touch } from '@/theme';
+
+import type { useProofFiles } from './use-proof-files';
 
 const THUMB = 72;
 
@@ -114,14 +116,44 @@ export function Timeline({ entries }: { entries: readonly TimelineLine[] }) {
   );
 }
 
-/** The photos the family has chosen and not sent yet: a small picture, a name, the size, and Remove. */
+/**
+ * Take a photo, Choose a photo, Attach a file: the three ways to add to a proof, with the reason the last one did not work
+ * (and a way to the phone's Settings when the camera was refused). Every button waits while pictures are being prepared.
+ */
+export function ProofFileButtons({ picker, room }: { picker: ReturnType<typeof useProofFiles>; room: number }) {
+  const t = useT();
+  const off = picker.files.length >= room || picker.working;
+  return (
+    <VStack gap={space.sm}>
+      <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
+        <Button label={t('proof.takePhoto')} icon="camera-outline" tone="secondary" size="md" fill={false} disabled={off} onPress={() => void picker.pick('camera')} />
+        <Button label={t('proof.choosePhoto')} icon="image-outline" tone="secondary" size="md" fill={false} disabled={off} onPress={() => void picker.pick('library')} />
+        <Button label={t('proof.attachFile')} icon="attach-outline" tone="secondary" size="md" fill={false} disabled={off} onPress={() => void picker.pick('file')} />
+      </Row>
+      {picker.working ? (
+        <Txt variant="meta" color="muted" accessibilityLiveRegion="polite">
+          {t('proof.preparing')}
+        </Txt>
+      ) : null}
+      {picker.notice ? (
+        <Banner
+          tone="error"
+          message={picker.notice.message}
+          action={picker.notice.settings ? { label: t('proof.openSettings'), onPress: () => void picker.openSettings() } : { label: t('common.retry'), onPress: () => void picker.retry() }}
+        />
+      ) : null}
+    </VStack>
+  );
+}
+
+/** The photos and files the family has chosen and not sent yet: a small picture, a name, the size, and Remove. */
 export function PickedFiles({ files, onRemove }: { files: readonly PickedProofFile[]; onRemove: (file: PickedProofFile) => void }) {
   const t = useT();
   return (
     <VStack gap={space.sm}>
       {files.map((f, i) => {
-        const name = t('proof.photoName', { n: i + 1 });
         const type = proofFileType({ fileName: f.fileName, mimeType: f.mimeType, uri: f.uri })?.contentType ?? 'image/jpeg';
+        const name = t(isPdfType(type) ? 'proof.fileName' : 'proof.photoName', { n: i + 1 });
         return (
           <Row key={f.id} gap={space.md} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, padding: space.sm }}>
             {isImageType(type) ? <Image source={{ uri: f.uri }} style={{ width: 48, height: 48, borderRadius: radii.sm }} contentFit="cover" accessible={false} accessibilityIgnoresInvertColors /> : null}

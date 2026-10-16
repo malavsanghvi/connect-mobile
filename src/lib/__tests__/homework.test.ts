@@ -266,11 +266,11 @@ describe('who is looking', () => {
 });
 
 describe('the ways to answer', () => {
-  it('shows the allowed buttons in order, with Attach a file disabled until the next app update', () => {
+  it('shows the allowed buttons in order, with Attach a file ready (the file picker came with runtime 5)', () => {
     expect(answerButtons(['text', 'file', 'photo', 'voice'])).toEqual([
       { kind: 'photo', available: true },
       { kind: 'voice', available: true },
-      { kind: 'file', available: false },
+      { kind: 'file', available: true },
       { kind: 'text', available: true },
     ]);
     expect(answerButtons(['photo'])).toEqual([{ kind: 'photo', available: true }]);

@@ -1,3 +1,4 @@
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
@@ -24,6 +25,16 @@ function initialParts(sub: Submission | null): LocalPart[] {
   return keptFiles(sub).map((f) => ({ key: f.id, kind: f.kind, uri: null, storagePath: f.storagePath, mimeType: f.mimeType, fileName: null, bytes: f.bytes, durationSeconds: f.durationSeconds, state: 'uploaded', error: null, retryable: true }));
 }
 
+/** What the phone's file picker offers: the types the `homework` bucket takes for a file (PDF, Word, Excel, PowerPoint, text, pictures). */
+const FILE_PICKER_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'image/*',
+];
+
 const BLOCK_KEY: Record<HandInBlock, 'hw.block.uploading' | 'hw.block.notUploaded' | 'hw.block.tooMany' | 'hw.block.textTooLong' | 'hw.block.empty'> = {
   uploading: 'hw.block.uploading',
   not_uploaded: 'hw.block.notUploaded',
@@ -33,8 +44,7 @@ const BLOCK_KEY: Record<HandInBlock, 'hw.block.uploading' | 'hw.block.notUploade
 };
 
 /**
- * The answer being worked on: the parts (a photo from the library, a voice note from the recorder; a file waits for the
- * next APK), the written answer, Save draft and Hand in.
+ * The answer being worked on: the parts (a photo from the library, a voice note from the recorder, a file from the phone), the written answer, Save draft and Hand in.
  *
  * A part is uploaded the moment it is added, to `<center>/<person>/<submission>/<id>.<ext>` (the draft is created first
  * when there is none yet, so the path has a submission), and then registered with the draft right away, so leaving the
@@ -199,6 +209,20 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
     }
   };
 
+  const pickFile = async () => {
+    setError(null);
+    setNotice(null);
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({ type: FILE_PICKER_TYPES, multiple: false, copyToCacheDirectory: true });
+      const asset = picked.canceled ? null : picked.assets[0];
+      if (!asset) return;
+      addPart({ kind: 'file', uri: asset.uri, fileName: asset.name ?? null, mimeType: asset.mimeType ?? null, bytes: asset.size ?? null, durationSeconds: null });
+    } catch (err) {
+      if (err instanceof AppError) logError('attach a file', err);
+      setError({ message: err instanceof AppError ? err.userMessage : `${t('hw.filePickFailed')} ${report(err, 'attach a file').userMessage}`, retry: () => void pickFile() });
+    }
+  };
+
   const blockFor = (handingIn: boolean): HandInBlock | null => {
     const block = handInBlock({ parts: partsRef.current, text: textRef.current, maxFiles: assignment.maxFiles, textAllowed });
     // An empty draft can still be saved when the draft exists (the text was cleared); handing in needs an answer.
@@ -298,7 +322,7 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
           if (b.kind === 'photo') return <Button key={b.kind} label={t('hw.choosePhoto')} icon="image-outline" tone="secondary" size="md" fill={false} disabled={full || working} onPress={() => void pickPhoto()} />;
           if (b.kind === 'voice') return <Button key={b.kind} label={t('hw.recordVoice')} icon="mic-outline" tone="secondary" size="md" fill={false} disabled={full || working || recording} onPress={() => setRecording(true)} />;
           if (b.kind === 'text') return writing ? null : <Button key={b.kind} label={t('hw.write')} icon="create-outline" tone="secondary" size="md" fill={false} disabled={working} onPress={() => setWriting(true)} />;
-          return <Button key={b.kind} label={t('hw.attachFile')} icon="attach-outline" tone="secondary" size="md" fill={false} disabled accessibilityHint={t('hw.attachFileSoon')} onPress={() => undefined} />;
+          return <Button key={b.kind} label={t('hw.attachFile')} icon="attach-outline" tone="secondary" size="md" fill={false} disabled={full || working || !b.available} accessibilityHint={b.available ? undefined : t('hw.attachFileSoon')} onPress={() => void pickFile()} />;
         })}
       </Row>
       {buttons.some((b) => !b.available) ? (
@@ -306,7 +330,7 @@ export function AnswerEditor({ item, viewer, sub, centerId, learnerName, audio, 
           {t('hw.attachFileSoon')}
         </Txt>
       ) : null}
-      {buttons.some((b) => b.kind === 'photo' || b.kind === 'voice') ? (
+      {buttons.some((b) => b.kind === 'photo' || b.kind === 'voice' || b.kind === 'file') ? (
         <Txt variant="caption" color="muted" style={{ fontFamily: fonts.body }}>
           {assignment.maxFiles === 1 ? t('hw.maxPartsOne') : t('hw.maxParts', { n: assignment.maxFiles })}
         </Txt>

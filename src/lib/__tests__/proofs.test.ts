@@ -5,6 +5,7 @@ import {
   acceptedProofMethods,
   canWithdraw,
   DEFAULT_POLICY,
+  fitLongestSide,
   formatFileSize,
   newestProofFirst,
   openableFiles,
@@ -33,7 +34,7 @@ const input = { method: 'check', amount: '250', date: '10/12/2026', reference: '
 
 describe('which ways of paying a proof can be sent for', () => {
   const answer = (methods: unknown[]) => parseMemberMethods({ environment: 'production', methods });
-  it('takes the offline methods the community lists, in its order, once each, and never Zelle or card', () => {
+  it('takes the offline methods and Zelle the community lists, in its order, once each, and never a card', () => {
     const list = answer([
       { key: 'card', family: 'provider_checkout', provider: 'stripe', mode: 'live', sort: 10 },
       { key: 'zelle', family: 'reported_transfer', instructions: {}, report: { available: true }, sort: 20 },
@@ -42,7 +43,22 @@ describe('which ways of paying a proof can be sent for', () => {
       { key: 'check2', family: 'instructions', method: 'check', instructions: {}, sort: 50 },
       { key: 'daf', family: 'instructions', method: 'daf', instructions: {}, sort: 60 },
     ]);
-    expect(acceptedProofMethods(list)).toEqual(['check', 'cash', 'daf']);
+    expect(acceptedProofMethods(list)).toEqual(['zelle', 'check', 'cash', 'daf']);
+  });
+  it('leaves Zelle out when the community does not list it, and counts it once', () => {
+    const without = answer([{ key: 'check', family: 'instructions', method: 'check', instructions: {}, sort: 1 }]);
+    expect(acceptedProofMethods(without)).toEqual(['check']);
+    const twice = answer([
+      { key: 'zelle', family: 'reported_transfer', instructions: {}, report: { available: false }, sort: 1 },
+      { key: 'zelle', family: 'reported_transfer', instructions: {}, report: { available: true }, sort: 2 },
+    ]);
+    expect(acceptedProofMethods(twice)).toEqual(['zelle']);
+  });
+  it('asks for a Zelle confirmation number and, by default, needs no photo for Zelle', () => {
+    expect(referenceLabelKey('zelle')).toBe('proof.ref.zelle');
+    expect(proofNeeded(DEFAULT_POLICY, 'zelle')).toBe(false);
+    expect(proofNeeded({ ...DEFAULT_POLICY, requiredMethods: ['zelle'] }, 'zelle')).toBe(true);
+    expect(validateProofFiles(0, 'zelle', DEFAULT_POLICY)).toBeNull();
   });
   it('is empty when the community takes none, or when nothing is known', () => {
     expect(acceptedProofMethods(answer([{ key: 'card', family: 'provider_checkout', provider: 'stripe', mode: 'live', sort: 1 }]))).toEqual([]);
@@ -277,5 +293,21 @@ describe("a pledge's story", () => {
       { kind: 'proof', proof_id: 'c', state: 'needs_info', covered_cents: 100, sent_on: '2026-08-04T00:00:00Z', files: [] },
     ])?.items ?? [];
     expect(pledgeTimeline({ pledged_at: '2026-07-01T00:00:00Z', status: 'open', closed_at: null }, evidence, [], money, name).map((e) => e.key)).toEqual(['pledge.history.pledged', 'pledge.history.rejected', 'pledge.history.withdrawn', 'pledge.history.needs']);
+  });
+});
+
+describe('the size a photo is saved at', () => {
+  it('keeps a photo that is already small enough', () => {
+    expect(fitLongestSide(1600, 1200)).toBeNull();
+    expect(fitLongestSide(2000, 2000)).toBeNull();
+  });
+  it('shrinks the longest side to 2000 and lets the other side follow', () => {
+    expect(fitLongestSide(4032, 3024)).toEqual({ width: 2000 });
+    expect(fitLongestSide(3024, 4032)).toEqual({ height: 2000 });
+    expect(fitLongestSide(2001, 2001)).toEqual({ width: 2000 });
+  });
+  it('leaves a photo alone when its size is not known', () => {
+    expect(fitLongestSide(0, 0)).toBeNull();
+    expect(fitLongestSide(Number.NaN, 3000)).toBeNull();
   });
 });
