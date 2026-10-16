@@ -14,6 +14,21 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.29.0 — 2026-10-16 · over-the-air (runtime 5)
+
+- **One way to say "I paid another way", everywhere.** Choosing the way to pay (Zelle, cash, check, bank transfer ...), the date, the reference and the payment
+  confirmation to attach is now the same form on every screen. From Giving, an opportunity's Pay sheet and a labh's Pay sheet offer "I paid another way": the
+  pledge is saved once, then the form opens bound to it with the amount locked (an opportunity or a labh with several pledges goes the way of Open pledges with exactly
+  those pledges chosen). Nobody picks the opportunity again. Also on the Pay sheet of Pay open balance, Family pledges, an RSVP and its tickets, a store order and a
+  Pathshala fee.
+- **No more "I sent it" without a confirmation.** The Zelle "I sent it" report is no longer reachable from the Pay sheet, the Give tab or the Pathshala office
+  instructions; under Zelle the button is the same "I paid another way". The old report screen and the list of earlier Zelle reports stay, so nothing already sent is lost.
+- **If the pledge is saved but the form does not open (or the member leaves, or sending fails),** the screen says so in words, keeps the pledge, and "Add my confirmation"
+  / Try again reuses it. A second pledge is never made.
+- **"Proof" is now "payment confirmation"** in everything a member reads (button labels, titles, notices, errors, accessibility labels, empty states and the camera
+  permission text for the next build). Internal names and the text keys are unchanged; the app never relies on the database's wording to decide anything.
+- JavaScript only; needs no new database function (it uses `submit_payment_proof` with the entries `opportunity`, `labh` and `pathshala_fee`, already in connect-crm 0866).
+
 ## 1.28.1 — 2026-10-16 · over-the-air (runtime 5)
 
 - **"I paid another way" is no longer missing without a word.** When the community has not set up cash, check or bank transfer, Pledges now says so ("Your community has

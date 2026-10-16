@@ -50,7 +50,7 @@ export function money(cents: number): string {
  * Opens the Pay sheet for Pathshala fee pledges (context `pathshala`: "Fee paid" afterwards, never a donation). With
  * `office`, "Pay at the office instead" sits beside the online payment (only when the term allows it, plan P18).
  */
-export function payFees(p: { amountCents: number; pledgeIds: string[]; forLabel: string; householdId?: string | null; office?: { label: string; run: () => void } | null }): Promise<PaymentOutcome> {
+export function payFees(p: { amountCents: number; pledgeIds: string[]; forLabel: string; householdId?: string | null; office?: { label: string; run: () => void } | null; paidAnotherWay?: () => void }): Promise<PaymentOutcome> {
   return startPayment({
     amountCents: p.amountCents,
     forLabel: p.forLabel,
@@ -58,6 +58,7 @@ export function payFees(p: { amountCents: number; pledgeIds: string[]; forLabel:
     householdId: p.householdId,
     context: 'pathshala',
     alternative: p.office ? { label: p.office.label, run: p.office.run, withOnline: true } : undefined,
+    paidAnotherWay: p.paidAnotherWay,
   });
 }
 

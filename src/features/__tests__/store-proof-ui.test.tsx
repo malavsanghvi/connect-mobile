@@ -127,7 +127,7 @@ const press = async (tree: ReactTestRenderer, label: string): Promise<void> => {
 const lastSheet = (): Record<string, unknown> => mockSheet.mock.calls[mockSheet.mock.calls.length - 1][0];
 
 const PAID = 'I already paid another way';
-const HELD = 'Your order is held. It is released for pickup once the treasury team has checked your proof.';
+const HELD = 'Your order is held. It is released for pickup once the treasury team has checked your confirmation.';
 
 beforeEach(() => {
   for (const m of [mockWindows, mockStartOrder, mockSubmitOrder, mockPledgeFor, mockGetPledge, mockStartPayment, mockSaved, mockSheet, mockDismissTo]) m.mockReset();
@@ -146,14 +146,14 @@ afterEach(() => {
 });
 
 describe('"I already paid another way" at store checkout', () => {
-  it('sits next to the pay button, with the held-order words, when proofs are on and an offline way is taken', async () => {
+  it('sits next to the pay button, with the held-order words, when confirmations are on and an offline way is taken', async () => {
     const tree = await open();
     expect(hasButton(tree, PAID)).toBe(true);
     expect(hasButton(tree, 'Pay $42.50')).toBe(true);
     expect(texts(tree)).toContain(HELD);
   });
 
-  it('is hidden, not disabled, when proofs are off or the community takes no offline way', async () => {
+  it('is hidden, not disabled, when confirmations are off or the community takes no offline way', async () => {
     mockSetup.value = null;
     const tree = await open();
     expect(hasButton(tree, PAID)).toBe(false);
@@ -176,16 +176,16 @@ describe('"I already paid another way" at store checkout', () => {
     expect(mockPledgeFor).toHaveBeenCalledWith('o1');
     // The saving screen says it was placed and held, never "pay at pickup".
     const job = mockSaved.mock.calls[0][0];
-    expect(job.cta.label).toBe('Add my proof');
-    expect(job.result()).toBe('Order S-0042 is placed and held. Next you send your proof of payment.');
+    expect(job.cta.label).toBe('Add my confirmation');
+    expect(job.result()).toBe('Order S-0042 is placed and held. Next you send your payment confirmation.');
     const sheet = lastSheet();
     expect(sheet).toMatchObject({ visible: true, entry: 'store', entryRef: 'o1', lockedPledgeId: 'pl1', centerId: 'c1', householdId: 'h1', today: '2026-10-16' });
     expect((sheet.pledges as { id: string; amount_cents: number; title: string }[]).map((p) => [p.id, p.amount_cents, p.title])).toEqual([['pl1', 4250, 'Store order S-0042']]);
     expect(texts(tree)).toContain('Order S-0042 is placed');
-    expect(mentions(tree, /^Your order is held\. It is released for pickup once the treasury team has checked your proof\. Its pledge of \$42\.50/)).toBe(true);
+    expect(mentions(tree, /^Your order is held\. It is released for pickup once the treasury team has checked your confirmation\. Its pledge of \$42\.50/)).toBe(true);
   });
 
-  it('is told apart from "pay at pickup": that one never asks for a pledge or a proof', async () => {
+  it('is told apart from "pay at pickup": that one never asks for a pledge or a confirmation', async () => {
     const tree = await open();
     await press(tree, 'Pay $42.50');
     const req = mockStartPayment.mock.calls[0][0] as { alternative: { label: string; run: () => void } };
@@ -198,12 +198,32 @@ describe('"I already paid another way" at store checkout', () => {
     expect(mockSheet).not.toHaveBeenCalled();
   });
 
+  it('is also on the Pay sheet (and under Zelle there): the same road as the button on the cart, with the order held and its pledge confirmed', async () => {
+    const tree = await open();
+    await press(tree, 'Pay $42.50');
+    const req = mockStartPayment.mock.calls[0][0] as { paidAnotherWay?: () => void };
+    expect(typeof req.paidAnotherWay).toBe('function');
+    await act(async () => {
+      req.paidAnotherWay?.();
+    });
+    expect(mockStartOrder).toHaveBeenCalledTimes(1);
+    expect(mockPledgeFor).toHaveBeenCalledWith('o1');
+    expect(lastSheet()).toMatchObject({ visible: true, entry: 'store', entryRef: 'o1', lockedPledgeId: 'pl1' });
+  });
+
+  it('leaves it off the Pay sheet when no confirmation can be sent', async () => {
+    mockSetup.value = null;
+    const tree = await open();
+    await press(tree, 'Pay $42.50');
+    expect((mockStartPayment.mock.calls[0][0] as { paidAnotherWay?: unknown }).paidAnotherWay).toBeUndefined();
+  });
+
   it('keeps the placed order when the pledge cannot be set up, says so in words, and Try again does not place a second order', async () => {
-    mockPledgeFor.mockRejectedValueOnce(new AppError('Could not set up the payment proof for your order — please try again.', 'boom'));
+    mockPledgeFor.mockRejectedValueOnce(new AppError('Could not set up the payment confirmation for your order — please try again.', 'boom'));
     const tree = await open();
     await press(tree, PAID);
     expect(mockSheet).not.toHaveBeenCalled();
-    expect(mentions(tree, /^Your order S-0042 is placed and held, but its payment proof could not be set up\. No second order was placed\. Could not set up the payment proof for your order — please try again\.$/)).toBe(true);
+    expect(mentions(tree, /^Your order S-0042 is placed and held, but its payment confirmation could not be set up\. No second order was placed\. Could not set up the payment confirmation for your order — please try again\.$/)).toBe(true);
     await press(tree, 'Try again');
     expect(mockStartOrder).toHaveBeenCalledTimes(1);
     expect(mockSubmitOrder).toHaveBeenCalledTimes(1);
@@ -231,7 +251,7 @@ describe('"I already paid another way" at store checkout', () => {
       (lastSheet().onClose as () => void)();
     });
     expect(lastSheet().visible).toBe(false);
-    await press(tree, 'Send my proof');
+    await press(tree, 'Send my confirmation');
     expect(lastSheet().visible).toBe(true);
     expect(mockStartOrder).toHaveBeenCalledTimes(1);
     expect(mockPledgeFor).toHaveBeenCalledTimes(1);
@@ -239,13 +259,13 @@ describe('"I already paid another way" at store checkout', () => {
     expect(mockDismissTo).toHaveBeenCalledWith('/');
   });
 
-  it('says the proof is with the treasury team once it is sent', async () => {
+  it('says the confirmation is with the treasury team once it is sent', async () => {
     const tree = await open();
     await press(tree, PAID);
     await act(async () => {
       (lastSheet().onSent as () => void)();
     });
-    expect(texts(tree)).toContain('Your proof is with the treasury team. Your order is released for pickup once they have checked it.');
+    expect(texts(tree)).toContain('Your confirmation is with the treasury team. Your order is released for pickup once they have checked it.');
     await press(tree, 'Done');
     expect(mockDismissTo).toHaveBeenCalledWith('/');
   });

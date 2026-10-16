@@ -124,7 +124,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('Pledge details of a paid pledge with its proof', () => {
+describe('Pledge details of a paid pledge with its confirmation', () => {
   it('shows the amount, the status, the bank tick, the payment with its receipt, and what share of it went to this pledge', async () => {
     const tree = await open();
     const all = texts(tree);
@@ -134,12 +134,12 @@ describe('Pledge details of a paid pledge with its proof', () => {
     expect(all).toContain('Receipt R-2026-0412. It paid $160 of this pledge and the rest of the $250 went to your other pledges.');
   });
 
-  it('shows the proof as photos that open, the share it covered, and until when it can be opened', async () => {
+  it('shows the confirmation as photos that open, the share it covered, and until when it can be opened', async () => {
     const tree = await open();
-    expect(has(tree, 'Your proof')).toBe(true);
+    expect(has(tree, 'Your confirmation')).toBe(true);
     expect(pressables(tree, 'Open photo 1')).toHaveLength(1);
     expect(pressables(tree, 'Open photo 2')).toHaveLength(1);
-    expect(has(tree, 'Sent Oct 12, 2026. This proof covered $160 of this pledge.')).toBe(true);
+    expect(has(tree, 'Sent Oct 12, 2026. This confirmation covered $160 of this pledge.')).toBe(true);
     expect(has(tree, 'You can open this until Dec 31, 2033.')).toBe(true);
     await press(tree, 'Open photo 2');
     expect(mockOpen).toHaveBeenCalledWith('https://signed/c1/h1/pr1/b.jpg');
@@ -156,9 +156,9 @@ describe('Pledge details of a paid pledge with its proof', () => {
     expect(all[at('Confirmed by the bank statement.') + 1].trim()).toBe('Oct 20, 2026');
   });
 
-  it('links a proof to its place in My payment proofs', async () => {
+  it('links a confirmation to its place in My payment confirmations', async () => {
     const tree = await open();
-    await press(tree, 'See this proof');
+    await press(tree, 'See this confirmation');
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/payment-proofs', params: { proof: 'pr1' } });
   });
 });
@@ -181,7 +181,7 @@ describe('Pledge details after the years ran out', () => {
 });
 
 describe('Pledge details in other states', () => {
-  it('shows a proof that was not accepted with its reason, and a pledge with nothing paid', async () => {
+  it('shows a confirmation that was not accepted with its reason, and a pledge with nothing paid', async () => {
     const tree = await open({
       pledge: pledgeRow({ status: 'open', paid_cents: 0, closed_at: null, reconciled_at: null }),
       payments: [],
@@ -192,7 +192,7 @@ describe('Pledge details in other states', () => {
     expect(has(tree, 'You can open this until Nov 5, 2027.')).toBe(true);
   });
 
-  it('shows Soft credit for a pledge a proof covers in full, with nothing left to pay', async () => {
+  it('shows Soft credit for a pledge a confirmation covers in full, with nothing left to pay', async () => {
     const tree = await open({
       pledge: pledgeRow({ status: 'soft_credit', paid_cents: 0, soft_credit_cents: 16000, closed_at: null, reconciled_at: null }),
       payments: [],
@@ -208,11 +208,11 @@ describe('Pledge details in other states', () => {
     expect(has(tree, 'You can open this for as long as it stays on file.')).toBe(true);
   });
 
-  it('does not ask for proofs, or show them, when the Payment proofs add-on is off', async () => {
+  it('does not ask for confirmations, or show them, when the Payment confirmations add-on is off', async () => {
     mockModules.giving_proofs = false;
     const tree = await open();
     expect(mockEvidence).not.toHaveBeenCalled();
-    expect(has(tree, 'Your proof')).toBe(false);
+    expect(has(tree, 'Your confirmation')).toBe(false);
     expect(has(tree, 'Check 1048 · $250 on Oct 12, 2026')).toBe(true);
   });
 
@@ -224,10 +224,10 @@ describe('Pledge details in other states', () => {
   it('asks a child to ask a parent, and loads nothing', async () => {
     const tree = await open({ adult: false });
     expect(mockPledge).not.toHaveBeenCalled();
-    expect(has(tree, 'Your proof')).toBe(false);
+    expect(has(tree, 'Your confirmation')).toBe(false);
   });
 
-  it('says why when the proof cannot be loaded, with a retry, and still shows the pledge and its payment', async () => {
+  it('says why when the confirmation cannot be loaded, with a retry, and still shows the pledge and its payment', async () => {
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     mockPledge.mockResolvedValue(pledgeRow());
     mockPayments.mockResolvedValue([payment]);
@@ -238,7 +238,7 @@ describe('Pledge details in other states', () => {
     expect(has(tree, 'Check 1048 · $250 on Oct 12, 2026')).toBe(true);
     expect(texts(tree).some((t) => /Check your internet connection/.test(t))).toBe(true);
     expect(pressables(tree, 'Try again')).toHaveLength(1);
-    expect(has(tree, 'No proof was sent for this pledge.')).toBe(false);
+    expect(has(tree, 'No confirmation was sent for this pledge.')).toBe(false);
   });
 });
 
@@ -248,7 +248,7 @@ describe('"I paid another way" on a single pledge', () => {
   const partly = pledgeRow({ status: 'partially_paid', paid_cents: 6000, closed_at: null, reconciled_at: null });
   const lastSheet = () => mockSheet.mock.calls[mockSheet.mock.calls.length - 1][0];
 
-  it('is there on an open pledge and opens the proof sheet bound to that pledge', async () => {
+  it('is there on an open pledge and opens the confirmation sheet bound to that pledge', async () => {
     const tree = await open({ pledge: openPledge, payments: [], evidence: [] });
     expect(pressables(tree, 'I paid another way')).toHaveLength(1);
     expect(has(tree, NOTE)).toBe(false);
@@ -280,7 +280,7 @@ describe('"I paid another way" on a single pledge', () => {
     expect(has(tree, NOTE)).toBe(true);
   });
 
-  it('is hidden, with no note, when proofs are off for this person or the rules could not be read', async () => {
+  it('is hidden, with no note, when confirmations are off for this person or the rules could not be read', async () => {
     for (const reason of ['off', 'no_rules', 'loading'] as const) {
       mockSetup.value = null;
       mockSetup.reason = reason;

@@ -11,10 +11,11 @@ import { ZelleBlock } from './zelle';
 
 /**
  * "How to give": the ways this community takes a gift that are not paid on a provider's page, in its order, with its
- * instructions. Zelle (when the community's list has it) shows the address with a copy button and, when the database
- * can take it, "I sent it" (`onReport`). Everything else is the office's own instructions.
+ * instructions. Zelle (when the community's list has it) shows the address with a copy button and, when the screen can open the
+ * payment confirmation form for what is being paid, "I paid another way" (`onPaidAnotherWay`). Everything else is the office's own
+ * instructions.
  */
-export function HowToGive({ methods, tone = 'plain', onReport }: { methods: (ZelleMethod | InstructionMethod)[]; tone?: 'plain' | 'brown'; onReport?: () => void }) {
+export function HowToGive({ methods, tone = 'plain', onPaidAnotherWay }: { methods: (ZelleMethod | InstructionMethod)[]; tone?: 'plain' | 'brown'; onPaidAnotherWay?: () => void }) {
   const t = useT();
   const known = methods.filter((m) => m.kind === 'zelle' || METHODS.includes(m.method));
   const color = tone === 'brown' ? 'brownDark' : 'ink';
@@ -28,7 +29,7 @@ export function HowToGive({ methods, tone = 'plain', onReport }: { methods: (Zel
   return (
     <VStack gap={space.sm}>
       {known.map((m) => {
-        if (m.kind === 'zelle') return <ZelleBlock key={m.key} method={m} tone={tone} onReport={onReport} />;
+        if (m.kind === 'zelle') return <ZelleBlock key={m.key} method={m} tone={tone} onPaidAnotherWay={onPaidAnotherWay} />;
         const name = m.label ?? t(`howToGive.method.${m.method}` as StringKey);
         const lines = instructionLines(m).map((l) => ({ ...l, label: t(`howToGive.field.${l.field}` as StringKey) }));
         return (

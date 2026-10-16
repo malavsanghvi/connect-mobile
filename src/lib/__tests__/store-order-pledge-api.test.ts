@@ -34,17 +34,17 @@ describe('the pledge of a store order (app.store_order_pledge)', () => {
   });
 
   it('says the database\'s refusal in plain words, with the action in front, and logs it', async () => {
-    mockRpc.mockResolvedValue({ data: null, error: { code: '22023', message: 'This order is cancelled and cannot take a payment proof.' } });
+    mockRpc.mockResolvedValue({ data: null, error: { code: '22023', message: 'This order is cancelled and cannot take a payment confirmation.' } });
     const err = await storeOrderPledge(ORDER).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
-    expect((err as AppError).userMessage).toBe('Could not set up the payment proof for your order — This order is cancelled and cannot take a payment proof.');
+    expect((err as AppError).userMessage).toBe('Could not set up the payment confirmation for your order — This order is cancelled and cannot take a payment confirmation.');
     expect(logSpy).toHaveBeenCalled();
   });
 
   it('says a missing function as "not available yet", and a lost connection as such', async () => {
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function app.store_order_pledge in the schema cache' } });
     let err = await storeOrderPledge(ORDER).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe('Could not set up the payment proof for your order — this is not available yet. Nothing was changed.');
+    expect((err as AppError).userMessage).toBe('Could not set up the payment confirmation for your order — this is not available yet. Nothing was changed.');
     mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'Network request failed' } });
     err = await storeOrderPledge(ORDER).catch((e: unknown) => e);
     expect((err as AppError).userMessage).toContain('Check your internet connection');

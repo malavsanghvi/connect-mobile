@@ -109,10 +109,10 @@ export async function submitOrder(order: PlacedOrder): Promise<void> {
  */
 export async function storeOrderPledge(orderId: string): Promise<string> {
   const res = await supabase.rpc('store_order_pledge', { p_order: orderId });
-  if (res.error) throw actionError('Could not set up the payment proof for your order', 'set up the payment proof for your order', res.error);
+  if (res.error) throw actionError('Could not set up the payment confirmation for your order', 'set up the payment confirmation for your order', res.error);
   if (typeof res.data !== 'string' || res.data.length === 0) {
-    const err = new AppError('Could not set up the payment proof for your order — the answer was not what we expected. Please try again.', `store_order_pledge returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 200) ?? 'nothing'}`);
-    logError('set up the payment proof for your order', err);
+    const err = new AppError('Could not set up the payment confirmation for your order — the answer was not what we expected. Please try again.', `store_order_pledge returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 200) ?? 'nothing'}`);
+    logError('set up the payment confirmation for your order', err);
     throw err;
   }
   return res.data;

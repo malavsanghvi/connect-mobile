@@ -10,6 +10,9 @@ import { AmountTile, AvailabilityBar, CheckRow, DollarField, slotsText, TileGrid
 import { RecurringSummary, RecurringTerms } from '@/features/give/recurring-terms';
 import { availabilityFraction, endRule, multiTotalCents, opportunityFrequencies, opportunityKind, parseOptions, presetAmounts, slotsLine, startDateChoices, takenKeys, throughYear, type Availability, type EndChoice, type Frequency, type OpportunityOption } from '@/features/give/rules';
 import { runSaving, startPayment, type SavingStep } from '@/features/pay';
+import { confirmationTarget } from '@/features/pay/confirm-target';
+import { HeldPledgeConfirmation, type HeldPledges } from '@/features/pay/pledge-confirmation';
+import { useProofSetup } from '@/features/pay/proof-setup';
 import { createPledge, createRecurringGift, getOpportunity, opportunityAvailability, pledgeSourceFor, setRecurringMethod, type OpportunityWithCampaign, type PayMethodChoice } from '@/lib/api/giving';
 import { AppError, report } from '@/lib/errors';
 import { formatCents, formatCentsCompact, formatLongDate, parseAmountToCents } from '@/lib/format';
@@ -70,6 +73,9 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
   const [start, setStart] = useState<string>(starts[0] ?? '');
   const [end, setEnd] = useState<EndChoice>('until_stopped');
   const [method, setMethod] = useState<PayMethodChoice>('card');
+  // "I paid another way": the pledge(s) are saved first, then this screen holds them while the payment confirmation is added.
+  const proofs = useProofSetup();
+  const [held, setHeld] = useState<HeldPledges | null>(null);
 
   const tier = kind === 'tier' ? (options.find((o) => o.key === tierKey) ?? null) : null;
   const otherCents = parseAmountToCents(other) ?? 0;
@@ -95,14 +101,22 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
   const detail = kind === 'tier' ? (tier ? t('opp.tierSponsor', { tier: tier.label }) : '') : kind === 'multi' ? multiPicked.map((o) => o.label).join(', ') : '';
   const invalidMessage = belowMin ? t('opp.minimum', { amount: formatCents(min) }) : kind === 'multi' ? t('opp.selectPujans') : t('opp.chooseAmount');
 
-  const commit = () => {
+  /**
+   * Save the pledge(s) through the Saving screen. With `forConfirmation` ("I paid another way"), the same steps, then the saved pledges are
+   * held on this screen and the payment confirmation form opens for them. The pledge is made once: the Saving screen's Try again goes on
+   * from the step that failed, and the held screen reopens the form for the pledge it holds.
+   */
+  const commit = (forConfirmation = false) => {
     if (!member?.household || !center) return;
     if (!canAct) return setError(invalidMessage);
+    const setup = forConfirmation ? proofs.setup : null;
+    if (forConfirmation && !setup) return setError(t('payconf.unavailable'));
     setError(null);
     const household = member.household;
     // One pledge per multi item (each item is taken by one family); otherwise one pledge.
     const pieces: { amountCents: number; option: OpportunityOption | null }[] = kind === 'multi' ? multiPicked.map((o) => ({ amountCents: o.amountCents, option: o })) : [{ amountCents: amount, option: tier }];
     const numbers: string[] = [];
+    const ids: string[] = [];
     const steps: SavingStep[] = [];
     if (kind === 'multi' || kind === 'tier' || opp.quantity_available != null) {
       steps.push({
@@ -136,6 +150,7 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
             opportunityOption: p.option?.key ?? null,
           });
           numbers.push(pledge.pledge_number ?? '');
+          ids.push(pledge.id);
           invalidate();
         },
       });
@@ -144,9 +159,14 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
     runSaving({
       title: t('opp.savingTitle'),
       steps,
-      result: () => t(numbers.length > 1 ? 'opp.savedResultMany' : 'opp.savedResult', { pledge: numbers.filter(Boolean).join(', '), amount: formatCents(amount) }),
-      cta: { label: t('opp.seePledges'), onPress: () => router.replace('/pledges') },
-    }).catch((err: unknown) => setError(report(err, 'save your pledge').userMessage));
+      result: () => (forConfirmation ? t('payconf.savedResult', { numbers: numbers.filter(Boolean).join(', '), amount: formatCents(amount) }) : t(numbers.length > 1 ? 'opp.savedResultMany' : 'opp.savedResult', { pledge: numbers.filter(Boolean).join(', '), amount: formatCents(amount) })),
+      cta: forConfirmation ? { label: t('payconf.cta'), onPress: () => undefined } : { label: t('opp.seePledges'), onPress: () => router.replace('/pledges') },
+    })
+      .then((outcome) => {
+        if (!setup || !outcome.ok || ids.length === 0) return;
+        setHeld({ target: confirmationTarget({ kind: 'opportunity', refId: opp.id, pledgeIds: ids, title: detail ? `${opp.name} · ${detail}` : opp.name }), setup, numbers, amountCents: amount });
+      })
+      .catch((err: unknown) => setError(report(err, 'save your pledge').userMessage));
   };
 
   const commitRecurring = () => {
@@ -200,9 +220,13 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
       amountCents: amount,
       forLabel: detail ? `${opp.name} · ${detail}` : opp.name,
       context: 'opportunity',
-      alternative: { label: t('pay.pledgeInstead', { amount: formatCents(amount) }), run: commit },
+      alternative: { label: t('pay.pledgeInstead', { amount: formatCents(amount) }), run: () => commit() },
+      // Offered when the community takes an offline way and the confirmation form can open: the same form as on Family pledges.
+      paidAnotherWay: proofs.setup ? () => commit(true) : undefined,
     }).catch((err: unknown) => setError(report(err, 'open the payment sheet').userMessage));
   };
+
+  if (held) return <HeldPledgeConfirmation held={held} onDone={() => router.replace('/pledges')} />;
 
   return (
     <VStack gap={14}>
@@ -321,7 +345,8 @@ function OpportunityBody({ opp, availability }: { opp: OpportunityWithCampaign; 
             <>
               <Checkbox label={t('opp.showName')} checked={showName} onChange={setShowName} disabled={!opp.allow_anonymous} />
               {error ? <Banner tone="error" message={error} /> : null}
-              <Button label={t('opp.commit', { amount: formatCents(amount) })} onPress={commit} disabled={!canAct} />
+              {proofs.error ? <Banner tone="error" message={proofs.error.userMessage} action={{ label: t('common.retry'), onPress: proofs.reload }} /> : null}
+              <Button label={t('opp.commit', { amount: formatCents(amount) })} onPress={() => commit()} disabled={!canAct} />
               <Button label={t('opp.payNow', { amount: formatCents(amount) })} tone="outlineBlack" size="md" onPress={payNow} disabled={!canAct} />
               <Txt variant="caption" color="muted" center style={{ fontFamily: fonts.body }}>
                 {t('opp.footnote')}

@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { Screen } from '@/components/screen';
@@ -8,12 +9,14 @@ import { AvailabilityBar, Heading, slotsText, TintTile } from '@/features/give/p
 import { availabilityFraction, fromAmountCents, opportunityKind, slotsLine } from '@/features/give/rules';
 import { startPayment } from '@/features/pay';
 import { HowToGive } from '@/features/pay/how-to-give';
-import { canReportZelle, otherMethods, type PaymentMethods } from '@/features/pay/methods';
+import { otherMethods, type PaymentMethods } from '@/features/pay/methods';
+import { ProofSheet, type ProofSheetPledge } from '@/features/pay/proof-sheet';
+import { useProofSetup } from '@/features/pay/proof-setup';
 import { ZelleReports } from '@/features/pay/zelle';
 import type { PaymentReport } from '@/features/pay/zelle-report';
 import { isBoliOpen, listBolis } from '@/lib/api/bolis';
 import { listPaymentReports, loadPaymentMethods } from '@/lib/api/payments';
-import { listOpenPledges, listOpportunitiesWithAvailability, loadGiveSummary, type GiveSummary, type OpportunityListItem } from '@/lib/api/giving';
+import { listOpenPledges, listOpportunitiesWithAvailability, loadGiveSummary, type GiveSummary, type OpenPledge, type OpportunityListItem } from '@/lib/api/giving';
 import { AppError, logError, report } from '@/lib/errors';
 import { formatCents, formatCentsCompact } from '@/lib/format';
 import { useLoad } from '@/lib/use-load';
@@ -116,11 +119,16 @@ async function loadHowToGive(centerId: string, householdId: string): Promise<Non
   return { ...loaded, reports };
 }
 
-type GiveBodyProps = { howToGive: HowToGiveState; summary: GiveSummary | null; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: { id: string; pledge_number: string | null }[]; map: ModuleMap; onRetry: () => void };
+type GiveBodyProps = { howToGive: HowToGiveState; summary: GiveSummary | null; opps: OpportunityListItem[]; openDigital: number; inPerson: number; openPledges: OpenPledge[]; map: ModuleMap; onRetry: () => void };
 
 function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges, map, onRetry }: GiveBodyProps) {
   const t = useT();
   const router = useRouter();
+  const { member, center } = useApp();
+  // "I paid another way" (the Pay sheet, and Zelle under How to give): the same payment confirmation form as on Family pledges, for all open pledges.
+  const proofs = useProofSetup();
+  const [proofOpen, setProofOpen] = useState(false);
+  const offerForm = !!proofs.setup && openPledges.length > 0;
   const bolisCard = isGiveSectionVisible(map, 'bolis') ? <BolisCard openDigital={openDigital} inPerson={inPerson} /> : null;
   // Giving switched off (bolis only): just the bolis card.
   if (!summary || !isGiveSectionVisible(map, 'summary')) return <VStack gap={14}>{bolisCard}</VStack>;
@@ -131,6 +139,7 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
       forLabel: ids.length === 1 && openPledges[0].pledge_number ? t('pay.forPledge', { pledge: openPledges[0].pledge_number }) : t('pay.forPledges', { n: ids.length }),
       pledgeIds: ids,
       context: 'pledges',
+      paidAnotherWay: offerForm ? () => setProofOpen(true) : undefined,
     }).catch((err: unknown) => report(err, 'open the payment sheet'));
   };
   return (
@@ -198,7 +207,20 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
         ) : null}
       </Card>
 
+      {proofs.error ? <Banner tone="error" message={proofs.error.userMessage} action={{ label: t('common.retry'), onPress: proofs.reload }} /> : null}
       {summary.openCents > 0 ? <Button label={t('give.payOpen', { amount: formatCents(summary.openCents) })} onPress={payOpen} /> : null}
+      {offerForm && proofs.setup && center && member?.household ? (
+        <ProofSheet
+          visible={proofOpen}
+          onClose={() => setProofOpen(false)}
+          setup={proofs.setup}
+          centerId={center.id}
+          householdId={member.household.id}
+          today={member.today}
+          pledges={openPledges.map((p): ProofSheetPledge => ({ ...p, title: p.pledge_number ? t('pay.forPledge', { pledge: p.pledge_number }) : t('zelle.pledgeNoNumber'), number: p.pledge_number }))}
+          entry="open_pledges"
+        />
+      ) : null}
 
       {howToGive ? (
         <>
@@ -207,7 +229,7 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
             {howToGive.error ? (
               <Banner tone="error" message={howToGive.error} action={{ label: t('common.retry'), onPress: onRetry }} />
             ) : (
-              <HowToGive methods={otherMethods(howToGive.methods)} onReport={canReportZelle(howToGive.methods) && isModuleOn(map, 'giving_bank') ? () => router.push('/zelle-report') : undefined} />
+              <HowToGive methods={otherMethods(howToGive.methods)} onPaidAnotherWay={offerForm ? () => setProofOpen(true) : undefined} />
             )}
             <Txt variant="meta" color="muted">
               {t('howToGive.intro')}

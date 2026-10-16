@@ -128,8 +128,11 @@ async function uploadAll(attempt: ProofAttempt, args: { centerId: string; househ
   return out;
 }
 
-/** Where "I paid another way" was opened: the Open pledges screen, an RSVP's checkout, or a store order's checkout (the amount is then locked to its pledge). */
-export type ProofEntry = 'open_pledges' | 'rsvp' | 'store';
+/**
+ * Where "I paid another way" was opened: the Open pledges screen, or a checkout (an RSVP, a store order, an opportunity, a labh, a Pathshala
+ * fee), where the amount is locked to the checkout's one pledge. The database also takes 'membership' and 'other'; no screen sends them yet.
+ */
+export type ProofEntry = 'open_pledges' | 'rsvp' | 'store' | 'opportunity' | 'labh' | 'pathshala_fee';
 
 export type SubmitProofArgs = {
   attempt: ProofAttempt;
@@ -152,7 +155,7 @@ export type SubmitProofArgs = {
 /**
  * Send a proof: upload the files, then create the claim in ONE function call. Nothing is credited until the treasury
  * team checks it. Returns only when the database has answered with the proof; any failure is a plain-English AppError
- * ("Could not send your proof — ...") and the same attempt can be tried again.
+ * ("Could not send your confirmation — ...") and the same attempt can be tried again.
  */
 export async function submitPaymentProof(args: SubmitProofArgs): Promise<SubmittedProof> {
   if (!Number.isInteger(args.amountCents) || args.amountCents < 1) throw new AppError('Please enter the amount you paid.', `proof amount is not whole cents: ${args.amountCents}`);
@@ -173,11 +176,11 @@ export async function submitPaymentProof(args: SubmitProofArgs): Promise<Submitt
     p_files: uploaded.map((f) => ({ path: f.path, content_type: f.content_type, bytes: f.bytes })),
     p_key: args.attempt.key,
   });
-  if (res.error) throw actionError('Could not send your proof', 'send your proof', res.error);
+  if (res.error) throw actionError('Could not send your confirmation', 'send your confirmation', res.error);
   const parsed = parseSubmitted(res.data);
   if (!parsed) {
     const err = new AppError(en['proof.err.unconfirmed'], `submit_payment_proof returned an unusable answer: ${JSON.stringify(res.data)?.slice(0, 300) ?? 'nothing'}`);
-    logError('send your proof', err);
+    logError('send your confirmation', err);
     throw err;
   }
   return parsed;
@@ -194,19 +197,19 @@ function unusable(what: string, fn: string, data: unknown): AppError {
 /** The family's payment proofs, newest first (an adult of the family). */
 export async function myPaymentProofs(centerId: string, householdId: string): Promise<PaymentProof[]> {
   const res = await supabase.rpc('my_payment_proofs', { p_center: centerId, p_household: householdId });
-  if (res.error) throw actionError('Could not load your payment proofs', 'load your payment proofs', res.error);
+  if (res.error) throw actionError('Could not load your payment confirmations', 'load your payment confirmations', res.error);
   const parsed = parseProofs(res.data);
-  if (!parsed) throw unusable('load your payment proofs', 'my_payment_proofs', res.data);
-  if (parsed.skipped > 0) logError('load your payment proofs', new Error(`${parsed.skipped} proof(s) in an unknown shape or status were left out`));
+  if (!parsed) throw unusable('load your payment confirmations', 'my_payment_proofs', res.data);
+  if (parsed.skipped > 0) logError('load your payment confirmations', new Error(`${parsed.skipped} proof(s) in an unknown shape or status were left out`));
   return parsed.proofs;
 }
 
 /** Take a proof back while the treasury team has not decided: its pledges are Open again. */
 export async function withdrawPaymentProof(proofId: string): Promise<PaymentProof> {
   const res = await supabase.rpc('withdraw_payment_proof', { p_proof: proofId });
-  if (res.error) throw actionError('Could not take your proof back', 'take your proof back', res.error);
+  if (res.error) throw actionError('Could not take your confirmation back', 'take your confirmation back', res.error);
   const proof = parseProof(res.data);
-  if (!proof) throw unusable('take your proof back', 'withdraw_payment_proof', res.data);
+  if (!proof) throw unusable('take your confirmation back', 'withdraw_payment_proof', res.data);
   return proof;
 }
 
@@ -245,11 +248,11 @@ export async function pledgeEvidence(pledgeId: string): Promise<EvidenceItem[]> 
       }
       return [];
     }
-    throw actionError('Could not load your proof', 'load your proof', res.error);
+    throw actionError('Could not load your confirmation', 'load your confirmation', res.error);
   }
   const parsed = parseEvidence(res.data);
-  if (!parsed) throw unusable('load your proof', 'pledge_evidence', res.data);
-  if (parsed.skipped > 0) logError('load your proof', new Error(`${parsed.skipped} item(s) in an unknown shape were left out`));
+  if (!parsed) throw unusable('load your confirmation', 'pledge_evidence', res.data);
+  if (parsed.skipped > 0) logError('load your confirmation', new Error(`${parsed.skipped} item(s) in an unknown shape were left out`));
   return parsed.items;
 }
 
@@ -267,10 +270,10 @@ export async function loadProofPolicy(centerId: string): Promise<ProofPolicy | n
       }
       return null;
     }
-    throw actionError('Could not load the payment proof rules', 'load the payment proof rules', res.error);
+    throw actionError('Could not load the payment confirmation rules', 'load the payment confirmation rules', res.error);
   }
   const policy = parsePolicy(res.data);
-  if (!policy) throw unusable('load the payment proof rules', 'proof_policy', res.data);
+  if (!policy) throw unusable('load the payment confirmation rules', 'proof_policy', res.data);
   return policy;
 }
 
@@ -278,9 +281,9 @@ export async function loadProofPolicy(centerId: string): Promise<ProofPolicy | n
 export async function proofFileUrls(paths: readonly string[]): Promise<Map<string, string>> {
   if (paths.length === 0) return new Map();
   try {
-    return await signedUrls([...paths], BUCKETS.paymentEvidence, 'open your proof');
+    return await signedUrls([...paths], BUCKETS.paymentEvidence, 'open your confirmation');
   } catch (err) {
-    throw report(err, 'open your proof');
+    throw report(err, 'open your confirmation');
   }
 }
 

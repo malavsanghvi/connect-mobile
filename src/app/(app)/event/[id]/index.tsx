@@ -56,7 +56,7 @@ export default function EventScreen() {
       if (!row) throw new AppError(t('proof.pledgeGone'), `pledge ${pledgeId} is not visible after the RSVP was saved`);
       setProof({ pledge: { ...row, title: eventName, number: row.pledge_number }, rsvpId });
     } catch (err) {
-      setProofError({ message: report(err, 'open the payment proof form').userMessage, retry: () => void openProof(pledgeId, rsvpId, eventName) });
+      setProofError({ message: report(err, 'open the payment confirmation form').userMessage, retry: () => void openProof(pledgeId, rsvpId, eventName) });
     }
   };
   const state = useLoad(
@@ -378,7 +378,19 @@ function RsvpForm({ data, member, tz, onSync, onProof, proofsAvailable }: { data
       const result = pledgeNumber && committing ? `${t('sync.resultRsvp', { people })} ${t('sync.resultPledge', { pledge: pledgeNumber, amount: formatCents(total) })}` : t('sync.resultRsvp', { people });
       onSync((prev) => (prev ? { ...prev, at: prev.steps.length, result } : prev));
       if (committing && payNow && pledgeId) {
-        await startPayment({ amountCents: total, forLabel: event.name, pledgeId, pledgeNumber, context: 'rsvp' }, { payNotice, formatAmount: (c) => formatCents(c) });
+        const savedPledge = pledgeId;
+        await startPayment(
+          {
+            amountCents: total,
+            forLabel: event.name,
+            pledgeId,
+            pledgeNumber,
+            context: 'rsvp',
+            // The same payment confirmation form as "I paid another way" below: bound to this RSVP's pledge.
+            paidAnotherWay: proofsAvailable ? () => void onProof(savedPledge, res.rsvpId, event.name) : undefined,
+          },
+          { payNotice, formatAmount: (c) => formatCents(c) },
+        );
       }
       // "I paid another way": the pledge exists now; the sheet sends the proof for exactly that pledge.
       if (committing && payChoice === 'other' && pledgeId) {

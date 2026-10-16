@@ -45,15 +45,15 @@ export type ProofSheetProps = {
   today: string;
   /** The family's pledges: the preview picks among them, oldest first, exactly as the database does. */
   pledges: ProofSheetPledge[];
-  /** Where it was opened from: Open pledges, an RSVP's checkout or a store order's checkout (the amount is then locked to its pledge). */
+  /** Where it was opened from: Open pledges, or a checkout (an RSVP, a store order, an opportunity, a labh, a Pathshala fee): the amount is then locked to its pledge. */
   entry: ProofEntry;
   /** Open pledges: the pledges ticked on the screen. None = all of the family's open pledges. */
   initialPledgeIds?: string[];
-  /** RSVP and store: the one pledge the proof is bound to. */
+  /** A checkout: the one pledge the confirmation is bound to. */
   lockedPledgeId?: string;
-  /** RSVP: the RSVP's id. Store: the order's id. */
+  /** A checkout's own id: the RSVP's, the order's, the opportunity's, the special day's or the registration's. */
   entryRef?: string;
-  /** RSVP and store: what the pledge is for, e.g. "P-0587 · Harvest supper". */
+  /** A checkout: what the pledge is for, e.g. "P-0587 · Harvest supper". */
   forLabel?: string;
   /** The proof reached the database (the Sent screen is up). */
   onSent?: (sent: SubmittedProof) => void;
@@ -153,7 +153,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
       invalidate();
       onSent?.(result);
     } catch (err) {
-      setError(report(err, 'send your proof').userMessage);
+      setError(report(err, 'send your confirmation').userMessage);
     } finally {
       busy.current = false;
       setSending(false);
@@ -216,7 +216,7 @@ function SheetBody({ onClose, setup, centerId, householdId, today, pledges, entr
                       <Txt variant="meta" color="muted">
                         {t('proof.amountLockedLabel')}
                       </Txt>
-                      <Txt variant="bodyStrong">{t(entry === 'store' ? 'proof.amountLockedStore' : 'proof.amountLocked', { amount: formatCents(lockedCents) })}</Txt>
+                      <Txt variant="bodyStrong">{t(entry === 'store' ? 'proof.amountLockedStore' : entry === 'rsvp' ? 'proof.amountLocked' : 'proof.amountLockedPledge', { amount: formatCents(lockedCents) })}</Txt>
                     </View>
                   ) : (
                     <View style={{ gap: 4 }}>

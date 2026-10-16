@@ -179,17 +179,17 @@ describe('I paid another way: step 1', () => {
   it('stays on this step and says what is wrong in the field', async () => {
     const tree = await open();
     await type(tree, 'Amount you paid', '');
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     expect(hasText(tree, 'Step 1 of 3')).toBe(true);
     expect(hasText(tree, 'Enter the amount you paid.')).toBe(true);
     await type(tree, 'Amount you paid', '12.345');
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     expect(hasText(tree, 'Enter an amount like 250 or 250.00.')).toBe(true);
   });
 
-  it('tells a family with nothing left to pay that there is nothing for a proof to cover', async () => {
+  it('tells a family with nothing left to pay that there is nothing for a confirmation to cover', async () => {
     const tree = await open({ pledges: [{ ...FAMILY[0], status: 'soft_credit', soft_credit_cents: 30000 }] });
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     expect(mentions(tree, /^You have no open pledge that this can cover/)).toBe(true);
     expect(hasText(tree, 'Step 1 of 3')).toBe(true);
   });
@@ -201,37 +201,37 @@ describe('I paid another way: step 1', () => {
   });
 });
 
-describe('I paid another way: step 2, the proof', () => {
+describe('I paid another way: step 2, the confirmation', () => {
   it('needs a photo for a check, and does not move on without one', async () => {
     const tree = await open();
     await type(tree, 'Amount you paid', '250');
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     expect(hasText(tree, 'Step 2 of 3')).toBe(true);
-    expect(mentions(tree, /^Add at least one photo or file\. A proof is needed for Check\.$/)).toBe(true);
+    expect(mentions(tree, /^Add at least one photo or file\. A confirmation is needed for Check\.$/)).toBe(true);
     await press(tree, 'Next: check and send');
     expect(hasText(tree, 'Step 2 of 3')).toBe(true);
-    expect(hasText(tree, 'Add a photo or file of your receipt. A proof is needed for this way of paying.')).toBe(true);
+    expect(hasText(tree, 'Add a photo or file of your receipt. A confirmation is needed for this way of paying.')).toBe(true);
   });
 
   it('lets cash go on with no photo, because the community does not require one', async () => {
     const tree = await open();
     await press(tree, 'Cash');
     await type(tree, 'Amount you paid', '60');
-    await press(tree, 'Next: add your proof');
-    expect(mentions(tree, /^A proof is optional for Cash/)).toBe(true);
+    await press(tree, 'Next: add your confirmation');
+    expect(mentions(tree, /^A confirmation is optional for Cash/)).toBe(true);
     await press(tree, 'Next: check and send');
     expect(hasText(tree, 'Step 3 of 3')).toBe(true);
   });
 
   it('offers Take a photo, Choose a photo and Attach a file side by side', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     expect(['Take a photo', 'Choose a photo', 'Attach a file'].every((b) => hasButton(tree, b))).toBe(true);
   });
 
   it('adds photos from the library, saves each again without its location, shows them, takes one off, and stops at five', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockPick.mockResolvedValueOnce(photo('front.jpg'));
     await press(tree, 'Choose a photo');
     expect(mockPick).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 5 }));
@@ -252,7 +252,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('takes a photo with the camera after asking, and saves it again like any other', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockCamera.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///photos/shot.jpg', fileName: null, mimeType: 'image/jpeg', fileSize: 6_000_000 }] });
     await press(tree, 'Take a photo');
     expect(mockCameraPermission).toHaveBeenCalledTimes(1);
@@ -264,7 +264,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('adds nothing when the camera is closed without a photo', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockCamera.mockResolvedValueOnce({ canceled: true, assets: [] });
     await press(tree, 'Take a photo');
     expect(mockReencode).not.toHaveBeenCalled();
@@ -273,7 +273,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('explains a refused camera in words and offers the phone Settings', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockCameraPermission.mockResolvedValueOnce({ granted: false, status: 'denied' });
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     await press(tree, 'Take a photo');
@@ -286,7 +286,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('says so when the phone Settings cannot be opened', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockCameraPermission.mockResolvedValueOnce({ granted: false, status: 'denied' });
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     await press(tree, 'Take a photo');
@@ -297,7 +297,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('attaches PDFs as they are and pictures saved again, up to five together', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockDocument.mockResolvedValueOnce({
       canceled: false,
       assets: [
@@ -317,7 +317,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('refuses a PDF over 10 MB or a file of another kind, in words, and keeps the good ones', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockDocument.mockResolvedValueOnce({
       canceled: false,
       assets: [
@@ -333,7 +333,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('leaves out a photo that cannot be saved again, and never sends the original', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockReencode.mockRejectedValueOnce(new Error('cannot decode'));
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     mockPick.mockResolvedValueOnce(photo('broken.jpg'));
@@ -345,7 +345,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('tells a family that more files were chosen than fit, and adds the ones that do', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockDocument.mockResolvedValueOnce({ canceled: false, assets: ['a', 'b', 'c', 'd', 'e', 'f'].map((n) => ({ uri: `file:///cache/${n}.pdf`, name: `${n}.pdf`, mimeType: 'application/pdf', size: 1000 })) });
     await press(tree, 'Attach a file');
     expect(hasText(tree, '5 of 5 files')).toBe(true);
@@ -354,7 +354,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('says so when the files cannot be opened, and Try again opens them again', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockDocument.mockRejectedValueOnce(new Error('picker crashed'));
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     await press(tree, 'Attach a file');
@@ -366,7 +366,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('says why a photo was left out, in plain words, and keeps the good ones', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockPick.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///a.gif', fileName: 'a.gif', mimeType: 'image/gif', fileSize: 10 }, { uri: 'file:///photos/huge.jpg', fileName: 'huge.jpg', mimeType: 'image/jpeg', fileSize: 20 * 1024 * 1024 }, { uri: 'file:///photos/c.jpg', fileName: 'c.jpg', mimeType: 'image/jpeg', fileSize: 500 }] });
     await press(tree, 'Choose a photo');
     expect(hasText(tree, '1 of 5 files')).toBe(true);
@@ -375,7 +375,7 @@ describe('I paid another way: step 2, the proof', () => {
 
   it('says so when the photos cannot be opened, with a way to try again', async () => {
     const tree = await open();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockPick.mockRejectedValueOnce(new Error('picker crashed'));
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     await press(tree, 'Choose a photo');
@@ -389,7 +389,7 @@ describe('I paid another way: step 3 and sending', () => {
     const tree = await open(extra);
     await type(tree, 'Amount you paid', '250');
     await type(tree, 'Check number', '1048');
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockPick.mockResolvedValueOnce(photo());
     await press(tree, 'Choose a photo');
     await press(tree, 'Next: check and send');
@@ -406,13 +406,13 @@ describe('I paid another way: step 3 and sending', () => {
     expect(all.indexOf('Harvest supper')).toBeLessThan(all.indexOf('Building fund'));
     expect(all).not.toContain('Fall food drive sponsorship');
     expect(all).toEqual(expect.arrayContaining(['$160 of $160', 'Soft credit', '$90 of $300', '$210 still to pay']));
-    expect(mentions(tree, /^Nothing is paid until the treasury team checks your proof\./)).toBe(true);
+    expect(mentions(tree, /^Nothing is paid until the treasury team checks your confirmation\./)).toBe(true);
   });
 
   it('says what happens to an amount larger than the open pledges', async () => {
     const tree = await open({ pledges: [FAMILY[1]] });
     await type(tree, 'Amount you paid', '200');
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockPick.mockResolvedValueOnce(photo());
     await press(tree, 'Choose a photo');
     await press(tree, 'Next: check and send');
@@ -423,7 +423,7 @@ describe('I paid another way: step 3 and sending', () => {
     const tree = await toReview();
     let finish!: (s: SubmittedProof) => void;
     mockSubmit.mockImplementationOnce(() => new Promise<SubmittedProof>((resolve) => (finish = resolve)));
-    await press(tree, 'Send to the treasury team');
+    await press(tree, 'Send your confirmation');
     expect(mockSubmit).toHaveBeenCalledTimes(1);
     expect(hasText(tree, 'Sent to the treasury team')).toBe(false);
     expect(hasText(tree, 'Sending…')).toBe(true);
@@ -431,7 +431,7 @@ describe('I paid another way: step 3 and sending', () => {
       finish(sentAnswer());
     });
     expect(hasText(tree, 'Sent to the treasury team')).toBe(true);
-    expect(hasText(tree, 'Your $250 proof is in. 2 pledges now show Soft credit.')).toBe(true);
+    expect(hasText(tree, 'Your $250 confirmation is in. 2 pledges now show Soft credit.')).toBe(true);
     expect(mentions(tree, /^The treasury team looks at your photo/)).toBe(true);
     expect(mockInvalidate).toHaveBeenCalled();
   });
@@ -439,7 +439,7 @@ describe('I paid another way: step 3 and sending', () => {
   it('sends exactly what was entered: the method, whole cents, the date, the reference, all pledges as none, and the photo', async () => {
     const tree = await toReview();
     mockSubmit.mockResolvedValueOnce(sentAnswer());
-    await press(tree, 'Send to the treasury team');
+    await press(tree, 'Send your confirmation');
     expect(mockSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ centerId: 'c1', householdId: 'h1', method: 'check', amountCents: 25000, paidOn: '2026-10-15', reference: '1048', pledgeIds: null, entry: 'open_pledges', entryRef: null }),
     );
@@ -447,10 +447,10 @@ describe('I paid another way: step 3 and sending', () => {
     expect(sent.files.map((f) => f.uri)).toEqual(['file:///ready/check-front.jpg']);
   });
 
-  it('a second tap while it is being sent does not send a second proof', async () => {
+  it('a second tap while it is being sent does not send a second confirmation', async () => {
     const tree = await toReview();
     mockSubmit.mockImplementation(() => new Promise<SubmittedProof>(() => undefined));
-    const button = pressables(tree, 'Send to the treasury team')[0];
+    const button = pressables(tree, 'Send your confirmation')[0];
     await act(async () => {
       button.props.onPress();
       button.props.onPress();
@@ -460,9 +460,9 @@ describe('I paid another way: step 3 and sending', () => {
 
   it('shows why it was not sent, never "Sent", and the retry uses the same try', async () => {
     const tree = await toReview();
-    mockSubmit.mockRejectedValueOnce(new AppError('Could not send your proof — You already have 5 proofs waiting. Wait for the treasury team to check one, or take one back.', 'refused', '22023'));
-    await press(tree, 'Send to the treasury team');
-    expect(mentions(tree, /^Could not send your proof — You already have 5 proofs waiting/)).toBe(true);
+    mockSubmit.mockRejectedValueOnce(new AppError('Could not send your confirmation — You already have 5 confirmations waiting. Wait for the treasury team to check one, or take one back.', 'refused', '22023'));
+    await press(tree, 'Send your confirmation');
+    expect(mentions(tree, /^Could not send your confirmation — You already have 5 confirmations waiting/)).toBe(true);
     expect(hasText(tree, 'Sent to the treasury team')).toBe(false);
     expect(mockInvalidate).not.toHaveBeenCalled();
     mockSubmit.mockResolvedValueOnce(sentAnswer());
@@ -476,8 +476,8 @@ describe('I paid another way: step 3 and sending', () => {
     const tree = await toReview();
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     mockSubmit.mockRejectedValueOnce(new TypeError('Network request failed'));
-    await press(tree, 'Send to the treasury team');
-    expect(mentions(tree, /^We couldn't send your proof\. Check your internet connection and try again\.$/)).toBe(true);
+    await press(tree, 'Send your confirmation');
+    expect(mentions(tree, /^We couldn't send your confirmation\. Check your internet connection and try again\.$/)).toBe(true);
     expect(hasText(tree, 'Step 3 of 3')).toBe(true);
   });
 
@@ -486,16 +486,16 @@ describe('I paid another way: step 3 and sending', () => {
     const answer = parseSubmitted({ proof: { id: 'pr1', status: 'submitted', method: 'check', amount_cents: 25000, paid_on: '2026-10-12', created_at: '2026-10-12T14:14:00Z', covered: [] }, replayed: false, lookalikes: [{ kind: 'payment', label: 'Receipt R-1, check, Oct 12', certain: true }] });
     if (!answer) throw new Error('fixture');
     mockSubmit.mockResolvedValueOnce(answer);
-    await press(tree, 'Send to the treasury team');
+    await press(tree, 'Send your confirmation');
     expect(mentions(tree, /^This looks like something already on file: Receipt R-1, check, Oct 12\./)).toBe(true);
   });
 
-  it('opens My payment proofs from the sent screen', async () => {
+  it('opens My payment confirmations from the sent screen', async () => {
     const onClose = jest.fn();
     const tree = await toReview({ onClose });
     mockSubmit.mockResolvedValueOnce(sentAnswer());
-    await press(tree, 'Send to the treasury team');
-    await press(tree, 'See my payment proofs');
+    await press(tree, 'Send your confirmation');
+    await press(tree, 'See my payment confirmations');
     expect(onClose).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/payment-proofs');
   });
@@ -514,15 +514,15 @@ describe('I paid another way from an RSVP', () => {
     expect(() => input(tree, 'Amount you paid')).toThrow();
   });
 
-  it('sends the proof for that pledge only, with the RSVP as its entry', async () => {
+  it('sends the confirmation for that pledge only, with the RSVP as its entry', async () => {
     const tree = await openRsvp();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockPick.mockResolvedValueOnce(photo());
     await press(tree, 'Choose a photo');
     await press(tree, 'Next: check and send');
-    expect(mentions(tree, /^Your places are held\. This pledge shows Soft credit until the treasury team checks your proof\.$/)).toBe(true);
+    expect(mentions(tree, /^Your places are held\. This pledge shows Soft credit until the treasury team checks your confirmation\.$/)).toBe(true);
     mockSubmit.mockResolvedValueOnce(sentAnswer({ entry: 'rsvp', amount_cents: 16000 }));
-    await press(tree, 'Send proof and keep my places');
+    await press(tree, 'Send my confirmation and keep my places');
     expect(mockSubmit).toHaveBeenCalledWith(expect.objectContaining({ entry: 'rsvp', entryRef: 'rsvp-1', pledgeIds: ['rsvp-pledge'], amountCents: 16000 }));
     expect(hasText(tree, 'Sent to the treasury team')).toBe(true);
     expect(hasButton(tree, 'Done')).toBe(true);
@@ -542,15 +542,15 @@ describe('I paid another way from a store order', () => {
     expect(() => input(tree, 'Amount you paid')).toThrow();
   });
 
-  it('sends the proof for the pledge of the order only, with the order as its entry, and says the order is held', async () => {
+  it('sends the confirmation for the pledge of the order only, with the order as its entry, and says the order is held', async () => {
     const tree = await openStore();
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     mockPick.mockResolvedValueOnce(photo());
     await press(tree, 'Choose a photo');
     await press(tree, 'Next: check and send');
-    expect(mentions(tree, /^Your order is held\. It is released for pickup once the treasury team has checked your proof\.$/)).toBe(true);
+    expect(mentions(tree, /^Your order is held\. It is released for pickup once the treasury team has checked your confirmation\.$/)).toBe(true);
     mockSubmit.mockResolvedValueOnce(sentAnswer({ entry: 'store', amount_cents: 4250 }));
-    await press(tree, 'Send proof for my order');
+    await press(tree, 'Send my confirmation for my order');
     expect(mockSubmit).toHaveBeenCalledWith(expect.objectContaining({ entry: 'store', entryRef: 'order-1', pledgeIds: ['order-pledge'], amountCents: 4250 }));
     expect(hasText(tree, 'Sent to the treasury team')).toBe(true);
     expect(hasButton(tree, 'Done')).toBe(true);
@@ -607,8 +607,8 @@ describe('I paid another way: Zelle', () => {
     const tree = await open({ setup: zelleSetup });
     await press(tree, 'Zelle');
     await type(tree, 'Amount you paid', '100');
-    await press(tree, 'Next: add your proof');
-    expect(mentions(tree, /^A proof is optional for Zelle/)).toBe(true);
+    await press(tree, 'Next: add your confirmation');
+    expect(mentions(tree, /^A confirmation is optional for Zelle/)).toBe(true);
     await press(tree, 'Next: check and send');
     expect(hasText(tree, 'Step 3 of 3')).toBe(true);
     expect(hasText(tree, '$100 · Zelle')).toBe(true);
@@ -618,8 +618,8 @@ describe('I paid another way: Zelle', () => {
     const tree = await open({ setup: { ...zelleSetup, policy: { ...DEFAULT_POLICY, requiredMethods: ['check', 'zelle'] } } });
     await press(tree, 'Zelle');
     await type(tree, 'Amount you paid', '100');
-    await press(tree, 'Next: add your proof');
-    expect(mentions(tree, /^Add at least one photo or file\. A proof is needed for Zelle\.$/)).toBe(true);
+    await press(tree, 'Next: add your confirmation');
+    expect(mentions(tree, /^Add at least one photo or file\. A confirmation is needed for Zelle\.$/)).toBe(true);
     await press(tree, 'Next: check and send');
     expect(hasText(tree, 'Step 2 of 3')).toBe(true);
   });
@@ -628,10 +628,10 @@ describe('I paid another way: Zelle', () => {
     const tree = await open({ setup: zelleSetup });
     await press(tree, 'Zelle');
     await type(tree, 'Amount you paid', '100');
-    await press(tree, 'Next: add your proof');
+    await press(tree, 'Next: add your confirmation');
     await press(tree, 'Next: check and send');
     mockSubmit.mockResolvedValueOnce(sentAnswer({ method: 'zelle', amount_cents: 10000 }));
-    await press(tree, 'Send to the treasury team');
+    await press(tree, 'Send your confirmation');
     expect(mockSubmit).toHaveBeenCalledWith(expect.objectContaining({ method: 'zelle', amountCents: 10000, files: [] }));
   });
 });

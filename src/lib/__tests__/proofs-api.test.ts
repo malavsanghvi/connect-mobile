@@ -100,8 +100,8 @@ afterEach(() => {
   logSpy.mockRestore();
 });
 
-describe('one try at sending a proof', () => {
-  it('has a proof folder id (a uuid) and a confirmation key of 8 to 120 characters, new each time', () => {
+describe('one try at sending a confirmation', () => {
+  it('has a confirmation folder id (a uuid) and a confirmation key of 8 to 120 characters, new each time', () => {
     const a = newProofAttempt();
     const b = newProofAttempt();
     expect(a.proofId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -113,7 +113,7 @@ describe('one try at sending a proof', () => {
 });
 
 describe('uploading a photo', () => {
-  it('puts it in the payment-evidence bucket at <center>/<household>/<proof>/<random>.<ext> and describes it for the database', async () => {
+  it('puts it in the payment-evidence bucket at <center>/<household>/<confirmation>/<random>.<ext> and describes it for the database', async () => {
     mockUpload.mockResolvedValueOnce({ error: null });
     const up = await uploadProofFile({ centerId: C, householdId: H, proofId: 'p1', file: file('a') });
     expect(mockBucket).toHaveBeenCalledWith('payment-evidence');
@@ -166,7 +166,7 @@ describe('uploading a photo', () => {
   });
 });
 
-describe('sending a proof (app.submit_payment_proof)', () => {
+describe('sending a confirmation (app.submit_payment_proof)', () => {
   it('uploads the files first, then makes the claim in one call, with the confirmation key and the folder of the files', async () => {
     mockUpload.mockResolvedValue({ error: null });
     mockRpc.mockResolvedValueOnce({ data: { proof: proofRow(), replayed: false, lookalikes: [] }, error: null });
@@ -212,27 +212,27 @@ describe('sending a proof (app.submit_payment_proof)', () => {
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'You have no open pledge that this can cover.' } });
     const err = await submitPaymentProof(baseArgs()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
-    expect((err as AppError).userMessage).toBe('Could not send your proof — You have no open pledge that this can cover.');
+    expect((err as AppError).userMessage).toBe('Could not send your confirmation — You have no open pledge that this can cover.');
     expect(logSpy).toHaveBeenCalled();
   });
   it('says an adult must send it for a child, a missing function as "not available yet", and a lost connection as such', async () => {
     mockUpload.mockResolvedValue({ error: null });
-    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'Only an adult of the family can send a payment proof. Ask a parent to send it.' } });
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'Only an adult of the family can send a payment confirmation. Ask a parent to send it.' } });
     let err = await submitPaymentProof(baseArgs({ files: [] })).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe('Could not send your proof — Only an adult of the family can send a payment proof. Ask a parent to send it.');
+    expect((err as AppError).userMessage).toBe('Could not send your confirmation — Only an adult of the family can send a payment confirmation. Ask a parent to send it.');
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function app.submit_payment_proof in the schema cache' } });
     err = await submitPaymentProof(baseArgs({ files: [] })).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe('Could not send your proof — this is not available yet. Nothing was changed.');
+    expect((err as AppError).userMessage).toBe('Could not send your confirmation — this is not available yet. Nothing was changed.');
     mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'Network request failed' } });
     err = await submitPaymentProof(baseArgs({ files: [] })).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe("We couldn't send your proof. Check your internet connection and try again.");
+    expect((err as AppError).userMessage).toBe("We couldn't send your confirmation. Check your internet connection and try again.");
   });
-  it('does not say "sent" for an answer that is not a proof', async () => {
+  it('does not say "sent" for an answer that is not a confirmation', async () => {
     mockRpc.mockResolvedValueOnce({ data: { ok: true }, error: null });
     const err = await submitPaymentProof(baseArgs({ files: [] })).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe("We couldn't confirm that your proof was sent. Look under My payment proofs before you send it again.");
+    expect((err as AppError).userMessage).toBe("We couldn't confirm that your confirmation was sent. Look under My payment confirmations before you send it again.");
   });
-  it('a retry reuses the same folder and key and uploads only the files that did not go up, so it never sends two proofs', async () => {
+  it('a retry reuses the same folder and key and uploads only the files that did not go up, so it never sends two confirmations', async () => {
     mockUpload.mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ error: { message: 'Network request failed' } });
     const args = baseArgs({ files: [file('a'), file('b')] });
     const first = await submitPaymentProof(args).catch((e: unknown) => e);
@@ -261,38 +261,38 @@ describe('sending a proof (app.submit_payment_proof)', () => {
   });
 });
 
-describe('the family\'s proofs', () => {
+describe('the family\'s confirmations', () => {
   it('asks for them by community and household and reads the list', async () => {
     mockRpc.mockResolvedValueOnce({ data: [proofRow(), proofRow({ id: 'pr2', status: 'approved' })], error: null });
     const list = await myPaymentProofs(C, H);
     expect(mockRpc).toHaveBeenCalledWith('my_payment_proofs', { p_center: C, p_household: H });
     expect(list.map((p) => p.id)).toEqual(['pr1', 'pr2']);
   });
-  it('leaves out a proof it cannot read, logs it, and fails in plain words for an answer that is not a list', async () => {
+  it('leaves out a confirmation it cannot read, logs it, and fails in plain words for an answer that is not a list', async () => {
     mockRpc.mockResolvedValueOnce({ data: [proofRow(), { junk: 1 }], error: null });
     expect(await myPaymentProofs(C, H)).toHaveLength(1);
     expect(logSpy).toHaveBeenCalled();
     mockRpc.mockResolvedValueOnce({ data: { not: 'a list' }, error: null });
     const err = await myPaymentProofs(C, H).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe("We couldn't load your payment proofs — the answer was not what we expected. Please try again.");
+    expect((err as AppError).userMessage).toBe("We couldn't load your payment confirmations — the answer was not what we expected. Please try again.");
   });
   it('says a child must ask a parent, in the database\'s own words', async () => {
-    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'Only an adult of the family can see its payment proofs.' } });
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'Only an adult of the family can see its payment confirmations.' } });
     const err = await myPaymentProofs(C, H).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe('Could not load your payment proofs — Only an adult of the family can see its payment proofs.');
+    expect((err as AppError).userMessage).toBe('Could not load your payment confirmations — Only an adult of the family can see its payment confirmations.');
   });
-  it('takes a waiting proof back and returns it as the database now has it', async () => {
+  it('takes a waiting confirmation back and returns it as the database now has it', async () => {
     mockRpc.mockResolvedValueOnce({ data: proofRow({ status: 'withdrawn' }), error: null });
     const p = await withdrawPaymentProof('pr1');
     expect(mockRpc).toHaveBeenCalledWith('withdraw_payment_proof', { p_proof: 'pr1' });
     expect(p.status).toBe('withdrawn');
   });
   it('says so when it was already checked, so it cannot be taken back', async () => {
-    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'This proof was already checked, so it cannot be taken back.' } });
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'This confirmation was already checked, so it cannot be taken back.' } });
     const err = await withdrawPaymentProof('pr1').catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe('Could not take your proof back — This proof was already checked, so it cannot be taken back.');
+    expect((err as AppError).userMessage).toBe('Could not take your confirmation back — This confirmation was already checked, so it cannot be taken back.');
   });
-  it('looks up the receipt numbers of the payments proofs became, and shows the proofs without them when that fails', async () => {
+  it('looks up the receipt numbers of the payments confirmations became, and shows the confirmations without them when that fails', async () => {
     mockIn.mockResolvedValueOnce({ data: [{ id: 'pay1', receipt_number: 'R-2026-0412' }, { id: 'pay2', receipt_number: null }], error: null });
     expect(await proofReceipts(['pay1', 'pay2', 'pay1'])).toEqual(new Map([['pay1', 'R-2026-0412']]));
     expect(mockIn).toHaveBeenCalledWith('id', ['pay1', 'pay2']);
@@ -305,7 +305,7 @@ describe('the family\'s proofs', () => {
 });
 
 describe('answering the treasury team (app.answer_proof_question)', () => {
-  it('puts the new photos in the proof\'s own folder and sends them with the message', async () => {
+  it('puts the new photos in the confirmation\'s own folder and sends them with the message', async () => {
     mockUpload.mockResolvedValue({ error: null });
     mockRpc.mockResolvedValueOnce({ data: proofRow({ status: 'submitted' }), error: null });
     const attempt = newProofAttempt();
@@ -319,9 +319,9 @@ describe('answering the treasury team (app.answer_proof_question)', () => {
     expect(proof.status).toBe('submitted');
   });
   it('is not "sent" when the database refuses', async () => {
-    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'The treasury team is not waiting for an answer on this proof.' } });
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'The treasury team is not waiting for an answer on this confirmation.' } });
     const err = await answerProofQuestion({ proof: { id: 'pr1', householdId: H }, centerId: C, message: 'x', files: [], attempt: newProofAttempt() }).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe('Could not send your reply — The treasury team is not waiting for an answer on this proof.');
+    expect((err as AppError).userMessage).toBe('Could not send your reply — The treasury team is not waiting for an answer on this confirmation.');
   });
 });
 
@@ -341,22 +341,22 @@ describe('what a pledge keeps (app.pledge_evidence)', () => {
   it('says "You don\'t have access to this area" in the database\'s words for someone who may not see it', async () => {
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: "You don't have access to this area." } });
     const err = await pledgeEvidence(PL).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe("Could not load your proof — You don't have access to this area.");
+    expect((err as AppError).userMessage).toBe("Could not load your confirmation — You don't have access to this area.");
   });
 });
 
-describe('the community\'s proof rules (app.proof_policy)', () => {
+describe('the community\'s confirmation rules (app.proof_policy)', () => {
   it('reads them', async () => {
     mockRpc.mockResolvedValueOnce({ data: { required_methods: ['check'], retention_years: 9, legal_hold: true, reply_wait_days: 21, honour_event_entry: false }, error: null });
     expect(await loadProofPolicy(C)).toEqual({ requiredMethods: ['check'], retentionYears: 9, legalHold: true, replyWaitDays: 21, honourEventEntry: false });
     expect(mockRpc).toHaveBeenCalledWith('proof_policy', { p_center: C });
   });
-  it('is null on a portal without the function (proofs are hidden) and an error in plain words for anything else', async () => {
+  it('is null on a portal without the function (confirmations are hidden) and an error in plain words for anything else', async () => {
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: '42883', message: 'function app.proof_policy(uuid) does not exist' } });
     expect(await loadProofPolicy(C)).toBeNull();
     mockRpc.mockResolvedValueOnce({ data: 'nonsense', error: null });
     const err = await loadProofPolicy(C).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe("We couldn't load the payment proof rules — the answer was not what we expected. Please try again.");
+    expect((err as AppError).userMessage).toBe("We couldn't load the payment confirmation rules — the answer was not what we expected. Please try again.");
     expect(DEFAULT_POLICY.requiredMethods).toContain('check');
   });
 });
@@ -373,6 +373,6 @@ describe('opening the files (private links)', () => {
     expect(mockSigned).not.toHaveBeenCalled();
     mockSigned.mockResolvedValueOnce({ data: null, error: { message: 'Network request failed' } });
     const err = await proofFileUrls(['c/h/p/a.jpg']).catch((e: unknown) => e);
-    expect((err as AppError).userMessage).toBe("We couldn't open your proof. Check your internet connection and try again.");
+    expect((err as AppError).userMessage).toBe("We couldn't open your confirmation. Check your internet connection and try again.");
   });
 });

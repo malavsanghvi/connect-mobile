@@ -46,7 +46,7 @@ export function useProofSetup(): { setup: ProofSetup | null; reason: ProofReason
       return decideProofSetup(acceptedProofMethods(methods), policy);
     },
     [center?.id, householdId, on],
-    'check whether you can send a payment proof',
+    'check whether you can send a payment confirmation',
   );
   const reason: ProofReason = !on ? 'off' : (state.data?.reason ?? (state.error ? 'no_rules' : 'loading'));
   return { setup: on ? (state.data?.setup ?? null) : null, reason, error: on ? state.error : null, reload: () => void state.reload() };

@@ -116,9 +116,14 @@ export default function CartScreen() {
   const pay = () => {
     if (!(windows.data ?? []).length) return setError(t('store.noPickup'));
     setError(null);
-    startPayment({ amountCents: total, forLabel: t('store.payFor'), context: 'store', alternative: { label: t('store.placeUnpaid'), run: () => placeUnpaid() } }).catch((err: unknown) =>
-      setError(report(err, 'open the payment sheet').userMessage),
-    );
+    startPayment({
+      amountCents: total,
+      forLabel: t('store.payFor'),
+      context: 'store',
+      alternative: { label: t('store.placeUnpaid'), run: () => placeUnpaid() },
+      // The same payment confirmation form as everywhere: the order is placed and held, then the form opens for its pledge.
+      paidAnotherWay: proofs.setup ? () => placeUnpaid(true) : undefined,
+    }).catch((err: unknown) => setError(report(err, 'open the payment sheet').userMessage));
   };
 
   const giftLabel = (on: boolean) => (on ? t('store.giftPacked') : t('store.giftPack', { amount: formatCents(giftCents ?? 0, { alwaysCents: true }) }));

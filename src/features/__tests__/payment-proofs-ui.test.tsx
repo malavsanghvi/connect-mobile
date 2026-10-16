@@ -138,8 +138,8 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('My payment proofs', () => {
-  it('lists every proof newest first, with where it stands in words that never call a waiting proof paid', async () => {
+describe('My payment confirmations', () => {
+  it('lists every confirmation newest first, with where it stands in words that never call a waiting confirmation paid', async () => {
     const tree = await open([PAID, REJECTED, WAITING, NEEDS]);
     const all = texts(tree);
     expect(all.indexOf('$250 · Check 1048')).toBeLessThan(all.indexOf('$120 · Bank transfer'));
@@ -153,14 +153,14 @@ describe('My payment proofs', () => {
 
   it('says there is nothing yet, plainly', async () => {
     const tree = await open([]);
-    expect(has(tree, 'You have not sent a payment proof yet.')).toBe(true);
+    expect(has(tree, 'You have not sent a payment confirmation yet.')).toBe(true);
   });
 
-  it('opens a proof: the files, the pledges it covers oldest first with their shares, and what has happened', async () => {
+  it('opens a confirmation: the files, the pledges it covers oldest first with their shares, and what has happened', async () => {
     const tree = await open([WAITING]);
     await press(tree, '$250 · Check 1048. Sent Oct 12, 2026');
     const all = texts(tree);
-    expect(all).toEqual(expect.arrayContaining(['Proof, $250', 'Waiting for the treasury team', 'Your pledges show Soft credit. Nothing is paid until it is checked.']));
+    expect(all).toEqual(expect.arrayContaining(['Confirmation, $250', 'Waiting for the treasury team', 'Your pledges show Soft credit. Nothing is paid until it is checked.']));
     expect(all).toContain('Check 1048 · paid Oct 12, 2026');
     expect(all).toContain('Harvest supper · P-0587');
     expect(all).toContain('$160 of $160');
@@ -169,17 +169,17 @@ describe('My payment proofs', () => {
     expect(all.some((t) => t.includes('Sent by Adaeze.'))).toBe(true);
   });
 
-  it('opens straight to a proof from a pledge', async () => {
+  it('opens straight to a confirmation from a pledge', async () => {
     const tree = await open([WAITING, PAID], { proof: 'pr3' });
-    expect(has(tree, 'The treasury team checked your proof')).toBe(true);
+    expect(has(tree, 'The treasury team checked your confirmation')).toBe(true);
     expect(has(tree, 'Your payment is recorded and your pledges are updated. Receipt R-2026-0412 is in your giving history.')).toBe(true);
   });
 
-  it('shows why a proof was not accepted', async () => {
+  it('shows why a confirmation was not accepted', async () => {
     const tree = await open([REJECTED], { proof: 'pr4' });
-    expect(has(tree, 'This proof was not accepted')).toBe(true);
-    expect(has(tree, 'Reason: The photo does not show an amount. Your pledges are open again. You can send a new proof.')).toBe(true);
-    expect(hasButton(tree, 'Take this proof back')).toBe(false);
+    expect(has(tree, 'This confirmation was not accepted')).toBe(true);
+    expect(has(tree, 'Reason: The photo does not show an amount. Your pledges are open again. You can send a new confirmation.')).toBe(true);
+    expect(hasButton(tree, 'Take this confirmation back')).toBe(false);
   });
 
   it('asks a child to ask a parent and loads nothing', async () => {
@@ -190,41 +190,41 @@ describe('My payment proofs', () => {
 
   it('says why the list could not be loaded, with a retry', async () => {
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    mockList.mockRejectedValue(new AppError('Could not load your payment proofs — Only an adult of the family can see its payment proofs.', 'x', '42501'));
+    mockList.mockRejectedValue(new AppError('Could not load your payment confirmations — Only an adult of the family can see its payment confirmations.', 'x', '42501'));
     mockApp.member = { isAdult: true, household: { id: 'h1' }, members: [] };
     const tree = await render(<PaymentProofsScreen />);
-    expect(texts(tree).some((t) => t.startsWith('Could not load your payment proofs'))).toBe(true);
+    expect(texts(tree).some((t) => t.startsWith('Could not load your payment confirmations'))).toBe(true);
     expect(hasButton(tree, 'Try again')).toBe(true);
   });
 });
 
-describe('taking a proof back', () => {
+describe('taking a confirmation back', () => {
   it('asks first, then tells the database, and says so only after it answered', async () => {
     const tree = await open([WAITING], { proof: 'pr1' });
     mockConfirm.mockResolvedValueOnce(true);
     mockWithdraw.mockResolvedValueOnce(one({ ...WAITING, status: 'withdrawn' }));
-    await press(tree, 'Take this proof back');
-    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Take this proof back?', confirmLabel: 'Take it back', tone: 'danger' }));
+    await press(tree, 'Take this confirmation back');
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Take this confirmation back?', confirmLabel: 'Take it back', tone: 'danger' }));
     expect(mockWithdraw).toHaveBeenCalledWith('pr1');
-    expect(mockToast).toHaveBeenCalledWith('Your proof was taken back.');
+    expect(mockToast).toHaveBeenCalledWith('Your confirmation was taken back.');
     expect(mockInvalidate).toHaveBeenCalled();
   });
 
   it('does nothing when the family keeps it', async () => {
     const tree = await open([WAITING], { proof: 'pr1' });
     mockConfirm.mockResolvedValueOnce(false);
-    await press(tree, 'Take this proof back');
+    await press(tree, 'Take this confirmation back');
     expect(mockWithdraw).not.toHaveBeenCalled();
     expect(mockToast).not.toHaveBeenCalled();
   });
 
-  it('shows why when it cannot be taken back, and reads the proofs again so the screen shows where it stands', async () => {
+  it('shows why when it cannot be taken back, and reads the confirmations again so the screen shows where it stands', async () => {
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     const tree = await open([WAITING], { proof: 'pr1' });
     mockConfirm.mockResolvedValueOnce(true);
-    mockWithdraw.mockRejectedValueOnce(new AppError('Could not take your proof back — This proof was already checked, so it cannot be taken back.', 'x', '22023'));
-    await press(tree, 'Take this proof back');
-    expect(texts(tree).some((t) => t.startsWith('Could not take your proof back — This proof was already checked'))).toBe(true);
+    mockWithdraw.mockRejectedValueOnce(new AppError('Could not take your confirmation back — This confirmation was already checked, so it cannot be taken back.', 'x', '22023'));
+    await press(tree, 'Take this confirmation back');
+    expect(texts(tree).some((t) => t.startsWith('Could not take your confirmation back — This confirmation was already checked'))).toBe(true);
     expect(mockToast).not.toHaveBeenCalled();
     expect(mockInvalidate).toHaveBeenCalled();
   });

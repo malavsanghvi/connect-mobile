@@ -4,6 +4,9 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Screen } from '@/components/screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { Banner, Button } from '@/components/ui';
+import { confirmationTarget, type ConfirmationTarget } from '@/features/pay/confirm-target';
+import { PledgeConfirmation } from '@/features/pay/pledge-confirmation';
+import { useProofSetup } from '@/features/pay/proof-setup';
 import { chooseOfficePayment, loadRegistrationOptions, loadRegistrationTerms, previewRegistration, registerLearners } from '@/lib/api/pathshala';
 import type { Center, Member } from '@/lib/api/member';
 import { AppError, report } from '@/lib/errors';
@@ -90,6 +93,10 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
   const [paid, setPaid] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [office, setOffice] = useState<{ busy: boolean; error: string | null; chosen: OfficeChoice | null }>({ busy: false, error: null, chosen: null });
+  // "I paid another way" (the Pay sheet, and Zelle under the office's instructions): the same payment confirmation form as everywhere.
+  const proofs = useProofSetup();
+  const [confirm, setConfirm] = useState<{ target: ConfirmationTarget; householdId: string } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const answer = optionsState.data;
   const options: RegistrationOptions | null = answer && answer.kind === 'answered' ? answer.options : null;
@@ -276,6 +283,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
       householdId: options.household.id,
       forLabel: pay.forLabel ?? feeForLabel(t, options.term.name, lineNames(res, options.learners, selections)),
       office: pay.officePaymentAllowed && res.registrationId ? { label: t('reg.done.officeInstead'), run: () => chooseOffice(res) } : null,
+      paidAnotherWay: proofs.setup ? () => askConfirmation(pay.pledgeIds, res) : undefined,
     })
       .then((outcome) => {
         if (outcome.status === 'paid') {
@@ -287,12 +295,25 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
       .finally(() => setPaying(false));
   };
 
+  const askConfirmation = (pledgeIds: string[], res: RegistrationResult) => {
+    if (pledgeIds.length === 0) return;
+    const title = feeForLabel(t, options.term.name, lineNames(res, options.learners, selections));
+    setConfirm({ target: confirmationTarget({ kind: 'pathshala_fee', refId: res.registrationId ?? null, pledgeIds, title }), householdId: options.household.id });
+    setConfirmOpen(true);
+  };
+
   const payPledges = (res: RegistrationResult) => {
     const p = linePledges(res);
     if (p.ids.length === 0 || p.cents <= 0) return;
     setPaying(true);
     setPayError(null);
-    payFees({ amountCents: p.cents, pledgeIds: p.ids, householdId: options.household.id, forLabel: feeForLabel(t, options.term.name, lineNames(res, options.learners, selections).filter((_, i) => !!res.lines[i].pledge)) })
+    payFees({
+      amountCents: p.cents,
+      pledgeIds: p.ids,
+      householdId: options.household.id,
+      forLabel: feeForLabel(t, options.term.name, lineNames(res, options.learners, selections).filter((_, i) => !!res.lines[i].pledge)),
+      paidAnotherWay: proofs.setup ? () => askConfirmation(p.ids, res) : undefined,
+    })
       .then((outcome) => {
         if (outcome.status === 'paid') {
           setPaid(true);
@@ -466,6 +487,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
           onPay={() => openPay(result)}
           onPayPledges={() => payPledges(result)}
           onOffice={() => chooseOffice(result)}
+          onPaidAnotherWay={proofs.setup ? (ids) => askConfirmation(ids, result) : undefined}
           onCheckAgain={() => void optionsState.reload()}
         />
       ) : null;
@@ -482,6 +504,7 @@ export function RegistrationFlow({ center, member, askedTerm }: { center: Center
     <Screen title={title} tabBar={false} footer={footer}>
       {optionsState.error ? <ErrorState error={optionsState.error} onRetry={() => void optionsState.reload()} /> : null}
       {body}
+      {confirm && proofs.setup ? <PledgeConfirmation setup={proofs.setup} target={confirm.target} householdId={confirm.householdId} open={confirmOpen} onClose={() => setConfirmOpen(false)} /> : null}
     </Screen>
   );
 }

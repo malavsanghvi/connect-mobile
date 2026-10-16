@@ -55,7 +55,7 @@ export function ProofFiles({ files }: { files: readonly OpenableFile[] }) {
   const t = useT();
   const [error, setError] = useState<string | null>(null);
   const paths = files.map((f) => f.path);
-  const urls = useLoad(() => proofFileUrls(paths), [paths.join('|')], 'open your proof');
+  const urls = useLoad(() => proofFileUrls(paths), [paths.join('|')], 'open your confirmation');
   const open = async (file: OpenableFile, n: number) => {
     setError(null);
     const url = urls.data?.get(file.path);
