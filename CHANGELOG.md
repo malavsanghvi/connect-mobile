@@ -14,6 +14,15 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.30.0 — 2026-10-17 · over-the-air (runtime 5)
+
+- **How would you like to be thanked?** (Family). When an organization that uses DonorDelight chooses to ask, an adult of the household can say how the household
+  would like to be thanked (in person, a call, a card, a message, or no thanks), how they would like to be recognised (by name, personally and never in public, or
+  anonymously) and how to reach them. These are the member's own choices and nothing else: the screen never shows what the organization keeps about them (notes,
+  signs, who looks after them), and the people who care for relationships see only these three choices, as part of the household's care profile. The link appears only
+  when the organization has turned the question on; children are never asked. Saving says what happened; a refusal is shown in plain words and the choices are kept.
+  (connect-crm 0897)
+
 ## 1.29.1
 
 - **Sign-in and RSVP without signing in:** the wait before "Send a new code" is now 3 minutes (it was 1 minute). The code itself works for as long as the sign-in settings say.
