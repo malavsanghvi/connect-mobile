@@ -14,6 +14,30 @@ How a release is made:
    (`eas build --platform android --profile preview`). Builds auto-increment their build number on Expo's servers.
    Bump `runtimeVersion` when native code changes so an old build never receives JavaScript it cannot run.
 
+## 1.31.0 — 2026-10-17 · over-the-air (runtime 5)
+
+JavaScript only: the runtime stays 5. Needs connect-crm 0920 to 0922 on the database first (`my_match_card`, `report_my_match_request`, `undo_my_match_request`, the `matching`
+notification topic), and the owner's OK, because it handles a member's employer.
+
+- **Does your employer match?** Many employers match what their employees give. An adult can now tell the organization where they work, with their consent, and see
+  how to ask that employer for a match. The new screen (`/matching`) says plainly that the employer is kept only with their consent, is used only to help them ask for a
+  match, and can be removed any time.
+  - **Their employer.** Add it, change it or remove it (removing asks first). When the profile already names an employer the screen asks "Is Acme still your employer?"
+    with a button that adds it.
+  - **How to ask.** The steps for that employer as a numbered list, who makes the request, what to have ready, links that open in the browser (https only), the
+    employer's portal, how long it usually takes and the tips, plus the organization's registered name and tax ID with a copy button, because the steps ask for them.
+    When the library has no steps for the employer yet the screen says so, says to ask the employer's human resources team or its giving program, and offers nothing to report.
+  - **Gifts you can still claim, and "I have asked my employer".** Each gift's day and the last day to ask, with the days left. Tapping the button asks first, then tells the
+    organization; the screen shows the plain result and reads the card again. No amount is shown anywhere in this feature.
+  - **Your requests.** Each request with the company, the gift's day and where it stands in plain words (waiting for you to ask, you said you asked, your organization saw it
+    in the employer's portal, the employer paid the match, declined, the deadline passed, withdrawn), with "Take it back" while the organization has not moved it on.
+  - Every failure is shown next to what the person did, in plain words, with Try again; nothing says it worked until the database has said so. Children see "Ask a parent";
+    where CatchTheMatch is off the screen says it is not available for the community.
+- **A card on Give.** "Does your employer match?" sits under the family pledges on the Give tab, only for adults where CatchTheMatch is on. It loads on its own and shows
+  nothing if it cannot, so it never holds up Give.
+- **Two new pushes open it.** A push of type `match_ask` ("tell us your employer") or `match_claim` ("how to claim your match") opens `/matching`. The organization's email links
+  to the same screen.
+- **A new notification choice.** "Employer gift matching" appears in Profile's notification topics (on by default) once the database has the `matching` topic.
 ## 1.30.0 — 2026-10-17 · over-the-air (runtime 5)
 
 - **How would you like to be thanked?** (Family). When an organization that uses DonorDelight chooses to ask, an adult of the household can say how the household
@@ -22,7 +46,6 @@ How a release is made:
   signs, who looks after them), and the people who care for relationships see only these three choices, as part of the household's care profile. The link appears only
   when the organization has turned the question on; children are never asked. Saving says what happened; a refusal is shown in plain words and the choices are kept.
   (connect-crm 0897)
-
 ## 1.29.1
 
 - **Sign-in and RSVP without signing in:** the wait before "Send a new code" is now 3 minutes (it was 1 minute). The code itself works for as long as the sign-in settings say.

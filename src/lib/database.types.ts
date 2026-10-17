@@ -6052,6 +6052,9 @@ export type Database = {
           note: string | null;
           created_at: string;
           created_by: string | null;
+          asked_by_message_at: string | null;
+          asked_message_id: string | null;
+          requested_by_member_at: string | null;
         };
         Insert: {
           id?: string;
@@ -6066,6 +6069,9 @@ export type Database = {
           note?: string | null;
           created_at?: string;
           created_by?: string | null;
+          asked_by_message_at?: string | null;
+          asked_message_id?: string | null;
+          requested_by_member_at?: string | null;
         };
         Update: {
           id?: string;
@@ -6080,6 +6086,45 @@ export type Database = {
           note?: string | null;
           created_at?: string;
           created_by?: string | null;
+          asked_by_message_at?: string | null;
+          asked_message_id?: string | null;
+          requested_by_member_at?: string | null;
+        };
+        Relationships: [];
+      };
+      match_employer_asks: {
+        Row: {
+          id: string;
+          center_id: string;
+          person_id: string;
+          channel: string;
+          asked_at: string;
+          asked_by: string | null;
+          message_id: string | null;
+          queued: boolean;
+          reason: string | null;
+        };
+        Insert: {
+          id?: string;
+          center_id: string;
+          person_id: string;
+          channel: string;
+          asked_at?: string;
+          asked_by?: string | null;
+          message_id?: string | null;
+          queued: boolean;
+          reason?: string | null;
+        };
+        Update: {
+          id?: string;
+          center_id?: string;
+          person_id?: string;
+          channel?: string;
+          asked_at?: string;
+          asked_by?: string | null;
+          message_id?: string | null;
+          queued?: boolean;
+          reason?: string | null;
         };
         Relationships: [];
       };
@@ -13699,6 +13744,14 @@ export type Database = {
         };
         Returns: Json;
       };
+      ask_match_employers: {
+        Args: {
+          p_center: string;
+          p_people?: string[];
+          p_limit?: number;
+        };
+        Returns: Json;
+      };
       ask_proof_question: {
         Args: {
           p_proof: string;
@@ -15784,12 +15837,27 @@ export type Database = {
         };
         Returns: boolean;
       };
+      match_ask_readable: {
+        Args: {
+          p_center: string;
+          p_person: string;
+        };
+        Returns: boolean;
+      };
       match_catch_list: {
         Args: {
           p_center: string;
           p_filter?: string;
           p_limit?: number;
           p_offset?: number;
+        };
+        Returns: Json;
+      };
+      match_claim_message_preview: {
+        Args: {
+          p_center: string;
+          p_person: string;
+          p_program: string;
         };
         Returns: Json;
       };
@@ -15830,6 +15898,14 @@ export type Database = {
           p_person: string;
         };
         Returns: boolean;
+      };
+      match_employer_ask_list: {
+        Args: {
+          p_center: string;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: Json;
       };
       match_employers_queue: {
         Args: {
@@ -16109,6 +16185,12 @@ export type Database = {
           p_center: string;
         };
         Returns: string[];
+      };
+      my_match_card: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
       };
       my_match_employer: {
         Args: {
@@ -17501,6 +17583,12 @@ export type Database = {
         };
         Returns: undefined;
       };
+      report_my_match_request: {
+        Args: {
+          p_center: string;
+        };
+        Returns: Json;
+      };
       report_payment: {
         Args: {
           p_center: string;
@@ -18202,6 +18290,14 @@ export type Database = {
           p_vars: Json;
         };
         Returns: string;
+      };
+      send_match_claim_message: {
+        Args: {
+          p_center: string;
+          p_person: string;
+          p_program: string;
+        };
+        Returns: Json;
       };
       send_pledge_email: {
         Args: {
@@ -19028,6 +19124,13 @@ export type Database = {
           p_center: string;
         };
         Returns: Json;
+      };
+      undo_my_match_request: {
+        Args: {
+          p_center: string;
+          p_claim: string;
+        };
+        Returns: boolean;
       };
       undo_person_deceased: {
         Args: {
