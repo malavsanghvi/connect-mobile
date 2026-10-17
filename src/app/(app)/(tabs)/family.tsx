@@ -8,6 +8,7 @@ import { FamilyHomeworkLine } from '@/features/homework/family-line';
 import { useHomework } from '@/features/homework/use-homework';
 import { roleLabel } from '@/features/labels';
 import { listDisplayName, whenText } from '@/features/special-days';
+import { ThanksLink } from '@/features/thanks/thanks-link';
 import { listOpenHouseholdRequests, listSpecialDays, loadEligibility } from '@/lib/api/family';
 import { myApplication, myReferenceRequests } from '@/lib/api/membership';
 import { signOutBodyKey } from '@/lib/auth-config';
@@ -293,6 +294,7 @@ export default function FamilyScreen() {
           {t('family.guide', { center: community })}
         </Txt>
       </Pressable>
+      {member.isAdult && household ? <ThanksLink /> : null}
       {member.isAdult && household ? (
         <Pressable onPress={() => router.push('/preferences')} accessibilityRole="link" style={{ paddingVertical: 4, alignItems: 'center', minHeight: touch.min, justifyContent: 'center' }}>
           <Txt variant="meta" color="navy">
