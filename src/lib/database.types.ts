@@ -6128,6 +6128,87 @@ export type Database = {
         };
         Relationships: [];
       };
+      match_payments: {
+        Row: {
+          payment_id: string;
+          center_id: string;
+          claim_id: string;
+          person_id: string;
+          household_id: string;
+          employer_name: string;
+          recorded_by: string | null;
+          recorded_at: string;
+        };
+        Insert: {
+          payment_id: string;
+          center_id: string;
+          claim_id: string;
+          person_id: string;
+          household_id: string;
+          employer_name: string;
+          recorded_by?: string | null;
+          recorded_at?: string;
+        };
+        Update: {
+          payment_id?: string;
+          center_id?: string;
+          claim_id?: string;
+          person_id?: string;
+          household_id?: string;
+          employer_name?: string;
+          recorded_by?: string | null;
+          recorded_at?: string;
+        };
+        Relationships: [];
+      };
+      match_process_files: {
+        Row: {
+          id: string;
+          program_id: string;
+          kind: string;
+          caption: string;
+          storage_path: string;
+          content_type: string;
+          bytes: number;
+          sha256: string | null;
+          added_by: string | null;
+          created_at: string;
+          removed_at: string | null;
+          removed_by: string | null;
+          removed_reason: string | null;
+        };
+        Insert: {
+          id?: string;
+          program_id: string;
+          kind: string;
+          caption: string;
+          storage_path: string;
+          content_type: string;
+          bytes: number;
+          sha256?: string | null;
+          added_by?: string | null;
+          created_at?: string;
+          removed_at?: string | null;
+          removed_by?: string | null;
+          removed_reason?: string | null;
+        };
+        Update: {
+          id?: string;
+          program_id?: string;
+          kind?: string;
+          caption?: string;
+          storage_path?: string;
+          content_type?: string;
+          bytes?: number;
+          sha256?: string | null;
+          added_by?: string | null;
+          created_at?: string;
+          removed_at?: string | null;
+          removed_by?: string | null;
+          removed_reason?: string | null;
+        };
+        Relationships: [];
+      };
       match_processes: {
         Row: {
           program_id: string;
@@ -13598,6 +13679,19 @@ export type Database = {
         };
         Returns: Json;
       };
+      add_match_process_file: {
+        Args: {
+          p_program: string;
+          p_path: string;
+          p_content_type: string;
+          p_bytes: number;
+          p_sha256: string;
+          p_kind: string;
+          p_caption: string;
+          p_reason: string;
+        };
+        Returns: string;
+      };
       add_message_suppression: {
         Args: {
           p_center: string;
@@ -15853,6 +15947,13 @@ export type Database = {
         };
         Returns: Json;
       };
+      match_claim_get: {
+        Args: {
+          p_center: string;
+          p_claim: string;
+        };
+        Returns: Json;
+      };
       match_claim_message_preview: {
         Args: {
           p_center: string;
@@ -17380,6 +17481,16 @@ export type Database = {
         };
         Returns: Json;
       };
+      record_match_payment: {
+        Args: {
+          p_center: string;
+          p_claim: string;
+          p_amount_cents: number;
+          p_received_on?: string;
+          p_note?: string;
+        };
+        Returns: Json;
+      };
       record_member_legal_answers: {
         Args: {
           p_center: string;
@@ -17541,6 +17652,13 @@ export type Database = {
           p_reason: string;
         };
         Returns: undefined;
+      };
+      remove_match_process_file: {
+        Args: {
+          p_file: string;
+          p_reason: string;
+        };
+        Returns: Json;
       };
       remove_my_match_employer: {
         Args: {
