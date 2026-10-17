@@ -268,3 +268,16 @@ registerNotificationRoute(LUNCH_REMINDER, {
     return id ? { pathname: '/event/[id]/tickets', params: { id } } : null;
   },
 });
+
+// ---------------------------------------------------------------------------
+// Does your employer match? (CatchTheMatch, connect-crm 0920 and 0921). "match_ask": the organization asks an adult to tell it
+// their employer (consent is theirs, in the app); "match_claim": the organization tells them how to claim a match for their
+// gifts. Both carry `type` and `deep_link` "/matching". A tap opens that screen, which shows the member's own card and
+// says in words if the feature is not available to them: nothing in the payload is read, so nothing personal rides in it.
+// ---------------------------------------------------------------------------
+
+export const MATCH_ASK = 'match_ask';
+export const MATCH_CLAIM = 'match_claim';
+
+registerNotificationRoute(MATCH_ASK, { open: () => ({ pathname: '/matching' }) });
+registerNotificationRoute(MATCH_CLAIM, { open: () => ({ pathname: '/matching' }) });

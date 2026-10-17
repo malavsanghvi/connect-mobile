@@ -177,6 +177,8 @@ describe('notice pushes (connect-crm 0596 and 0598)', () => {
     lunch_reminder: { type: 'lunch_reminder', deep_link: `/event/${EVENT}/tickets`, event_id: EVENT },
     rsvp_confirm: { type: 'rsvp_confirm', deep_link: `/event/${EVENT}/confirm`, event_id: EVENT },
     special_day: { type: 'special_day', deep_link: `/labh/${DAY}`, special_day_id: DAY },
+    match_ask: { type: 'match_ask', deep_link: '/matching' },
+    match_claim: { type: 'match_claim', deep_link: '/matching' },
   };
 
   it('opens the boli for "another family pledged more" and for the notice before it closes', () => {
@@ -198,6 +200,17 @@ describe('notice pushes (connect-crm 0596 and 0598)', () => {
   it('opens the store for "your order is ready"', () => {
     expect(notificationTarget(payloads.store_order_ready)).toEqual({ pathname: '/store' });
     expect(notificationTarget({ type: 'store_order_ready' })).toEqual({ pathname: '/store' });
+  });
+  it('opens "Does your employer match?" for the two employer-match pushes (connect-crm 0920 and 0921)', () => {
+    expect(notificationTarget(payloads.match_ask)).toEqual({ pathname: '/matching' });
+    expect(notificationTarget(payloads.match_claim)).toEqual({ pathname: '/matching' });
+    // The screen is the same whatever else rides along, and a push with only its type still opens it.
+    expect(notificationTarget({ type: 'match_ask' })).toEqual({ pathname: '/matching' });
+    expect(notificationTarget({ type: 'match_claim', deep_link: '/something-else', person_id: 'p1' })).toEqual({ pathname: '/matching' });
+  });
+  it('does not open the screen for a payload of another type, even with the same link', () => {
+    expect(notificationTarget({ type: 'match_something_new', deep_link: '/matching' })).toBeNull();
+    expect(notificationTarget({ deep_link: '/matching' })).toBeNull();
   });
   it('opens the event tickets for the lunch reminder, by event id or by deep link (old payloads had only event_id and slot_id)', () => {
     const target = { pathname: '/event/[id]/tickets', params: { id: EVENT } };

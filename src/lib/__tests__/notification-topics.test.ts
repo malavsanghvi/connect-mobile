@@ -10,6 +10,7 @@ describe('notification topics', () => {
     { key: 'giving', has_sender: true },
     { key: 'pathshala', has_sender: true },
     { key: 'store', has_sender: true },
+    { key: 'matching', has_sender: true },
     { key: 'timings', has_sender: false },
     { key: 'jain_way', has_sender: false },
     { key: 'family', has_sender: false },
@@ -19,7 +20,7 @@ describe('notification topics', () => {
   ];
 
   it('shows the topics that have a sender and hides the ones that do not', () => {
-    expect(topics.filter(topicHasSender).map((t) => t.key)).toEqual(['events', 'giving', 'pathshala', 'store']);
+    expect(topics.filter(topicHasSender).map((t) => t.key)).toEqual(['events', 'giving', 'pathshala', 'store', 'matching']);
   });
 
   it('shows every topic when the portal does not say (an older portal sends no such column)', () => {
@@ -31,5 +32,13 @@ describe('notification topics', () => {
   it('hides a topic only when the portal says false', () => {
     expect(topicHasSender({ key: 'family', has_sender: false })).toBe(false);
     expect(topicHasSender({ key: 'family', has_sender: true })).toBe(true);
+  });
+
+  // connect-crm 0920 adds the topic "matching" (Employer gift matching, on by default, with a sender). The list comes from the
+  // database (notification_topics), so it appears in Profile > notifications by itself; this keeps it from being hidden.
+  it('lists the employer gift matching topic the database added, because it has a sender', () => {
+    const matching = { key: 'matching', name: 'Employer gift matching', default_on: true, marketing: true, has_sender: true };
+    expect(topicHasSender(matching)).toBe(true);
+    expect([{ key: 'newsletter', has_sender: false }, matching].filter(topicHasSender).map((t) => t.key)).toEqual(['matching']);
   });
 });

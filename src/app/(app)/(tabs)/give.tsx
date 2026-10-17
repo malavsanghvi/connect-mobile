@@ -7,6 +7,7 @@ import { EmptyState, Loaded, LockedState } from '@/components/states';
 import { Banner, Button, Card, Row, Txt, VStack } from '@/components/ui';
 import { AvailabilityBar, Heading, slotsText, TintTile } from '@/features/give/parts';
 import { availabilityFraction, fromAmountCents, opportunityKind, slotsLine } from '@/features/give/rules';
+import { MatchEntryCard } from '@/features/matching/entry';
 import { startPayment } from '@/features/pay';
 import { HowToGive } from '@/features/pay/how-to-give';
 import { otherMethods, type PaymentMethods } from '@/features/pay/methods';
@@ -221,6 +222,9 @@ function GiveBody({ howToGive, summary, opps, openDigital, inPerson, openPledges
           entry="open_pledges"
         />
       ) : null}
+
+      {/* CatchTheMatch (connect-crm 0922): shows only for an adult where it is on; loads and fails on its own, never holding up this tab. */}
+      <MatchEntryCard />
 
       {howToGive ? (
         <>
